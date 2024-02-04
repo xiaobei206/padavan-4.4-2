@@ -5,7 +5,7 @@ PKG_VERSION:=5.13.0
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/v2fly/v2ray-core/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=b9110ff10d87b245efd42b5a93beb4a3e5138fcfe92d09cadfb6a72cc4e1c91c
+PKG_HASH:=6b2eb6286c99da010db5c5f629f950e753fc4addeed189d3d898c1ef56d5a785
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/v2ray-core-$(PKG_VERSION)
 
