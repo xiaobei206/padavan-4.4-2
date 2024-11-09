@@ -6,7 +6,7 @@ PKG_VERSION:=1.8.7
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/XTLS/Xray-core/tar.gz/v$(PKG_VERSION)?
 #PKG_SOURCE_URL:=https://raw.githubusercontent.com/xiaobei206/padavan-4.4-2/main/trunk/user/xray/Xray-core-1.8.7.tar.gz
-PKG_HASH:=9b3ebc46e2234d7fc98b58a3df0ae6399632940ebf6e3601fabb0624b5068a3b
+PKG_HASH:=e8f46177d792b89700f164ca28fbf1a3c7d95a3ecf98871cb0dd5e474b46a859
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/Xray-core-$(PKG_VERSION)
 
