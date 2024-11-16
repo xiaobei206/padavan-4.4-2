@@ -5,11 +5,13 @@ on:
     types: [published]
   push:
     tags:
-    - 'v*'
-  #  branches: 
-  #    - master
-#  schedule:
-#    - cron: 0 8 * * 5
+      - 'v*'
+    paths:
+      - '.github/workflows/build.yml' # 监听 build.yml 的修改
+  # branches:
+  #   - master # 注释掉的分支触发规则
+  # schedule:
+  #   - cron: 0 8 * * 5 # 注释掉的定时触发规则
   watch:
     types: [started]
 
