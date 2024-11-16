@@ -1,10 +1,14 @@
 name: build
 
 on: 
+  release:
+    types: [published]
   push:
     branches:
     - "*"
   workflow_dispatch:
+    watch:
+    types: [started]
 
 jobs:
   build:
