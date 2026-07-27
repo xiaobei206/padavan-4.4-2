@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [K2P, K2P-USB]
+        target: [XY-C1]
         toolchain: [mipsel-linux-musl]
 
     steps:
