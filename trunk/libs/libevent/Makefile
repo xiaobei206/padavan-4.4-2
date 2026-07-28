@@ -22,4 +22,4 @@ $(eval $(call BuildPackage,libevent))
 
 romfs:
 	$(INSTALL_DIR) $(ROMFSDIR)/lib
-	$(CP) $(PKG_INSTALL_DIR)/lib/libevent-2.1.so* $(ROMFSDIR)/lib/
+	$(CP) $(PKG_INSTALL_DIR)/lib/libevent-*.so* $(ROMFSDIR)/lib/
