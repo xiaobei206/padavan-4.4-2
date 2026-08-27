@@ -1,9 +1,8 @@
 name: Build Firmware
 
 on:
-  push:
-    branches:
-      - "*"
+  watch:
+    types: [started]
   workflow_dispatch:
 
 jobs:
