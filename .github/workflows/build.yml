@@ -40,6 +40,19 @@ jobs:
             autoconf automake liblzma-dev libltdl-dev liblzo2-dev
           echo "BUILD_DATE=$(TZ='Asia/Shanghai' date +%Y%m%d)" >> $GITHUB_ENV
 
+      # 【安全修改版】只动参数不动底层，原生生成 4.4-日期_hash 格式
+      - name: Customize Firmware Version
+        run: |
+          cd trunk
+          # 获取短日期 (例如 260828)
+          SHORT_DATE=$(TZ='Asia/Shanghai' date +%y%m%d)
+          
+          # 将超长前缀改为干净的 4.4
+          sed -i 's/^FIRMWARE_ROOTFS_VER=.*/FIRMWARE_ROOTFS_VER=4.4/' versions.inc
+          
+          # 将中间的版本号替换为当天的日期
+          sed -i "s/^FIRMWARE_BUILDS_REV=.*/FIRMWARE_BUILDS_REV=${SHORT_DATE}/" versions.inc
+
       - name: Build Firmware
         run: |
           make ${{ matrix.target }} TOOLCHAIN=${{ matrix.toolchain }}
