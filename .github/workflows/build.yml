@@ -28,7 +28,7 @@ jobs:
 
       - uses: actions/setup-go@main
         with:
-          go-version: '1.22.x'
+          go-version: '1.23.x'
           check-latest: true
           cache: false
 
