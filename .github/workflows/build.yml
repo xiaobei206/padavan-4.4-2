@@ -45,12 +45,13 @@ jobs:
 
           echo "BUILD_DATE=$(TZ='Asia/Shanghai' date +%Y%m%d)" >> "$GITHUB_ENV"
 
-      - name: Set Firmware Version
-        env:
-          CUSTOM_VERSION: 4.4_$(git rev-parse --short=7 HEAD)_$(TZ='Asia/Shanghai' date +%y%m%d)
+      - name: Customize Firmware Version
         run: |
+          set -e
+
           GIT_REV=$(git rev-parse --short=7 HEAD)
           SHORT_DATE=$(TZ='Asia/Shanghai' date +%y%m%d)
+          CUSTOM_VERSION="4.4_${GIT_REV}_${SHORT_DATE}"
 
           echo "========================================"
           echo "Git Commit       : ${GIT_REV}"
@@ -58,19 +59,29 @@ jobs:
           echo "Firmware Version : ${CUSTOM_VERSION}"
           echo "========================================"
 
-          cat > trunk/user/rc/src/custom_fw_version.h <<EOF
+          RC_FILE="trunk/user/rc/src/common_ex.c"
+          HEADER_FILE="trunk/user/rc/src/custom_fw_version.h"
+
+          echo
+          echo "=== Restore common_ex.c from Git ==="
+          git checkout -- "$RC_FILE"
+
+          echo
+          echo "=== Generate custom_fw_version.h ==="
+          cat > "$HEADER_FILE" <<EOF
           #ifndef CUSTOM_FW_VERSION_H
           #define CUSTOM_FW_VERSION_H
           #define CUSTOM_FW_VERSION "${CUSTOM_VERSION}"
           #endif
           EOF
 
-          echo
-          echo "=== Generated custom_fw_version.h ==="
-          cat trunk/user/rc/src/custom_fw_version.h
+          cat "$HEADER_FILE"
 
-          python3 <<'PY'
-          import os
+          echo
+          echo "=== Patch common_ex.c ==="
+
+          python3 - <<'PY'
+          import re
           from pathlib import Path
 
           path = Path("trunk/user/rc/src/common_ex.c")
@@ -82,7 +93,7 @@ jobs:
               marker = '#include "rc.h"'
 
               if marker not in text:
-                  raise SystemExit('ERROR: #include "rc.h" not found in common_ex.c')
+                  raise SystemExit('ERROR: #include "rc.h" not found')
 
               text = text.replace(
                   marker,
@@ -90,80 +101,97 @@ jobs:
                   1
               )
 
-          start_marker = '#if defined(FWBLDSTR)'
-          end_marker = '#endif'
+          pattern = re.compile(
+              r'#if defined\(FWBLDSTR\).*?#endif\s*'
+              r'#if defined\(FWREVSTR\).*?#endif',
+              re.DOTALL
+          )
 
-          start = text.find(start_marker)
+          replacement = '''#ifdef CUSTOM_FW_VERSION
+          snprintf(fwver_sub, sizeof(fwver_sub), "%s", CUSTOM_FW_VERSION);
+          #endif'''
 
-          if start != -1:
-              second_start = text.find('#if defined(FWREVSTR)', start)
+          text, count = pattern.subn(replacement, text, count=1)
 
-              if second_start == -1:
-                  raise SystemExit(
-                      'ERROR: FWBLDSTR block found, but FWREVSTR block was not found.'
-                  )
-
-              end = text.find(
-                  end_marker,
-                  text.find(end_marker, second_start) + len(end_marker)
-              )
-
-              if end == -1:
-                  raise SystemExit(
-                      'ERROR: Could not locate end of firmware version block.'
-                  )
-
-              end += len(end_marker)
-
-              new_block = '''#ifdef CUSTOM_FW_VERSION
-              snprintf(fwver_sub, sizeof(fwver_sub), "%s", CUSTOM_FW_VERSION);
-              #endif'''
-
-              text = text[:start] + new_block + text[end:]
-
-          elif '#ifdef CUSTOM_FW_VERSION' not in text:
+          if count != 1:
               raise SystemExit(
-                  'ERROR: Neither original FWBLDSTR/FWREVSTR block nor CUSTOM_FW_VERSION block was found.'
+                  f'ERROR: Expected exactly one FWBLDSTR/FWREVSTR block, found {count}'
               )
 
           path.write_text(text)
 
-          print("common_ex.c patched successfully.")
-          print("CUSTOM_FW_VERSION =", os.environ["CUSTOM_VERSION"])
+          print("common_ex.c patch completed successfully.")
           PY
 
           echo
-          echo "=== Verify custom version code ==="
-          grep -n -A6 -B3 "CUSTOM_FW_VERSION" trunk/user/rc/src/common_ex.c
+          echo "=== Verify patched source ==="
+          grep -n -A8 -B5 "CUSTOM_FW_VERSION" "$RC_FILE"
 
-      - name: Build Firmware
-        run: |
-          make ${{ matrix.target }} TOOLCHAIN=${{ matrix.toolchain }}
-
-      - name: Verify Firmware Version
-        env:
-          CUSTOM_VERSION: 4.4_$(git rev-parse --short=7 HEAD)_$(TZ='Asia/Shanghai' date +%y%m%d)
-        run: |
-          echo "========================================"
-          echo "Expected Firmware Version: ${CUSTOM_VERSION}"
-          echo "========================================"
-
-          if [ ! -f trunk/user/rc/src/rc ]; then
-            echo "ERROR: trunk/user/rc/src/rc was not found."
+          echo
+          echo "=== Verify no old version block remains ==="
+          if grep -n "FWBLDSTR" "$RC_FILE"; then
+            echo "ERROR: FWBLDSTR still exists in common_ex.c"
             exit 1
           fi
 
-          echo "Checking rc binary..."
+          if grep -n "FWREVSTR" "$RC_FILE"; then
+            echo "ERROR: FWREVSTR still exists in common_ex.c"
+            exit 1
+          fi
 
-          if strings trunk/user/rc/src/rc | grep -F "${CUSTOM_VERSION}" >/dev/null 2>&1; then
+          echo
+          echo "Source patch verification: OK"
+
+      - name: Build Firmware
+        run: |
+          set -e
+
+          make ${{ matrix.target }} TOOLCHAIN=${{ matrix.toolchain }}
+
+      - name: Verify Firmware Version
+        run: |
+          set -e
+
+          GIT_REV=$(git rev-parse --short=7 HEAD)
+          SHORT_DATE=$(TZ='Asia/Shanghai' date +%y%m%d)
+          CUSTOM_VERSION="4.4_${GIT_REV}_${SHORT_DATE}"
+
+          echo "========================================"
+          echo "Expected Firmware Version:"
+          echo "${CUSTOM_VERSION}"
+          echo "========================================"
+
+          echo
+          echo "=== Locate rc binary ==="
+
+          RC_BINARY=""
+
+          if [ -f "trunk/build/rc/rc" ]; then
+            RC_BINARY="trunk/build/rc/rc"
+          elif [ -f "trunk/user/rc/rc" ]; then
+            RC_BINARY="trunk/user/rc/rc"
+          elif [ -f "trunk/user/rc/src/rc" ]; then
+            RC_BINARY="trunk/user/rc/src/rc"
+          fi
+
+          if [ -z "$RC_BINARY" ]; then
+            echo "ERROR: rc binary not found."
+            find trunk -type f -name "rc" -print
+            exit 1
+          fi
+
+          echo "RC binary: ${RC_BINARY}"
+
+          echo
+          echo "=== Check embedded firmware version ==="
+
+          if strings "$RC_BINARY" | grep -F "${CUSTOM_VERSION}" >/dev/null 2>&1; then
             echo "SUCCESS: ${CUSTOM_VERSION} is embedded in rc."
           else
             echo "ERROR: ${CUSTOM_VERSION} was NOT found in rc."
             echo
-            echo "Firmware version verification FAILED."
-            echo
-            echo "Found version-related strings:"
-            strings trunk/user/rc/src/rc | grep -E '4\.4|FWREVSTR|FWBLDSTR|CUSTOM_FW' | head -30 || true
+            echo "Version-related strings found:"
+            strings "$RC_BINARY" | grep -E '4\.4|FWBLDSTR|FWREVSTR|CUSTOM_FW_VERSION' | head -50 || true
             exit 1
           fi
 
