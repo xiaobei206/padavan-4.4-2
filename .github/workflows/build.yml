@@ -45,22 +45,71 @@ jobs:
 
           echo "BUILD_DATE=$(TZ='Asia/Shanghai' date +%Y%m%d)" >> $GITHUB_ENV
 
+      - name: Customize Firmware Version
+        run: |
+          GIT_REV=$(git rev-parse --short=7 HEAD)
+          SHORT_DATE=$(TZ='Asia/Shanghai' date +%y%m%d)
+          CUSTOM_VERSION="4.4_${GIT_REV}_${SHORT_DATE}"
+
+          echo "========================================"
+          echo "Git Commit       : ${GIT_REV}"
+          echo "Build Date       : ${SHORT_DATE}"
+          echo "Firmware Version : ${CUSTOM_VERSION}"
+          echo "========================================"
+
+          python3 - <<PY
+          from pathlib import Path
+
+          path = Path("trunk/user/rc/src/common_ex.c")
+          text = path.read_text()
+
+          old = """#if defined(FWBLDSTR)
+          \tif (strlen(FWBLDSTR) > 0 && strlen(FWBLDSTR) <= 4) {
+          \t\tstrcat(fwver_sub, "-");
+          \t\tstrcat(fwver_sub, FWBLDSTR);
+          \t}
+          #endif
+          #if defined(FWREVSTR)
+          \tif (strlen(FWREVSTR) > 0 && strlen(FWREVSTR) <= 8) {
+          \t\tstrcat(fwver_sub, "_");
+          \t\tstrcat(fwver_sub, FWREVSTR);
+          \t}
+          #endif"""
+
+          new = """#ifdef CUSTOM_FW_VERSION
+          \tsnprintf(fwver_sub, sizeof(fwver_sub), "%s", CUSTOM_FW_VERSION);
+          #endif"""
+
+          if old not in text:
+              raise SystemExit("ERROR: firmware version block not found in common_ex.c")
+
+          text = text.replace(old, new, 1)
+
+          marker = '#include "rc.h"'
+          define_line = f'#define CUSTOM_FW_VERSION "{CUSTOM_VERSION}"'
+
+          if define_line not in text:
+              if marker not in text:
+                  raise SystemExit('ERROR: "#include \\"rc.h\\"" not found in common_ex.c')
+              text = text.replace(
+                  marker,
+                  marker + "\n" + define_line,
+                  1
+              )
+
+          path.write_text(text)
+
+          print("common_ex.c patched successfully.")
+          print(f"CUSTOM_FW_VERSION = {CUSTOM_VERSION}")
+          PY
+
+          echo
+          echo "=== Verify common_ex.c ==="
+          grep -n -A8 -B4 "CUSTOM_FW_VERSION" trunk/user/rc/src/common_ex.c
+
       - name: Build Firmware
         run: |
-          SHORT_DATE=$(TZ='Asia/Shanghai' date +%y%m%d)
-          GIT_REV=$(git rev-parse --short=7 HEAD)
-          VERSION="4.4_${GIT_REV}_${SHORT_DATE}"
-
-          echo "========================================"
-          echo "Firmware Version: ${VERSION}"
-          echo "Git Commit:       ${GIT_REV}"
-          echo "Build Date:       ${SHORT_DATE}"
-          echo "========================================"
-
-          make ${{ matrix.target }} \
-            TOOLCHAIN=${{ matrix.toolchain }} \
-            VERSIONSTR="${VERSION}" \
-            VERSIONPKG="${VERSION}"
+          make ${{ matrix.target }} TOOLCHAIN=${{ matrix.toolchain }}
 
       - uses: actions/upload-artifact@main
         with:
