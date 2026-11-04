@@ -384,7 +384,11 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 	/* verify after write */
 	if (cnt == 0 && mi.type != MTD_UBIVOLUME) {
 		tmp = (unsigned char *)malloc(count);
-		if (tmp) {
+		if (!tmp) {
+			fprintf(stderr, "%s: failed to alloc memory for %u verification bytes\n",
+				__func__, count);
+			ret = -1;
+		} else {
 			if (flash_mtd_read(mtd_part, offset, tmp, count) != 0 ||
 			    memcmp(tmp, buf, count) != 0) {
 				fprintf(stderr, "%s: failed to verify after write to %s\n",
