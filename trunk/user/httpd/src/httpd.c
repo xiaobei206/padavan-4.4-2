@@ -777,18 +777,30 @@ try_pull_data(FILE *conn_fp, int conn_fd)
 int
 do_fwrite(const char *buffer, int len, FILE *stream)
 {
-	int n = len;
-	int r = 0;
+	int remaining;
+	size_t written;
 
-	while (n > 0) {
-		r = fwrite(buffer, 1, n, stream);
-		if ((r == 0) && (errno != EINTR))
+	if (!stream || len < 0 || (len > 0 && !buffer))
+		return -1;
+	if (len == 0)
+		return 0;
+
+	remaining = len;
+	while (remaining > 0) {
+		errno = 0;
+		written = fwrite(buffer, 1, (size_t)remaining, stream);
+		if (written == 0) {
+			if (errno == EINTR) {
+				clearerr(stream);
+				continue;
+			}
 			return -1;
-		buffer += r;
-		n -= r;
+		}
+		buffer += written;
+		remaining -= (int)written;
 	}
 
-	return r;
+	return len;
 }
 
 void
@@ -798,9 +810,13 @@ do_file(const char *url, FILE *stream)
 	char buf[1024];
 	int nr;
 
+	if (!url || !stream)
+		return;
 	if ((fp = fopen(url, "r")) != NULL) {
-		while ((nr = fread(buf, 1, sizeof(buf), fp)) > 0)
-			do_fwrite(buf, nr, stream);
+		while ((nr = fread(buf, 1, sizeof(buf), fp)) > 0) {
+			if (do_fwrite(buf, nr, stream) < 0)
+				break;
+		}
 		fclose(fp);
 	}
 }
