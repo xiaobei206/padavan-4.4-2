@@ -623,8 +623,8 @@ SkipDBRecord *SkipDB_recordAt_(SkipDB *self, Datum k)
 		(k.size > 0 && NULL == k.data))
 		return NULL;
 	SkipDB_clearUpdate(self);
-	/* Mutations require the predecessor at every skip-list level. */
-	return SkipDBRecord_find_quick_(self->header, k, 1);
+	/* Use the full walk so every level's predecessor is populated. */
+	return SkipDBRecord_find_quick_(self->header, k, 0);
 }
 
 
