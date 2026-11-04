@@ -262,3 +262,11 @@ a184d76  aspbw.c: validate file read buffers and retry interrupted reads.
 c4f84ea  aspbw.c: handle short writes and invalid file-helper inputs.
 40c5e86  ralink.c: validate wireless range ioctl response lengths.
 1ffa65b  ralink.c: clamp station-table counts to response and buffer capacity.
+
+2026-11-04 follow-up:
+6b6c8a1  dbapi.c: restore truncated dbclient_json/main; validate JS prefix and use checked 64-bit read deadlines.
+ca9f961  dbus.c: prevent 32-bit timeout overflow; validate framed write length and retry EINTR.
+c04fb89  dbus.c: set client socket nonblocking before first request; handle F_GETFL failure.
+2d4340b  skipd/SkipDB: load persisted active DB marker; validate merge/commit before switching; atomically fsync+rename marker.
+68557b1  skipd.c: preserve both DBs and stop if marker rename succeeded but directory fsync failed.
+Verification: source review only; firmware build/hardware run not performed in this session.
