@@ -655,32 +655,35 @@ void UArray_convertToItemType_(UArray *self, CTYPE newItemType)
 UArray UArray_stackRange(const UArray *self, size_t start, size_t size)
 {
 	UArray s;
+	if (NULL == self) {
+		memset(&s, 0, sizeof(UArray));
+		s.itemType = CTYPE_uint8_t;
+		s.itemSize = sizeof(uint8_t);
+#ifdef UARRAY_DEBUG
+		s.stackAllocated = 1;
+#endif
+		return s;
+	}
 
 	memcpy(&s, self, sizeof(UArray));
 	s.hash = 0;
-
 #ifdef UARRAY_DEBUG
 	s.stackAllocated = 1;
 #endif
 
-	if(start < self->size || start == 0)
-	{
-		s.data = self->data + self->itemSize * start;
-	}
-	else
-	{
-		s.data = 0x0;
-	}
-
-	if(start + size <= self->size)
-	{
-		s.size = size;
-	}
-	else
-	{
+	if (self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		(start > self->size) ||
+		(size > self->size - start) ||
+		(self->size > 0 && NULL == self->data) ||
+		start > (size_t)-1 / self->itemSize) {
+		s.data = NULL;
 		s.size = 0;
+		return s;
 	}
 
+	s.data = self->data ? self->data + self->itemSize * start : NULL;
+	s.size = size;
 	return s;
 }
 
@@ -1266,33 +1269,42 @@ int UArray_containsDouble_(const UArray *self, double value)
 
 #define UARRAY_RFIND_TYPES(OP2, TYPE1, self, TYPE2, other)\
 {\
-	long i, j;\
-		if(self->size < other->size) return -1;\
-			for(i = self->size - other->size + 1; i > -1; i --)\
-			{\
-				int match = 1;\
-				for(j = 0; j < other->size; j ++)\
-				{\
-					TYPE1 v1 = ((TYPE1 *)self->data)[i+j];\
-						TYPE2 v2 = ((TYPE2 *)other->data)[j];\
-							if (v1 != v2) { match = 0; break; }\
-				}\
-				if(match) { return i;}\
-			}\
-			return -1;\
+	size_t i, j;\
+	if (self->size < other->size || self->size > (size_t)LONG_MAX) return -1;\
+	i = self->size - other->size;\
+	for (;;) {\
+		int match = 1;\
+		for (j = 0; j < other->size; j++) {\
+			TYPE1 v1 = ((TYPE1 *)self->data)[i + j];\
+			TYPE2 v2 = ((TYPE2 *)other->data)[j];\
+			if (v1 != v2) { match = 0; break; }\
+		}\
+		if (match) return (long)i;\
+		if (i == 0) break;\
+		i--;\
+	}\
+	return -1;\
 }
 
 long UArray_rFind_(const UArray *self, const UArray *other)
 {
+	if (NULL == self || NULL == other ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return -1;
 	DUARRAY_OP(UARRAY_RFIND_TYPES, NULL, self, other);
 	return -1;
 }
 
 BASEKIT_API long UArray_rFind_from_(const UArray *self, const UArray *other, size_t from)
 {
-	UArray s = UArray_stackRange(self, 0, from);
-	long i = UArray_rFind_(&s, other);
-	return i;
+	UArray s;
+	if (NULL == self || NULL == other)
+		return -1;
+	if (from > self->size)
+		from = self->size;
+	s = UArray_stackRange(self, 0, from);
+	return UArray_rFind_(&s, other);
 }
 
 #define UARRAY_RFINDANYCASE_TYPES(OP2, TYPE1, self, TYPE2, other)\
