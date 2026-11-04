@@ -474,10 +474,17 @@ void JFile_writeLogToFile(JFile *self)
 			goto fatalError;
 		}
 
-                //by janson, TODO better
-                if (0 == total) {
-                    return;
-                }
+		/* Older versions could leave zero-length payload records in the log. */
+		if (total == 0) {
+			lastTerminator = fgetc(self->log);
+			if (lastTerminator != JFILE_END_TRANSACTION_ITEM &&
+				lastTerminator != JFILE_END_TRANSACTION) {
+				printf("JFile: invalid empty log record terminator\n");
+				goto fatalError;
+			}
+			logNotEmpty = 1;
+			continue;
+		}
 
 		data_pos = ftell(self->log);
 		if (pos < 0 || data_pos < 0 || data_pos >= log_end ||
