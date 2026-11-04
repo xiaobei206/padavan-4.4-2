@@ -560,12 +560,16 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 	SkipDBRecord *current;
 	int level;
 	size_t steps = 0;
+	long max_steps;
 
 	if (NULL == self || NULL == self->key ||
 		(key.size > 0 && NULL == key.data))
 		return NULL;
 	db = (SkipDB *)self->sdb;
-	if (NULL == db)
+	if (NULL == db || NULL == db->udb || NULL == db->udb->index)
+		return NULL;
+	max_steps = UDBIndex_pidCount(db->udb->index);
+	if (max_steps <= 0)
 		return NULL;
 	current = self;
 
@@ -579,7 +583,7 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 			SkipDBRecord *r;
 			int c;
 
-			if (++steps > 1000000 || level >= SKIPDB_MAX_LEVEL) {
+			if (++steps > (size_t)max_steps || level >= SKIPDB_MAX_LEVEL) {
 				SkipDB_clearUpdate(db);
 				return NULL;
 			}
@@ -624,12 +628,20 @@ SkipDBRecord *SkipDBRecord_findLastRecord(SkipDBRecord *self)
 {
 	SkipDBRecord *current = self;
 	SkipDBRecord *next;
+	SkipDB *db = self ? (SkipDB *)self->sdb : NULL;
+	long max_steps;
 	int level;
 	size_t steps = 0;
 
+	if (NULL == db || NULL == db->udb || NULL == db->udb->index)
+		return NULL;
+	max_steps = UDBIndex_pidCount(db->udb->index);
+	if (max_steps <= 0)
+		return NULL;
+
 	while (current)
 	{
-		if (++steps > 1000000 ||
+		if (++steps > (size_t)max_steps ||
 			current->level < 0 || current->level > SKIPDB_MAX_LEVEL ||
 			(current->level > 0 && NULL == current->pointers))
 			return NULL;
