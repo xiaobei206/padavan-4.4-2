@@ -91,7 +91,7 @@ void UDBRecords_open(UDBRecords *self)
 	data_size = JFile_setPositionToEnd(self->file);
 	if (data_size < 0 ||
 		(data_size > 0 && (size_t)data_size < sizeof(PID_TYPE))) {
-		fprintf(stderr, "UDBRecords: truncated first-empty metadata header\\n");
+		fprintf(stderr, "UDBRecords: truncated first-empty metadata header\n");
 		JFile_close(self->file);
 		return;
 	}
