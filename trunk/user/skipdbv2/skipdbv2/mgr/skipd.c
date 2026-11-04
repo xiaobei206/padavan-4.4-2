@@ -338,7 +338,7 @@ static void delay_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
         }
         memcpy(static_buffer, dvalue.data, tmpi);
         static_buffer[tmpi] = '\0';
-        if(S2ISUCCESS != str2int(&tmpi, static_buffer, 10)) {
+        if(S2ISUCCESS != str2int(&tmpi, static_buffer, 10) || tmpi < 0) {
             skipd_log(SKIPD_DEBUG, "delay cmd:%s, str2int error\n", dkey.data);
             break;
         }
@@ -860,6 +860,8 @@ static int client_run_command(EV_P_ skipd_client* client)
         memcpy(static_buffer, p1, (size_t)tmpi);
         static_buffer[tmpi] = '\0';
 
+        memset(&tm1, 0, sizeof(tm1));
+        tm1.tm_mday = 1;
         p2 = strptime(static_buffer, "%H:%M:%S", &tm1);
         if(p2 == NULL || *p2 != '\0' ||
            tm1.tm_hour < 0 || tm1.tm_hour > 23 ||
