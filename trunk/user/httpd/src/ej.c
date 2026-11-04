@@ -258,7 +258,7 @@ load_dictionary(char *lang, pkw_t pkw)
 	char *p, *q, *line_end;
 	unsigned char **new_idx;
 	long file_size;
-	size_t remaining, line_len;
+	size_t remaining, line_len, consumed_len;
 	int dict_size, new_size;
 
 	if (!pkw)
@@ -303,21 +303,34 @@ load_dictionary(char *lang, pkw_t pkw)
 		if (!fgets(q, (int)remaining, dfp))
 			break;
 
-		line_end = strchr(q, '\n');
-		if (line_end)
-			*line_end = '\0';
-		else if (strlen(q) >= remaining - 1)
+		/* Track bytes consumed, not the trimmed text length: CRLF, blank,
+		 * malformed and binary-corrupt lines must never overlap the next row. */
+		line_end = memchr(q, '\n', remaining - 1);
+		if (line_end) {
+			consumed_len = (size_t)(line_end - q) + 1;
+		} else {
+			consumed_len = strnlen(q, remaining - 1);
+			if (consumed_len >= remaining - 1)
+				goto load_fail;
+		}
+		if (consumed_len == 0 || memchr(q, '\0', consumed_len) != NULL)
 			goto load_fail;
 
-		line_len = strlen(q);
+		if (line_end)
+			*line_end = '\0';
+		line_len = consumed_len - (line_end ? 1 : 0);
 		if (line_len > 0 && q[line_len - 1] == '\r')
 			q[--line_len] = '\0';
-		if (line_len == 0)
+		if (line_len == 0) {
+			q += consumed_len;
 			continue;
+		}
 
 		p = strchr(q, '=');
-		if (!p)
+		if (!p) {
+			q += consumed_len;
 			continue;
+		}
 
 		if (pkw->len >= pkw->tlen) {
 			if (pkw->tlen > INT_MAX - INC_ITEM)
@@ -335,7 +348,7 @@ load_dictionary(char *lang, pkw_t pkw)
 		}
 
 		pkw->idx[pkw->len++] = (unsigned char *)q;
-		q += line_len + 1;
+		q += consumed_len;
 	}
 
 	fclose(dfp);
