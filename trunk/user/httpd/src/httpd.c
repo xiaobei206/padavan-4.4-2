@@ -538,7 +538,8 @@ http_login_check(const uaddr *ip_now)
 		return 2;
 	}
 
-	return 3;
+	/* The active login belongs to another IP; do not treat it as our session. */
+	return 0;
 }
 
 static int
