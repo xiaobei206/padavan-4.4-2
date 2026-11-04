@@ -607,7 +607,7 @@ wl_ioctl(const char *ifname, int cmd, struct iwreq *pwrq)
 	/* open socket to kernel */
 	if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		perror("socket");
-		return errno;
+		return -1;
 	}
 
 	/* do it */
