@@ -124,23 +124,97 @@ rfctime(const time_t *timep)
  *	Redirect the user to another webs page
  */
 
+static int
+is_safe_redirect_url(const char *url)
+{
+	const unsigned char *p;
+	const char *colon, *separator, *path_end;
+
+	if (!url || !*url || (url[0] == '/' && url[1] == '/'))
+		return 0;
+	colon = strchr(url, ':');
+	separator = strpbrk(url, "/?#");
+	if (colon && (!separator || colon < separator))
+		return 0; /* disallow absolute schemes, including javascript: */
+	for (p = (const unsigned char *)url; *p; ++p) {
+		if (!(isalnum(*p) || strchr("/._-?=&%+;#~:", *p)))
+			return 0;
+	}
+	if (strncmp(url, "..", 2) == 0 || strstr(url, "../") ||
+	    strstr(url, "/.."))
+		return 0;
+
+	path_end = strpbrk(url, "?#");
+	if (path_end && (size_t)(path_end - url) == 0)
+		return 1; /* a query-only redirect remains relative */
+	return 1;
+}
+
+static int
+is_safe_redirect_host(const char *host)
+{
+	const unsigned char *p;
+
+	if (!host || !*host)
+		return 0;
+	for (p = (const unsigned char *)host; *p; ++p) {
+		if (!(isalnum(*p) || strchr(".-:[]", *p)))
+			return 0;
+	}
+	return 1;
+}
+
+static void
+write_html_attribute(webs_t wp, const char *value)
+{
+	const unsigned char *p;
+
+	for (p = (const unsigned char *)(value ? value : ""); *p; ++p) {
+		switch (*p) {
+		case '&':  websWrite(wp, "%s", "&amp;"); break;
+		case '"':  websWrite(wp, "%s", "&quot;"); break;
+		case '\'': websWrite(wp, "%s", "&#39;"); break;
+		case '<':  websWrite(wp, "%s", "&lt;"); break;
+		case '>':  websWrite(wp, "%s", "&gt;"); break;
+		default:
+			if (*p >= 0x20 && *p != 0x7f)
+				fputc(*p, wp);
+			break;
+		}
+	}
+}
+
+/*
+ * Redirect targets are supplied in POST fields. Keep them relative and
+ * escape the HTML attribute so a forged target cannot inject markup.
+ */
 static void
 websRedirect(webs_t wp, const char *url)
 {
-	char *http_str;
+	const char *safe_url;
+	const char *host;
+	const char *http_str;
 
 #if defined (SUPPORT_HTTPS)
-	if (http_is_ssl)
-		http_str = "https";
-	else
-#endif
+	http_str = http_is_ssl ? "https" : "http";
+#else
 	http_str = "http";
+#endif
+	safe_url = is_safe_redirect_url(url) ? url : "index.asp";
+	host = is_safe_redirect_host(next_host) ? next_host : NULL;
 
 	websWrite(wp, "<html><head>\r\n");
-	if (strlen(next_host) > 0)
-		websWrite(wp, "<meta http-equiv=\"refresh\" content=\"0; url=%s://%s/%s\">\r\n", http_str, next_host, url);
-	else
-		websWrite(wp, "<meta http-equiv=\"refresh\" content=\"0; url=%s\">\r\n", url);
+	websWrite(wp, "<meta http-equiv=\"refresh\" content=\"0; url=");
+	if (host) {
+		websWrite(wp, "%s://", http_str);
+		write_html_attribute(wp, host);
+		if (safe_url[0] != '/')
+			websWrite(wp, "%s", "/");
+		write_html_attribute(wp, safe_url);
+	} else {
+		write_html_attribute(wp, safe_url);
+	}
+	websWrite(wp, "\">\r\n");
 	websWrite(wp, "<meta http-equiv=\"Content-Type\" content=\"text/html\">\r\n");
 	websWrite(wp, "</head></html>\r\n");
 
