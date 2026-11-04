@@ -36,40 +36,51 @@ static int
 check_root_partition(const char *devname, int is_mmc)
 {
 	FILE *procpt;
-	char line[128], ptname[32], ptname_check[32];
-	int i, ma, mi;
+	char line[128], ptname[32];
+	const char *suffix;
+	size_t devname_len;
+	int ma, mi;
 	unsigned long long dev_sz;
 
-	if (devname && (procpt = fopen(PROC_PARTITIONS_FILE, "r"))) {
-		while (fgets(line, sizeof(line), procpt)) {
-			if (sscanf(line, " %d %d %llu %31[^\n ]", &ma, &mi, &dev_sz, ptname) != 4)
-				continue;
-			
+	if (!devname || !*devname)
+		return 0;
+	devname_len = strlen(devname);
+	if (devname_len >= sizeof(ptname))
+		return 0;
+
+	procpt = fopen(PROC_PARTITIONS_FILE, "r");
+	if (!procpt)
+		return 0;
+
+	while (fgets(line, sizeof(line), procpt)) {
+		if (sscanf(line, " %d %d %llu %31[^\n ]", &ma, &mi, &dev_sz, ptname) != 4)
+			continue;
+		if (strncmp(ptname, devname, devname_len) != 0)
+			continue;
+
+		suffix = ptname + devname_len;
 #if defined (USE_MMC_SUPPORT)
-			if (is_mmc) {
-				for (i=1; i<9; i++) {
-					sprintf(ptname_check, "%sp%d", devname, i);
-					if (strcmp(ptname, ptname_check) == 0) {
-						fclose(procpt);
-						return 1;
-					}
-				}
-			} else
+		if (is_mmc) {
+			if (*suffix++ != 'p')
+				continue;
+		} else
 #endif
-			{
-				for (i=1; i<15; i++) {
-					sprintf(ptname_check, "%s%d", devname, i);
-					if (strcmp(ptname, ptname_check) == 0) {
-						fclose(procpt);
-						return 1;
-					}
-				}
-			}
+		{
+			if (!*suffix)
+				continue;
 		}
-		
-		fclose(procpt);
+
+		if (!*suffix)
+			continue;
+		while (*suffix >= '0' && *suffix <= '9')
+			suffix++;
+		if (!*suffix) {
+			fclose(procpt);
+			return 1;
+		}
 	}
 
+	fclose(procpt);
 	return 0;
 }
 
@@ -78,7 +89,8 @@ int
 mdev_sd_main(int argc, char **argv)
 {
 	int isLock;
-	char share_name[32];
+	size_t len, disk_len;
+	char share_name[32], disk_name[32];
 	char *device_name, *action, *partno;
 
 	if (argc != 3){
@@ -105,21 +117,33 @@ mdev_sd_main(int argc, char **argv)
 		goto out_unlock;
 	}
 
-	if (device_name[3] == '\0') {
-		char *tune_argv[] = { "/sbin/hddtune.sh", device_name, NULL };
+	len = strlen(device_name);
+	if (len >= sizeof(disk_name) || strncmp(device_name, "sd", 2) != 0)
+		goto out_unlock;
 
-		// sda, sdb, sdc...
+	disk_len = len;
+	while (disk_len > 2 &&
+	       device_name[disk_len - 1] >= '0' &&
+	       device_name[disk_len - 1] <= '9')
+		disk_len--;
+	if (disk_len <= 2)
+		goto out_unlock;
+
+	memcpy(disk_name, device_name, disk_len);
+	disk_name[disk_len] = '\0';
+	if (disk_len == len) {
+		char *tune_argv[] = { "/sbin/hddtune.sh", disk_name, NULL };
+
+		/* Whole disk: tune it and wait for partition-specific hotplug events. */
 		_eval(tune_argv, NULL, 0, NULL);
-		
-		if (check_root_partition(device_name, 0))
+		if (check_root_partition(disk_name, 0))
 			goto out_unlock;
-		
 		partno = "1";
 	} else {
-		partno = device_name + 3;
+		partno = device_name + disk_len;
 	}
 
-	snprintf(share_name, sizeof(share_name), "AiDisk_%c%s", device_name[2], partno);
+	snprintf(share_name, sizeof(share_name), "AiDisk_%s%s", disk_name + 2, partno);
 
 	umask(0000);
 	{
@@ -140,9 +164,9 @@ int
 mdev_mmc_main(int argc, char **argv)
 {
 	int isLock;
-	size_t len;
-	char share_name[32], partno;
-	char *device_name, *action;
+	size_t len, disk_len;
+	char share_name[32], disk_name[32];
+	char *device_name, *action, *partno;
 
 	if (argc != 3){
 		printf("Usage: %s [device_name] [action]\n", argv[0]);
@@ -170,18 +194,38 @@ mdev_mmc_main(int argc, char **argv)
 		goto out_unlock;
 	}
 
-	if (len < 9) {
-		// mmcblk0, mmcblk1
-		if (check_root_partition(device_name, 1))
-			goto out_unlock;
-		
-		partno = '1';
-	} else {
-		// mmcblk0p1
-		partno = device_name[len - 1];
+	if (len >= sizeof(disk_name) || strncmp(device_name, "mmcblk", 6) != 0)
+		goto out_unlock;
+
+	{
+		char *partition = strrchr(device_name, 'p');
+		if (partition) {
+			disk_len = (size_t)(partition - device_name);
+			partno = partition + 1;
+			if (disk_len <= 6 || !*partno)
+				goto out_unlock;
+		} else {
+			disk_len = len;
+			partno = "1";
+			if (check_root_partition(device_name, 1))
+				goto out_unlock;
+		}
 	}
 
-	snprintf(share_name, sizeof(share_name), "AiCard_%c%c", device_name[6], partno);
+	for (size_t i = 6; i < disk_len; i++) {
+		if (device_name[i] < '0' || device_name[i] > '9')
+			goto out_unlock;
+	}
+	for (const char *p = partno; *p; p++) {
+		if (*p < '0' || *p > '9')
+			goto out_unlock;
+	}
+
+	memcpy(disk_name, device_name, disk_len);
+	disk_name[disk_len] = '\0';
+	if (snprintf(share_name, sizeof(share_name), "AiCard_%s%s",
+		     disk_name + 6, partno) >= (int)sizeof(share_name))
+		goto out_unlock;
 
 	umask(0000);
 	{
