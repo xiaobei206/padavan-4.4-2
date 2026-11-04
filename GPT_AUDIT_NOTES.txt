@@ -77,3 +77,4 @@ cc3d09d  net_wan6.c: validate/canonicalize IPv4 tunnel endpoints and IPv6 gatewa
 2e99426  hotplug_stor.c: identify whole-disk removal independently of device-name length.
 61c3505  hotplug_stor.c: keep new MMC parsing declarations compatible with the firmware's GNU89-era toolchains.
 f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k list.
+917cde5  automount.sh: match /proc/modules field 1 exactly to avoid substring false positives.
