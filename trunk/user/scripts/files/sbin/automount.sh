@@ -13,18 +13,26 @@ func_load_module()
 	) 500>/var/lock/fs_module.lock
 }
 
-existed=`cat /proc/partitions | grep $1 | wc -l`
-[ $existed == "0" ] && exit 1
+# Device names come from hotplug. Keep them as a single block-device component.
+case "$1" in
+	''|[!A-Za-z0-9]*|*[!A-Za-z0-9_-]*) exit 1 ;;
+esac
+case "$2" in
+	''|.|..|*[!A-Za-z0-9_.-]*) exit 1 ;;
+esac
+
+existed=`grep -wF -- "$1" /proc/partitions | wc -l`
+[ "$existed" = "0" ] && exit 1
 
 [ ! -x /sbin/blkid ] && exit 1
 
 dev_full="/dev/$1"
 
-# check filesystem type
-ID_FS_TYPE=""
-ID_FS_UUID=""
-ID_FS_LABEL=""
-eval `/sbin/blkid -s "TYPE" -s "UUID" -s "LABEL" -o udev $dev_full`
+# Read blkid values separately. Never eval metadata from an inserted disk.
+ID_FS_TYPE=$(/sbin/blkid -s TYPE -o value "$dev_full" 2>/dev/null)
+ID_FS_UUID=$(/sbin/blkid -s UUID -o value "$dev_full" 2>/dev/null)
+ID_FS_LABEL=$(/sbin/blkid -s LABEL -o value "$dev_full" 2>/dev/null)
+
 
 if [ "$ID_FS_TYPE" == "swap" ] ; then
 	[ ! -x /sbin/swapon ] && exit 1
@@ -40,8 +48,10 @@ if [ "$ID_FS_TYPE" == "swap" ] ; then
 	exit 1
 fi
 
-dev_label=`echo "$ID_FS_LABEL" | tr -d '\/:*?"<>|~$^' | sed 's/ /_/g'`
-[ "$dev_label" == "NO_NAME" ] && dev_label=""
+dev_label=`printf '%s' "$ID_FS_LABEL" | LC_ALL=C tr -cd 'A-Za-z0-9._-'`
+case "$dev_label" in
+	''|.|..|NO_NAME) dev_label="" ;;
+esac
 
 mnt_legacy="/media/$2"
 if [ -z "$dev_label" ] ; then
