@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+d01173c  https.c: enforce a 10-second absolute TLS handshake deadline; avoid single-threaded HTTP daemon stalls.
 
 957d39d  Makefile: define prepare-headers for alternate toolchains.
 2abc940  firewall_ex.c: bound IP-range output to remaining buffer space.
