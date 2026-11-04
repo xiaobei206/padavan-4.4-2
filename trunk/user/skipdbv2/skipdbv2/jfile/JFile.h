@@ -95,7 +95,7 @@ size_t JFile_logSize(JFile *self);
 int JFile_needsSync(JFile *self);
 long JFile_lastCommitPosition(JFile *self);
 void JFile_clipLogToLastCompletedTransaction(JFile *self);
-void JFile_clipLog(JFile *self);
+int JFile_clipLog(JFile *self);
 //int JFile_hasUnfinishedCommits(JFile *self);
 int JFile_verifyLog(JFile *self);
 
