@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+1cff73a  JFile.c: read JFile_fgetc into an unsigned byte and return EOF on short reads.
 6cdfe1d  skipd.c: fix partial nonblocking writes; retain total frame length, resume after EAGAIN, and close failed clients.
 6d1333d  skipd.c: reject negative persisted/dynamic delay periods and prevent signed overflow in inc/desc operations.
 856f009  skipd.c: create and enforce owner-only permissions on the root command/database Unix socket.
