@@ -191,7 +191,7 @@ int ipv6_from_string(const char *str, struct in6_addr *addr6)
 	char addr6s[INET6_ADDRSTRLEN] = "::";
 	char *prefix, *end;
 	long parsed_prefix;
-	int ret = 128;
+	int ret = (!str || !*str) ? 0 : 128;
 
 	if (!addr6)
 		return -1;
@@ -227,12 +227,13 @@ int ipv6_from_string(const char *str, struct in6_addr *addr6)
 
 int ipv6_to_net(struct in6_addr *addr6, int prefix)
 {
-	int i = prefix >> 5;
-	int m = prefix & 0x1f;
+	int i, m;
 
-	if (prefix > 128)
+	if (!addr6 || prefix < 0 || prefix > 128)
 		return 0;
 
+	i = prefix >> 5;
+	m = prefix & 0x1f;
 	if (m)
 		addr6->s6_addr32[i++] &= htonl(0xffffffffUL << (32 - m));
 	while (i < 4)
@@ -243,14 +244,18 @@ int ipv6_to_net(struct in6_addr *addr6, int prefix)
 
 int ipv6_to_host(struct in6_addr *addr6, int prefix)
 {
-	int i = prefix >> 5;
-	int m = prefix & 0x1f;
+	int i, m;
 
-	if (prefix > 128)
+	if (!addr6 || prefix < 0 || prefix > 128)
 		return 0;
 
-	if (m)
+	i = prefix >> 5;
+	m = prefix & 0x1f;
+	if (m) {
 		addr6->s6_addr32[i--] &= htonl(0xffffffffUL >> m);
+	} else {
+		i--;
+	}
 	while (i >= 0)
 		addr6->s6_addr32[i--] = 0;
 
@@ -259,24 +264,29 @@ int ipv6_to_host(struct in6_addr *addr6, int prefix)
 
 int ipv6_to_ipv4_map(struct in6_addr *addr6, int size6, struct in_addr *addr4, int size4)
 {
-	int i = size6 >> 5;
-	int m = size6 & 0x1f;
-	int ret = size6 + 32 - size4;
+	int i, m, ret;
 	u_int32_t addr = 0;
-	u_int32_t mask = 0xffffffffUL << size4;
+	u_int32_t mask;
 
-	if (size6 > 128 || size4 > 32 || ret > 128)
+	if (!addr6 || size6 < 0 || size6 > 128 || size4 < 0 || size4 > 32)
 		return 0;
 
+	ret = size6 + 32 - size4;
+	if (ret > 128)
+		return 0;
 	if (size4 == 32)
 		return size6;
+
+	i = size6 >> 5;
+	m = size6 & 0x1f;
+	mask = 0xffffffffUL << size4;
 
 	if (addr4)
 		addr = ntohl(addr4->s_addr) << size4;
 
 	addr6->s6_addr32[i] &= ~htonl(mask >> m);
 	addr6->s6_addr32[i] |= htonl(addr >> m);
-	if (m) {
+	if (m && i < 3) {
 		i++;
 		addr6->s6_addr32[i] &= ~htonl(mask << (32 - m));
 		addr6->s6_addr32[i] |= htonl(addr << (32 - m));
