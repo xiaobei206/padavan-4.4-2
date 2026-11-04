@@ -912,6 +912,8 @@ int SkipDB_count(SkipDB *self)
 		count++;
 		record = SkipDBRecord_nextRecord(record);
 	}
+	if (!SkipDB_isOpen(self))
+		return -1;
 	return count;
 }
 
