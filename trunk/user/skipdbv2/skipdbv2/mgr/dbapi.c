@@ -279,7 +279,7 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
         if (0 != memcmp(client->buf, MAGIC, MAGIC_LEN))
             return -3;
 
-        client->buf[HEADER_PREFIX - 1] = '\\0';
+        client->buf[HEADER_PREFIX - 1] = '\0';
         if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
             n2 <= 0 || n2 > READ_MAX)
             return -4;
@@ -287,7 +287,7 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
         n1 = read_util(client, n2, 510);
         if (n1 < 0)
             return n1;
-        client->buf[n2] = '\\0';
+        client->buf[n2] = '\0';
 
         command_end = (char *)memchr(client->buf, ' ', (size_t)n2);
         if (NULL == command_end || command_end == client->buf)
@@ -303,7 +303,7 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
         value = key_end + 1;
         value_len = (size_t)(client->buf + n2 - value);
 
-        if (memchr(key_start, '\\0', key_len) != NULL)
+        if (memchr(key_start, '\0', key_len) != NULL)
             return -4;
 
         /*
@@ -322,16 +322,16 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
             value_len == 0)
             return -4;
 
-        *key_end = '\\0';
+        *key_end = '\0';
         /* SkipDB string Datums include their final NUL; tolerate raw text. */
-        if (value[value_len - 1] == '\\0' ||
-            value[value_len - 1] == '\\n')
+        if (value[value_len - 1] == '\0' ||
+            value[value_len - 1] == '\n')
             --value_len;
         else
             return -4;
-        if (memchr(value, '\\0', value_len) != NULL)
+        if (memchr(value, '\0', value_len) != NULL)
             return -4;
-        value[value_len] = '\\0';
+        value[value_len] = '\0';
 
         if (0 != (*fn)(client, o, prefix, key_start, value))
             return -5;
