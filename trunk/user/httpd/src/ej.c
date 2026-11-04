@@ -49,19 +49,31 @@ unqstrstr(char *haystack, char *needle)
 static char *
 get_arg(char *args, char **next)
 {
-	char *arg, *end;
+	char *arg, *end, *trim_end;
 
-	/* Parse out arg, ... */
-	if (!(end = unqstrstr(args, ","))) {
+	if (!args || !next)
+		return NULL;
+
+	/* Split the argument without walking before an empty quoted value. */
+	end = unqstrstr(args, ",");
+	if (!end) {
 		end = args + strlen(args);
 		*next = NULL;
-	} else
+	} else {
 		*next = end + 1;
-
-	/* Skip whitespace and quotation marks on either end of arg */
-	for (arg = args; isspace((int)*arg) || *arg == '"'; arg++);
-	for (*end-- = '\0'; isspace((int)*end) || *end == '"'; end--)
 		*end = '\0';
+	}
+
+	trim_end = end;
+	while (trim_end > args &&
+	       (isspace((unsigned char)trim_end[-1]) || trim_end[-1] == '"')) {
+		*--trim_end = '\0';
+	}
+
+	arg = args;
+	while (arg < trim_end &&
+	       (isspace((unsigned char)*arg) || *arg == '"'))
+		arg++;
 
 	return arg;
 }
