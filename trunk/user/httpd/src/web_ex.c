@@ -1843,20 +1843,36 @@ wanlink_hook(int eid, webs_t wp, int argc, char **argv)
 	if (fp) {
 		int is_first = 1;
 		char line_buf[96], dns_item[80];
+		struct in_addr dns4;
+		struct in6_addr dns6;
+
 		while (fgets(line_buf, sizeof(line_buf), fp)) {
-			if (sscanf(line_buf, "nameserver %79s\n", dns_item) < 1)
+			size_t used, item_len, separator_len;
+
+			if (sscanf(line_buf, "nameserver %79s", dns_item) != 1)
 				continue;
-			if (strlen(dns_item) < 7)
+			/* Nameserver data can originate outside the router; accept only IPs
+			 * before embedding it in JavaScript, and keep every append bounded. */
+			if (inet_pton(AF_INET, dns_item, &dns4) != 1 &&
+			    inet_pton(AF_INET6, dns_item, &dns6) != 1)
 				continue;
-			if (strcmp(dns_item, "127.0.0.1") != 0) {
-				if (is_first)
-					is_first = 0;
-				else
-					strcat(wan_dns, "<br/>");
-				strcat(wan_dns, dns_item);
+			if (strcmp(dns_item, "127.0.0.1") == 0 ||
+			    strcmp(dns_item, "::1") == 0)
+				continue;
+
+			used = strlen(wan_dns);
+			item_len = strlen(dns_item);
+			separator_len = is_first ? 0 : sizeof("<br/>") - 1;
+			if (separator_len + item_len >= sizeof(wan_dns) - used)
+				break;
+
+			if (!is_first) {
+				memcpy(wan_dns + used, "<br/>", separator_len);
+				used += separator_len;
 			}
+			memcpy(wan_dns + used, dns_item, item_len + 1);
+			is_first = 0;
 		}
-		
 		fclose(fp);
 	}
 
