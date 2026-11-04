@@ -738,19 +738,22 @@ double UArray_rawDoubleAt_(const UArray *self, size_t i)
 
 void *UArray_pointerAt_(const UArray *self, size_t i)
 {
-	if (i >= self->size) { return NULL; }
+	if (NULL == self || i >= self->size || NULL == self->data)
+		return NULL;
 	return UArray_rawPointerAt_(self, i);
 }
 
 long UArray_longAt_(const UArray *self, size_t i)
 {
-	if (i >= self->size) { return 0; }
+	if (NULL == self || i >= self->size || NULL == self->data)
+		return 0;
 	return UArray_rawLongAt_(self, i);
 }
 
 double UArray_doubleAt_(const UArray *self, size_t i)
 {
-	if (i >= self->size) { return 0.0; }
+	if (NULL == self || i >= self->size || NULL == self->data)
+		return 0.0;
 	return UArray_rawDoubleAt_(self, i);
 }
 
@@ -758,16 +761,15 @@ double UArray_doubleAt_(const UArray *self, size_t i)
 
 long UArray_firstLong(const UArray *self)
 {
+	if (NULL == self || self->size == 0 || NULL == self->data)
+		return 0;
 	return UArray_rawLongAt_(self, 0);
 }
 
 long UArray_lastLong(const UArray *self)
 {
-	if (!self->size)
-	{
+	if (NULL == self || self->size == 0 || NULL == self->data)
 		return 0;
-	}
-
 	return UArray_rawLongAt_(self, self->size - 1);
 }
 
@@ -777,9 +779,12 @@ void UArray_removeRange(UArray *self, size_t start, size_t removeSize)
 {
 	size_t originalSize, newSize, remainder, remainderSize, newBytes;
 	if (NULL == self || self->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize)
+		self->size > (size_t)-1 / self->itemSize ||
+		(self->size > 0 && NULL == self->data))
 		return;
 	originalSize = self->size;
+	if (originalSize * self->itemSize == (size_t)-1)
+		return;
 	if (start >= originalSize || removeSize == 0)
 		return;
 	if (removeSize > originalSize - start)
@@ -795,6 +800,8 @@ void UArray_removeRange(UArray *self, size_t start, size_t removeSize)
 			self->itemSize * remainderSize);
 	}
 	newBytes = newSize * self->itemSize;
+	if (newBytes == (size_t)-1)
+		return;
 	UArray_setSize_(self, newSize);
 	/* Shrinking reallocations may fail; the old allocation is still large
 	 * enough, so keep the logical removal successful without reallocating. */
@@ -813,7 +820,8 @@ void UArray_leave_thenRemove_(UArray *self, size_t itemsToLeave, size_t itemsToR
 	uint8_t *newData;
 
 	if (NULL == self || self->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize)
+		self->size > (size_t)-1 / self->itemSize ||
+		(self->size > 0 && NULL == self->data))
 		return;
 	if (itemsToLeave == 0) {
 		UArray_clear(self);
@@ -871,9 +879,17 @@ BASEKIT_API void UArray_removeFirst(UArray *self)
 
 BASEKIT_API void UArray_removeLast(UArray *self)
 {
-	if (self->size > 0)
-	{
-		UArray_setSize_(self, self->size - 1);
+	size_t newSize, newBytes;
+	if (NULL == self || self->size == 0 || self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize || NULL == self->data)
+		return;
+	newSize = self->size - 1;
+	newBytes = newSize * self->itemSize;
+	UArray_setSize_(self, newSize);
+	if (self->size != newSize) {
+		self->size = newSize;
+		self->data[newBytes] = 0;
+		UArray_changed(self);
 	}
 }
 
