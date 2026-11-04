@@ -261,7 +261,7 @@ void UDB_open(UDB *self)
 	if (recovering &&
 		(!UDB_verifyCommittedJournal(self->index->file->logPath) ||
 		 !UDB_verifyCommittedJournal(self->records->file->logPath))) {
-		fprintf(stderr, "UDB: committed transaction journal is incomplete or corrupt\\n");
+		fprintf(stderr, "UDB: committed transaction journal is incomplete or corrupt\n");
 		UDB_close(self);
 		return;
 	}
