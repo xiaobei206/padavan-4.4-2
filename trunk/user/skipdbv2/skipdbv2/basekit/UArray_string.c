@@ -11,8 +11,11 @@
 
 void UArray_append_(UArray *self, const UArray *other)
 {
+	if (NULL == self || NULL == other)
+		return;
 	UArray_at_putAll_(self, self->size, other);
 }
+
 
 void UArray_appendCString_(UArray *self, const char *s)
 {
@@ -27,8 +30,11 @@ void UArray_appendCString_(UArray *self, const char *s)
 
 void UArray_prepend_(UArray *self, const UArray *other)
 {
+	if (NULL == self || NULL == other)
+		return;
 	UArray_at_putAll_(self, 0, other);
 }
+
 
 int UArray_equalsAnyCase_(const UArray *self, const UArray *other)
 {
@@ -126,109 +132,103 @@ BASEKIT_API void UArray_removeAnyCase_(UArray *self, const UArray *a1)
 
 BASEKIT_API int UArray_clipBefore_(UArray *self, const UArray *other)
 {
-	long index = UArray_find_(self, other);
-
-	if (index > -1)
-	{
-		UArray_removeRange(self, 0, index);
-		return 1;
-	}
-
-	return 0;
+	long index;
+	if (NULL == self || NULL == other)
+		return 0;
+	index = UArray_find_(self, other);
+	if (index < 0)
+		return 0;
+	UArray_removeRange(self, 0, (size_t)index);
+	return 1;
 }
+
 
 BASEKIT_API int UArray_clipBeforeEndOf_(UArray *self, const UArray *other)
 {
-	long index = UArray_find_(self, other);
-
-	if (index > -1)
-	{
-		UArray_removeRange(self, 0, index + other->size);
-		return 1;
-	}
-
-	return 0;
+	long index;
+	if (NULL == self || NULL == other)
+		return 0;
+	index = UArray_find_(self, other);
+	if (index < 0)
+		return 0;
+	if (other->size > (size_t)-1 - (size_t)index)
+		return 0;
+	UArray_removeRange(self, 0, (size_t)index + other->size);
+	return 1;
 }
+
 
 BASEKIT_API int UArray_clipAfter_(UArray *self, const UArray *other)
 {
-	long index = UArray_find_(self, other);
-
-	if (index > -1)
-	{
-		UArray_removeRange(self, index + other->size, self->size);
-		return 1;
-	}
-
-	return 0;
+	long index;
+	if (NULL == self || NULL == other)
+		return 0;
+	index = UArray_find_(self, other);
+	if (index < 0 || other->size > (size_t)-1 - (size_t)index)
+		return 0;
+	UArray_removeRange(self, (size_t)index + other->size, self->size);
+	return 1;
 }
+
 
 BASEKIT_API int UArray_clipAfterStartOf_(UArray *self, const UArray *other)
 {
-	long index = UArray_find_(self, other);
-
-	if (index > -1)
-	{
-		UArray_removeRange(self, index, self->size);
-		return 1;
-	}
-
-	return 0;
+	long index;
+	if (NULL == self || NULL == other)
+		return 0;
+	index = UArray_find_(self, other);
+	if (index < 0)
+		return 0;
+	UArray_removeRange(self, (size_t)index, self->size);
+	return 1;
 }
+
 
 // strip
 
 void UArray_lstrip_(UArray *self, const UArray *other)
 {
 	size_t amount = 0;
-
-	if (UArray_isFloatType(self))
-	{
+	if (NULL == self || NULL == other ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return;
+	if (UArray_isFloatType(self)) {
 		UARRAY_FOREACH(self, i, v,
-			amount = i+1;
-			if (!UArray_containsDouble_(other, v))
-			{
-				amount --;
-				break;
-			}
+			amount = i + 1;
+			if (!UArray_containsDouble_(other, v)) { amount--; break; }
+		)
+	} else {
+		UARRAY_FOREACH(self, i, v,
+			amount = i + 1;
+			if (!UArray_containsLong_(other, v)) { amount--; break; }
 		)
 	}
-	else
-	{
-		UARRAY_FOREACH(self, i, v,
-			amount = i+1;
-			if (!UArray_containsLong_(other, v))
-			{
-				amount --;
-				break;
-			}
-		)
-	}
-
 	UArray_removeRange(self, 0, amount);
 }
 
+
 void UArray_rstrip_(UArray *self, const UArray *other)
 {
-	size_t index = 0; // initial value is only needed when FOREACHes don't work
-
-	if (UArray_isFloatType(self))
-	{
+	size_t index = 0;
+	if (NULL == self || NULL == other ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return;
+	if (UArray_isFloatType(self)) {
 		UARRAY_RFOREACH(self, i, v,
 			index = i;
 			if (!UArray_containsDouble_(other, v)) { index++; break; }
 		)
-	}
-	else
-	{
+	} else {
 		UARRAY_RFOREACH(self, i, v,
 			index = i;
 			if (!UArray_containsLong_(other, v)) { index++; break; }
 		)
 	}
-
 	UArray_removeRange(self, index, self->size);
 }
+
 
 BASEKIT_API void UArray_strip_(UArray *self, const UArray *other)
 {
@@ -433,11 +433,15 @@ BASEKIT_API int UArray_endsWith_(UArray *self, const UArray *other)
 void UArray_swapWith_(UArray *self, UArray *other)
 {
 	UArray b;
+	if (NULL == self || NULL == other || self == other)
+		return;
 	memcpy(&b, other, sizeof(UArray));
 	memcpy(other, self, sizeof(UArray));
 	memcpy(self, &b, sizeof(UArray));
 	UArray_changed(self);
+	UArray_changed(other);
 }
+
 
 void UArray_escape(UArray *self)
 {
@@ -479,122 +483,114 @@ void UArray_unescape(UArray *self)
 {
 	size_t getIndex = 0;
 	size_t putIndex = 0;
-
-	while (getIndex < self->size)
-	{
+	if (NULL == self || (self->size > 0 && NULL == self->data))
+		return;
+	while (getIndex < self->size) {
 		long c = UArray_longAt_(self, getIndex);
 		long nextChar = UArray_longAt_(self, getIndex + 1);
-
-		if (c != '\\')
-		{
+		if (c != '\\') {
 			if (getIndex != putIndex)
-			{
 				UArray_at_putLong_(self, putIndex, c);
-			}
-
-			putIndex ++;
-		}
-		else
-		{
+			putIndex++;
+		} else {
 			c = nextChar;
-
-			switch (c)
-			{
-				case  'a': c = '\a'; break;
-				case  'b': c = '\b'; break;
-				case  'f': c = '\f'; break;
-				case  'n': c = '\n'; break;
-				case  'r': c = '\r'; break;
-				case  't': c = '\t'; break;
-				case  'v': c = '\v'; break;
+			switch (c) {
+				case 'a': c = '\a'; break;
+				case 'b': c = '\b'; break;
+				case 'f': c = '\f'; break;
+				case 'n': c = '\n'; break;
+				case 'r': c = '\r'; break;
+				case 't': c = '\t'; break;
+				case 'v': c = '\v'; break;
 				case '\0': c = '\\'; break;
 				default:
-					if (isdigit(c))
-					{
-						c -= 48;
-					}
+					if (c >= 0 && c <= UCHAR_MAX && isdigit((unsigned char)c))
+						c -= '0';
 			}
-
 			UArray_at_putLong_(self, putIndex, c);
-			getIndex ++;
-			putIndex ++;
+			getIndex++;
+			putIndex++;
 		}
-
-		getIndex ++;
+		getIndex++;
 	}
-
 	UArray_setSize_(self, putIndex);
 	UArray_changed(self);
 }
 
+
 void UArray_quote(UArray *self)
 {
-	UArray q = UArray_stackAllocedWithCString_("\"");
+	UArray q;
+	if (NULL == self)
+		return;
+	q = UArray_stackAllocedWithCString_("\"");
 	UArray_prepend_(self, &q);
 	UArray_append_(self, &q);
 	UArray_changed(self);
 }
 
+
 void UArray_unquote(UArray *self)
 {
-	UArray q = UArray_stackAllocedWithCString_("\"");
-
-	if(UArray_beginsWith_(self, &q) && UArray_endsWith_(self, &q))
-	{
+	UArray q;
+	if (NULL == self)
+		return;
+	q = UArray_stackAllocedWithCString_("\"");
+	if (UArray_beginsWith_(self, &q) && UArray_endsWith_(self, &q)) {
 		UArray_removeFirst(self);
 		UArray_removeLast(self);
 		UArray_changed(self);
 	}
 }
 
+
 void UArray_translate(UArray *self, UArray *fromChars, UArray *toChars)
 {
-	size_t max = 4096;
-	long fromMax = UArray_maxAsDouble(fromChars);
-	long toMax   = UArray_maxAsDouble(toChars);
-
-	if (UArray_size(fromChars) != UArray_size(toChars))
-	{
-		printf("UArray_translate: translation strings must be of the same length");
+	size_t i;
+	unsigned char map[256];
+	if (NULL == self || NULL == fromChars || NULL == toChars ||
+		self->itemSize != 1 || fromChars->itemSize != 1 || toChars->itemSize != 1 ||
+		(fromChars->size > 0 && NULL == fromChars->data) ||
+		(toChars->size > 0 && NULL == toChars->data) ||
+		(self->size > 0 && NULL == self->data)) {
+		if (self)
+			UArray_error_(self, "UArray_translate requires valid byte arrays");
 		return;
 	}
-
-	if ((0 < fromMax && fromMax < max) && (0 < toMax && toMax < 256))
-	{
-		size_t i;
-		uint8_t *map = io_calloc(1, fromMax);
-		memset(map, 0x0, fromMax);
-
-		for(i = 0; i < UArray_size(fromChars); i ++)
-		{
-			map[UArray_longAt_(fromChars, i)] = UArray_longAt_(toChars, i);
-		}
-
-		for(i = 0; i < UArray_size(self); i ++)
-		{
-			self->data[i] = map[self->data[i]];
-		}
-
-		io_free(map);
+	if (fromChars->size != toChars->size) {
+		UArray_error_(self, "UArray_translate: translation strings must be the same length");
 		return;
 	}
-
-	/*
-	 UARRAY_FOREACH(self, i, currChar,
-				 UARRAY_FOREACH(fromChars, j, fromChar,
-							 if(currChar == fromChar)
-							 {
-								 UARRAY_RAWAT_PUT_(self, i, UARRAY_RAWAT_(toChars, j));
-								 break;
-							 }
-							 );
-				 );
-	 */
-
-	UArray_error_(self, "UArray_translate unimplemented for this type");
+	for (i = 0; i < 256; ++i)
+		map[i] = (unsigned char)i;
+	for (i = 0; i < fromChars->size; ++i)
+		map[fromChars->data[i]] = toChars->data[i];
+	for (i = 0; i < self->size; ++i)
+		self->data[i] = map[self->data[i]];
+	UArray_changed(self);
 }
 
+
 size_t UArray_count_(const UArray *self, const UArray *other)
+{
+	long index = 0;
+	size_t count = 0;
+	if (NULL == self || NULL == other || other->size == 0 ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return 0;
+	while ((index = UArray_find_from_(self, other, (size_t)index)) != -1) {
+		if (count == (size_t)-1)
+			return count;
+		count++;
+		if (other->size > (size_t)LONG_MAX - (size_t)index)
+			break;
+		index += (long)other->size;
+	}
+	return count;
+}
+
+
 {
 	long i = 0;
 	size_t count = 0;
