@@ -305,9 +305,6 @@ iprange_ex_conv(const char *ip_name, int idx)
 	if (!valid || mask < 0 || inet_pton(AF_INET, startip, &addr) != 1)
 		return (g_buf_alloc(g_buf));
 
-	if (g_buf < g_buf_pool || g_buf >= g_buf_pool + sizeof(g_buf_pool))
-		return g_buf_pool + sizeof(g_buf_pool) - 1;
-
 	if (mask == 32) {
 		snprintf(g_buf, sizeof(g_buf_pool) - (size_t)(g_buf - g_buf_pool), "%s", startip);
 	} else if (mask > 0) {
