@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+21d1d66  dbapi.c: recognize only the exact SkipDB list end frame; values containing __end__ no longer truncate results.
 c8c9e3c  nvram_linux.c: initialize is_temp for NVRAM_IOCTL_GET to avoid stack-garbage query mode.
 c5b6054  shutils.c: reject oversized doSystem format output instead of executing truncated commands.
 0fb7d0b  notify_rc.c: reject unsafe event names before using them as init-notification filenames.
