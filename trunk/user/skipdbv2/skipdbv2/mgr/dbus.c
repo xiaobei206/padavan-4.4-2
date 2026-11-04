@@ -154,7 +154,8 @@ int parse_common_result(dbclient *client) {
     const char *magic = MAGIC;
     int success;
 
-    n1 = read_util(client, HEADER_PREFIX, 110);
+    /* fire/event may execute scripts before the server sends its reply. */
+    n1 = read_util(client, HEADER_PREFIX, 60000);
     if (n1 < 0)
         return n1;
     if (0 != memcmp(client->buf, magic, MAGIC_LEN))
@@ -165,7 +166,7 @@ int parse_common_result(dbclient *client) {
         n2 <= 0 || n2 > READ_MAX)
         return -4;
 
-    n1 = read_util(client, n2, 110);
+    n1 = read_util(client, n2, 60000);
     if (n1 < 0)
         return n1;
 
@@ -204,10 +205,12 @@ int parse_get_result(dbclient *client) {
     if (n2 == 0 || client->buf[n2 - 1] != '\n')
         putchar('\n');
 
-    if ((!strcmp(client->command, "inc") || !strcmp(client->command, "desc")) &&
-        ((n2 == 6 && memcmp(client->buf, "error\n", 6) == 0) ||
-         (n2 == 15 && memcmp(client->buf, "database error\n", 15) == 0) ||
-         (n2 == 17 && memcmp(client->buf, "integer overflow\n", 17) == 0)))
+    if (((!strcmp(client->command, "inc") || !strcmp(client->command, "desc")) &&
+         ((n2 == 6 && memcmp(client->buf, "error\n", 6) == 0) ||
+          (n2 == 15 && memcmp(client->buf, "database error\n", 15) == 0) ||
+          (n2 == 17 && memcmp(client->buf, "integer overflow\n", 17) == 0)) ||
+        (!strcmp(client->command, "replace") &&
+         n2 == 15 && memcmp(client->buf, "database error\n", 15) == 0))
         return -5;
     return 0;
 }
