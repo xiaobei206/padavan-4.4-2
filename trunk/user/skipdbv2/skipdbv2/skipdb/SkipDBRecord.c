@@ -304,35 +304,48 @@ int SkipDBRecord_level(SkipDBRecord *self)
 
 void SkipDBRecord_level_(SkipDBRecord *self, int level)
 {
-	int oldLevel = self->level;
-	self->level = level;
-
-	self->pointers = (SkipDBPointer *)realloc(self->pointers, level * sizeof(SkipDBPointer));
-
-	if (level > oldLevel)
-	{
-		memset(self->pointers + oldLevel, 0, (level - oldLevel) * sizeof(SkipDBPointer));
+	SkipDBPointer *new_pointers;
+	int old_level;
+	if (NULL == self || level < 0 || level > SKIPDB_MAX_LEVEL)
+		return;
+	old_level = self->level;
+	if (level == old_level)
+		return;
+	if (level == 0) {
+		free(self->pointers);
+		self->pointers = NULL;
+		self->level = 0;
+		return;
 	}
+	new_pointers = (SkipDBPointer *)realloc(self->pointers,
+		(size_t)level * sizeof(SkipDBPointer));
+	if (NULL == new_pointers)
+		return;
+	if (level > old_level)
+		memset(new_pointers + old_level, 0,
+			(size_t)(level - old_level) * sizeof(SkipDBPointer));
+	self->pointers = new_pointers;
+	self->level = level;
 }
 
-static void SkipDBRecord_checkLevel_(SkipDBRecord *self, int level)
+static int SkipDBRecord_checkLevel_(SkipDBRecord *self, int level)
 {
-     if (level > self->level - 1)
-     {
-		printf("SkipDBRecord level out of range\n");
-		exit(1);
-     }
+	return self != NULL && level >= 0 && level < self->level &&
+		self->pointers != NULL;
 }
 
 static SkipDBPointer *SkipDBRecord_pointerAtLevel_(SkipDBRecord *self, int level)
 {
-	SkipDBRecord_checkLevel_(self, level);
+	if (!SkipDBRecord_checkLevel_(self, level))
+		return NULL;
 	return self->pointers + level;
 }
 
 void SkipDBRecord_atLevel_setPid_setSuffix_(SkipDBRecord *self, int level, PID_TYPE pid, uint8_t sMatch)
 {
 	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
+	if (NULL == p)
+		return;
 	p->pid = pid;
 	SkipDBPointer_setRecord_(p, NULL);
 	p->matchingPrefixSize = sMatch;
@@ -341,6 +354,8 @@ void SkipDBRecord_atLevel_setPid_setSuffix_(SkipDBRecord *self, int level, PID_T
 void SkipDBRecord_atLevel_setPid_(SkipDBRecord *self, int level, PID_TYPE pid)
 {
 	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
+	if (NULL == p)
+		return;
 	p->pid = pid;
 	SkipDBPointer_setRecord_(p, NULL);
 }
@@ -348,27 +363,22 @@ void SkipDBRecord_atLevel_setPid_(SkipDBRecord *self, int level, PID_TYPE pid)
 PID_TYPE SkipDBRecord_allocedPidAtLevel_(SkipDBRecord *self, int level)
 {
 	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
-	PID_TYPE pid = p->pid;
-
-	if (!pid && p->record)
-	{
-		pid = SkipDBRecord_pidAllocIfNeeded(p->record);
-	}
-
-	return pid;
+	if (NULL == p)
+		return 0;
+	if (!p->pid && p->record)
+		p->pid = SkipDBRecord_pidAllocIfNeeded(p->record);
+	return p->pid;
 }
 
 PID_TYPE SkipDBRecord_pidAtLevel_(SkipDBRecord *self, int level)
 {
 	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
-	PID_TYPE pid = p->pid;
-
-	if (!pid && p->record)
-	{
-		pid = SkipDBRecord_pid(self);
-	}
-
-	return pid;
+	if (NULL == p)
+		return 0;
+	/* Resolve a cached pointer to its own PID, not the current record's PID. */
+	if (!p->pid && p->record)
+		p->pid = SkipDBRecord_pid(p->record);
+	return p->pid;
 }
 
 unsigned char SkipDBRecord_matchingPrefixSizeWith_(SkipDBRecord *self, SkipDBRecord *r)
@@ -381,40 +391,33 @@ unsigned char SkipDBRecord_matchingPrefixSizeWith_(SkipDBRecord *self, SkipDBRec
 
 void SkipDBRecord_atLevel_setRecord_(SkipDBRecord *self, int level, SkipDBRecord *r)
 {
-	SkipDBRecord_checkLevel_(self, level);
-	SkipDBRecord_atLevel_setPid_(self, level, SkipDBRecord_pid(r));
-
-	{
-		SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
-		SkipDBPointer_setRecord_(p, r);
-		p->matchingPrefixSize = SkipDBRecord_matchingPrefixSizeWith_(self, r);
-	}
+	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
+	if (NULL == p || NULL == r)
+		return;
+	p->pid = SkipDBRecord_pid(r);
+	p->record = r;
+	p->matchingPrefixSize = SkipDBRecord_matchingPrefixSizeWith_(self, r);
 }
 
 SkipDBRecord *SkipDBRecord_cachedRecordAtLevel_(SkipDBRecord *self, int level)
 {
-	SkipDBRecord_checkLevel_(self, level);
-
-	return self->pointers[level].record;
+	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
+	return p ? p->record : NULL;
 }
 
 //直接下降到0层级，获取下个元素
 SkipDBRecord *SkipDBRecord_recordAtLevel_(SkipDBRecord *self, int level)
 {
-	SkipDBRecord_checkLevel_(self, level);
-
-	{
-		SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
-		SkipDBRecord *r = p->record;
-
-		if (!r && p->pid)
-		{
-			r = SkipDB_recordAtPid_((SkipDB *)(self->sdb), p->pid);
-			SkipDBPointer_setRecord_(p, r);
-		}
-
-		return r;
+	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
+	SkipDBRecord *r;
+	if (NULL == p)
+		return NULL;
+	r = p->record;
+	if (NULL == r && p->pid && self->sdb) {
+		r = SkipDB_recordAtPid_((SkipDB *)self->sdb, p->pid);
+		p->record = r;
 	}
+	return r;
 }
 
 // serialization ------------------------------------
@@ -600,17 +603,18 @@ SkipDBRecord *SkipDBRecord_findLastRecord(SkipDBRecord *self)
 
 void SkipDBRecord_copyLevel_from_(SkipDBRecord *self, int level, SkipDBRecord *other)
 {
-	PID_TYPE newPid = SkipDBRecord_pidAtLevel_(other, level);
-	SkipDBRecord *cachedRecord = SkipDBRecord_cachedRecordAtLevel_(other, level);
-
-	if (cachedRecord)
-	{
-		SkipDBRecord_atLevel_setRecord_(self, level, cachedRecord);
-	}
+	PID_TYPE new_pid;
+	SkipDBRecord *cached;
+	if (NULL == self || NULL == other ||
+		!SkipDBRecord_checkLevel_(self, level) ||
+		!SkipDBRecord_checkLevel_(other, level))
+		return;
+	new_pid = SkipDBRecord_pidAtLevel_(other, level);
+	cached = SkipDBRecord_cachedRecordAtLevel_(other, level);
+	if (cached)
+		SkipDBRecord_atLevel_setRecord_(self, level, cached);
 	else
-	{
-		SkipDBRecord_atLevel_setPid_(self, level, newPid);
-	}
+		SkipDBRecord_atLevel_setPid_(self, level, new_pid);
 }
 
 void SkipDBRecord_willRemove_(SkipDBRecord *self, SkipDBRecord *other)
