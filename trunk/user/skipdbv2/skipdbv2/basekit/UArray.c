@@ -534,7 +534,8 @@ void UArray_free(UArray *self)
 {
 	if (NULL == self)
 		return;
-	if(self->data) io_free(self->data);
+	if (self->data && !self->stackAllocated)
+		io_free(self->data);
 	io_free(self);
 }
 
