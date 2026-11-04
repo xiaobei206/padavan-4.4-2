@@ -268,6 +268,7 @@ void SkipDB_freeAllCachedRecords(SkipDB *self)
 {
 	if (NULL == self)
 		return;
+	SkipDB_clearUpdate(self);
 	//SkipDBRecord *r = self->youngestRecord;
 	//self->headerPid = SkipDBRecord_pid(self->header);
 
