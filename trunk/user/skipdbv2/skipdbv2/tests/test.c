@@ -121,6 +121,7 @@ int main(void)
 	for (i = 0; i < max; i ++)
 	{
 		Datum d;
+		snprintf(s, sizeof(s), "%i", i);
 		k = Datum_FromCString_(s);
 				
 		d = SkipDB_at_(u, k);
