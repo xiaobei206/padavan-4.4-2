@@ -360,10 +360,10 @@ write_smb_conf(void)
 					if(check_existed_share(share)){
 						i = 1;
 						memset(share, 0, 256);
-						snprintf(share, sizeof(share), "%.*s(%d)", (int)sizeof(share) - 12, folder_list[n], i);
+						snprintf(share, sizeof(share), "%.*s(%d)", (int)sizeof(share) - 13, folder_list[n], i);
 						while(check_existed_share(share)){
 							++i;
-							snprintf(share, sizeof(share), "%.*s(%d)", (int)sizeof(share) - 12, folder_list[n], i);
+							snprintf(share, sizeof(share), "%.*s(%d)", (int)sizeof(share) - 13, folder_list[n], i);
 						}
 					}
 					
@@ -743,7 +743,7 @@ void restart_nfsd(void)
 int create_mp_link(char *search_dir, char *link_path, int force_first_valid)
 {
 	FILE *procpt;
-	char line[512], devname[32], mpname[256], fstype[32], target_path[256];
+	char line[512], devname[32], mpname[256], fstype[32], target_path[512];
 	int link_created, path_len;
 
 	if (!search_dir || !link_path)
