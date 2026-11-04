@@ -172,7 +172,8 @@ int UDBRecord_saveWithDatum_(UDBRecord *self, Datum d)
     if (NULL == self || NULL == self->file ||
         (d.size > 0 && NULL == d.data) ||
         self->file->file == NULL || self->file->maxPos < 0 ||
-        self->pos > (PID_TYPE)LONG_MAX)
+        d.size > (size_t)LONG_MAX - sizeof(UDBRecordHeader) ||
+        self->pos > (PID_TYPE)LONG_MAX - sizeof(UDBRecordHeader) - d.size)
         return 0;
 
     old_file_pos = self->file->pos;
