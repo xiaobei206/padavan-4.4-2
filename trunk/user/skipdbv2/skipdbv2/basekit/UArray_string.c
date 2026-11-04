@@ -5,6 +5,7 @@
 
 #include "UArray.h"
 #include <string.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stddef.h>
