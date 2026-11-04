@@ -45,7 +45,7 @@ static int write_frame(int fd, const void *body, size_t body_len)
 
 static int run_list_stream_case(int script_mode,
     const char *const *frames, const size_t *frame_lengths, size_t frame_count,
-    const char *expected_output, size_t expected_output_len)
+    int expected_result, const char *expected_output, size_t expected_output_len)
 {
     int sockets[2] = {-1, -1};
     int saved_stdout = -1;
@@ -90,14 +90,14 @@ restore:
         close(saved_stdout);
         saved_stdout = -1;
     }
-    if (actual_result != 0 ||
+    if (actual_result != expected_result ||
         actual_output_len != expected_output_len ||
         (actual_output_len > 0 &&
          memcmp(actual_output, expected_output, actual_output_len) != 0)) {
         fprintf(stderr,
-            "dbus %s list parser failed: result=%d, output length=%lu expected=%lu\n",
+            "dbus %s list parser failed: result=%d expected=%d, output length=%lu expected=%lu\n",
             script_mode ? "script" : "plain",
-            actual_result, (unsigned long)actual_output_len,
+            actual_result, expected_result, (unsigned long)actual_output_len,
             (unsigned long)expected_output_len);
         goto fail;
     }
@@ -241,6 +241,7 @@ int main(void)
 
     static const char list_value_is_end[] = "list alpha __end__\n\0";
     static const char list_end_frame[] = "__end__ list __end__\n";
+    static const char list_error_frame[] = "__error__ list list response error\n";
     static const char script_item[] = "list MY_KEY hi\0";
     static const char expected_list[] = "alpha=__end__\n";
     static const char expected_script[] = "export MY_KEY='hi';";
@@ -255,6 +256,10 @@ int main(void)
     };
     static const size_t script_frame_lengths[] = {
         sizeof(script_item) - 1, sizeof(list_end_frame) - 1
+    };
+    static const char *const error_frames[] = { list_error_frame };
+    static const size_t error_frame_lengths[] = {
+        sizeof(list_error_frame) - 1
     };
 
     if (run_case(1, "set", common_ok, sizeof(common_ok) - 1,
@@ -280,9 +285,11 @@ int main(void)
         run_case(0, "get", missing_key_separator,
             sizeof(missing_key_separator) - 1, -4, NULL, 0) != 0 ||
         run_list_stream_case(0, list_frames, list_frame_lengths, 2,
-            expected_list, sizeof(expected_list) - 1) != 0 ||
+            0, expected_list, sizeof(expected_list) - 1) != 0 ||
         run_list_stream_case(1, script_frames, script_frame_lengths, 2,
-            expected_script, sizeof(expected_script) - 1) != 0)
+            0, expected_script, sizeof(expected_script) - 1) != 0 ||
+        run_list_stream_case(0, error_frames, error_frame_lengths, 1,
+            -5, NULL, 0) != 0)
         return EXIT_FAILURE;
 
     puts("dbus protocol tests passed");
