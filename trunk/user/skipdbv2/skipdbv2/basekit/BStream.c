@@ -45,9 +45,15 @@ BStream *BStream_new(void)
 
 BStream *BStream_clone(BStream *self)
 {
-	BStream *child = BStream_new();
+	BStream *child;
+	if (NULL == self || NULL == self->ba)
+		return NULL;
+	child = BStream_new();
+	if (NULL == child)
+		return NULL;
 	UArray_copy_(child->ba, self->ba);
 	child->index = self->index;
+	child->flipEndian = self->flipEndian;
 	return child;
 }
 
@@ -110,7 +116,7 @@ void BStream_setData_length_(BStream *self, unsigned char *data, size_t length)
 
 UArray *BStream_byteArray(BStream *self)
 {
-	return self->ba;
+	return self ? self->ba : NULL;
 }
 
 void BStream_empty(BStream *self)
@@ -339,9 +345,9 @@ unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)
 		BStream_error_(self, "truncated binary stream data");
 		return NULL;
 	}
-	if (length == 0)
-		return (unsigned char *)UArray_bytes(self->ba);
 	bytes = (unsigned char *)UArray_bytes(self->ba);
+	if (length == 0)
+		return bytes ? bytes + self->index : NULL;
 	if (NULL == bytes) {
 		BStream_error_(self, "missing binary stream data");
 		return NULL;
@@ -372,15 +378,19 @@ void BStream_readUArray_(BStream *self, UArray *b)
 
 UArray *BStream_readUArray(BStream *self)
 {
+	if (NULL == self || NULL == self->tmp || NULL == self->errorBa)
+		return NULL;
 	BStream_readUArray_(self, self->tmp);
-	return self->tmp;
+	return UArray_size(self->errorBa) == 0 ? self->tmp : NULL;
 }
 
 const char *BStream_readCString(BStream *self)
 {
-	if (NULL == self || NULL == self->tmp)
+	if (NULL == self || NULL == self->tmp || NULL == self->errorBa)
 		return NULL;
 	BStream_readUArray_(self, self->tmp);
+	if (UArray_size(self->errorBa) != 0)
+		return NULL;
 	return (const char *)UArray_bytes(self->tmp);
 }
 
@@ -476,7 +486,11 @@ void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, s
 
 void BStream_writeTaggedCString_(BStream *self, const char *s)
 {
-	BStream_writeTaggedData_length_(self, (unsigned char *)s, strlen(s));
+	if (NULL == self || NULL == s) {
+		BStream_error_(self, "invalid tagged string");
+		return;
+	}
+	BStream_writeTaggedData_length_(self, (const unsigned char *)s, strlen(s));
 }
 
 void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
@@ -657,17 +671,29 @@ UArray *BStream_readTaggedUArray(BStream *self)
 
 const char *BStream_readTaggedCString(BStream *self)
 {
-	BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1);
-
-	{
-		size_t size = BStream_readTaggedInt32(self);
-		return (char *)BStream_readDataOfLength_(self, size);
+	int32_t encoded_size;
+	unsigned char *data;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa)
+		return NULL;
+	if (BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1) != 0)
+		return NULL;
+	encoded_size = BStream_readTaggedInt32(self);
+	if (UArray_size(self->errorBa) != 0)
+		return NULL;
+	if (encoded_size < 0) {
+		BStream_error_(self, "negative tagged string length");
+		return NULL;
 	}
+	data = BStream_readDataOfLength_(self, (size_t)encoded_size);
+	if (encoded_size > 0 && NULL == data)
+		return NULL;
+	return (const char *)data;
 }
 
 int BStream_atEnd(BStream *self)
 {
-	return self->index >= UArray_size(self->ba);
+	return NULL == self || NULL == self->ba ||
+		self->index >= UArray_size(self->ba);
 }
 
 int BStream_showInt(BStream *self)
