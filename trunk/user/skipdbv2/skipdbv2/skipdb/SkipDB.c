@@ -595,7 +595,7 @@ void SkipDB_clearUpdate(SkipDB *self)
 
 SkipDBRecord *SkipDB_recordAt_(SkipDB *self, Datum k)
 {
-	if (NULL == self || NULL == self->header ||
+	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		(k.size > 0 && NULL == k.data))
 		return NULL;
 	SkipDB_clearUpdate(self);
@@ -720,7 +720,7 @@ SkipDBRecord *SkipDB_recordAt_put_(SkipDB *self, Datum k, Datum v) {
 Datum SkipDB_at_(SkipDB *self, Datum k)
 {
 	SkipDBRecord *record;
-	if (NULL == self || NULL == self->header ||
+	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		(k.size > 0 && NULL == k.data))
 		return Datum_Empty();
 	SkipDB_clearUpdate(self);
@@ -856,7 +856,7 @@ int SkipDB_count(SkipDB *self)
 {
 	int count = 0;
 	SkipDBRecord *record;
-	if (NULL == self || NULL == self->header)
+	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self))
 		return 0;
 	record = SkipDB_firstRecord(self);
 	while (record) {
@@ -871,7 +871,7 @@ int SkipDB_count(SkipDB *self)
 
 SkipDBRecord *SkipDB_firstRecord(SkipDB *self)
 {
-	if (NULL == self || NULL == self->header ||
+	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		SkipDBRecord_level(self->header) == 0)
 		return NULL;
 	return SkipDBRecord_nextRecord(self->header);
@@ -881,7 +881,7 @@ SkipDBRecord *SkipDB_firstRecord(SkipDB *self)
 SkipDBRecord *SkipDB_lastRecord(SkipDB *self)
 {
 	SkipDBRecord *last;
-	if (NULL == self || NULL == self->header ||
+	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		SkipDBRecord_level(self->header) == 0)
 		return NULL;
 	last = SkipDBRecord_findLastRecord(self->header);
@@ -892,7 +892,7 @@ SkipDBRecord *SkipDB_lastRecord(SkipDB *self)
 SkipDBRecord *SkipDB_goto_(SkipDB *self, Datum key)
 {
 	SkipDBRecord *record;
-	if (NULL == self || NULL == self->header ||
+	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		(key.size > 0 && NULL == key.data))
 		return NULL;
 	record = SkipDB_recordAt_(self, key);
