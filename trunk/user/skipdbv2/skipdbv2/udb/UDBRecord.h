@@ -53,8 +53,8 @@ PID_TYPE UDBRecord_size(UDBRecord *self);
 
 void UDBRecord_remove(UDBRecord *self);
 
-void UDBRecord_saveHeader(UDBRecord *self);
-void UDBRecord_saveWithDatum_(UDBRecord *self, Datum d);
+int UDBRecord_saveHeader(UDBRecord *self);
+int UDBRecord_saveWithDatum_(UDBRecord *self, Datum d);
 
 int UDBRecord_readHeader(UDBRecord *self);
 Datum UDBRecord_readDatum(UDBRecord *self);
