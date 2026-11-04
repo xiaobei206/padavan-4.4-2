@@ -1000,7 +1000,7 @@ void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,
 	while (record) {
 		Datum key;
 		if (++steps > max_steps) {
-			fprintf(stderr, "SkipDB: cycle or invalid link during prefix scan\\n");
+			fprintf(stderr, "SkipDB: cycle or invalid link during prefix scan\n");
 			break;
 		}
 		key = SkipDBRecord_keyDatum(record);
