@@ -618,20 +618,30 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 
 SkipDBRecord *SkipDBRecord_findLastRecord(SkipDBRecord *self)
 {
-	int level = self->level;
+	SkipDBRecord *current = self;
+	SkipDBRecord *next;
+	int level;
+	size_t steps = 0;
 
-	while (level --)
+	while (current)
 	{
-		SkipDBRecord *r = SkipDBRecord_recordAtLevel_(self, level);
+		if (++steps > 1000000 ||
+			current->level < 0 || current->level > SKIPDB_MAX_LEVEL ||
+			(current->level > 0 && NULL == current->pointers))
+			return NULL;
 
-		if (r)
+		next = NULL;
+		for (level = current->level - 1; level >= 0; --level)
 		{
-			return SkipDBRecord_findLastRecord(r);
+			next = SkipDBRecord_recordAtLevel_(current, level);
+			if (next)
+				break;
 		}
-
+		if (NULL == next)
+			return current;
+		current = next;
 	}
-
-	return self;
+	return NULL;
 }
 
 void SkipDBRecord_copyLevel_from_(SkipDBRecord *self, int level, SkipDBRecord *other)
