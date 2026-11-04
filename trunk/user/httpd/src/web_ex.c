@@ -3493,6 +3493,56 @@ int ej_shown_language_option(int eid, webs_t wp, int argc, char **argv) {
 }
 
 static int
+is_valid_cert_common_name(const char *name)
+{
+	const unsigned char *p;
+	size_t len;
+
+	if (!name || !*name)
+		return 0;
+	len = strlen(name);
+	if (len > 64 || name[0] == ' ' || name[len - 1] == ' ')
+		return 0;
+	for (p = (const unsigned char *)name; *p; ++p) {
+		if (!isalnum(*p) && *p != ' ' && *p != '.' &&
+		    *p != '_' && *p != '-' && *p != '@')
+			return 0;
+	}
+	return 1;
+}
+
+static int
+is_valid_cert_rsa_bits(const char *bits)
+{
+	return bits && (!strcmp(bits, "1024") ||
+			!strcmp(bits, "2048") ||
+			!strcmp(bits, "4096"));
+}
+
+static int
+parse_cert_validity_days(const char *value, int *days)
+{
+	const unsigned char *p;
+	unsigned long parsed = 0;
+
+	if (!value || !*value || !days)
+		return 0;
+	for (p = (const unsigned char *)value; *p; ++p) {
+		if (*p < '0' || *p > '9')
+			return 0;
+		if (parsed > 36500UL / 10)
+			return 0;
+		parsed = parsed * 10 + (unsigned long)(*p - '0');
+		if (parsed > 36500UL)
+			return 0;
+	}
+	if (parsed < 1)
+		return 0;
+	*days = (int)parsed;
+	return 1;
+}
+
+static int
 apply_cgi(const char *url, webs_t wp)
 {
 	char *value;
@@ -3579,11 +3629,18 @@ apply_cgi(const char *url, webs_t wp)
 #if defined(APP_OPENVPN)
 		char *common_name = websGetVar(wp, "common_name", "");
 		char *rsa_bits = websGetVar(wp, "rsa_bits", "1024");
-		int days_valid = atoi(websGetVar(wp, "days_valid", "365"));
+		char *days_text = websGetVar(wp, "days_valid", "365");
+		int days_valid;
+		char days_arg[8];
+
 		if (strlen(common_name) < 1)
 			common_name = "client@ovpn";
-		if (get_login_safe())
-			sys_result = doSystem("/sbin/ovpn_export_client '%s' %s %d", common_name, rsa_bits, days_valid);
+		if (get_login_safe() && is_valid_cert_common_name(common_name) &&
+		    is_valid_cert_rsa_bits(rsa_bits) &&
+		    parse_cert_validity_days(days_text, &days_valid)) {
+			snprintf(days_arg, sizeof(days_arg), "%d", days_valid);
+			sys_result = eval("/sbin/ovpn_export_client", common_name, rsa_bits, days_arg);
+		}
 #endif
 		websWrite(wp, "{\"sys_result\": %d}", sys_result);
 		return 0;
@@ -3594,11 +3651,19 @@ apply_cgi(const char *url, webs_t wp)
 #if defined(APP_OPENVPN)
 		char *common_name = websGetVar(wp, "common_name", "");
 		char *rsa_bits = websGetVar(wp, "rsa_bits", "1024");
-		int days_valid = atoi(websGetVar(wp, "days_valid", "365"));
+		char *days_text = websGetVar(wp, "days_valid", "365");
+		int days_valid;
+		char days_arg[8];
+
 		if (strlen(common_name) < 1)
 			common_name = "OpenVPN Server";
-		if (get_login_safe())
-			sys_result = doSystem("/usr/bin/openvpn-cert.sh %s -n '%s' -b %s -d %d", "server", common_name, rsa_bits, days_valid);
+		if (get_login_safe() && is_valid_cert_common_name(common_name) &&
+		    is_valid_cert_rsa_bits(rsa_bits) &&
+		    parse_cert_validity_days(days_text, &days_valid)) {
+			snprintf(days_arg, sizeof(days_arg), "%d", days_valid);
+			sys_result = eval("/usr/bin/openvpn-cert.sh", "server", "-n",
+					  common_name, "-b", rsa_bits, "-d", days_arg);
+		}
 #endif
 		websWrite(wp, "{\"sys_result\": %d}", sys_result);
 		return 0;
@@ -3609,11 +3674,19 @@ apply_cgi(const char *url, webs_t wp)
 #if defined(SUPPORT_HTTPS)
 		char *common_name = websGetVar(wp, "common_name", "");
 		char *rsa_bits = websGetVar(wp, "rsa_bits", "1024");
-		int days_valid = atoi(websGetVar(wp, "days_valid", "365"));
+		char *days_text = websGetVar(wp, "days_valid", "365");
+		int days_valid;
+		char days_arg[8];
+
 		if (strlen(common_name) < 1)
 			common_name = nvram_safe_get("lan_ipaddr_t");
-		if (get_login_safe())
-			sys_result = doSystem("/usr/bin/https-cert.sh -n '%s' -b %s -d %d", common_name, rsa_bits, days_valid);
+		if (get_login_safe() && is_valid_cert_common_name(common_name) &&
+		    is_valid_cert_rsa_bits(rsa_bits) &&
+		    parse_cert_validity_days(days_text, &days_valid)) {
+			snprintf(days_arg, sizeof(days_arg), "%d", days_valid);
+			sys_result = eval("/usr/bin/https-cert.sh", "-n", common_name,
+					  "-b", rsa_bits, "-d", days_arg);
+		}
 #endif
 		websWrite(wp, "{\"sys_result\": %d}", sys_result);
 		return 0;
