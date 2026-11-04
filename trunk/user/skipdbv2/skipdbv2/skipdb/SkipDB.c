@@ -235,14 +235,39 @@ void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)
 
 void SkipDB_noteDirtyRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	if (self && r && self->dirtyRecords && SkipDB_isOpen(self))
-		List_append_(self->dirtyRecords, r);
+	if (NULL == self || NULL == r || !SkipDB_isOpen(self))
+		return;
+	/* A dirty record omitted from this queue would be silently skipped at sync. */
+	if (NULL == self->dirtyRecords || NULL == self->udb ||
+		NULL == List_append_(self->dirtyRecords, r)) {
+		fprintf(stderr, "SkipDB: unable to queue dirty record; aborting transaction\n");
+		if (self->udb)
+			UDB_close(self->udb);
+	}
 }
 
 void SkipDB_noteAssignedPidToRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	if (self && r && self->pidToRecord && SkipDBRecord_pid(r) != 0)
-		PHash_at_put_(self->pidToRecord, (void *)SkipDBRecord_pid(r), r);
+	PID_TYPE pid;
+
+	if (NULL == self || NULL == r || !SkipDB_isOpen(self))
+		return;
+	pid = SkipDBRecord_pid(r);
+	if (pid == 0)
+		return;
+	/* Cache insertion can fail during allocation/rehash; duplicate loads are unsafe. */
+	if (NULL == self->pidToRecord) {
+		fprintf(stderr, "SkipDB: PID cache unavailable; aborting transaction\n");
+		if (self->udb)
+			UDB_close(self->udb);
+		return;
+	}
+	PHash_at_put_(self->pidToRecord, (void *)pid, r);
+	if (PHash_at_(self->pidToRecord, (void *)pid) != r) {
+		fprintf(stderr, "SkipDB: unable to cache assigned PID; aborting transaction\n");
+		if (self->udb)
+			UDB_close(self->udb);
+	}
 }
 
 void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)
@@ -775,8 +800,13 @@ void SkipDB_removeAt_(SkipDB *self, Datum k)
 	{
 		PID_TYPE pid = SkipDBRecord_pid(record);
 		size_t i;
-		if (pid != 0 && self->pidsToRemove)
-			List_append_(self->pidsToRemove, (void *)pid);
+		if (pid != 0 && (NULL == self->pidsToRemove ||
+			NULL == List_append_(self->pidsToRemove, (void *)pid))) {
+			/* Otherwise the unlinked row would remain live in the on-disk UDB. */
+			fprintf(stderr, "SkipDB: unable to queue removed PID; aborting transaction\n");
+			if (self->udb)
+				UDB_close(self->udb);
+		}
 		if (self->dirtyRecords)
 			List_remove_(self->dirtyRecords, record);
 		/* Cursors hold raw record pointers; invalidate them before freeing it. */
