@@ -155,7 +155,8 @@ UDBRecord *UDBRecords_nextRecord(UDBRecords *self)
 	if (NULL == self || NULL == self->record)
 		return NULL;
 	size = UDBRecord_totalSize(self->record);
-	if (size == 0 || self->record->pos > (PID_TYPE)LONG_MAX - size)
+	if (size == 0 || size > (PID_TYPE)LONG_MAX ||
+		self->record->pos > (PID_TYPE)LONG_MAX - size)
 		return NULL;
 	nextPos = self->record->pos + size;
 	return UDBRecords_recordAtPos_(self, nextPos);
@@ -167,7 +168,8 @@ UDBRecord *UDBRecords_recordAfter_(UDBRecords *self, UDBRecord *record)
 	if (NULL == self || NULL == record || NULL == self->record)
 		return NULL;
 	size = UDBRecord_totalSize(record);
-	if (size == 0 || record->pos > (PID_TYPE)LONG_MAX - size)
+	if (size == 0 || size > (PID_TYPE)LONG_MAX ||
+		record->pos > (PID_TYPE)LONG_MAX - size)
 		return NULL;
 	nextPos = record->pos + size;
 	return UDBRecords_recordAtPos_(self, nextPos);
