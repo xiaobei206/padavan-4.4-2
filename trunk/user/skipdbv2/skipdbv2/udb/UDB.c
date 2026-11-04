@@ -73,9 +73,9 @@ void UDB_setPath_(UDB *self, const char *path)
 	char *new_path, *new_committed_path;
 	char *index_path, *index_log_path, *records_path, *records_log_path;
 
-	if (NULL == self || NULL == path || NULL == self->index ||
-		NULL == self->records || NULL == self->index->file ||
-		NULL == self->records->file)
+	if (NULL == self || NULL == path || self->isOpen ||
+		NULL == self->index || NULL == self->records ||
+		NULL == self->index->file || NULL == self->records->file)
 		return;
 
 	path_len = strlen(path);
@@ -140,9 +140,9 @@ void UDB_setSecondaryPath_(UDB *self, const char *secondaryPath)
 */
 
 
-char *UDB_path(UDB *self) 
-{ 
-	return self->path; 
+char *UDB_path(UDB *self)
+{
+	return self ? self->path : NULL;
 }
 
 int UDB_readCommitted(UDB *self);
@@ -214,7 +214,7 @@ void UDB_open(UDB *self)
 
 int UDB_isOpen(UDB *self)
 {
-	return self->isOpen;
+	return self ? self->isOpen : 0;
 }
 
 void UDB_close(UDB *self)
@@ -235,7 +235,7 @@ void UDB_close(UDB *self)
 
 int UDB_isInTransaction(UDB *self)
 {
-	if (!self->withinTransaction)
+	if (NULL == self || !self->isOpen || !self->withinTransaction)
 	{
 		printf("UDB error - mutation operations must be within a transaction\n");
 		exit(1);
@@ -246,6 +246,8 @@ int UDB_isInTransaction(UDB *self)
 
 void UDB_beginTransaction(UDB *self)
 {
+	if (NULL == self || !self->isOpen || self->withinTransaction)
+		return;
 	UDBIndex_begin(self->index);
 	UDBRecords_begin(self->records);
 	self->withinTransaction = 1;
@@ -320,17 +322,23 @@ void UDB_commitTransaction(UDB *self)
 
 PID_TYPE UDB_nextPid(UDB *self)
 {
-	return UDBIndex_nextPid(self->index);
+	return self && self->isOpen && self->index
+		? UDBIndex_nextPid(self->index) : 0;
 }
 
 PID_TYPE UDB_allocPid(UDB *self)
 {
-	return UDBIndex_allocPid(self->index);
+	return self && self->isOpen && self->withinTransaction && self->index
+		? UDBIndex_allocPid(self->index) : 0;
 }
 
-void UDB_append_withPid_(UDB *self, Datum d, PID_TYPE pid) 
+void UDB_append_withPid_(UDB *self, Datum d, PID_TYPE pid)
 {
-	UDBRecord *record = UDBRecords_newRecord(self->records);
+	UDBRecord *record;
+	if (NULL == self || !self->isOpen || !self->withinTransaction ||
+		NULL == self->records || (d.size > 0 && NULL == d.data))
+		return;
+	record = UDBRecords_newRecord(self->records);
 	UDBRecord_pid_(record, pid);
 	UDBRecord_saveWithDatum_(record, d);
 	UDBIndex_setPos_forPid_(self->index, UDBRecord_pos(record), pid);
@@ -358,7 +366,11 @@ void UDB_at_put_(UDB *self, PID_TYPE pid, Datum d)
 
 UDBRecord *UDB_recordAtPid_(UDB *self, PID_TYPE pid)
 {
-	PID_TYPE pos = UDBIndex_posForPid_(self->index, pid);
+	PID_TYPE pos;
+	if (NULL == self || !self->isOpen || NULL == self->index ||
+		NULL == self->records)
+		return NULL;
+	pos = UDBIndex_posForPid_(self->index, pid);
 	if (!pos) return NULL;
 	return UDBRecords_recordAtPos_(self->records, pos);
 }
