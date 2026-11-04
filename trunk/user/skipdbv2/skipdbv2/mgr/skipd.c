@@ -143,6 +143,53 @@ static char *find_terminated_value_separator(Datum value)
     return (char*)memchr(value.data, ' ', value.size - 1);
 }
 
+/*
+ * Compute the next occurrence of a local wall-clock time. A fixed 86400
+ * second repeat drifts by one hour when the local timezone enters/leaves DST.
+ */
+static int next_daily_delay(const char *time_text, time_t now, double *delay)
+{
+    struct tm target, *local_now;
+    char *end;
+    time_t next;
+
+    if (NULL == time_text || NULL == delay || now == (time_t)-1)
+        return 0;
+
+    memset(&target, 0, sizeof(target));
+    target.tm_mday = 1;
+    end = strptime(time_text, "%H:%M:%S", &target);
+    if (NULL == end || *end != '\0' ||
+        target.tm_hour < 0 || target.tm_hour > 23 ||
+        target.tm_min < 0 || target.tm_min > 59 ||
+        target.tm_sec < 0 || target.tm_sec > 59)
+        return 0;
+
+    local_now = localtime(&now);
+    if (NULL == local_now)
+        return 0;
+
+    target.tm_year = local_now->tm_year;
+    target.tm_mon = local_now->tm_mon;
+    target.tm_mday = local_now->tm_mday;
+    target.tm_isdst = local_now->tm_isdst;
+    next = mktime(&target);
+    if (next == (time_t)-1)
+        return 0;
+
+    if (next <= now) {
+        /* Re-resolve tomorrow's local time using that date's DST rules. */
+        target.tm_mday += 1;
+        target.tm_isdst = -1;
+        next = mktime(&target);
+        if (next == (time_t)-1)
+            return 0;
+    }
+
+    *delay = difftime(next, now);
+    return *delay > 0.0;
+}
+
 static int is_valid_script_name(const char *name)
 {
     const unsigned char *p;
@@ -380,31 +427,55 @@ static void delay_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
 }
 
 static void time_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
-    char* p1;
+    char *p1;
+    int time_len;
+    double timer_delay;
+    time_t now;
     time_cmd* time_obj = container_of(watcher, time_cmd, watcher);
     Datum dkey = Datum_FromCString_(time_obj->key);
     Datum dvalue = SkipDB_at_(time_obj->server->db, dkey);
-    do {
-        if(NULL == dvalue.data) {
-            skipd_log(SKIPD_DEBUG, "time %s not found\n", dkey.data);
-            ev_timer_stop(EV_A_ watcher);
-            free(time_obj);
-            break;
-        }
 
-        p1 = find_terminated_value_separator(dvalue);
-        if(NULL == p1) {
-            skipd_log(SKIPD_DEBUG, "time %s value error\n", dkey.data);
-            ev_timer_stop(EV_A_ watcher);
-            free(time_obj);
-            break;
-        }
-        p1++;
+    if (NULL == dvalue.data) {
+        skipd_log(SKIPD_DEBUG, "time %s not found\n", dkey.data);
+        ev_timer_stop(EV_A_ watcher);
+        free(time_obj);
+        return;
+    }
 
-        sys_script(p1, dvalue.size - (size_t)(p1 - (char*)dvalue.data));
-        ev_timer_again(EV_A_ watcher);
-    } while(0);
+    p1 = find_terminated_value_separator(dvalue);
+    if (NULL == p1) {
+        skipd_log(SKIPD_DEBUG, "time %s value error\n", dkey.data);
+        ev_timer_stop(EV_A_ watcher);
+        free(time_obj);
+        return;
+    }
 
+    time_len = (int)(p1 - (char*)dvalue.data);
+    if (time_len <= 0 || (size_t)time_len >= sizeof(static_buffer)) {
+        skipd_log(SKIPD_DEBUG, "time %s schedule value error\n", dkey.data);
+        ev_timer_stop(EV_A_ watcher);
+        free(time_obj);
+        return;
+    }
+    memcpy(static_buffer, dvalue.data, (size_t)time_len);
+    static_buffer[time_len] = '\0';
+
+    sys_script(p1 + 1,
+        dvalue.size - (size_t)(p1 + 1 - (char*)dvalue.data));
+
+    now = time(NULL);
+    if (!next_daily_delay(static_buffer, now, &timer_delay)) {
+        skipd_log(SKIPD_DEBUG, "time %s next schedule calculation failed\n",
+            dkey.data);
+        ev_timer_stop(EV_A_ watcher);
+        free(time_obj);
+        return;
+    }
+
+    /* Re-arm as a one-shot timer using the next local calendar occurrence. */
+    ev_timer_stop(EV_A_ watcher);
+    ev_timer_init(watcher, time_cmd_cb, timer_delay, 0.0);
+    ev_timer_start(EV_A_ watcher);
 }
 
 static int client_send_key(EV_P_ skipd_client* client, char* cmd, char* key, char* buf, int len) {
@@ -592,11 +663,9 @@ static int client_ccr_read_util(skipd_client* client, int step_len) {
 static int client_run_command(EV_P_ skipd_client* client)
 {
     char *p1, *p2;
-    time_t t1, t2;
     int tmpi, tmp2, write_ok;
     long long arithmetic_result;
     double timer_delay;
-    struct tm tm1, tm2, *tnow;
     Datum dkey, dvalue;
     delay_cmd* delay_obj;
     time_cmd* time_obj;
@@ -891,14 +960,8 @@ static int client_run_command(EV_P_ skipd_client* client)
         memcpy(static_buffer, p1, (size_t)tmpi);
         static_buffer[tmpi] = '\0';
 
-        memset(&tm1, 0, sizeof(tm1));
-        tm1.tm_mday = 1;
-        p2 = strptime(static_buffer, "%H:%M:%S", &tm1);
-        if(p2 == NULL || *p2 != '\0' ||
-           tm1.tm_hour < 0 || tm1.tm_hour > 23 ||
-           tm1.tm_min < 0 || tm1.tm_min > 59 ||
-           tm1.tm_sec < 0 || tm1.tm_sec > 59) {
-            p1 = "time error\n";
+        if (!next_daily_delay(static_buffer, time(NULL), &timer_delay)) {
+            p1 = "time schedule error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
@@ -940,39 +1003,7 @@ static int client_run_command(EV_P_ skipd_client* client)
             free(time_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        /*
-         * Validate and calculate the next firing time before persisting the
-         * task. Otherwise a localtime/mktime failure leaves an orphaned
-         * database entry that reports failure but may run after a restart.
-         */
-        t1 = time(NULL);
-        if (t1 == (time_t)-1) {
-            p1 = "time schedule error\n";
-            client_send(EV_A_ client, p1, strlen(p1));
-            free(time_obj);
-            ccrReturn(ctx, ccr_error_ok1);
-        }
-        tnow = localtime(&t1);
-        if (NULL == tnow) {
-            p1 = "time schedule error\n";
-            client_send(EV_A_ client, p1, strlen(p1));
-            free(time_obj);
-            ccrReturn(ctx, ccr_error_ok1);
-        }
-        tm2 = *tnow;
-        tm2.tm_sec = tm1.tm_sec;
-        tm2.tm_min = tm1.tm_min;
-        tm2.tm_hour = tm1.tm_hour;
-        t2 = mktime(&tm2);
-        if (t2 == (time_t)-1) {
-            p1 = "time schedule error\n";
-            client_send(EV_A_ client, p1, strlen(p1));
-            free(time_obj);
-            ccrReturn(ctx, ccr_error_ok1);
-        }
-        timer_delay = t2 <= t1
-            ? difftime(t1, t2) + 24.0 * 3600.0
-            : difftime(t2, t1);
+        /* The delay was validated above, before writing the task. */
 
         SkipDB_beginTransaction(client->server->db);
         write_ok = SkipDB_at_put_(client->server->db, dkey, dvalue);
@@ -984,7 +1015,7 @@ static int client_run_command(EV_P_ skipd_client* client)
             ccrReturn(ctx, ccr_error_ok1);
         }
         time_obj->server = client->server;
-        ev_timer_init(&time_obj->watcher, time_cmd_cb, timer_delay, 24*3600);
+        ev_timer_init(&time_obj->watcher, time_cmd_cb, timer_delay, 0.0);
         ev_timer_start(EV_A_ &time_obj->watcher);
         p1 = "ok\n";
         client_send(EV_A_ client, p1, strlen(p1));
@@ -1736,83 +1767,56 @@ static void server_init_delay(EV_P_ skipd_server *server) {
 static void server_init_time(EV_P_ skipd_server *server) {
     int n1;
     char *p1;
+    double timer_delay;
     Datum skey, dkey, dvalue;
     SkipDBCursor* cursor = NULL;
     SkipDBRecord* record;
     time_cmd* time_obj;
-    time_t t1, t2;
-    struct tm tm1, tm2, *tnow;
 
-    //Init hear
     skey = Datum_FromCString_("__time__");
     record = SkipDB_list_first(server->db, skey, &cursor);
-    while(NULL != record) {
+    while (NULL != record) {
         dkey = SkipDBRecord_keyDatum(record);
         dvalue = SkipDBRecord_valueDatum(record);
 
         p1 = find_terminated_value_separator(dvalue);
-        if(NULL != p1) {
-            n1 = (p1 - (char*)dvalue.data);
-            if(n1 > STATIC_BUF_LEN || NULL == dkey.data ||
-               dkey.size == 0 || dkey.size > sizeof(time_obj->key) ||
-               ((char*)dkey.data)[dkey.size - 1] != '\0' ||
-               memchr(dkey.data, '\0', dkey.size - 1) != NULL) {
-                /* Persisted keys are length-delimited; never log them as %s
-                 * until their complete NUL-terminated representation is known. */
-                skipd_log(SKIPD_DEBUG, "time read key/value error\n");
+        if (NULL != p1) {
+            n1 = (int)(p1 - (char*)dvalue.data);
+            if (n1 <= 0 || (size_t)n1 >= sizeof(static_buffer) ||
+                NULL == dkey.data || dkey.size == 0 ||
+                dkey.size > sizeof(time_obj->key) ||
+                ((char*)dkey.data)[dkey.size - 1] != '\0' ||
+                memchr(dkey.data, '\0', dkey.size - 1) != NULL) {
+                skipd_log(SKIPDB_DEBUG, "time read key/value error\n");
                 record = SkipDB_list_next(server->db, skey, cursor);
                 continue;
             }
 
-            memcpy(static_buffer, dvalue.data, n1);
+            memcpy(static_buffer, dvalue.data, (size_t)n1);
             static_buffer[n1] = '\0';
-
-            memset(&tm1, 0, sizeof(tm1));
-            tm1.tm_mday = 1;
-            p1 = strptime(static_buffer, "%H:%M:%S", &tm1);
-            if(p1 != NULL && *p1 == '\0' &&
-               tm1.tm_hour >= 0 && tm1.tm_hour <= 23 &&
-               tm1.tm_min >= 0 && tm1.tm_min <= 59 &&
-               tm1.tm_sec >= 0 && tm1.tm_sec <= 59) {
-                t1 = time(NULL);
-                tnow = localtime(&t1);
-                if(NULL == tnow) {
-                    skipd_log(SKIPD_DEBUG, "localtime error\n");
-                    break;
-                }
-                tm2 = *tnow;
-                tm2.tm_sec = tm1.tm_sec;
-                tm2.tm_min = tm1.tm_min;
-                tm2.tm_hour = tm1.tm_hour;
-                t2 = mktime(&tm2);
-                if(t2 == (time_t)-1) {
-                    skipd_log(SKIPD_DEBUG, "mktime error\n");
-                    record = SkipDB_list_next(server->db, skey, cursor);
-                    continue;
-                }
-
-                time_obj = (time_cmd*)malloc(sizeof(time_cmd));
-                if(NULL == time_obj) {
-                    skipd_log(SKIPD_DEBUG, "out of memory\n");
-                    break;
-                }
-                memcpy(time_obj->key, dkey.data, dkey.size);
-                time_obj->server = server;
-
-                if(t2 > t1)
-                    ev_timer_init(&time_obj->watcher, time_cmd_cb, (t2-t1), 24*3600);
-                else
-                    ev_timer_init(&time_obj->watcher, time_cmd_cb, (t1-t2+24*3600), 24*3600);
-                ev_timer_start(EV_A_ &time_obj->watcher);
+            if (!next_daily_delay(static_buffer, time(NULL), &timer_delay)) {
+                skipd_log(SKIPDB_DEBUG, "time schedule value error\n");
+                record = SkipDB_list_next(server->db, skey, cursor);
+                continue;
             }
+
+            time_obj = (time_cmd*)calloc(1, sizeof(time_cmd));
+            if (NULL == time_obj) {
+                skipd_log(SKIPDB_DEBUG, "out of memory\n");
+                break;
+            }
+            memcpy(time_obj->key, dkey.data, dkey.size);
+            time_obj->server = server;
+
+            ev_timer_init(&time_obj->watcher, time_cmd_cb, timer_delay, 0.0);
+            ev_timer_start(EV_A_ &time_obj->watcher);
         }
 
         record = SkipDB_list_next(server->db, skey, cursor);
     }
 
-    if(NULL != cursor) {
+    if (NULL != cursor)
         SkipDBCursor_release(cursor);
-    }
 }
 
 static void server_sync(EV_P_ skipd_server* server) {
