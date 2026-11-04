@@ -323,8 +323,10 @@ iprange_ex_conv(const char *ip_name, int idx)
 	g_buf_set("");
 
 	ip_len = strlen(ip);
-	if (ip_len == 0 || ip_len >= sizeof(startip))
+	if (ip_len == 0)
 		return (g_buf_alloc(g_buf));
+	if (ip_len >= sizeof(startip))
+		return NULL;
 
 	/* Wildcards must occupy complete trailing octets (for example 192.168.1.*). */
 	j = 0;
@@ -356,7 +358,7 @@ iprange_ex_conv(const char *ip_name, int idx)
 
 	startip[j] = '\0';
 	if (!valid || mask < 0 || inet_pton(AF_INET, startip, &addr) != 1)
-		return (g_buf_alloc(g_buf));
+		return NULL;
 
 	if (mask == 32) {
 		g_buf_set(startip);
@@ -618,6 +620,8 @@ include_lw_filter(FILE *fp, char *wan_if, char *logaccept, char *logdrop)
 		
 		srcip = iprange_ex_conv("filter_lw_srcip_x", i);
 		dstip = iprange_ex_conv("filter_lw_dstip_x", i);
+		if (!srcip || !dstip)
+			continue;
 		
 		filterstr = filter_conv(proto, flag, srcip, srcport, dstip, dstport);
 		if (*filterstr) {
@@ -668,6 +672,8 @@ include_vts_filter(FILE *fp, char *lan_ip, char *logaccept, int forward_chain)
 		}
 		
 		srcip = iprange_ex_conv("vts_srcip_x", i);
+		if (!srcip)
+			continue;
 		if (*srcip)
 			snprintf(srcaddrs, sizeof(srcaddrs), " -s %s", srcip);
 		
@@ -715,6 +721,8 @@ include_vts_nat(FILE *fp)
 			continue;
 		
 		srcip = iprange_ex_conv("vts_srcip_x", i);
+		if (!srcip)
+			continue;
 		if (*srcip)
 			snprintf(srcaddrs, sizeof(srcaddrs), " -s %s", srcip);
 		
