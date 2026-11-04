@@ -19,9 +19,11 @@ UDBIndex *UDBIndex_new(void)
 		return NULL;
 	self->file = JFile_new();
 	self->holes = List_new();
-	if (NULL == self->file || NULL == self->holes) {
+	self->reserved = List_new();
+	if (NULL == self->file || NULL == self->holes || NULL == self->reserved) {
 		JFile_free(self->file);
 		List_free(self->holes);
+		List_free(self->reserved);
 		free(self);
 		return NULL;
 	}
@@ -29,6 +31,7 @@ UDBIndex *UDBIndex_new(void)
 	if (NULL == self->file->path || NULL == self->file->logPath) {
 		JFile_free(self->file);
 		List_free(self->holes);
+		List_free(self->reserved);
 		free(self);
 		return NULL;
 	}
@@ -42,6 +45,7 @@ void UDBIndex_free(UDBIndex *self)
 	UDBIndex_close(self);
 	JFile_free(self->file);
 	List_free(self->holes);
+	List_free(self->reserved);
 	free(self);
 }
 
@@ -77,8 +81,10 @@ char *UDBIndex_path(UDBIndex *self)
 
 int UDBIndex_open(UDBIndex *self)
 {
-	if (NULL == self || NULL == self->file)
+	if (NULL == self || NULL == self->file ||
+		NULL == self->holes || NULL == self->reserved)
 		return 0;
+	List_removeAll(self->reserved);
 	JFile_open(self->file);
 	if (NULL == self->file->file || NULL == self->file->log)
 		return 0;
@@ -116,8 +122,10 @@ int UDBIndex_finishOpening(UDBIndex *self)
 
 void UDBIndex_close(UDBIndex *self)
 {
-	if (NULL != self)
+	if (NULL != self) {
 		JFile_close(self->file);
+		List_removeAll(self->reserved);
+	}
 }
 
 void UDBIndex_begin(UDBIndex *self)
@@ -134,8 +142,41 @@ void UDBIndex_preCommit(UDBIndex *self)
 
 void UDBIndex_commit(UDBIndex *self)
 {
-	if (self && self->file)
-		JFile_commitToFile(self->file);
+	size_t i;
+
+	if (NULL == self || NULL == self->file)
+		return;
+	JFile_commitToFile(self->file);
+	if (NULL == self->file->file || NULL == self->file->log ||
+		NULL == self->holes || NULL == self->reserved)
+		return;
+
+	/* Unused reservations become ordinary holes at the transaction boundary. */
+	for (i = 0; i < self->reserved->size; ++i) {
+		PID_TYPE pid = (PID_TYPE)self->reserved->items[i];
+		size_t old_size;
+		if (pid == 0)
+			continue;
+		if (UDBIndex_posForPid_(self, pid) != 0) {
+			/* A mapped PID should have been removed from reserved on write. */
+			continue;
+		}
+		if (ferror(self->file->file)) {
+			JFile_close(self->file);
+			return;
+		}
+		while (List_removeFirst_(self->holes, (void *)pid)) {
+			/* Keep the free-PID stack unique. */
+		}
+		old_size = self->holes->size;
+		List_push_(self->holes, (void *)pid);
+		if (self->holes->size != old_size + 1) {
+			/* Marker 1 remains armed; reopening rebuilds holes from disk. */
+			JFile_close(self->file);
+			return;
+		}
+	}
+	List_removeAll(self->reserved);
 }
 
 // holes ------------------------------------------- 
@@ -183,30 +224,44 @@ PID_TYPE UDBIndex_nextPid(UDBIndex *self)
 
 PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 {
-	PID_TYPE hole;
-	PID_TYPE max;
-	if (NULL == self || NULL == self->holes || NULL == self->file ||
-		NULL == self->file->file)
+	PID_TYPE hole, pid, max, old_max_pid;
+	size_t old_reserved_size;
+
+	if (NULL == self || NULL == self->holes || NULL == self->reserved ||
+		NULL == self->file || NULL == self->file->file)
 		return 0;
-	hole = (PID_TYPE)List_pop(self->holes);
+
+	hole = (PID_TYPE)List_top(self->holes);
 	if (hole) {
-		/* Normalize legacy duplicate free-slot entries before reserving the PID. */
+		old_reserved_size = self->reserved->size;
+		List_push_(self->reserved, (void *)hole);
+		if (self->reserved->size != old_reserved_size + 1)
+			return 0;
+		(void)List_pop(self->holes);
 		while (List_removeFirst_(self->holes, (void *)hole)) {
 			/* Remove every stale duplicate for this allocation. */
 		}
 		return hole;
 	}
 
+	old_max_pid = self->maxPid;
 	max = (PID_TYPE)JFile_setPositionToEnd(self->file) /
 		sizeof(UDBIndexEntry);
 	if (max > self->maxPid)
-		self->maxPid = max;
+		pid = max;
 	else {
 		if (self->maxPid == (PID_TYPE)-1)
 			return 0;
-		self->maxPid++;
+		pid = self->maxPid + 1;
 	}
-	return self->maxPid;
+	old_reserved_size = self->reserved->size;
+	List_push_(self->reserved, (void *)pid);
+	if (self->reserved->size != old_reserved_size + 1) {
+		self->maxPid = old_max_pid;
+		return 0;
+	}
+	self->maxPid = pid;
+	return pid;
 }
 
 PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
@@ -238,16 +293,17 @@ int UDBIndex_isReservedPid_(UDBIndex *self, PID_TYPE pid)
 {
 	size_t i;
 
-	if (NULL == self || NULL == self->holes || NULL == self->file ||
-		NULL == self->file->file || pid == 0 || pid > self->maxPid ||
+	if (NULL == self || NULL == self->holes || NULL == self->reserved ||
+		NULL == self->file || NULL == self->file->file ||
+		pid == 0 || pid > self->maxPid ||
 		UDBIndex_posForPid_(self, pid) != 0 || ferror(self->file->file))
 		return 0;
 
-	for (i = 0; i < self->holes->size; ++i) {
-		if (self->holes->items[i] == (void *)pid)
-			return 0;
+	for (i = 0; i < self->reserved->size; ++i) {
+		if (self->reserved->items[i] == (void *)pid)
+			return 1;
 	}
-	return 1;
+	return 0;
 }
 
 int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
@@ -282,6 +338,7 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 
 	/* Keep the free-PID stack unique when records are removed/reused/compacted. */
 	if (pos == 0) {
+		List_remove_(self->reserved, (void *)pid);
 		if (pid != 0 && old_pos != 0) {
 			size_t old_hole_count;
 			while (List_removeFirst_(self->holes, (void *)pid)) {
@@ -293,6 +350,7 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 				return 0;
 		}
 	} else {
+		List_remove_(self->reserved, (void *)pid);
 		while (List_removeFirst_(self->holes, (void *)pid)) {
 			/* Remove any stale duplicate free-slot entries. */
 		}
