@@ -131,6 +131,27 @@ ev_signal signal_watcher2;
 #define STATIC_BUF_LEN 511
 char static_buffer[STATIC_BUF_LEN+1];
 
+static int is_valid_script_name(const char *name)
+{
+    const unsigned char *p;
+    size_t len;
+
+    if(NULL == name || '\0' == *name)
+        return 0;
+    len = strlen(name);
+    if(len >= DELAY_KEY_LEN || 0 == strcmp(name, ".") || 0 == strcmp(name, ".."))
+        return 0;
+
+    for(p = (const unsigned char*)name; *p; ++p) {
+        if(!((*p >= 'a' && *p <= 'z') ||
+             (*p >= 'A' && *p <= 'Z') ||
+             (*p >= '0' && *p <= '9') ||
+             *p == '_' || *p == '-' || *p == '.'))
+            return 0;
+    }
+    return 1;
+}
+
 #if 0
 static void print_time(char* prefix)
 {
@@ -853,12 +874,30 @@ static int client_run_command(EV_P_ skipd_client* client)
         ccrReturn(ctx, ccr_error_ok1);
 
     } else if(!strcmp(client->command, "fire")) {
+        int path_len;
         p1 = p2+1;
-        //TODO check length hear
+        /* This argument becomes both a filesystem path and a shell command. */
+        if(!is_valid_script_name(p1)) {
+            p1 = "invalid script name\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         client->key = (char*)malloc(DELAY_KEY_LEN*2);
-        sprintf(client->key, "/usr/bin/%s.sh", p1);
+        if(NULL == client->key) {
+            p1 = "memory error\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
+        path_len = snprintf(client->key, DELAY_KEY_LEN*2, "/usr/bin/%s.sh", p1);
+        if(path_len < 0 || path_len >= DELAY_KEY_LEN*2) {
+            free(client->key);
+            client->key = NULL;
+            p1 = "script path too long\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         if(-1 != access(client->key, F_OK)) {
-            //file exist, than run script
+            //file exist, then run script
             sys_script(client->key);
 
             //send end
@@ -867,9 +906,16 @@ static int client_run_command(EV_P_ skipd_client* client)
             free(client->key);
             ccrReturn(ctx, ccr_error_ok1);
         } else {
-            sprintf(client->key, "/jffs/scripts/%s.sh", p1);
+            path_len = snprintf(client->key, DELAY_KEY_LEN*2, "/jffs/scripts/%s.sh", p1);
+            if(path_len < 0 || path_len >= DELAY_KEY_LEN*2) {
+                free(client->key);
+                client->key = NULL;
+                p1 = "script path too long\n";
+                client_send(EV_A_ client, p1, strlen(p1));
+                ccrReturn(ctx, ccr_error_ok1);
+            }
             if(-1 != access(client->key, F_OK)) {
-                //file exist, than run script
+                //file exist, then run script
                 sys_script(client->key);
 
                 //send end
@@ -880,7 +926,7 @@ static int client_run_command(EV_P_ skipd_client* client)
             }
         }
 
-        sprintf(client->key, "__event__%s", p1);
+        snprintf(client->key, DELAY_KEY_LEN*2, "__event__%s", p1);
         p1 = p2+1;
 
         CS->n = 0;
