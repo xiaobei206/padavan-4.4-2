@@ -139,3 +139,10 @@ ef59177  upload.c: validate storage restore MIME boundary.
 8f72316  base64.c: use unsigned bytes for lookup-table indexing and validate arguments.
 afb4ed9  httpd.c: reject failed Basic authorization decoding.
 39c6c92  upload.c: validate upload size against the original request payload.
+
+90754b9  web_ex.c: prevent malformed form fields from underflowing copy lengths.
+18c56ad  nvram_x.c: validate grouped-list pointers/counts before indexed processing.
+f753e04  ralink.c: bound wireless site-survey response scans to their buffers.
+58857c3  ralink.c: validate wireless ioctl interface names and terminate safely.
+b34f345  ralink.c: bound private ioctl PHY-mode output copy.
+7d1c739  ralink.c: skip malformed kernel route entries instead of using uninitialized fields.
