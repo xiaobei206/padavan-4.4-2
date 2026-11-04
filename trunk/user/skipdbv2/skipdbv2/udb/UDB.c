@@ -486,7 +486,8 @@ UDBRecord *UDB_recordAtPid_(UDB *self, PID_TYPE pid)
 	if (!pos)
 		return NULL;
 	record = UDBRecords_recordAtPos_(self->records, pos);
-	if (NULL == record || UDBRecord_isEmpty(record))
+	if (NULL == record || UDBRecord_isEmpty(record) ||
+		UDBRecord_pid(record) != pid)
 		return NULL;
 	return record;
 }
