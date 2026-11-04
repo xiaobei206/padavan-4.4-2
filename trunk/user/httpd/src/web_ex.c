@@ -2295,7 +2295,7 @@ db_print(dbclient *client, webs_t wp, char *prefix, char *key, char *value)
 	write_js_string(wp, key);
 	websWrite(wp, "]=");
 	write_js_string(wp, value);
-	websWrite(wp, ";\\n");
+	websWrite(wp, ";\n");
 	return 0;
 }
 
