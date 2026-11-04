@@ -630,8 +630,8 @@ static int SkipDB_recordAt_put_inner(SkipDB *self, Datum k, Datum v, SkipDBRecor
 	int level, old_header_level;
 	if (pp)
 		*pp = NULL;
+	/* RAM-only callers may update the in-memory index without a disk transaction. */
 	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
-		NULL == self->udb || !self->udb->withinTransaction ||
 		(k.size > 0 && NULL == k.data) ||
 		(v.size > 0 && NULL == v.data))
 		return 0;
