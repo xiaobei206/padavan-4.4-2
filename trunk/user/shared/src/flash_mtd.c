@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <limits.h>
 
 #include <mtd-abi.h>
 #include "flash_mtd.h"
@@ -132,7 +133,7 @@ read_safe(int fd, unsigned char *buf, size_t buf_len)
 	while (r_len < buf_len) {
 		ssize_t ret = read(fd, buf + r_len, buf_len - r_len);
 		if (ret < 0) {
-			if (errno == EINTR || errno == EAGAIN)
+			if (errno == EINTR)
 				continue;
 			return -1;
 		}
@@ -144,6 +145,28 @@ read_safe(int fd, unsigned char *buf, size_t buf_len)
 	}
 
 	return (ssize_t)r_len;
+}
+
+static ssize_t
+write_safe(int fd, const unsigned char *buf, size_t buf_len)
+{
+	size_t w_len = 0;
+
+	while (w_len < buf_len) {
+		ssize_t ret = write(fd, buf + w_len, buf_len - w_len);
+		if (ret < 0) {
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
+		if (ret == 0) {
+			errno = EIO;
+			return -1;
+		}
+		w_len += (size_t)ret;
+	}
+
+	return (ssize_t)w_len;
 }
 
 int
@@ -313,7 +336,7 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 			ret = -4;
 			break;
 		}
-		if (read(fd, tmp, mi.erasesize) != mi.erasesize) {
+		if (read_safe(fd, tmp, mi.erasesize) != (ssize_t)mi.erasesize) {
 			fprintf(stderr, "%s: failed to read %u bytes from %s (errno: %d)\n",
 				__func__, mi.erasesize, mi.dev, errno);
 			ret = -4;
@@ -337,7 +360,7 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 			break;
 		}
 		memcpy(tmp + (ofs - ofs_align), ptr, len);
-		if (write(fd, tmp, mi.erasesize) != mi.erasesize) {
+		if (write_safe(fd, tmp, mi.erasesize) != (ssize_t)mi.erasesize) {
 			fprintf(stderr, "%s: failed to write %u bytes to %s (errno: %d)\n",
 				__func__, mi.erasesize, mi.dev, errno);
 			ret = -6;
@@ -354,12 +377,11 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 	if (cnt == 0 && mi.type != MTD_UBIVOLUME) {
 		tmp = (unsigned char *)malloc(count);
 		if (tmp) {
-			if (flash_mtd_read(mtd_part, offset, tmp, count) == 0) {
-				if (memcmp(tmp, buf, count) != 0) {
-					fprintf(stderr, "%s: failed to verify after write to %s - data mismatch!\n",
-						__func__, mi.dev);
-					ret = -7;
-				}
+			if (flash_mtd_read(mtd_part, offset, tmp, count) != 0 ||
+			    memcmp(tmp, buf, count) != 0) {
+				fprintf(stderr, "%s: failed to verify after write to %s\n",
+					__func__, mi.dev);
+				ret = -7;
 			}
 			free(tmp);
 		}
