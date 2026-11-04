@@ -324,7 +324,12 @@ reapply_vpn_server(void)
 static void
 vpns_firewall_permission(char *ifname, int add)
 {
-	doSystem("/bin/iptables -%s %s -i %s -j %s", (add) ? "A" : "D", IPT_CHAIN_NAME_VPN_LIST, ifname, "ACCEPT");
+	char *argv[] = {
+		"/bin/iptables", add ? "-A" : "-D", IPT_CHAIN_NAME_VPN_LIST,
+		"-i", ifname, "-j", "ACCEPT", NULL
+	};
+	if (ifname && *ifname)
+		_eval(argv, NULL, 0, NULL);
 }
 
 void
@@ -417,7 +422,8 @@ ipup_vpns_main(int argc, char **argv)
 	i_vuse = nvram_get_int("vpns_vuse");
 	if (i_vuse) {
 		/* disable multicast flag */
-		doSystem("ifconfig %s %s", argv[1], "-multicast");
+		char *ifconfig_argv[] = { "ifconfig", argv[1], "-multicast", NULL };
+		_eval(ifconfig_argv, NULL, 0, NULL);
 	}
 
 	/* add route to client's LAN */
@@ -442,8 +448,12 @@ ipup_vpns_main(int argc, char **argv)
 			eval("/usr/sbin/bcrelay", "-d", "-i", "ppp[1-5][0-9]", "-o", IFNAME_BR, "-n");
 	}
 
-	if (check_if_file_exist(script_name))
-		doSystem("%s %s %s %s %s %s", script_name, "up", argv[1], argv[5], argv[6], peer_name);
+	if (check_if_file_exist(script_name)) {
+		char *hook_argv[] = {
+			(char *)script_name, "up", argv[1], argv[5], argv[6], peer_name, NULL
+		};
+		_eval(hook_argv, NULL, 0, NULL);
+	}
 
 	return 0;
 }
@@ -493,8 +503,12 @@ ipdown_vpns_main(int argc, char **argv)
 		unlink(clients_l2);
 	}
 
-	if (check_if_file_exist(script_name))
-		doSystem("%s %s %s %s %s %s", script_name, "down", argv[1], argv[5], argv[6], peer_name);
+	if (check_if_file_exist(script_name)) {
+		char *hook_argv[] = {
+			(char *)script_name, "down", argv[1], argv[5], argv[6], peer_name, NULL
+		};
+		_eval(hook_argv, NULL, 0, NULL);
+	}
 
 	if ((i_clients == 0 || nvram_get_int("vpns_cast") == 0) && pids(svcs[0]))
 		kill_services(svcs, 3, 1);
