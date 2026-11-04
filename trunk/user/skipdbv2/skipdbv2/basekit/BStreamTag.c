@@ -16,11 +16,12 @@ unsigned int byteCount : 5;
 
 BStreamTag BStreamTag_FromUnsignedChar(unsigned char c)
 {
-	// we need to do this because bit fields are compiler dependent
+	/* Extract wire-format fields explicitly; bit-field assignments do not
+	 * mask the shifted integer expressions used by the previous version. */
 	BStreamTag t;
-	t.isArray = c >> 7;
-	t.type = ( c << 1) >> 6;
-	t.byteCount = ( c << 3 ) >> 3;
+	t.isArray = (c >> 7) & 0x01;
+	t.type = (c >> 5) & 0x03;
+	t.byteCount = c & 0x1f;
 	return t;
 }
 
