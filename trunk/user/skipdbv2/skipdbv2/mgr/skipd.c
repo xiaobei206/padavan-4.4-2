@@ -2205,14 +2205,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if(daemon) {
-        skipd_daemonize(server->pid_path);
-    }
-
-    //if(!daemon) {
-    //    skipd_savepid(server->pid_path);
-    //}
-
     setlogmask(LOG_UPTO (LOG_DEBUG));
     openlog("skipd", syslog_options, LOG_DAEMON);
     script_log_fd = open_script_log();
@@ -2227,9 +2219,14 @@ int main(int argc, char **argv)
     ev_signal_init (&signal_watcher2, sigint_cb, SIGTERM);
     ev_signal_start (EV_A_ &signal_watcher2);
 
-    // Create unix socket in non-blocking fashion
+    // Create and bind the service before daemonizing. A second invocation
+    // must fail the socket-instance lock check before it can overwrite the PID
+    // file of an already running daemon.
     if (server_init(server, max_queue) != 0)
         return EXIT_FAILURE;
+
+    if (daemon)
+        skipd_daemonize(server->pid_path);
 
     /* Register persisted timers before accepting clients. Otherwise a delay/time
      * command created during a delayed startup scan would be scheduled twice. */
