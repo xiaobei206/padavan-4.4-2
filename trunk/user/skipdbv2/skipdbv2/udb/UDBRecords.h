@@ -50,7 +50,7 @@ UDBRecord *UDBRecords_newRecord(UDBRecords *self);
 UDBRecord *UDBRecords_nextRecord(UDBRecords *self);
 UDBRecord *UDBRecords_recordAfter_(UDBRecords *self, UDBRecord *record);
 UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos);
-void UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record);
+int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record);
 void UDBRecords_moveRecord_toPos_(UDBRecords *self, UDBRecord *record, PID_TYPE pos);
 
 void UDBRecords_truncate_(UDBRecords *self, off_t size);
@@ -60,7 +60,7 @@ void UDBRecords_truncate_(UDBRecords *self, off_t size);
 UDBRecord *UDBRecords_findFirstEmptyRecord(UDBRecords *self);
 //UDBRecord *UDBRecords_nextEmptyRecordAfter_(UDBRecords *self, UDBRecord *record);
 PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self);
-void UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE firstEmptyPos);
+int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE firstEmptyPos);
 UDBRecord *UDBRecords_firstEmptyRecord(UDBRecords *self);
 
 #ifdef __cplusplus
