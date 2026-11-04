@@ -511,7 +511,8 @@ void SkipDB_readRootRecord(SkipDB *self)
 		/* Only a genuinely new index (reserved PID 0 only) may create a root. */
 		if (self->headerPid != 0 && self->udb && self->udb->index &&
 			(UDBIndex_posForPid_(self->udb->index, self->headerPid) != 0 ||
-			 UDBIndex_pidCount(self->udb->index) > 1 ||
+			 UDBIndex_pidCount(self->udb->index) != 1 ||
+			 ferror(self->udb->index->file->file) ||
 			 (self->udb->records && self->udb->records->file &&
 			  self->udb->records->file->maxPos > (long)sizeof(PID_TYPE))) {
 			fprintf(stderr, "SkipDB: root record %" PID_FORMAT " is missing or unreadable in a non-empty index\n",
