@@ -848,9 +848,8 @@ SkipDBCursor *SkipDB_createCursor(SkipDB *self)
 
 void SkipDB_removeCursor_(SkipDB *self, SkipDBCursor *cursor)
 {
-	SkipDBCursor_release(cursor);
-	List_remove_(self->cursors, cursor);
-	//SkipDBCursor_free(cursor);
+	if (self && self->cursors && cursor)
+		List_remove_(self->cursors, cursor);
 }
 
 // moving from in-memory to on-disk ---------------------------------
