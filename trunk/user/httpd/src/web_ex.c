@@ -660,7 +660,7 @@ ej_nvram_match_x(int eid, webs_t wp, int argc, char **argv)
 	
 	if (nvram_match(name, match))
 	{
-		return websWrite(wp, output);
+		return websWrite(wp, "%s", output);
 	}
 
 	return 0;
@@ -679,7 +679,7 @@ ej_nvram_double_match_x(int eid, webs_t wp, int argc, char **argv)
 	
 	if (nvram_match(name, match) && nvram_match(name2, match2))
 	{
-		return websWrite(wp, output);
+		return websWrite(wp, "%s", output);
 	}
 
 	return 0;
@@ -704,11 +704,11 @@ ej_nvram_match_both_x(int eid, webs_t wp, int argc, char **argv)
 	
 	if (nvram_match(name, match))
 	{
-		return websWrite(wp, output);
+		return websWrite(wp, "%s", output);
 	}
 	else
 	{
-		return websWrite(wp, output_not);
+		return websWrite(wp, "%s", output_not);
 	}
 }
 
@@ -730,7 +730,7 @@ ej_nvram_get_list_x(int eid, webs_t wp, int argc, char **argv)
 		return -1;
 	}
 
-	ret += websWrite(wp, nvram_get_list_x(name, which));
+	ret += websWrite(wp, "%s", nvram_get_list_x(name, which));
 	return ret;
 }
 
@@ -794,7 +794,7 @@ ej_nvram_match_list_x(int eid, webs_t wp, int argc, char **argv)
 	}
 
 	if (nvram_match_list_x(name, match, which))
-		return websWrite(wp, output);
+		return websWrite(wp, "%s", output);
 
 	return 0;
 }
@@ -3328,6 +3328,8 @@ static int login_state_hook(int eid, webs_t wp, int argc, char **argv) {
 	return 0;
 }
 
+static void write_json_string(webs_t wp, const char *value);
+
 static int ej_get_nvram_list(int eid, webs_t wp, int argc, char **argv) {
 	struct variable *v, *gv;
 	char buf[NVRAM_MAX_VALUE_LEN];
@@ -3375,10 +3377,9 @@ static int ej_get_nvram_list(int eid, webs_t wp, int argc, char **argv) {
 				websWrite(wp, ", ");
 			
 			if (hiddenVar && strcmp(hiddenVar, gv->name) == 0)
-				sprintf(buf, "\"%s\"", "*");
+				write_json_string(wp, "*");
 			else
-				snprintf(buf, sizeof(buf), "\"%s\"", nvram_get_list_x(gv->name, i));
-			websWrite(wp, "%s", buf);
+				write_json_string(wp, nvram_get_list_x(gv->name, i));
 		}
 		
 		websWrite(wp, "]");
@@ -3543,7 +3544,15 @@ static int ej_get_vpns_client(int eid, webs_t wp, int argc, char **argv)
 		else
 			websWrite(wp, ", ");
 		
-		websWrite(wp, "[\"%s\", \"%s\", \"%s\", \"%s\"]", addr_l, addr_r, peer_name, ifname);
+		websWrite(wp, "[");
+		write_json_string(wp, addr_l);
+		websWrite(wp, ", ");
+		write_json_string(wp, addr_r);
+		websWrite(wp, ", ");
+		write_json_string(wp, peer_name);
+		websWrite(wp, ", ");
+		write_json_string(wp, ifname);
+		websWrite(wp, "]");
 	}
 
 	fclose(fp);
