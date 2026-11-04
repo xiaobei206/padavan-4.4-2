@@ -31,23 +31,27 @@ static int ignore_result(dbclient *client);
 
 static int write_util(dbclient *client, int len, unsigned int delay) {
     int n, written = 0;
-    unsigned int now, timeout;
+    unsigned long long now, timeout;
     struct timeval tv, tv2;
 
     if (!client || !client->buf || client->remote_fd < 0 || len < 0)
         return -1;
 
-    gettimeofday(&tv2, NULL);
-    timeout = (tv2.tv_sec * 1000) + (tv2.tv_usec / 1000) + delay;
+    if (gettimeofday(&tv2, NULL) != 0)
+        return -1;
+    timeout = (unsigned long long)tv2.tv_sec * 1000ULL +
+              (unsigned long long)tv2.tv_usec / 1000ULL + delay;
     while (written < len) {
         n = send(client->remote_fd, client->buf + written, (size_t)(len - written), MSG_NOSIGNAL);
         if (n < 0) {
             if (errno == EINTR)
                 continue;
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                gettimeofday(&tv, NULL);
-                now = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-                if (now > timeout)
+                if (gettimeofday(&tv, NULL) != 0)
+                    return -1;
+                now = (unsigned long long)tv.tv_sec * 1000ULL +
+                      (unsigned long long)tv.tv_usec / 1000ULL;
+                if (now >= timeout)
                     break;
                 usleep(50);
                 continue;
@@ -213,15 +217,17 @@ int dbclient_bulk(dbclient *client, const char *command, const char *key,
 
 static int read_util(dbclient *client, int len, unsigned int delay) {
     int clen, n;
-    unsigned int now, timeout;
+    unsigned long long now, timeout;
     struct timeval tv, tv2;
 
     if (!client || client->remote_fd < 0 || len <= 0 || len > READ_MAX)
         return -4;
     if (check_buf(client, len) != 0)
         return -4;
-    gettimeofday(&tv2, NULL);
-    timeout = (tv2.tv_sec * 1000) + (tv2.tv_usec / 1000) + delay;
+    if (gettimeofday(&tv2, NULL) != 0)
+        return -1;
+    timeout = (unsigned long long)tv2.tv_sec * 1000ULL +
+              (unsigned long long)tv2.tv_usec / 1000ULL + delay;
     client->buf_pos = 0;
 
     for(;;) {
@@ -231,9 +237,11 @@ static int read_util(dbclient *client, int len, unsigned int delay) {
             if (errno == EINTR)
                 continue;
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                gettimeofday(&tv, NULL);
-                now = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-                if(now > timeout) {
+                if (gettimeofday(&tv, NULL) != 0)
+                    return -3;
+                now = (unsigned long long)tv.tv_sec * 1000ULL +
+                      (unsigned long long)tv.tv_usec / 1000ULL;
+                if (now >= timeout) {
                     break;
                 }
 
