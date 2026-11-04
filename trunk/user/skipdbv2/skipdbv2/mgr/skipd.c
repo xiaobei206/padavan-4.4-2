@@ -1391,6 +1391,25 @@ fail:
     return -1;
 }
 
+static int server_open_database(SkipDB *db)
+{
+    int header_pid;
+
+    if (NULL == db)
+        return 0;
+    header_pid = SkipDB_open(db);
+    if (!SkipDB_isOpen(db))
+        return 0;
+
+    /* A new empty DB has an in-memory root with PID 0 until its first commit. */
+    if (header_pid <= 0) {
+        SkipDB_beginTransaction(db);
+        SkipDB_commitTransaction(db);
+    }
+
+    return SkipDB_isOpen(db) && SkipDB_headerPid(db) > 0;
+}
+
 static void server_open(skipd_server* server)
 {
     char real_path[SK_PATH_MAX];
@@ -1425,9 +1444,7 @@ static void server_open(skipd_server* server)
         exit(EXIT_FAILURE);
     }
     SkipDB_setPath_(server->db, real_path);
-    /* A new empty database is open even while its root PID is still pending. */
-    SkipDB_open(server->db);
-    if (!SkipDB_isOpen(server->db)) {
+    if (!server_open_database(server->db)) {
         skipd_log(SKIPDB_DEBUG, "database open failed: %s\n", real_path);
         SkipDB_free(server->db);
         server->db = NULL;
@@ -1463,9 +1480,7 @@ static void server_switch(skipd_server* server)
 
     SkipDB_setPath_(other, real_path);
     SkipDB_delete(other);
-    /* The empty replacement DB receives its root PID on the first commit. */
-    SkipDB_open(other);
-    if (!SkipDB_isOpen(other)) {
+    if (!server_open_database(other)) {
         skipd_log(SKIPDB_DEBUG, "unable to open replacement database: %s\n",
             real_path);
         SkipDB_free(other);
