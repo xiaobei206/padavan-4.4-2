@@ -16,6 +16,7 @@
  */
 
 #include <stdlib.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
 #include <time.h>
@@ -534,13 +535,48 @@ load_user_config(FILE *fp, const char *dir_name, const char *file_name, const ch
 	}
 }
 
+static int
+is_safe_module_name(const char *name)
+{
+	const unsigned char *p = (const unsigned char *)name;
+
+	if (!p || !*p)
+		return 0;
+	for (; *p; p++) {
+		if (!isalnum(*p) && *p != '_' && *p != '-')
+			return 0;
+	}
+	return 1;
+}
+
+static int
+module_parameter_path(char *path, size_t path_size,
+		      const char *module_name, const char *module_param)
+{
+	int path_len;
+
+	if (!is_safe_module_name(module_name) ||
+	    !is_safe_module_name(module_param))
+		return -1;
+	path_len = snprintf(path, path_size, "/sys/module/%s/parameters/%s",
+			    module_name, module_param);
+	if (path_len < 0 || path_len >= (int)path_size)
+		return -1;
+	return 0;
+}
+
 int
 is_module_loaded(const char *module_name)
 {
-	DIR *dir_to_open = NULL;
+	DIR *dir_to_open;
 	char mod_path[64];
+	int path_len;
 
-	snprintf(mod_path, sizeof(mod_path), "/sys/module/%s", module_name);
+	if (!is_safe_module_name(module_name))
+		return 0;
+	path_len = snprintf(mod_path, sizeof(mod_path), "/sys/module/%s", module_name);
+	if (path_len < 0 || path_len >= (int)sizeof(mod_path))
+		return 0;
 	dir_to_open = opendir(mod_path);
 	if (dir_to_open) {
 		closedir(dir_to_open);
@@ -554,36 +590,75 @@ int
 get_module_refcount(const char *module_name)
 {
 	FILE *fp;
-	char mod_path[64], mod_refval[16];
-	int refcount = 0;
+	char mod_path[64], mod_refval[16], *end;
+	long refcount;
+	int path_len;
 
-	snprintf(mod_path, sizeof(mod_path), "/sys/module/%s/refcnt", module_name);
+	if (!is_safe_module_name(module_name))
+		return -1;
+	path_len = snprintf(mod_path, sizeof(mod_path), "/sys/module/%s/refcnt", module_name);
+	if (path_len < 0 || path_len >= (int)sizeof(mod_path))
+		return -1;
 	fp = fopen(mod_path, "r");
 	if (!fp)
 		return -1;
 
-	mod_refval[0] = 0;
-	fgets(mod_refval, sizeof(mod_refval), fp);
-	if (strlen(mod_refval) > 0)
-		refcount = atoi(mod_refval);
-
+	if (!fgets(mod_refval, sizeof(mod_refval), fp)) {
+		fclose(fp);
+		return -1;
+	}
 	fclose(fp);
 
-	return refcount;
+	errno = 0;
+	refcount = strtol(mod_refval, &end, 10);
+	if (errno == ERANGE || end == mod_refval || (*end && *end != '\\n') ||
+	    refcount < 0 || refcount > INT_MAX)
+		return -1;
+
+	return (int)refcount;
 }
 
 int
 module_smart_load(const char *module_name, const char *module_param)
 {
-	int ret;
+	char *param_copy = NULL, *cursor, *token;
+	char *argv[32];
+	int argc = 0, ret;
 
+	if (!is_safe_module_name(module_name))
+		return 0;
 	if (is_module_loaded(module_name))
 		return 0;
 
-	if (module_param && *module_param)
-		ret = doSystem("modprobe -q %s %s", module_name, module_param);
-	else
-		ret = doSystem("modprobe -q %s", module_name);
+	argv[argc++] = "modprobe";
+	argv[argc++] = "-q";
+	argv[argc++] = (char *)module_name;
+
+	if (module_param && *module_param) {
+		param_copy = strdup(module_param);
+		if (!param_copy)
+			return 0;
+		cursor = param_copy;
+		while ((token = strsep(&cursor, " \\t\\r\\n")) != NULL) {
+			const unsigned char *p;
+			if (!*token)
+				continue;
+			if (token[0] == '-' || argc >= (int)(sizeof(argv) / sizeof(argv[0])) - 1) {
+				free(param_copy);
+				return 0;
+			}
+			for (p = (const unsigned char *)token; *p; p++) {
+				if (*p < 32 || *p == 127) {
+					free(param_copy);
+					return 0;
+				}
+			}
+			argv[argc++] = token;
+		}
+	}
+	argv[argc] = NULL;
+	ret = _eval(argv, NULL, 0, NULL);
+	free(param_copy);
 
 	return (ret == 0) ? 1 : 0;
 }
@@ -591,8 +666,13 @@ module_smart_load(const char *module_name, const char *module_param)
 int
 module_smart_unload(const char *module_name, int recurse_unload)
 {
-	int ret;
-	int refcount = get_module_refcount(module_name);
+	int ret, refcount;
+	char *modprobe_argv[] = { "modprobe", "-r", (char *)module_name, NULL };
+	char *rmmod_argv[] = { "rmmod", (char *)module_name, NULL };
+
+	if (!is_safe_module_name(module_name))
+		return 0;
+	refcount = get_module_refcount(module_name);
 
 	/* check module not loaded */
 	if (refcount < 0)
@@ -602,10 +682,8 @@ module_smart_unload(const char *module_name, int recurse_unload)
 	if (refcount > 0)
 		return 1;
 
-	if (recurse_unload)
-		ret = doSystem("modprobe -r %s", module_name);
-	else
-		ret = doSystem("rmmod %s", module_name);
+	ret = recurse_unload ? _eval(modprobe_argv, NULL, 0, NULL) :
+		_eval(rmmod_argv, NULL, 0, NULL);
 
 	return (ret == 0) ? 1 : 0;
 }
@@ -615,21 +693,25 @@ module_param_get(const char *module_name, const char *module_param, char *param_
 {
 	FILE *fp;
 	char mod_path[256];
+	size_t len;
 
-	if (!param_value || param_value_size < 2)
+	if (!param_value || param_value_size < 2 ||
+	    module_parameter_path(mod_path, sizeof(mod_path), module_name, module_param) < 0)
 		return -1;
 
-	snprintf(mod_path, sizeof(mod_path), "/sys/module/%s/parameters/%s", module_name, module_param);
 	fp = fopen(mod_path, "r");
 	if (!fp)
 		return -1;
 
-	param_value[0] = 0;
-	fgets(param_value, param_value_size, fp);
-	if (strlen(param_value) > 0)
-		param_value[strlen(param_value) - 1] = 0; /* get rid of '\n' */
-
+	if (!fgets(param_value, param_value_size, fp)) {
+		fclose(fp);
+		return -1;
+	}
 	fclose(fp);
+
+	len = strlen(param_value);
+	if (len > 0 && param_value[len - 1] == '\\n')
+		param_value[len - 1] = '\\0';
 
 	return 0;
 }
@@ -639,19 +721,10 @@ module_param_set_int(const char *module_name, const char *module_param, int para
 {
 	char mod_path[256];
 
-	snprintf(mod_path, sizeof(mod_path), "/sys/module/%s/parameters/%s", module_name, module_param);
-	fput_int(mod_path, param_value);
+	if (module_parameter_path(mod_path, sizeof(mod_path), module_name, module_param) < 0)
+		return -1;
 
-	return 0;
-}
-
-void
-oom_score_adjust(pid_t pid, int oom_score_adj)
-{
-	char proc_path[40];
-
-	snprintf(proc_path, sizeof(proc_path), "/proc/%u/oom_score_adj", pid);
-	fput_int(proc_path, oom_score_adj);
+	return fput_int(mod_path, param_value);
 }
 
 #if defined (USE_NAND_FLASH)
