@@ -149,15 +149,23 @@ PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 {
 	UDBIndexEntry entry;
-	
-	JFile_setPosition_(self->file, pid * sizeof(UDBIndexEntry));
-	
-	//#ifdef JFILE_SUPPORTS_MMAP
-	//JFile_mmapfread(self->file, (unsigned char *)(&pos), sizeof(UDBIndexEntry), 1);
-	//#else
-	JFile_fread(self->file, (unsigned char *)(&entry), sizeof(UDBIndexEntry), 1);    
-	//#endif
-	
+	size_t file_size, offset;
+
+	if (NULL == self || NULL == self->file || self->file->maxPos < 0)
+		return 0;
+
+	file_size = (size_t)self->file->maxPos;
+	if (pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry))
+		return 0;
+	offset = pid * sizeof(UDBIndexEntry);
+	if (offset > file_size || file_size - offset < sizeof(UDBIndexEntry))
+		return 0;
+
+	entry.pos = 0;
+	JFile_setPosition_(self->file, (long)offset);
+	if (JFile_fread(self->file, (unsigned char *)&entry, sizeof(UDBIndexEntry), 1) != 1)
+		return 0;
+
 	return entry.pos;
 }
 
