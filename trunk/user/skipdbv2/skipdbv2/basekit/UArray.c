@@ -361,7 +361,9 @@ void UArray_print(const UArray *self)
 		printf("<null>");
 		return;
 	}
-	if (self->size > 0 && (self->data == NULL || self->itemSize == 0)) {
+	if (self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		(self->size > 0 && self->data == NULL)) {
 		printf("<invalid>");
 		return;
 	}
