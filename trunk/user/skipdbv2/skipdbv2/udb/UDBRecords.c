@@ -80,20 +80,30 @@ char *UDBRecords_path(UDBRecords *self)
 
 void UDBRecords_open(UDBRecords *self)
 {
-	long data_size;
 	if (NULL == self || NULL == self->file ||
 		NULL == self->record || NULL == self->firstEmptyRecord)
 		return;
 	JFile_open(self->file);
-	if (NULL == self->file->file || NULL == self->file->log)
+	if (NULL == self->file->file || NULL == self->file->log ||
+		self->file->deferLogReplay)
 		return;
+	(void)UDBRecords_finishOpening(self);
+}
+
+int UDBRecords_finishOpening(UDBRecords *self)
+{
+	long data_size;
+	if (NULL == self || NULL == self->file ||
+		NULL == self->file->file || NULL == self->file->log ||
+		NULL == self->record || NULL == self->firstEmptyRecord)
+		return 0;
 
 	data_size = JFile_setPositionToEnd(self->file);
 	if (data_size < 0 ||
 		(data_size > 0 && (size_t)data_size < sizeof(PID_TYPE))) {
 		fprintf(stderr, "UDBRecords: truncated first-empty metadata header\n");
 		JFile_close(self->file);
-		return;
+		return 0;
 	}
 
 	if (data_size == 0) {
@@ -102,16 +112,17 @@ void UDBRecords_open(UDBRecords *self)
 		if (!UDBRecords_firstEmptyRecordPos_(self, 0)) {
 			fclose(self->file->log);
 			self->file->log = NULL;
-			return;
+			return 0;
 		}
 		JFile_commitToLog(self->file);
 		if (NULL == self->file->log)
-			return;
+			return 0;
 	}
 
 	UDBRecord_setJFile_(self->record, self->file);
 	UDBRecord_setJFile_(self->firstEmptyRecord, self->file);
 	self->firstEmptyPos = UDBRecords_firstEmptyRecordPos(self);
+	return self->file->file != NULL && self->file->log != NULL;
 }
 
 int UDBRecords_isUncommitted(UDBRecords *self)
