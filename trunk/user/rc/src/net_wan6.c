@@ -453,7 +453,7 @@ int dhcp6c_main(int argc, char **argv)
 {
 	int ipv6_type, dns6_auto, lan6_auto;
 	char *dns6_new, *lan_addr6_new;
-	char addr6s[INET6_ADDRSTRLEN];
+	char addr6s[INET6_ADDRSTRLEN + 5];
 
 //	char *wan_ifname = safe_getenv("interface");
 
