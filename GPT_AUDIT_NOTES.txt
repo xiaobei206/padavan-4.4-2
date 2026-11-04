@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+cf62612  JFile.c: bound journal offsets/record lengths while locating completed transactions to avoid seeks past corrupt log data.
 ba77956  UDBIndex.c: validate index-file offsets and return zero on out-of-range or short reads instead of exposing uninitialized entry data.
 6769bf2  UDBRecord.c: validate on-disk record/payload ranges before allocation or reads; reject truncated payloads and guard total-size overflow.
 51cefaa  UDBRecords.c: begin record scans at sizeof(PID_TYPE), after firstEmptyPos metadata at file offset zero.
