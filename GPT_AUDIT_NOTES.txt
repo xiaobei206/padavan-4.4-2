@@ -1,5 +1,9 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+6c699fa  dbapi.c: prevent 32-bit millisecond timeout overflow and handle gettimeofday failures.
+f4d6cbb  web_ex.c: reject truncated static-client records, handle missing commas and JSON-escape field strings.
+6b327be  aidisk.c: reject incomplete folder-tree indexes to avoid uninitialized path state.
+3c0de59  aidisk.c: validate folder indexes and replace overlapping path formatting with bounded appends.
 5cd9c6d  ej.c: validate dictionary filenames, check file bounds, and handle index-allocation failures.
 6a35776  web_ex.c: handle malformed language dictionary lines and missing final newlines.
 a5fef54  web_ex.c: validate DNS status values and bound JavaScript output construction.
