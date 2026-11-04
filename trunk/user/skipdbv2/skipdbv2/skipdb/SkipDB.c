@@ -86,19 +86,26 @@ void SkipDB_free(SkipDB *self)
 
 void SkipDB_setPath_(SkipDB *self, char *path)
 {
-	UDB_setPath_(self->udb, path);
+	if (self && self->udb && path && !UDB_isOpen(self->udb))
+		UDB_setPath_(self->udb, path);
 }
 
 SKIPDB_API int SkipDB_open(SkipDB *self)
 {
-    /*
-	Datum key;
-	Datum value;
-    */
+	if (NULL == self || NULL == self->udb)
+		return 0;
+	if (SkipDB_isOpen(self))
+		return (int)self->headerPid;
 
 	UDB_open(self->udb);
+	if (!UDB_isOpen(self->udb))
+		return 0;
 
 	SkipDB_readRootRecord(self);
+	if (NULL == self->header) {
+		UDB_close(self->udb);
+		return 0;
+	}
 
 #if 0
         if(0 == self->headerPid) {
@@ -116,38 +123,43 @@ SKIPDB_API int SkipDB_open(SkipDB *self)
 
 SKIPDB_API void SkipDB_close(SkipDB *self)
 {
-	UDB_close(self->udb);
+	if (self && self->udb)
+		UDB_close(self->udb);
 }
 
 void SkipDB_headerPid_(SkipDB *self, PID_TYPE pid)
 {
-	self->headerPid = pid;
+	if (self)
+		self->headerPid = pid;
 }
 
 PID_TYPE SkipDB_headerPid(SkipDB *self)
 {
-	return self->headerPid;
+	return self ? self->headerPid : 0;
 }
 
 SkipDBRecord *SkipDB_headerRecord(SkipDB *self)
 {
-	return self->header;
+	return self ? self->header : NULL;
 }
 
 UDB *SkipDB_udb(SkipDB *self)
 {
-	return self->udb;
+	return self ? self->udb : NULL;
 }
 
 BStream *SkipDB_tmpStream(SkipDB *self)
 {
-	return self->stream;
+	return self ? self->stream : NULL;
 }
 
 void SkipDB_delete(SkipDB *self)
 {
+	if (NULL == self)
+		return;
 	SkipDB_close(self);
-	UDB_delete(self->udb);
+	if (self->udb)
+		UDB_delete(self->udb);
 /*
 	int count = 0;
 	SkipDBRecord *r = self->header;
