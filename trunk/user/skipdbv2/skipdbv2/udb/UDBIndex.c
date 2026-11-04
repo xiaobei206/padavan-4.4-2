@@ -155,6 +155,8 @@ int UDBIndex_findHoles(UDBIndex *self)
 		size_t old_size;
 		--pid;
 		if (!UDBIndex_posForPid_(self, pid)) {
+			if (ferror(self->file->file))
+				return 0;
 			old_size = self->holes->size;
 			List_push_(self->holes, (void *)pid);
 			if (self->holes->size != old_size + 1)
