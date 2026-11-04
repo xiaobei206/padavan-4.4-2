@@ -310,45 +310,97 @@ BASEKIT_API size_t UArray_matchingPrefixSizeWith_(const UArray *self, const UArr
 
 // split
 
+static void UArray_freeSplitResults_(PtrUArray *results)
+{
+	size_t i;
+	if (NULL == results)
+		return;
+	if (results->itemType == CTYPE_uintptr_t) {
+		for (i = 0; i < results->size; ++i)
+			UArray_free((UArray *)UArray_rawPointerAt_(results, i));
+	}
+	UArray_free(results);
+}
+
 PtrUArray *UArray_split_(const UArray *self, const PtrUArray *delims)
 {
-	PtrUArray *results = UArray_new();
+	PtrUArray *results;
 	size_t i, last = 0;
-	UArray_setItemType_(results, CTYPE_uintptr_t);
+	if (NULL == self || NULL == delims ||
+		(self->size > 0 && NULL == self->data) ||
+		(delims->size > 0 && NULL == delims->data) ||
+		delims->itemType != CTYPE_uintptr_t)
+		return NULL;
 
-	for (i = 0; i < self->size; i ++)
-	{
+	results = UArray_new();
+	if (NULL == results)
+		return NULL;
+	UArray_setItemType_(results, CTYPE_uintptr_t);
+	if (results->itemType != CTYPE_uintptr_t) {
+		UArray_free(results);
+		return NULL;
+	}
+
+	for (i = 0; i < self->size; ++i) {
 		UArray slice = UArray_stackRange(self, i, self->size - i);
 		size_t j;
+		for (j = 0; j < delims->size; ++j) {
+			UArray *delim = (UArray *)UArray_rawPointerAt_(delims, j);
+			UArray *part;
+			size_t oldCount;
 
-		for (j = 0; j < delims->size; j ++)
-		{
-			UArray *delim = UArray_rawPointerAt_(delims, j);
+			/* Empty delimiters cannot advance the scan position. */
+			if (NULL == delim || delim->size == 0 ||
+				(delim->size > 0 && NULL == delim->data))
+				continue;
+			if (!UArray_beginsWith_(&slice, delim))
+				continue;
 
-			if (UArray_beginsWith_(&slice, delim))
-			{
-				UArray_appendPointer_(results, UArray_range(self, last, i - last));
-
-				last = i + delim->size;
-				i = last - 1; // since for() will increment it
-				break;
+			part = UArray_range(self, last, i - last);
+			if (NULL == part) {
+				UArray_freeSplitResults_(results);
+				return NULL;
 			}
+			oldCount = results->size;
+			UArray_appendPointer_(results, part);
+			if (results->size != oldCount + 1) {
+				UArray_free(part);
+				UArray_freeSplitResults_(results);
+				return NULL;
+			}
+
+			last = i + delim->size;
+			i = last - 1; /* the for-loop increment resumes at last */
+			break;
 		}
 	}
 
-	if (last != self->size)
-	{
-		UArray_appendPointer_(results, UArray_range(self, last, self->size - last));
+	if (last != self->size) {
+		UArray *part = UArray_range(self, last, self->size - last);
+		size_t oldCount;
+		if (NULL == part) {
+			UArray_freeSplitResults_(results);
+			return NULL;
+		}
+		oldCount = results->size;
+		UArray_appendPointer_(results, part);
+		if (results->size != oldCount + 1) {
+			UArray_free(part);
+			UArray_freeSplitResults_(results);
+			return NULL;
+		}
 	}
-
 	return results;
 }
 
 size_t UArray_splitCount_(const UArray *self, const PtrUArray *delims)
 {
-	PtrUArray *r = UArray_split_(self, delims);
-	size_t count = UArray_size(r);
-	UArray_free(r);
+	PtrUArray *results = UArray_split_(self, delims);
+	size_t count;
+	if (NULL == results)
+		return 0;
+	count = UArray_size(results);
+	UArray_freeSplitResults_(results);
 	return count;
 }
 
