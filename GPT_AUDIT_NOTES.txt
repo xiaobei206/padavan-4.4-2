@@ -13,3 +13,5 @@ be34849  net6.c: reject truncated IPv6 input and empty/invalid prefixes.
 60ff33f  net_wan6.c: enlarge IPv6 address buffers and append prefixes without overlap.
 4e87bfe  net6.c: validate IPv6 bit-operation bounds; fix /128 host masking and shift edge cases.
 911d060  net_wan6.c: validate DHCP-provided 6rd prefix lengths and relay addresses.
+8aea77c  services_stor.c: close Samba config on invalid input; bound share-name formatting.
+0c316d7  services_stor.c: enlarge mount target buffer and check path concatenation.
