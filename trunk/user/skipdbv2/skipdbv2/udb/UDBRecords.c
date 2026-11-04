@@ -14,15 +14,34 @@ UDBRecords ioDoc(
 UDBRecords *UDBRecords_new(void)
 {
 	UDBRecords *self = (UDBRecords *)calloc(1, sizeof(*self));
+	if (NULL == self)
+		return NULL;
 	self->file = JFile_new();
 	self->record = UDBRecord_new();
 	self->firstEmptyRecord = UDBRecord_new();
+	if (NULL == self->file || NULL == self->record ||
+		NULL == self->firstEmptyRecord) {
+		JFile_free(self->file);
+		UDBRecord_free(self->record);
+		UDBRecord_free(self->firstEmptyRecord);
+		free(self);
+		return NULL;
+	}
 	UDBRecords_setPath_(self, "default");
+	if (NULL == self->file->path || NULL == self->file->logPath) {
+		JFile_free(self->file);
+		UDBRecord_free(self->record);
+		UDBRecord_free(self->firstEmptyRecord);
+		free(self);
+		return NULL;
+	}
 	return self;
 }
 
 void UDBRecords_free(UDBRecords *self)
 {
+	if (NULL == self)
+		return;
 	UDBRecords_close(self);
 	JFile_free(self->file);    
 	UDBRecord_free(self->record);   
@@ -30,7 +49,7 @@ void UDBRecords_free(UDBRecords *self)
 	free(self);
 }
 
-JFile *UDBRecords_jfile(UDBIndex *self)
+JFile *UDBRecords_jfile(UDBRecords *self)
 {
 	return self->file;
 }
@@ -57,17 +76,20 @@ char *UDBRecords_path(UDBRecords *self)
 
 void UDBRecords_open(UDBRecords *self)
 {
-	JFile_open(self->file);  
-	
-	if (JFile_setPositionToEnd(self->file) == 0) 
-	{ 
-		// position 0-4 holds the pos of the first empty record 
+	if (NULL == self || NULL == self->file ||
+		NULL == self->record || NULL == self->firstEmptyRecord)
+		return;
+	JFile_open(self->file);
+	if (NULL == self->file->file || NULL == self->file->log)
+		return;
+
+	if (JFile_setPositionToEnd(self->file) == 0) {
+		/* Position zero stores the first-empty-record offset. */
 		JFile_begin(self->file);
 		UDBRecords_firstEmptyRecordPos_(self, 0);
-		//UDBRecords_setEndPos_(self, 0);
 		JFile_commitToLog(self->file);
 	}
-	
+
 	UDBRecord_setJFile_(self->record, self->file);
 	UDBRecord_setJFile_(self->firstEmptyRecord, self->file);
 	self->firstEmptyPos = UDBRecords_firstEmptyRecordPos(self);
@@ -75,7 +97,8 @@ void UDBRecords_open(UDBRecords *self)
 
 void UDBRecords_close(UDBRecords *self)
 {
-	JFile_close(self->file);
+	if (NULL != self)
+		JFile_close(self->file);
 }
 
 void UDBRecords_begin(UDBRecords *self)
@@ -199,13 +222,33 @@ UDBRecord *UDBRecords_findFirstEmptyRecord(UDBRecords *self)
 
 PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)
 {
-	JFile_fseek(self->file, 0, SEEK_SET);
-	JFile_fread(self->file, (unsigned char *)(&(self->firstEmptyPos)), sizeof(PID_TYPE), 1);
-	return self->firstEmptyPos;
+	PID_TYPE pos = 0;
+	size_t file_size;
+
+	if (NULL == self || NULL == self->file || self->file->maxPos < 0)
+		return 0;
+	file_size = (size_t)self->file->maxPos;
+	if (file_size < sizeof(PID_TYPE)) {
+		self->firstEmptyPos = 0;
+		return 0;
+	}
+
+	JFile_setPosition_(self->file, 0);
+	if (JFile_fread(self->file, (unsigned char *)&pos, sizeof(PID_TYPE), 1) != 1)
+		pos = 0;
+	if (pos != 0 && ((size_t)pos < sizeof(PID_TYPE) ||
+		(size_t)pos > file_size ||
+		file_size - (size_t)pos < sizeof(UDBRecordHeader)))
+		pos = 0;
+
+	self->firstEmptyPos = pos;
+	return pos;
 }
 
 void UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)
 {
+	if (NULL == self || NULL == self->file)
+		return;
 	self->firstEmptyPos = pos;
 	JFile_fseek(self->file, 0, SEEK_SET);
 	JFile_fwrite(self->file, (unsigned char *)(&(self->firstEmptyPos)), sizeof(PID_TYPE), 1);
