@@ -691,8 +691,12 @@ on_server_client_connect(int is_tun)
 		fclose(fp);
 	}
 
-	if (check_if_file_exist(script_name))
-		doSystem("%s %s %s %s %s %s", script_name, "up", dev_ifname, peer_addr_l, peer_addr_r, common_name);
+	if (check_if_file_exist(script_name)) {
+		char *hook_argv[] = {
+			(char *)script_name, "up", dev_ifname, peer_addr_l, peer_addr_r, common_name, NULL
+		};
+		_eval(hook_argv, NULL, 0, NULL);
+	}
 }
 
 static void
@@ -740,8 +744,12 @@ on_server_client_disconnect(int is_tun)
 		unlink(clients_l2);
 	}
 
-	if (check_if_file_exist(script_name))
-		doSystem("%s %s %s %s %s %s", script_name, "down", dev_ifname, peer_addr_l, peer_addr_r, common_name);
+	if (check_if_file_exist(script_name)) {
+		char *hook_argv[] = {
+			(char *)script_name, "down", dev_ifname, peer_addr_l, peer_addr_r, common_name, NULL
+		};
+		_eval(hook_argv, NULL, 0, NULL);
+	}
 }
 
 static void
@@ -760,7 +768,10 @@ call_client_script(const char *script_name, const char *arg)
 		setenv(env_pppd[i], safe_getenv(env), 1);
 	}
 
-	doSystem("%s %s", script_name, arg);
+	{
+		char *script_argv[] = { (char *)script_name, (char *)arg, NULL };
+		_eval(script_argv, NULL, 0, NULL);
+	}
 
 	for (i = 0; i < ARRAY_SIZE(env_ovpn); i++)
 		unsetenv(env_pppd[i]);
