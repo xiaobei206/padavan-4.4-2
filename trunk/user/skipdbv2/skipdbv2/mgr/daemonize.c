@@ -31,13 +31,22 @@ void skipd_daemonize(char * path)
     /* If we got a good PID, then
        we can exit the parent process. */
     if (pid > 0) {
-        FILE *file = fopen(path, "w");
-        if (file == NULL) {
-            fprintf(stderr, "Invalid pid file\n");
+        FILE *file;
+        int failed;
+        if (NULL == path || NULL == (file = fopen(path, "w"))) {
+            fprintf(stderr, "Unable to create pid file\n");
+            kill(pid, SIGTERM);
+            exit(EXIT_FAILURE);
         }
-
-        fprintf(file, "%d", pid);
-        fclose(file);
+        failed = fprintf(file, "%ld\n", (long)pid) < 0;
+        if (fclose(file) != 0)
+            failed = 1;
+        if (failed) {
+            fprintf(stderr, "Unable to write pid file\n");
+            remove(path);
+            kill(pid, SIGTERM);
+            exit(EXIT_FAILURE);
+        }
         exit(EXIT_SUCCESS);
     }
 
