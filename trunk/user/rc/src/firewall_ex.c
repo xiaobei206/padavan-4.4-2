@@ -41,21 +41,74 @@
 #define CT_STATE		"state --state"
 
 static char *g_buf;
-static char g_buf_pool[1024];
+static char g_buf_pool[4096];
+static char g_buf_empty[] = "";
 
 static void
-g_buf_init()
+g_buf_init(void)
 {
 	g_buf = g_buf_pool;
 	g_buf_pool[0] = 0;
 }
 
+static size_t
+g_buf_remaining(void)
+{
+	if (!g_buf || g_buf < g_buf_pool ||
+	    g_buf >= g_buf_pool + sizeof(g_buf_pool))
+		return 0;
+
+	return sizeof(g_buf_pool) - (size_t)(g_buf - g_buf_pool);
+}
+
+static void
+g_buf_set(const char *value)
+{
+	size_t remaining = g_buf_remaining();
+
+	if (remaining)
+		snprintf(g_buf, remaining, "%s", value ? value : "");
+}
+
+static void
+g_buf_append(const char *value)
+{
+	size_t remaining = g_buf_remaining();
+	size_t used;
+
+	if (!remaining)
+		return;
+
+	used = strnlen(g_buf, remaining);
+	if (used >= remaining) {
+		g_buf[remaining - 1] = '\0';
+		return;
+	}
+
+	snprintf(g_buf + used, remaining - used, "%s", value ? value : "");
+}
+
 static char *
 g_buf_alloc(char *g_buf_now)
 {
-	g_buf += strlen(g_buf_now)+1;
+	size_t remaining, len;
 
-	return (g_buf_now);
+	if (!g_buf_now || g_buf_now < g_buf_pool ||
+	    g_buf_now >= g_buf_pool + sizeof(g_buf_pool)) {
+		g_buf = g_buf_pool + sizeof(g_buf_pool);
+		return g_buf_empty;
+	}
+
+	remaining = (size_t)(g_buf_pool + sizeof(g_buf_pool) - g_buf_now);
+	len = strnlen(g_buf_now, remaining);
+	if (len >= remaining) {
+		g_buf_now[remaining - 1] = '\0';
+		g_buf = g_buf_pool + sizeof(g_buf_pool);
+	} else {
+		g_buf = g_buf_now + len + 1;
+	}
+
+	return g_buf_now;
 }
 
 static char *
@@ -68,15 +121,15 @@ proto_conv(const char *proto_name, int idx)
 	proto = nvram_safe_get(itemname_arr);
 
 	if (!strncasecmp(proto, "Both", 4))
-		strcpy(g_buf, "both");
+		g_buf_set("both");
 	else if (!strncasecmp(proto, "TCP", 3))
-		strcpy(g_buf, "tcp");
+		g_buf_set("tcp");
 	else if (!strncasecmp(proto, "UDP", 3))
-		strcpy(g_buf, "udp");
+		g_buf_set("udp");
 	else if (!strncasecmp(proto, "OTHER", 5))
-		strcpy(g_buf, "other");
+		g_buf_set("other");
 	else
-		strcpy(g_buf, "tcp");
+		g_buf_set("tcp");
 
 	return (g_buf_alloc(g_buf));
 }
@@ -90,18 +143,18 @@ protoflag_conv(const char *proto_name, int idx, int isFlag)
 	snprintf(itemname_arr, sizeof(itemname_arr), "%s%d", proto_name, idx);
 	proto = nvram_safe_get(itemname_arr);
 
-	strcpy(g_buf, "");
+	g_buf_set("");
 
 	if (!isFlag) {
 		if (!strncasecmp(proto, "UDP", 3))
-			strcpy(g_buf, "udp");
+			g_buf_set("udp");
 		else if (!strncasecmp(proto, "OTHER", 5))
-			strcpy(g_buf, "other");
+			g_buf_set("other");
 		else
-			strcpy(g_buf, "tcp");
+			g_buf_set("tcp");
 	} else {
 		if (strlen(proto)>3 && !strncasecmp(proto, "TCP", 3))
-			strcpy(g_buf, proto+4);
+			g_buf_set(proto + 4);
 	}
 
 	return (g_buf_alloc(g_buf));
@@ -113,7 +166,7 @@ portrange_conv(const char *port_name, int idx)
 	char itemname_arr[32];
 
 	snprintf(itemname_arr, sizeof(itemname_arr), "%s%d", port_name, idx);
-	strcpy(g_buf, nvram_safe_get(itemname_arr));
+	g_buf_set(nvram_safe_get(itemname_arr));
 
 	return (g_buf_alloc(g_buf));
 }
@@ -124,7 +177,7 @@ ip_conv(const char *ip_name, int idx)
 	char itemname_arr[32];
 
 	snprintf(itemname_arr, sizeof(itemname_arr), "%s%d", ip_name, idx);
-	strcpy(g_buf, nvram_safe_get(itemname_arr));
+	g_buf_set(nvram_safe_get(itemname_arr));
 
 	return (g_buf_alloc(g_buf));
 }
@@ -135,7 +188,7 @@ general_conv(const char *ip_name, int idx)
 	char itemname_arr[32];
 
 	snprintf(itemname_arr, sizeof(itemname_arr), "%s%d", ip_name, idx);
-	strcpy(g_buf, nvram_safe_get(itemname_arr));
+	g_buf_set(nvram_safe_get(itemname_arr));
 
 	return (g_buf_alloc(g_buf));
 }
@@ -145,16 +198,16 @@ filter_conv(char *proto, char *flag, char *srcip, char *srcport, char *dstip, ch
 {
 	char newstr[128];
 
-	strcpy(g_buf, "");
+	g_buf_set("");
 
 	if (strcmp(proto, "") != 0) {
 		snprintf(newstr, sizeof(newstr), " -p %s", proto);
-		strcat(g_buf, newstr);
+		g_buf_append(newstr);
 	}
 
 	if (strcmp(flag, "") != 0) {
 		snprintf(newstr, sizeof(newstr), " --tcp-flags %s %s", flag, flag);
-		strcat(g_buf, newstr);
+		g_buf_append(newstr);
 	}
 
 	if (strcmp(srcip, "") != 0) {
@@ -162,12 +215,12 @@ filter_conv(char *proto, char *flag, char *srcip, char *srcport, char *dstip, ch
 			snprintf(newstr, sizeof(newstr), " --src-range %s", srcip);
 		else
 			snprintf(newstr, sizeof(newstr), " -s %s", srcip);
-		strcat(g_buf, newstr);
+		g_buf_append(newstr);
 	}
 
 	if (strcmp(srcport, "") != 0) {
 		snprintf(newstr, sizeof(newstr), " --sport %s", srcport);
-		strcat(g_buf, newstr);
+		g_buf_append(newstr);
 	}
 
 	if (strcmp(dstip, "") != 0) {
@@ -175,12 +228,12 @@ filter_conv(char *proto, char *flag, char *srcip, char *srcport, char *dstip, ch
 			snprintf(newstr, sizeof(newstr), " --dst-range %s", dstip);
 		else
 			snprintf(newstr, sizeof(newstr), " -d %s", dstip);
-		strcat(g_buf, newstr);
+		g_buf_append(newstr);
 	}
 
 	if (strcmp(dstport, "") != 0) {
 		snprintf(newstr, sizeof(newstr), " --dport %s", dstport);
-		strcat(g_buf, newstr);
+		g_buf_append(newstr);
 	}
 
 	return (g_buf_alloc(g_buf));
@@ -267,7 +320,7 @@ iprange_ex_conv(const char *ip_name, int idx)
 
 	snprintf(itemname_arr, sizeof(itemname_arr), "%s%d", ip_name, idx);
 	ip = nvram_safe_get(itemname_arr);
-	g_buf[0] = '\0';
+	g_buf_set("");
 
 	ip_len = strlen(ip);
 	if (ip_len == 0 || ip_len >= sizeof(startip))
@@ -306,9 +359,12 @@ iprange_ex_conv(const char *ip_name, int idx)
 		return (g_buf_alloc(g_buf));
 
 	if (mask == 32) {
-		snprintf(g_buf, sizeof(g_buf_pool) - (size_t)(g_buf - g_buf_pool), "%s", startip);
+		g_buf_set(startip);
 	} else if (mask > 0) {
-		snprintf(g_buf, sizeof(g_buf_pool) - (size_t)(g_buf - g_buf_pool), "%s/%d", startip, mask);
+		char range[20];
+
+		snprintf(range, sizeof(range), "%s/%d", startip, mask);
+		g_buf_set(range);
 	}
 
 	return (g_buf_alloc(g_buf));
