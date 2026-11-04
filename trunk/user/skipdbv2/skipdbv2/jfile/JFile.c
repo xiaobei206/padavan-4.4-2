@@ -660,14 +660,17 @@ int JFile_clipLog(JFile *self)
 
 void JFile_truncate_(JFile *self, off_t size)
 {
-	if (NULL == self || NULL == self->file || size < 0 ||
-		size > (off_t)LONG_MAX)
+	if (NULL == self || NULL == self->file || NULL == self->log ||
+		size < 0 || size > (off_t)LONG_MAX)
 		return;
 	JFile_commitToLog(self);
-	JFile_commitToFile(self);
-	if (ftruncate(fileno(self->file), size) != 0)
+	if (NULL == self->file || NULL == self->log)
 		return;
-	if (fflush(self->file) != 0)
+	JFile_commitToFile(self);
+	if (NULL == self->file || NULL == self->log)
+		return;
+	if (fflush(self->file) != 0 ||
+		ftruncate(fileno(self->file), size) != 0)
 		return;
 	self->maxPos = (long)size;
 	if (self->pos > self->maxPos)
