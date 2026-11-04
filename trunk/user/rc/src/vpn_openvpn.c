@@ -133,6 +133,22 @@ openvpn_create_client_secret(const char *secret_name)
 	}
 }
 
+static int
+openvpn_safe_path_component(const char *name)
+{
+	const unsigned char *p = (const unsigned char *)name;
+
+	if (!p || !*p || strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+		return 0;
+
+	for (; *p; p++) {
+		if (*p < 32 || *p == 127 || *p == '/' || *p == '\\')
+			return 0;
+	}
+
+	return 1;
+}
+
 static void
 openvpn_create_server_acl(FILE *fp, const char *ccd, unsigned int vnet, unsigned int vmsk)
 {
@@ -154,11 +170,15 @@ openvpn_create_server_acl(FILE *fp, const char *ccd, unsigned int vnet, unsigned
 		acl_user = nvram_safe_get(acl_user_var);
 		acl_rnet = nvram_safe_get(acl_rnet_var);
 		acl_rmsk = nvram_safe_get(acl_rmsk_var);
-		if (*acl_user && is_valid_ipv4(acl_rnet) && is_valid_ipv4(acl_rmsk)) {
+		if (openvpn_safe_path_component(acl_user) &&
+		    is_valid_ipv4(acl_rnet) && is_valid_ipv4(acl_rmsk)) {
 			FILE *fp_ccf;
 			char ccf[80];
+			int ccf_len;
 			
-			snprintf(ccf, sizeof(ccf), "%s/%s", vpns_ccd, acl_user);
+			ccf_len = snprintf(ccf, sizeof(ccf), "%s/%s", vpns_ccd, acl_user);
+			if (ccf_len < 0 || ccf_len >= (int)sizeof(ccf))
+				continue;
 			fp_ccf = fopen(ccf, "w+");
 			if (fp_ccf) {
 				char acl_addr_var[16];
