@@ -550,9 +550,12 @@ void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int a)
 {
 	unsigned char c;
-	if (NULL == self || NULL == self->ba)
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
 		return -1;
 	c = BStream_readUint8(self);
+	if (UArray_size(self->errorBa) != 0)
+		return -1;
 	BStreamTag readTag = BStreamTag_FromUnsignedChar(c);
 	BStreamTag expectedTag = BStreamTag_TagArray_type_byteCount_(a, t, b);
 
@@ -593,14 +596,20 @@ uint8_t BStream_readTaggedUint8(BStream *self)
 
 uint32_t BStream_readTaggedUint32(BStream *self)
 {
-	unsigned char c = BStream_readByte(self);
-	BStreamTag t = BStreamTag_FromUnsignedChar(c);
+	unsigned char c;
+	BStreamTag t;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
+		return 0;
+	c = BStream_readByte(self);
+	if (UArray_size(self->errorBa) != 0)
+		return 0;
+	t = BStreamTag_FromUnsignedChar(c);
 
 	if (t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 1)
-	{ return (uint32_t)BStream_readUint8(self); }
-
+		return (uint32_t)BStream_readUint8(self);
 	if (t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 4)
-	{ return (uint32_t)BStream_readUint32(self); }
+		return (uint32_t)BStream_readUint32(self);
 
 	BStream_error_(self, "unhandled int type/size combination");
 	return 0;
@@ -608,34 +617,36 @@ uint32_t BStream_readTaggedUint32(BStream *self)
 
 int32_t BStream_readTaggedInt32(BStream *self)
 {
-	unsigned char c = BStream_readByte(self);
-	BStreamTag t = BStreamTag_FromUnsignedChar(c);
+	unsigned char c;
+	BStreamTag t;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
+		return 0;
+	c = BStream_readByte(self);
+	if (UArray_size(self->errorBa) != 0)
+		return 0;
+	t = BStreamTag_FromUnsignedChar(c);
 
 	if (t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 1)
-	{
 		return (int32_t)BStream_readUint8(self);
-	}
-
 	if (t.type == BSTREAM_SIGNED_INT && t.byteCount == 4)
-	{
 		return (int32_t)BStream_readInt32(self);
-	}
-	/*
-	if (t.type == BSTREAM_SIGNED_INT && t.byteCount == 8)
-	{
-		return (int32_t)BStream_readInt64(self);
-	}
-	*/
 
 	BStream_error_(self, "unhandled int type/size combination");
-
 	return 0;
 }
 
 intptr_t BStream_readTaggedPointer(BStream *self)
 {
-	unsigned char c = BStream_readByte(self);
-	BStreamTag t = BStreamTag_FromUnsignedChar(c);
+	unsigned char c;
+	BStreamTag t;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
+		return 0;
+	c = BStream_readByte(self);
+	if (UArray_size(self->errorBa) != 0)
+		return 0;
+	t = BStreamTag_FromUnsignedChar(c);
 
 	if (t.type != BSTREAM_POINTER) {
 		BStream_error_(self, "expected pointer");
@@ -665,8 +676,15 @@ intptr_t BStream_readTaggedPointer(BStream *self)
 
 double BStream_readTaggedDouble(BStream *self)
 {
-	unsigned char c = BStream_readByte(self);
-	BStreamTag t = BStreamTag_FromUnsignedChar(c);
+	unsigned char c;
+	BStreamTag t;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
+		return 0.0;
+	c = BStream_readByte(self);
+	if (UArray_size(self->errorBa) != 0)
+		return 0.0;
+	t = BStreamTag_FromUnsignedChar(c);
 	/*
 	if (t.type == BSTREAM_FLOAT && t.byteCount == 4)
 	{
@@ -686,7 +704,8 @@ void BStream_readTaggedUArray_(BStream *self, UArray *b)
 {
 	int32_t encoded_size;
 	unsigned char *data;
-	if (NULL == self || NULL == b)
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		NULL == b || UArray_size(self->errorBa) != 0)
 		return;
 	if (BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1) != 0)
 		return;
@@ -706,10 +725,10 @@ void BStream_readTaggedUArray_(BStream *self, UArray *b)
 
 UArray *BStream_readTaggedUArray(BStream *self)
 {
-	if (NULL == self || NULL == self->tmp)
+	if (NULL == self || NULL == self->tmp || NULL == self->errorBa)
 		return NULL;
 	BStream_readTaggedUArray_(self, self->tmp);
-	return self->tmp;
+	return UArray_size(self->errorBa) == 0 ? self->tmp : NULL;
 }
 
 const char *BStream_readTaggedCString(BStream *self)
