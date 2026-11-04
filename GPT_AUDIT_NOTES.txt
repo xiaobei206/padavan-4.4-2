@@ -110,3 +110,8 @@ a7fe357  disk_initial.c: parse /proc/mounts source device before resolving USB s
 ce7f1dc  web_ex.c: bound proxy database parsing and replace shell-interpolated commands with argv.
 7ed19db  web_ex.c: bound HTTP form-body/query concatenation and reject invalid lengths.
 04920bb  usb_info.c: avoid matching a hub's child port as a root-port component.
+
+2f19bc4  web_ex.c: validate certificate CN/RSA size/validity and execute cert scripts with argv.
+b369222  web_ex.c: remove shell execution from generic script dispatch; fix group_id format string.
+e9913b8  web_ex.c: complete bounded argv parsing for web-triggered scripts.
+2204585  aidisk.c: validate whole-disk identifiers and invoke eject helpers without shell interpolation.
