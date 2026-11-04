@@ -3,11 +3,14 @@ logger -t "automount" "/sbin/automount.sh $1    $2"
 func_load_module()
 {
 	module_name=$1
+	case "$module_name" in
+		''|*[!A-Za-z0-9_-]*) return 1 ;;
+	esac
 	(
 		flock 500
-		module_exist=`cat /proc/modules | grep $module_name`
+		module_exist=`grep -F -- "$module_name" /proc/modules`
 		if [ -z "$module_exist" ] ; then
-			modprobe -q $module_name
+			modprobe -q "$module_name"
 			[ $? -eq 0 ] && usleep 300000
 		fi
 	) 500>/var/lock/fs_module.lock
