@@ -258,7 +258,7 @@ int parse_get_result(dbclient *client) {
 
 /*
  * List replies share the normal command/key/value envelope. The terminal
- * frame uses a distinct command token so a real value equal to "__end__\\n"
+ * frame uses a distinct command token so a real value equal to "__end__\n"
  * cannot prematurely terminate the stream.
  *
  * Returns 1 for the terminal frame, 0 for a list item, or a negative error.
@@ -293,7 +293,7 @@ static int split_list_frame(dbclient *client, int body_len,
 
     if (command_len == 6 && memcmp(body, "__end__", 6) == 0) {
         if (key_size == 4 && memcmp(key_start, "list", 4) == 0 &&
-            payload_size == 7 && memcmp(payload, "__end__\\n", 7) == 0)
+            payload_size == 7 && memcmp(payload, "__end__\n", 7) == 0)
             return 1;
         return -4;
     }
