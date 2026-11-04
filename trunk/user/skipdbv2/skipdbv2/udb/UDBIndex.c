@@ -181,7 +181,7 @@ void UDBIndex_commit(UDBIndex *self)
 		JFile_close(self->file);
 		return;
 	}
-	JFile_commitToFile(self->file);
+	(void)JFile_applyLogToFile(self->file);
 }
 
 // holes ------------------------------------------- 
