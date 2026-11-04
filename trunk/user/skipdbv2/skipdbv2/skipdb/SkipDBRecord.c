@@ -564,6 +564,7 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 	SkipDBRecord *current;
 	int level;
 	size_t steps = 0;
+	size_t step_limit;
 	long max_steps;
 
 	if (NULL == self || NULL == self->key ||
@@ -575,6 +576,14 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 	max_steps = UDBIndex_pidCount(db->udb->index);
 	if (max_steps <= 0)
 		return NULL;
+	/* Each live record may require a horizontal step, plus up to one
+	 * downward step per skip-list level. Do not count vertical descents
+	 * against the PID population or valid tail searches can stop early. */
+	step_limit = (size_t)max_steps;
+	if (step_limit > (size_t)-1 - SKIPDB_MAX_LEVEL)
+		step_limit = (size_t)-1;
+	else
+		step_limit += SKIPDB_MAX_LEVEL;
 	current = self;
 
 #ifdef USE_SUFFIX_MATCHING
@@ -587,7 +596,7 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 			SkipDBRecord *r;
 			int c;
 
-			if (++steps > (size_t)max_steps || level >= SKIPDB_MAX_LEVEL) {
+			if (++steps > step_limit || level >= SKIPDB_MAX_LEVEL) {
 				SkipDB_clearUpdate(db);
 				return NULL;
 			}
