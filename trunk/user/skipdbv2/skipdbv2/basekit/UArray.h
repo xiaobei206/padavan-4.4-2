@@ -291,7 +291,7 @@ BASEKIT_API void UArray_sortBy_(UArray *self, UArraySortCallback *cmp);
 		case CTYPE_uint32_t: DUARRAY_INTOTHER(MACRO, OP, uint32_t, self, other);\
 		case CTYPE_int8_t:   DUARRAY_INTOTHER(MACRO, OP, int8_t,   self, other);\
 		case CTYPE_int16_t:  DUARRAY_INTOTHER(MACRO, OP, int16_t,  self, other);\
-		case CTYPE_int32_t:  DUARRAY_INTOTHER(MACRO, OP, uint32_t, self, other);\
+		case CTYPE_int32_t:  DUARRAY_INTOTHER(MACRO, OP, int32_t,  self, other);\
 	}
 
 #define DUARRAY_SELF(MACRO, OP, self, other) \
@@ -303,8 +303,8 @@ BASEKIT_API void UArray_sortBy_(UArray *self, UArraySortCallback *cmp);
 		case CTYPE_uint64_t:  DUARRAY_OTHER(MACRO, OP, uint64_t,  self, other);\
 		case CTYPE_int8_t:    DUARRAY_OTHER(MACRO, OP, int8_t,    self, other);\
 		case CTYPE_int16_t:   DUARRAY_OTHER(MACRO, OP, int16_t,   self, other);\
-		case CTYPE_int32_t:   DUARRAY_OTHER(MACRO, OP, uint32_t,  self, other);\
-		case CTYPE_int64_t:   DUARRAY_OTHER(MACRO, OP, uint64_t,  self, other);\
+		case CTYPE_int32_t:   DUARRAY_OTHER(MACRO, OP, int32_t,   self, other);\
+		case CTYPE_int64_t:   DUARRAY_OTHER(MACRO, OP, int64_t,   self, other);\
 		case CTYPE_float32_t: DUARRAY_OTHER(MACRO, OP, float32_t, self, other);\
 		case CTYPE_float64_t: DUARRAY_OTHER(MACRO, OP, float64_t, self, other);\
 		case CTYPE_uintptr_t: DUARRAY_OTHER(MACRO, OP, uintptr_t, self, other);\
