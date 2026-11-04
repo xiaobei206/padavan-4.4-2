@@ -694,9 +694,9 @@ uint32_t BStream_readTaggedUint32(BStream *self)
 		return 0;
 	t = BStreamTag_FromUnsignedChar(c);
 
-	if (t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 1)
+	if (t.isArray == 0 && t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 1)
 		return (uint32_t)BStream_readUint8(self);
-	if (t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 4)
+	if (t.isArray == 0 && t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 4)
 		return (uint32_t)BStream_readUint32(self);
 
 	BStream_error_(self, "unhandled int type/size combination");
@@ -758,7 +758,7 @@ intptr_t BStream_readTaggedPointer(BStream *self)
 		return 0;
 	t = BStreamTag_FromUnsignedChar(c);
 
-	if (t.type != BSTREAM_POINTER) {
+	if (t.isArray != 0 || t.type != BSTREAM_POINTER) {
 		BStream_error_(self, "expected pointer");
 		return 0;
 	}
@@ -801,7 +801,7 @@ double BStream_readTaggedDouble(BStream *self)
 		return BStream_readFloat(self);
 	}
 	*/
-	if (t.type == BSTREAM_FLOAT && t.byteCount == 8)
+	if (t.isArray == 0 && t.type == BSTREAM_FLOAT && t.byteCount == 8)
 	{
 		return BStream_readDouble(self);
 	}
