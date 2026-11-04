@@ -180,14 +180,26 @@ static void sigint_cb (EV_P_ ev_signal *w, int revents) {
     ev_break(EV_A_ EVBREAK_ALL);
 }
 
-void sys_script(char *cmd) {
-    if(NULL == cmd) {
+static void sys_script(const char *cmd, size_t cmd_size)
+{
+    int written;
+    size_t cmd_len;
+
+    if (NULL == cmd || cmd_size == 0 || cmd[cmd_size - 1] != '\0')
+        return;
+    cmd_len = strnlen(cmd, cmd_size);
+    if (cmd_len == cmd_size)
+        return;
+
+    written = snprintf(static_buffer, sizeof(static_buffer),
+        "%s > /tmp/skipd.log 2>&1 &\n", cmd);
+    if (written < 0 || (size_t)written >= sizeof(static_buffer)) {
+        static_buffer[0] = '\0';
+        skipd_log(SKIPD_DEBUG, "script command too long; not executed\n");
         return;
     }
-
-    snprintf(static_buffer, STATIC_BUF_LEN, "%s > /tmp/skipd.log 2>&1 &\n", cmd);
-    system(static_buffer);
-    strcpy(static_buffer, ""); // Ensure we don't re-execute it again
+    (void)system(static_buffer);
+    static_buffer[0] = '\0';
 }
 
 int log_level = LOG_ERR;
@@ -344,7 +356,7 @@ static void delay_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
         }
 
         p1++;
-        sys_script(p1);
+        sys_script(p1, dvalue.size - (size_t)(p1 - (char*)dvalue.data));
         if(0 == tmpi) {
             skipd_log(SKIPD_DEBUG, "delay cmd:%s, delay delete, tmpi = 0\n", dkey.data);
             break;
@@ -383,7 +395,7 @@ static void time_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
         }
         p1++;
 
-        sys_script(p1);
+        sys_script(p1, dvalue.size - (size_t)(p1 - (char*)dvalue.data));
         ev_timer_again(EV_A_ watcher);
     } while(0);
 
@@ -972,7 +984,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
         if(-1 != access(client->key, F_OK)) {
             //file exist, then run script
-            sys_script(client->key);
+            sys_script(client->key, strlen(client->key) + 1);
 
             //send end
             p1 = "ok\n";
@@ -993,7 +1005,7 @@ static int client_run_command(EV_P_ skipd_client* client)
             }
             if(-1 != access(client->key, F_OK)) {
                 //file exist, then run script
-                sys_script(client->key);
+                sys_script(client->key, strlen(client->key) + 1);
 
                 //send end
                 p1 = "ok\n";
@@ -1017,7 +1029,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         while(NULL != CS->record) {
             dkey = SkipDBRecord_keyDatum(CS->record);
             dvalue = SkipDBRecord_valueDatum(CS->record);
-            sys_script((char*)dvalue.data);
+            sys_script((char*)dvalue.data, dvalue.size);
 
             CS->record = SkipDB_list_next(client->server->db, CS->skey, CS->cursor);
             CS->n++;
