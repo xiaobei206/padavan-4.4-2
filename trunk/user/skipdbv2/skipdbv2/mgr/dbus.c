@@ -327,7 +327,7 @@ static void print_shell_quoted(const char *value, size_t length)
 int parse_script_result(dbclient *client) {
     int n1, n2;
     char *p1, *p2;
-    size_t value_len, remaining;
+    size_t remaining;
     char* magic = MAGIC;
 
     for(;;) {
