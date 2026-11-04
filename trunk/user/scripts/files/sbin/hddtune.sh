@@ -2,11 +2,25 @@
 
 [ ! -x /sbin/hdparm ] && exit 1
 
+if [ "$#" -gt 1 ]; then
+	exit 2
+fi
+if [ -n "$1" ]; then
+	case "$1" in
+		[!A-Za-z0-9]*|*[!A-Za-z0-9_-]*) exit 1 ;;
+	esac
+fi
+
 hdd_spindt=`nvram get hdd_spindt`
-[ -z "$hdd_spindt" ] && hdd_spindt=0
+case "$hdd_spindt" in
+	1|2|3|4|5|6|7|8|9) ;;
+	*) hdd_spindt=0 ;;
+esac
 
 hdd_apmoff=`nvram get hdd_apmoff`
-[ -z "$hdd_apmoff" ] && hdd_apmoff=0
+case "$hdd_apmoff" in
+	''|*[!0-9]*) hdd_apmoff=0 ;;
+esac
 
 
 HDPARM_S="-S0"
@@ -42,7 +56,7 @@ case "$hdd_spindt" in
 	;;
 esac
 
-if [ $hdd_apmoff -ne 0 ] ; then
+if [ "$hdd_apmoff" != "0" ] ; then
 	HDPARM_B="-B254"
 fi
 
@@ -51,15 +65,15 @@ if [ -z "$1" ] ; then
 		removable=1
 		if [ -e /sys/block/sd${i} ] ; then
 			[ -r /sys/block/sd${i}/removable ] && removable=`cat /sys/block/sd${i}/removable`
-			[ $removable -eq 0 ] && /sbin/hdparm $HDPARM_S $HDPARM_B /dev/sd${i}
+			[ "$removable" = "0" ] && /sbin/hdparm $HDPARM_S $HDPARM_B /dev/sd${i}
 		fi
 	done
 else
 	if [ -e /sys/block/$1 ] ; then
 		removable=1
 		[ -r /sys/block/$1/removable ] && removable=`cat /sys/block/$1/removable`
-		if [ $removable -eq 0 ] ; then
-			if [ $hdd_spindt -gt 0 ] ; then
+		if [ "$removable" = "0" ] ; then
+			if [ "$hdd_spindt" != "0" ] ; then
 				logger -t hdparm "Set spindown timeout to device /dev/$1"
 				/sbin/hdparm $HDPARM_S /dev/$1
 			fi
