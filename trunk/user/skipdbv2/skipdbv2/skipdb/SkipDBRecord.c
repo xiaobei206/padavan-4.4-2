@@ -806,11 +806,11 @@ void SkipDBRecord_previousRecord_(SkipDBRecord *self, SkipDBRecord *r)
 {
 	if (NULL == self || r == self)
 		return;
-	if (r != self->previousRecord)
+	if (r != self->previousRecord ||
+		(NULL == r && self->previousPid != 0))
 	{
 		self->previousRecord = r;
-		if (r)
-			self->previousPid = SkipDBRecord_pid(r);
+		self->previousPid = r ? SkipDBRecord_pid(r) : 0;
 		SkipDBRecord_markAsDirty(self);
 	}
 }
