@@ -255,36 +255,56 @@ void List_print(const List *self)
 
 void List_do_(List *self, ListDoCallback *callback)
 {
+	if (NULL == self || NULL == callback || NULL == self->items)
+		return;
 	LIST_FOREACH(self, i, v, if (v) (*callback)(v));
 }
 
 void List_do_with_(List *self, ListDoWithCallback *callback, void *arg)
 {
+	if (NULL == self || NULL == callback || NULL == self->items)
+		return;
 	LIST_FOREACH(self, i, v, if (v) (*callback)(v, arg));
 }
 
 void List_mapInPlace_(List *self, ListCollectCallback *callback)
 {
-	void **items = self->items;
+	void **items;
+	if (NULL == self || NULL == callback ||
+		(self->size > 0 && NULL == self->items))
+		return;
+	items = self->items;
 	LIST_FOREACH(self, i, v, items[i] = (*callback)(v));
 }
 
 List *List_map_(List *self, ListCollectCallback *callback)
 {
-	List *r = List_new();
+	List *r;
+	if (NULL == callback)
+		return NULL;
+	r = List_new();
+	if (NULL == r)
+		return NULL;
 	LIST_FOREACH(self, i, v, List_append_(r, (*callback)(v)););
 	return r;
 }
 
 List *List_select_(List *self, ListSelectCallback *callback)
 {
-	List *r = List_new();
+	List *r;
+	if (NULL == callback)
+		return NULL;
+	r = List_new();
+	if (NULL == r)
+		return NULL;
 	LIST_FOREACH(self, i, v, if ((*callback)(v)) List_append_(r, v));
 	return r;
 }
 
 void *List_detect_(List *self, ListDetectCallback *callback)
 {
+	if (NULL == self || NULL == callback || NULL == self->items)
+		return NULL;
 	LIST_FOREACH(self, i, v, if (v && (*callback)(v)) return v; );
 	return NULL;
 }
@@ -293,7 +313,7 @@ void *List_anyOne(const List *self)
 {
 	size_t i;
 
-	if (self->size == 0)
+	if (NULL == self || self->size == 0 || NULL == self->items)
 	{
 		return (void *)NULL;
 	}
