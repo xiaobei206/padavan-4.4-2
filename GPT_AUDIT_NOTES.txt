@@ -82,3 +82,4 @@ f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k
 3c171c6  net.c: preserve socket/ioctl errno in route_manip and reject malformed IPv4 route fields.
 64a5ceb  net.c: validate configured static-route metrics and prevent metric+1 signed overflow.
 9e82bb0  automount.sh: avoid force-unmounting a different disk when filesystem labels collide.
+5d8e67b  services_stor.c: pass HDD spindown device names as argv instead of shell text.
