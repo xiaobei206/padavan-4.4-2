@@ -319,3 +319,12 @@ de6bc3f  dbapi.c: recognize the dedicated __error__ list frame and report an inc
 c672f6d  tests/dbus_protocol.c: verify explicit list-stream error propagation.
 a12aa9e  tests/dbapi_protocol.c: verify explicit list-stream error propagation.
 Verification: GitHub source and commit metadata reviewed; no local firmware build or CTest result is claimed.
+79e66d4  skipd.c: replace 17 undefined SKIPDB_DEBUG identifiers with the defined SKIPD_DEBUG level; correct helper documentation placement.
+83a5a5c  dbus.c: allow genuinely zero-length Datum values in shell export output.
+7dc87f4  tests/dbus_protocol.c: cover empty shell-export values.
+3e608e9  dbus.c: parse the response key explicitly for oversized-value error handling.
+dc568c1/afa2e1d  skipd.c/dbus_protocol.c: return and test a framed error for legacy get values that exceed the response limit.
+23c2d53/9c3f899  dbus.c/skipd.c: standardize oversized single-response failures with a dedicated __error__ command.
+901f92a  tests/dbus_protocol.c: cover error-command handling for common responses.
+c96249e/3634b08/6869aa3  dbus.c/skipd.c/tests: use an unambiguous error command and verify a real key named __error__ remains readable.
+Verification: source-level review only. No local firmware build or CTest execution was performed.
