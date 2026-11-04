@@ -1425,7 +1425,9 @@ static void server_open(skipd_server* server)
         exit(EXIT_FAILURE);
     }
     SkipDB_setPath_(server->db, real_path);
-    if (SkipDB_open(server->db) <= 0 || !SkipDB_isOpen(server->db)) {
+    /* A new empty database is open even while its root PID is still pending. */
+    SkipDB_open(server->db);
+    if (!SkipDB_isOpen(server->db)) {
         skipd_log(SKIPDB_DEBUG, "database open failed: %s\n", real_path);
         SkipDB_free(server->db);
         server->db = NULL;
@@ -1461,7 +1463,9 @@ static void server_switch(skipd_server* server)
 
     SkipDB_setPath_(other, real_path);
     SkipDB_delete(other);
-    if (SkipDB_open(other) <= 0 || !SkipDB_isOpen(other)) {
+    /* The empty replacement DB receives its root PID on the first commit. */
+    SkipDB_open(other);
+    if (!SkipDB_isOpen(other)) {
         skipd_log(SKIPDB_DEBUG, "unable to open replacement database: %s\n",
             real_path);
         SkipDB_free(other);
