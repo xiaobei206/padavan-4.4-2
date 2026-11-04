@@ -250,50 +250,93 @@ void JFile_delete(JFile *self)
 
 size_t JFile_fwrite(JFile *self, void *buf, size_t size, size_t nobjs)
 {
-	size_t total = size * nobjs;
-	size_t nobjsWritten;
+	size_t total, nobjsWritten;
+	long old_pos, log_start;
+	FILE *log;
 
-	if (self->journalingOn)
-	{
-		fwrite(&(self->pos), sizeof(long), 1, self->log);
-		fwrite(&total, sizeof(size_t), 1, self->log);
-		nobjsWritten = fwrite(buf, size, nobjs, self->log);
-		fputc(JFILE_END_TRANSACTION_ITEM, self->log); // commit byte
-		self->pos += total;
-	}
-	else
-	{
-		fseek(self->file, self->pos, SEEK_SET);
+	if (NULL == self || (size > 0 && NULL == buf))
+		return 0;
+	if (size != 0 && nobjs > (size_t)-1 / size)
+		return 0;
+	total = size * nobjs;
+	/* A zero-byte write must not create a journal record with no payload. */
+	if (total == 0)
+		return 0;
+	if (self->pos < 0 || total > (size_t)LONG_MAX ||
+		self->pos > LONG_MAX - (long)total)
+		return 0;
+
+	old_pos = self->pos;
+	if (self->journalingOn) {
+		log = self->log;
+		if (NULL == log)
+			return 0;
+		log_start = ftell(log);
+		if (log_start < 0)
+			return 0;
+		if (fwrite(&old_pos, sizeof(old_pos), 1, log) != 1 ||
+			fwrite(&total, sizeof(total), 1, log) != 1 ||
+			fwrite(buf, size, nobjs, log) != nobjs ||
+			fputc(JFILE_END_TRANSACTION_ITEM, log) == EOF) {
+			/* Remove a partial record so later writes cannot hide behind it. */
+			(void)fflush(log);
+			clearerr(log);
+			if (ftruncate(fileno(log), (off_t)log_start) == 0) {
+				clearerr(log);
+				if (fseek(log, log_start, SEEK_SET) != 0) {
+					fclose(log);
+					self->log = NULL;
+				}
+			} else {
+				fclose(log);
+				self->log = NULL;
+			}
+			return 0;
+		}
+		nobjsWritten = nobjs;
+		self->pos = old_pos + (long)total;
+	} else {
+		if (NULL == self->file || fseek(self->file, old_pos, SEEK_SET) != 0)
+			return 0;
 		nobjsWritten = fwrite(buf, size, nobjs, self->file);
-		self->pos = ftell(self->file);
+		{
+			long next_pos = ftell(self->file);
+			if (next_pos >= 0)
+				self->pos = next_pos;
+		}
 	}
 
-	if (nobjs != nobjsWritten)
-	{
-		printf("Error: JFile_fwrite nobjs != nobjsWritten\n");
-	}
-
-	if (self->pos > self->maxPos) self->maxPos = self->pos;
-
+	if (self->pos > self->maxPos)
+		self->maxPos = self->pos;
 	return nobjsWritten;
 }
 
 size_t JFile_fread(JFile *self, void *buf, size_t size, size_t nobjs)
 {
 	size_t nobjsRead;
+	long next_pos;
 
-	fseek(self->file, self->pos, SEEK_SET);
+	if (NULL == self || NULL == self->file ||
+		(size > 0 && nobjs > (size_t)-1 / size) ||
+		(size > 0 && NULL == buf) || self->pos < 0)
+		return 0;
+	if (size == 0 || nobjs == 0)
+		return 0;
+	if (fseek(self->file, self->pos, SEEK_SET) != 0)
+		return 0;
 	nobjsRead = fread(buf, size, nobjs, self->file);
-	self->pos = ftell(self->file);
-
+	next_pos = ftell(self->file);
+	if (next_pos >= 0)
+		self->pos = next_pos;
 	return nobjsRead;
 }
 
 int JFile_fputc(JFile *self, int i)
 {
-	unsigned char c = i;
-	JFile_fwrite(self, &c, 1, 1);
-	return i;
+	unsigned char c = (unsigned char)i;
+	if (JFile_fwrite(self, &c, 1, 1) != 1)
+		return EOF;
+	return c;
 }
 
 int JFile_fgetc(JFile *self)
@@ -312,8 +355,9 @@ void JFile_writeInt_(JFile *self, int v)
 
 int JFile_readInt(JFile *self)
 {
-	int v;
-	JFile_fread(self, &v, sizeof(int), 1);
+	int v = 0;
+	if (JFile_fread(self, &v, sizeof(int), 1) != 1)
+		return 0;
 	return v;
 }
 
