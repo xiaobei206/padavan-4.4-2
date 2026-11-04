@@ -21,15 +21,25 @@ license
 
 BStream *BStream_new(void)
 {
-	int flipEndian;
 	BStream *self = (BStream *)io_calloc(1, sizeof(BStream));
+	if (NULL == self)
+		return NULL;
 	self->ba = UArray_new();
-	self->index = 0;
 	self->ownsUArray = 1;
 	self->tmp = UArray_new();
 	self->errorBa = UArray_new();
-	flipEndian = 0;
 	self->typeBuf = (unsigned char *)io_calloc(1, 512);
+	if (NULL == self->ba || NULL == self->tmp ||
+		NULL == self->errorBa || NULL == self->typeBuf) {
+		if (self->ba) UArray_free(self->ba);
+		if (self->tmp) UArray_free(self->tmp);
+		if (self->errorBa) UArray_free(self->errorBa);
+		io_free(self->typeBuf);
+		io_free(self);
+		return NULL;
+	}
+	self->index = 0;
+	self->flipEndian = 0;
 	return self;
 }
 
@@ -43,9 +53,11 @@ BStream *BStream_clone(BStream *self)
 
 void BStream_free(BStream *self)
 {
-	if (self->ownsUArray) UArray_free(self->ba);
-	UArray_free(self->tmp);
-	UArray_free(self->errorBa);
+	if (NULL == self)
+		return;
+	if (self->ownsUArray && self->ba) UArray_free(self->ba);
+	if (self->tmp) UArray_free(self->tmp);
+	if (self->errorBa) UArray_free(self->errorBa);
 	io_free(self->typeBuf);
 	io_free(self);
 }
@@ -73,6 +85,8 @@ void BStream_setUArray_(BStream *self, UArray *ba)
 
 void BStream_setData_length_(BStream *self, unsigned char *data, size_t length)
 {
+	if (NULL == self || NULL == self->ba || (length > 0 && NULL == data))
+		return;
 	UArray_setData_type_size_copy_(self->ba, data, CTYPE_uint8_t, length, 1);
 	self->index = 0;
 }
@@ -198,25 +212,24 @@ uint8_t BStream_readUint8(BStream *self)
 
 void BStream_readNumber_size_(BStream *self, unsigned char *v, int size)
 {
-	if (self->index + size <= UArray_size(self->ba))
-	{
+	size_t available;
+	if (NULL == self || NULL == self->ba || NULL == v || size < 0)
+		return;
+	available = UArray_size(self->ba);
+	if (self->index <= available && (size_t)size <= available - self->index) {
 		const uint8_t *b = UArray_bytes(self->ba);
-		memcpy(v, b + self->index, size);
-
-		if (self->flipEndian)
-		{
-			reverseBytes(v, size);
-		}
-
-		self->index += size;
+		if (size > 0 && NULL == b)
+			goto invalid;
+		if (size > 0)
+			memcpy(v, b + self->index, (size_t)size);
+		if (self->flipEndian && size > 1)
+			reverseBytes(v, (size_t)size);
+		self->index += (size_t)size;
 		return;
 	}
-
-	while (size--)
-	{
-		*v = 0;
-		v ++;
-	}
+invalid:
+	BStream_error_(self, "truncated binary stream");
+	memset(v, 0, (size_t)size);
 }
 
 uint32_t BStream_readUint32(BStream *self)
@@ -251,21 +264,42 @@ double BStream_readDouble(BStream *self)
 
 unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)
 {
-	if (self->index + length <= UArray_size(self->ba))
-	{
-		unsigned char *b = (unsigned char *)UArray_bytes(self->ba) + self->index;
-		self->index += length;
-		return b;
+	size_t available;
+	unsigned char *bytes;
+	if (NULL == self || NULL == self->ba)
+		return NULL;
+	available = UArray_size(self->ba);
+	if (self->index > available || length > available - self->index) {
+		BStream_error_(self, "truncated binary stream data");
+		return NULL;
 	}
-
-	return NULL;
+	if (length == 0)
+		return (unsigned char *)UArray_bytes(self->ba);
+	bytes = (unsigned char *)UArray_bytes(self->ba);
+	if (NULL == bytes) {
+		BStream_error_(self, "missing binary stream data");
+		return NULL;
+	}
+	self->index += length;
+	return bytes + self->index - length;
 }
 
 void BStream_readUArray_(BStream *self, UArray *b)
 {
-	size_t size = BStream_readInt32(self);
-	unsigned char *data = BStream_readDataOfLength_(self, size);
-	UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t, size, 1);
+	int32_t encoded_size;
+	unsigned char *data;
+	if (NULL == self || NULL == b)
+		return;
+	encoded_size = BStream_readInt32(self);
+	if (encoded_size < 0) {
+		BStream_error_(self, "negative binary array length");
+		return;
+	}
+	data = BStream_readDataOfLength_(self, (size_t)encoded_size);
+	if (encoded_size > 0 && NULL == data)
+		return;
+	UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t,
+		(size_t)encoded_size, 1);
 }
 
 UArray *BStream_readUArray(BStream *self)
@@ -506,12 +540,22 @@ double BStream_readTaggedDouble(BStream *self)
 
 void BStream_readTaggedUArray_(BStream *self, UArray *b)
 {
-	BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1);
-	{
-		size_t size = BStream_readTaggedInt32(self);
-		unsigned char *data = BStream_readDataOfLength_(self, size);
-		UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t, size, 1);
+	int32_t encoded_size;
+	unsigned char *data;
+	if (NULL == self || NULL == b)
+		return;
+	if (BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1) != 0)
+		return;
+	encoded_size = BStream_readTaggedInt32(self);
+	if (encoded_size < 0) {
+		BStream_error_(self, "negative tagged array length");
+		return;
 	}
+	data = BStream_readDataOfLength_(self, (size_t)encoded_size);
+	if (encoded_size > 0 && NULL == data)
+		return;
+	UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t,
+		(size_t)encoded_size, 1);
 }
 
 UArray *BStream_readTaggedUArray(BStream *self)
