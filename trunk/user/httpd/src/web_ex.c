@@ -1022,7 +1022,7 @@ validate_asp_apply(webs_t wp, int sid)
 			if (!strcmp(v->name, "wl_ssid"))
 			{
 				memset(buff, 0, sizeof(buff));
-				char_to_ascii(buff, value);
+				char_to_ascii(buff, sizeof(buff), (const uint8_t *)value);
 				nvram_set("wl_ssid2", buff);
 			}
 			
@@ -1095,7 +1095,7 @@ validate_asp_apply(webs_t wp, int sid)
 			if (!strcmp(v->name, "rt_ssid"))
 			{
 				memset(buff, 0, sizeof(buff));
-				char_to_ascii(buff, value);
+				char_to_ascii(buff, sizeof(buff), (const uint8_t *)value);
 				nvram_set("rt_ssid2", buff);
 			}
 			
