@@ -2381,52 +2381,65 @@ ej_detect_internet_hook(int eid, webs_t wp, int argc, char **argv)
 }
 
 static int
-wol_action_hook(int eid, webs_t wp, int argc, char **argv) 
+wol_action_hook(int eid, webs_t wp, int argc, char **argv)
 {
-	int i, sys_result;
-	char *dst_mac, *p1, *p2, *pd;
+	int i, sys_result, valid;
+	char *dst_mac;
+	const unsigned char *p;
+	size_t mac_len;
 	char wol_mac[18];
 
 	dst_mac = websGetVar(wp, "dstmac", "");
 	if (!dst_mac)
 		return -1;
 
-	if (strlen(dst_mac) == 12)
-	{
-		p1 = dst_mac;
-		p2 = wol_mac;
-		pd = ":";
-		for (i=0; i < 6; i++) {
-			memcpy(p2, p1, 2);
-			if (i<5)
-				memcpy(p2+2, pd, 1);
-			p2+=3;
-			p1+=2;
+	mac_len = strlen(dst_mac);
+	valid = 1;
+	if (mac_len == 12) {
+		for (p = (const unsigned char *)dst_mac; *p; ++p) {
+			if (!isxdigit(*p)) {
+				valid = 0;
+				break;
+			}
 		}
-		wol_mac[17] = '\0';
+		if (valid) {
+			for (i = 0; i < 6; ++i) {
+				wol_mac[i * 3] = dst_mac[i * 2];
+				wol_mac[i * 3 + 1] = dst_mac[i * 2 + 1];
+				if (i < 5)
+					wol_mac[i * 3 + 2] = ':';
+			}
+			wol_mac[17] = '\0';
+		}
+	} else if (mac_len == 17) {
+		for (i = 0; i < 17; ++i) {
+			if (i % 3 == 2) {
+				if (dst_mac[i] != ':')
+					valid = 0;
+			} else if (!isxdigit((unsigned char)dst_mac[i])) {
+				valid = 0;
+			}
+		}
+		if (valid)
+			memcpy(wol_mac, dst_mac, sizeof(wol_mac));
+	} else {
+		valid = 0;
 	}
-	else if (strlen(dst_mac) == 17)
-	{
-		strcpy(wol_mac, dst_mac);
-	}
-	else
-	{
+
+	if (!valid)
 		wol_mac[0] = '\0';
-	}
-	
+
 	sys_result = -1;
-	
 	if (wol_mac[0])
-		sys_result = doSystem("/usr/sbin/ether-wake -b -i %s %s", IFNAME_BR, wol_mac);
-	
-	if (sys_result == 0) 
-	{
+		sys_result = eval("/usr/sbin/ether-wake", "-b", "-i", IFNAME_BR, wol_mac);
+
+	if (sys_result == 0) {
 		nvram_set_temp("wol_mac_last", wol_mac);
 		websWrite(wp, "{\"wol_mac\": \"%s\"}", wol_mac);
-	}
-	else
+	} else {
 		websWrite(wp, "{\"wol_mac\": \"null\"}");
-	
+	}
+
 	return 0;
 }
 
