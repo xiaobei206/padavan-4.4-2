@@ -272,7 +272,7 @@ int parse_list_result(dbclient *client) {
 
         client->buf[n2] = '\0';
 
-        if(NULL != strstr(client->buf, "__end__")) {
+        if (n2 == 7 && memcmp(client->buf, "__end__\n", 7) == 0) {
             break;
         }
 
@@ -325,7 +325,7 @@ int parse_script_result(dbclient *client) {
         }
 
         client->buf[n2] = '\0';
-        if(NULL != strstr(client->buf, "__end__")) {
+        if (n2 == 7 && memcmp(client->buf, "__end__\n", 7) == 0) {
             break;
         }
 
