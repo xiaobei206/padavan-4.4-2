@@ -188,25 +188,39 @@ void full_restart_ipv6(int ipv6_type_old)
 
 int ipv6_from_string(const char *str, struct in6_addr *addr6)
 {
-	char addr6s[INET6_ADDRSTRLEN] = "::/0";
-	char *last, *tmp = addr6s;
+	char addr6s[INET6_ADDRSTRLEN] = "::";
+	char *prefix, *end;
+	long parsed_prefix;
 	int ret = 128;
 
+	if (!addr6)
+		return -1;
+
 	if (str && *str) {
-		memset(addr6s, 0, sizeof(addr6s));
-		strncpy(addr6s, str, sizeof(addr6s) - 1);
+		if (strlen(str) >= sizeof(addr6s))
+			return -1;
+		snprintf(addr6s, sizeof(addr6s), "%s", str);
 	}
 
-	strsep(&tmp, "/");
+	prefix = strchr(addr6s, '/');
+	if (prefix) {
+		*prefix++ = '\\0';
+		if (!*prefix)
+			return -1;
+
+		for (end = prefix; *end; end++) {
+			if (*end < '0' || *end > '9')
+				return -1;
+		}
+
+		parsed_prefix = strtol(prefix, &end, 10);
+		if (*end || parsed_prefix < 0 || parsed_prefix > 128)
+			return -1;
+		ret = (int)parsed_prefix;
+	}
 
 	if (inet_pton(AF_INET6, addr6s, addr6) != 1)
 		return -1;
-
-	if (tmp && *tmp) {
-		ret = strtol(tmp, &last, 10);
-		if (*last || ret < 0 || ret > 128)
-			ret = -1;
-	}
 
 	return ret;
 }
