@@ -1488,6 +1488,10 @@ static void server_switch(skipd_server* server)
         return;
 
     source_count = SkipDB_count(server->db);
+    if (source_count < 0) {
+        skipd_log(SKIPDB_DEBUG, "active database record chain is corrupt; switch aborted\\n");
+        return;
+    }
     other = SkipDB_new();
     if (NULL == other) {
         skipd_log(SKIPDB_DEBUG, "database switch allocation failed\n");
