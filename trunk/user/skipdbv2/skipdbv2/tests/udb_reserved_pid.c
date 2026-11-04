@@ -19,7 +19,7 @@ static int has_value(UDB *db, PID_TYPE pid, const char *expected)
 int main(void)
 {
     UDB *db;
-    PID_TYPE first_pid, second_pid, reused_pid;
+    PID_TYPE first_pid, second_pid, reused_pid, abandoned_pid;
     char path[128];
     int result = EXIT_FAILURE;
     int path_len;
@@ -106,6 +106,49 @@ int main(void)
     UDB_commitTransaction(db);
     if (!UDB_isOpen(db) || !has_value(db, reused_pid, "reused")) {
         fprintf(stderr, "reused PID value was not committed\n");
+        goto done;
+    }
+
+    /* An allocated PID that is never written must expire at commit. */
+    UDB_beginTransaction(db);
+    abandoned_pid = UDB_allocPid(db);
+    if (!UDB_isOpen(db) || abandoned_pid == 0) {
+        fprintf(stderr, "failed to reserve the intentionally unused PID\n");
+        goto done;
+    }
+    UDB_commitTransaction(db);
+    if (!UDB_isOpen(db)) {
+        fprintf(stderr, "commit of an unused reservation failed\n");
+        goto done;
+    }
+
+    /* The expired PID cannot be written until the allocator reserves it again. */
+    UDB_beginTransaction(db);
+    UDB_at_put_(db, abandoned_pid, Datum_FromCString_("stale-reservation"));
+    if (UDB_isOpen(db)) {
+        fprintf(stderr, "a PID from a completed transaction remained reserved\n");
+        goto done;
+    }
+
+    /* Reopening rebuilds the hole; a fresh reservation may reuse it safely. */
+    UDB_open(db);
+    if (!UDB_isOpen(db)) {
+        fprintf(stderr, "database failed to reopen after stale PID rejection\n");
+        goto done;
+    }
+    UDB_beginTransaction(db);
+    if ((reused_pid = UDB_allocPid(db)) != abandoned_pid) {
+        fprintf(stderr, "expired PID was not returned to the free pool\n");
+        goto done;
+    }
+    UDB_at_put_(db, reused_pid, Datum_FromCString_("reused-after-expiry"));
+    if (!UDB_isOpen(db)) {
+        fprintf(stderr, "freshly reserved expired PID could not be written\n");
+        goto done;
+    }
+    UDB_commitTransaction(db);
+    if (!UDB_isOpen(db) || !has_value(db, reused_pid, "reused-after-expiry")) {
+        fprintf(stderr, "freshly reused PID did not persist\n");
         goto done;
     }
 
