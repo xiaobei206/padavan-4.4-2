@@ -218,7 +218,7 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 
 	/* Skip boundary and headers */
 	while (clen > 0) {
-		if (!fgets(buf, MIN(clen + 1, sizeof(buf)), stream))
+		if (!fgets(buf, MIN(clen, (int)sizeof(buf) - 1) + 1, stream))
 			goto err;
 		clen -= strlen(buf);
 		if (!strcmp(buf, "\n") || !strcmp(buf, "\r\n"))
@@ -377,8 +377,19 @@ do_restore_st_post(const char *url, FILE *stream, int clen, char *boundary)
 {
 	const char *upload_file = STORAGE_FIFO_FILENAME;
 	char bndr[128];
+	const unsigned char *p;
+	int bndr_len;
 
-	/* BZ2 not store file length in the header, check boundary marker */
-	snprintf(bndr, sizeof(bndr), "\r\n--%s", boundary);
+	if (!boundary || !*boundary || clen < 0)
+		return;
+	for (p = (const unsigned char *)boundary; *p; ++p) {
+		if (*p < 32 || *p > 126)
+			return;
+	}
+
+	/* BZ2 does not store file length in its header; require a valid MIME boundary. */
+	bndr_len = snprintf(bndr, sizeof(bndr), "\r\n--%s", boundary);
+	if (bndr_len < 0 || bndr_len >= (int)sizeof(bndr))
+		return;
 	do_upload_file(stream, clen, bndr, upload_file, "file_st", check_header_bz2, 10);
 }
