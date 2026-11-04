@@ -238,7 +238,7 @@ int main(void)
     };
     static const unsigned char binary_output[] = {'A',0,'B','\n'};
 
-    static const char list_value_is_end[] = "list alpha __end__\n";
+    static const char list_value_is_end[] = "list alpha __end__\n\0";
     static const char list_end_frame[] = "__end__ list __end__\n";
     static const char script_item[] = "list MY_KEY hi\0";
     static const char expected_list[] = "alpha=__end__\n";
