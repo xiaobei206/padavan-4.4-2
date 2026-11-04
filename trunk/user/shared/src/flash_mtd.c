@@ -244,8 +244,10 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 
 	ret = 0;
 
-	if (!mi.erasesize || !mi.writesize || count > INT_MAX ||
-	    (size_t)offset > mi.size || count > (size_t)mi.size - (size_t)offset) {
+	if (!mi.erasesize || !mi.writesize ||
+	    mi.erasesize > INT_MAX || mi.writesize > INT_MAX ||
+	    count > INT_MAX || (size_t)offset > mi.size ||
+	    count > (size_t)mi.size - (size_t)offset) {
 		fprintf(stderr, "%s: out of MTD partition (offset: 0x%x, count: 0x%x, %s size: 0x%x)\n",
 			__func__, offset, count, mi.dev, mi.size);
 		ret = -3;
@@ -266,6 +268,10 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 		tmp_count = ROUNDUP((size_t)offset + count, mi.writesize);
 		offset = ROUNDDOWN(offset, (int)mi.writesize);
 		count = tmp_count - offset;
+		if (count > INT_MAX) {
+			ret = -3;
+			goto out_err;
+		}
 		
 		if (offset != old_offset || count != old_count) {
 			if ((size_t)offset > mi.size || count > (size_t)mi.size - (size_t)offset) {
