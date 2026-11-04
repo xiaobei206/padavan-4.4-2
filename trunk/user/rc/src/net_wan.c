@@ -1863,7 +1863,7 @@ add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
 
 		parsed_bits = strtol(bits_str, &bits_end, 10);
 		gateway = strsep(&tmp, " ");
-		if (bits_end == bits_str || *bits_end != '\\0' ||
+		if (bits_end == bits_str || *bits_end != '\0' ||
 		    parsed_bits < 0 || parsed_bits > 32 ||
 		    !gateway || !*gateway || !is_valid_ipv4(ipaddr) ||
 		    !is_valid_ipv4(gateway))
