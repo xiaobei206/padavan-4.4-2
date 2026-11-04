@@ -423,8 +423,9 @@ long JFile_position(JFile *self)
 
 long JFile_setPositionToEnd(JFile *self)
 {
+	/* Callers use a negative position to distinguish invalid state from EOF. */
 	if (NULL == self || self->maxPos < 0)
-		return 0;
+		return -1;
 	self->pos = self->maxPos;
 	return self->pos;
 }
