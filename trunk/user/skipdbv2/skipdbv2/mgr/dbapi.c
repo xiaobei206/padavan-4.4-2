@@ -32,55 +32,61 @@ typedef int (*fn_db_parse)(dbclient* client, void* o, char* prefix, char* key, c
 static int ignore_result(dbclient *client);
 
 static int write_util(dbclient* client, int len, unsigned int delay) {
-    int n, writed_len = 0;
+    int n, written = 0;
     unsigned int now, timeout;
     struct timeval tv, tv2;
 
-    gettimeofday(&tv2, NULL);
-    timeout = (tv2.tv_sec*1000) + (tv2.tv_usec/1000) + delay;
-    while(writed_len < len) {
-        n = write(client->remote_fd, client->buf + writed_len, len - writed_len);
-        if(n < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                gettimeofday(&tv, NULL);
-                now = (tv.tv_sec*1000) + (tv.tv_usec/1000);
-                if(now > timeout) {
-                    break;
-                }
-
-                usleep(50);
-            }
-        }
-
-        writed_len += n;
-    }
-
-    if(writed_len != len) {
+    if (NULL == client || NULL == client->buf || len < 0 ||
+        client->remote_fd < 0)
         return -1;
-    }
+    gettimeofday(&tv2, NULL);
+    timeout = (tv2.tv_sec * 1000) + (tv2.tv_usec / 1000) + delay;
+    while (written < len) {
+        n = write(client->remote_fd, client->buf + written, len - written);
+        if (n > 0) {
+            written += n;
+            continue;
+        }
+        if (n == 0)
+            return -1;
+        if (errno == EINTR)
+            continue;
+        if (errno != EAGAIN && errno != EWOULDBLOCK)
+            return -1;
 
-    return 0;
+        gettimeofday(&tv, NULL);
+        now = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+        if (now > timeout)
+            break;
+        usleep(50);
+    }
+    return written == len ? 0 : -1;
 }
 
 //TODO better for code reused
 static int create_client_fd(char* sock_path) {
-    int len, remote_fd;
+    int remote_fd;
+    size_t path_len;
+    socklen_t address_len;
     struct sockaddr_un remote;
 
-    if(-1 == (remote_fd = socket(PF_UNIX, SOCK_STREAM, 0))) {
-        //perror("socket");
+    if (NULL == sock_path)
         return -1;
-    }
+    path_len = strlen(sock_path);
+    if (path_len == 0 || path_len >= sizeof(remote.sun_path))
+        return -1;
+    if ((remote_fd = socket(PF_UNIX, SOCK_STREAM, 0)) < 0)
+        return -1;
 
+    memset(&remote, 0, sizeof(remote));
     remote.sun_family = AF_UNIX;
-    strcpy(remote.sun_path, sock_path);
-    len = strlen(remote.sun_path) + sizeof(remote.sun_family);
-    if(-1 == connect(remote_fd, (struct sockaddr*)&remote, len)) {
-        //perror("connect");
+    memcpy(remote.sun_path, sock_path, path_len + 1);
+    address_len = (socklen_t)(offsetof(struct sockaddr_un, sun_path) +
+        path_len + 1);
+    if (connect(remote_fd, (struct sockaddr *)&remote, address_len) < 0) {
         close(remote_fd);
         return -1;
     }
-
     return remote_fd;
 }
 
