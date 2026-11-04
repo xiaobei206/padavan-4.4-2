@@ -579,16 +579,20 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 			SkipDBRecord *r;
 			int c;
 
-			if (++steps > 1000000 || level >= SKIPDB_MAX_LEVEL)
+			if (++steps > 1000000 || level >= SKIPDB_MAX_LEVEL) {
+				SkipDB_clearUpdate(db);
 				return NULL;
+			}
 			r = SkipDBRecord_recordAtLevel_(current, level);
 			SkipDB_updateAt_put_(db, level, current);
 			if (NULL == r) {
 				level--;
 				continue;
 			}
-			if (NULL == r->key)
+			if (NULL == r->key) {
+				SkipDB_clearUpdate(db);
 				return NULL;
+			}
 #ifdef USE_SUFFIX_MATCHING
 			{
 				unsigned char pkMatchSize = current->pointers[level].matchingPrefixSize;
