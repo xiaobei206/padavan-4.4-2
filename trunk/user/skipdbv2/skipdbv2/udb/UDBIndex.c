@@ -88,16 +88,10 @@ int UDBIndex_open(UDBIndex *self)
 	JFile_open(self->file);
 	if (NULL == self->file->file || NULL == self->file->log)
 		return 0;
-	if (!UDBIndex_finishOpening(self))
-		return 0;
-	{
-		long pid_count = UDBIndex_pidCount(self);
-		if (pid_count <= 0)
-			return 0;
-		/* Existing index slots are already assigned; holes remain reusable. */
-		self->maxPid = (PID_TYPE)(pid_count - 1);
-	}
-	return 1;
+	/* UDB recovery must replay both files before inspecting index contents. */
+	if (self->file->deferLogReplay)
+		return 1;
+	return UDBIndex_finishOpening(self);
 }
 
 int UDBIndex_finishOpening(UDBIndex *self)
@@ -117,6 +111,13 @@ int UDBIndex_finishOpening(UDBIndex *self)
 		return 0;
 	if (!UDBIndex_findHoles(self))
 		return 0;
+	{
+		long pid_count = UDBIndex_pidCount(self);
+		if (pid_count <= 0)
+			return 0;
+		/* Existing index slots are already assigned; holes remain reusable. */
+		self->maxPid = (PID_TYPE)(pid_count - 1);
+	}
 	return 1;
 }
 
