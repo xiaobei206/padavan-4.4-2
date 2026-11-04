@@ -1502,24 +1502,19 @@ int UArray_isSignedType(const UArray *self)
 
 size_t UArray_wrapPos_(const UArray *self, long pos)
 {
-	long size = self->size;
+	size_t size, distance;
+	if (NULL == self)
+		return 0;
+	size = self->size;
 
-	if (pos > size - 1)
-	{
-		return size;
-	}
+	if (pos >= 0)
+		return (size_t)pos >= size ? size : (size_t)pos;
 
-	if (pos < 0)
-	{
-		pos = size + pos;
-
-		if (pos < 0)
-		{
-			pos = 0;
-		}
-	}
-
-	return pos;
+	/* Avoid casting a large size_t to long or negating LONG_MIN. */
+	distance = (size_t)(-(pos + 1)) + 1;
+	if (distance >= size)
+		return 0;
+	return size - distance;
 }
 
 int cmp_uint8_t (const uint8_t  *a, const uint8_t *b)     { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
