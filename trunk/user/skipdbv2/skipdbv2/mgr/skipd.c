@@ -454,7 +454,8 @@ static int client_ccr_read_util(skipd_client* client, int step_len) {
 
     ccrBegin(ctx);
 
-    if(step_len > READ_MAX) {
+    /* A negative payload length becomes a huge size_t in recv(). */
+    if(step_len <= 0 || step_len > READ_MAX) {
         ccrReturn(ctx, ccr_error_err2);
     }
 
@@ -463,7 +464,11 @@ static int client_ccr_read_util(skipd_client* client, int step_len) {
         if(NULL != client->origin) {
             free(client->origin);
         }
-        client->origin = (char*)malloc(buf_len + 1);
+        client->origin = (char*)malloc((size_t)buf_len + 1);
+        if(NULL == client->origin) {
+            client->origin_len = 0;
+            ccrReturn(ctx, ccr_error_err2);
+        }
         client->origin_len = buf_len;
         client->origin[client->origin_len] = '\0';
     }
@@ -1048,12 +1053,20 @@ static int client_ccr_process(EV_P_ skipd_client* client)
 static skipd_client* client_new(int fd) {
     //int opt = 0;
     skipd_client* client = (skipd_client*)calloc(1, sizeof(skipd_client));
+    if(NULL == client) {
+        close(fd);
+        return NULL;
+    }
     client->fd = fd;
     client->send = NULL;
     client->origin = NULL;
 
     //setsockopt(client->fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-    setnonblock(client->fd);
+    if(setnonblock(client->fd) < 0) {
+        close(fd);
+        free(client);
+        return NULL;
+    }
     ev_io_init(&client->io_read, client_read, client->fd, EV_READ);
     ev_io_init(&client->io_write, client_write, client->fd, EV_WRITE);
 
@@ -1079,6 +1092,8 @@ static void server_cb(EV_P_ ev_io *w, int revents) {
 
         //print_time("newclient");
         client = client_new(client_fd);
+        if(NULL == client)
+            continue;
         client->server = server;
         ev_io_start(EV_A_ &client->io_read);
     }
