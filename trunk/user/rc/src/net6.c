@@ -204,7 +204,7 @@ int ipv6_from_string(const char *str, struct in6_addr *addr6)
 
 	prefix = strchr(addr6s, '/');
 	if (prefix) {
-		*prefix++ = '\\0';
+		*prefix++ = '\0';
 		if (!*prefix)
 			return -1;
 
