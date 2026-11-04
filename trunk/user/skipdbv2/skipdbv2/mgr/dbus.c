@@ -225,10 +225,14 @@ int parse_get_result(dbclient *client) {
             return -4;
         {
             int value_len = n2 - (int)(p2 - client->buf) - 1;
-            if (value_len <= 0)
+            if (value_len < 0)
                 return -4;
             if (value_len == 5 && memcmp(p2 + 1, "none\n", 5) == 0)
                 return 0;
+            if (value_len == 0) {
+                putchar('\n');
+                return 0;
+            }
             if (p2[value_len] != '\n')
                 printf("%.*s\n", value_len, p2 + 1);
             else
