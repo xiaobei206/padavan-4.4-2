@@ -338,72 +338,95 @@ int parse_script_result(dbclient *client) {
     return 0;
 }
 
-static void write_util(dbclient* client, int len) {
-    int n, writed_len = 0;
-    unsigned int now, timeout;
-    struct timeval tv,  tv2;
+static int write_util(dbclient* client, int len) {
+    int n, written = 0;
+    unsigned long long now, timeout;
+    struct timeval tv, tv2;
 
+    if (NULL == client || NULL == client->buf ||
+        client->remote_fd < 0 || len < 0)
+        return -1;
     gettimeofday(&tv2, NULL);
-    timeout = (tv2.tv_sec * 1000) + (tv2.tv_usec / 1000) + 20;
+    timeout = (unsigned long long)tv2.tv_sec * 1000ULL +
+        (unsigned long long)tv2.tv_usec / 1000ULL + 20ULL;
 
-    while(writed_len < len) {
-        n = write(client->remote_fd, client->buf + writed_len, len-writed_len);
-        if(n < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                gettimeofday(&tv, NULL);
-                now = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-                fprintf(stderr, "timeout\n");
-                if(now > timeout) {
-                    break;
-                }
-
-                usleep(5);
-                continue;
-            }
-        }
-        writed_len += n;
-    }
-
-    if(writed_len != len) {
-        fprintf(stderr, "write error\n");
-        exit(1);
-    }
-}
-
-static void bulk_key(dbclient* client, char* command, char* prefix, char* envp[]) {
-    char** env;
-    char *p1, *p2;
-    int n1, n2, nenv, nc, nkey, np = strlen(prefix);
-
-    //print_time("begin writing");
-    strcpy(client->command, command);
-    nc = strlen(client->command);
-    for (env = envp; *env != 0; env++) {
-        p1 = *env;
-        if(strncmp(p1, prefix, np)) {
+    while (written < len) {
+#ifdef MSG_NOSIGNAL
+        n = (int)send(client->remote_fd, client->buf + written,
+            (size_t)(len - written), MSG_NOSIGNAL);
+#else
+        n = (int)send(client->remote_fd, client->buf + written,
+            (size_t)(len - written), 0);
+#endif
+        if (n > 0) {
+            written += n;
             continue;
         }
+        if (n == 0)
+            return -1;
+        if (errno == EINTR)
+            continue;
+        if (errno != EAGAIN && errno != EWOULDBLOCK)
+            return -1;
 
-        nenv = strlen(p1);
-        n1 = nc + nenv + 2;
-        check_buf(client, n1 + HEADER_PREFIX);
-
-        n2 = sprintf(client->buf, "%s%07d %s ", MAGIC, n1, client->command);
-
-        p2 = strstr(p1, "=");
-        nkey = (p2-p1);
-        memcpy(client->buf+n2, p1, nkey);
-        p2++;
-        client->buf[n2+nkey] = ' ';
-        strcpy(client->buf+n2+nkey+1, p2);
-
-        client->buf[n1+HEADER_PREFIX] = '\0';
-        client->buf[n1+HEADER_PREFIX-1] = '\n';
-        //print_time("writing");
-        //write(client->remote_fd, client->buf, n1 + HEADER_PREFIX);
-        write_util(client,  n1 + HEADER_PREFIX);
-        //print_time("writed");
+        gettimeofday(&tv, NULL);
+        now = (unsigned long long)tv.tv_sec * 1000ULL +
+            (unsigned long long)tv.tv_usec / 1000ULL;
+        if (now > timeout)
+            break;
+        usleep(5);
     }
+    return written == len ? 0 : -1;
+}
+
+static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[]) {
+    char **env;
+    char *p1, *p2;
+    size_t nenv, nc, nkey, np, body_len;
+    int n2;
+
+    if (NULL == client || NULL == command || NULL == prefix || NULL == envp)
+        return -1;
+    nc = strlen(command);
+    np = strlen(prefix);
+    if (nc >= sizeof(client->command))
+        return -1;
+    memcpy(client->command, command, nc + 1);
+
+    for (env = envp; *env != NULL; ++env) {
+        p1 = *env;
+        if (NULL == p1 || strncmp(p1, prefix, np) != 0)
+            continue;
+        nenv = strlen(p1);
+        if (nc > (size_t)READ_MAX - HEADER_PREFIX ||
+            nenv > (size_t)READ_MAX - HEADER_PREFIX - nc - 2)
+            return -1;
+        body_len = nc + nenv + 2;
+        if (body_len > (size_t)READ_MAX - HEADER_PREFIX ||
+            check_buf(client, (int)(body_len + HEADER_PREFIX)) != 0)
+            return -1;
+
+        p2 = strchr(p1, '=');
+        if (NULL == p2)
+            return -1;
+        nkey = (size_t)(p2 - p1);
+        n2 = snprintf(client->buf, (size_t)client->buf_max + 1,
+            "%s%07lu %s ", MAGIC, (unsigned long)body_len, client->command);
+        if (n2 < 0 || (size_t)n2 != HEADER_PREFIX - 1 + nc)
+            return -1;
+        memcpy(client->buf + n2, p1, nkey);
+        n2 += (int)nkey;
+        client->buf[n2++] = ' ';
+        memcpy(client->buf + n2, p2 + 1, nenv - nkey - 1);
+        n2 += (int)(nenv - nkey - 1);
+        client->buf[n2++] = '\n';
+        if ((size_t)n2 != body_len + HEADER_PREFIX)
+            return -1;
+        client->buf[n2] = '\0';
+        if (write_util(client, n2) != 0)
+            return -1;
+    }
+    return 0;
 }
 
 static void help(void) {
@@ -547,13 +570,15 @@ int main(int argc, char **argv, char * envp[])
                 err = -13;
                 break;
             }
-            bulk_key(gclient, "replace", argv[2], envp);
+            if (bulk_key(gclient, "replace", argv[2], envp) != 0)
+                err = -23;
         } else if(!strcmp("save", argv[1])) {
             if(argc < 3) {
                 err = -13;
                 break;
             }
-            bulk_key(gclient, "set", argv[2], envp);
+            if (bulk_key(gclient, "set", argv[2], envp) != 0)
+                err = -23;
         } else if(!strcmp("get", argv[1])) {
             if(argc < 3) {
                 err = -13;
