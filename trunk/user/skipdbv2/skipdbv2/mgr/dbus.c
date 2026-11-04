@@ -286,19 +286,48 @@ int parse_list_result(dbclient *client) {
             return -4;
         *p1 = '=';
 
-        if(p2[n2-1] != '\n') {
-            printf("%s\n", p2);
-        } else {
+        if (client->buf[n2 - 1] == '\n') {
             printf("%s", p2);
+        } else {
+            printf("%s\n", p2);
         }
     }
 
     return 0;
 }
 
+static int valid_shell_identifier(const char *name)
+{
+    const unsigned char *p = (const unsigned char *)name;
+
+    if (NULL == p ||
+        !((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') || *p == '_'))
+        return 0;
+    for (++p; *p; ++p) {
+        if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
+              (*p >= '0' && *p <= '9') || *p == '_'))
+            return 0;
+    }
+    return 1;
+}
+
+static void print_shell_quoted(const char *value, size_t length)
+{
+    size_t i;
+    putchar('\'');
+    for (i = 0; i < length; ++i) {
+        if (value[i] == '\'')
+            fputs("'\\''", stdout);
+        else
+            putchar((unsigned char)value[i]);
+    }
+    putchar('\'');
+}
+
 int parse_script_result(dbclient *client) {
     int n1, n2;
     char *p1, *p2;
+    size_t value_len, remaining;
     char* magic = MAGIC;
 
     for(;;) {
@@ -308,14 +337,12 @@ int parse_script_result(dbclient *client) {
         }
 
         if(0 != memcmp(client->buf, magic, MAGIC_LEN)) {
-            //message error
             return -3;
         }
 
         client->buf[HEADER_PREFIX-1] = '\0';
         if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
-            n2 <= 0 || n2 > READ_MAX) {
-            //message error or excessive response size
+            n2 <= LIST_LEN + 1 || n2 > READ_MAX) {
             return -4;
         }
 
@@ -329,18 +356,28 @@ int parse_script_result(dbclient *client) {
             break;
         }
 
-        if (n2 <= LIST_LEN)
-            return -4;
         p1 = client->buf + LIST_LEN;
-        p2 = strstr(p1, " ");
-        if (NULL == p2)
+        p2 = (char *)memchr(p1, ' ', (size_t)(n2 - LIST_LEN));
+        if (NULL == p2 || p2 == p1)
             return -4;
-        *p2 = '\0';
-        p2++;
-        if(client->buf[n2-1] == '\n') {
-            client->buf[n2-1] = '\0';
-        }
-        printf("export %s=\"%s\";", p1, p2);
+        *p2++ = '\0';
+
+        remaining = (size_t)(client->buf + n2 - p2);
+        if (remaining == 0)
+            return -4;
+        if (client->buf[n2 - 1] == '\0' || client->buf[n2 - 1] == '\n')
+            --remaining;
+        else
+            return -4;
+        if (memchr(p2, '\0', remaining) != NULL ||
+            !valid_shell_identifier(p1))
+            return -4;
+
+        fputs("export ", stdout);
+        fputs(p1, stdout);
+        putchar('=');
+        print_shell_quoted(p2, remaining);
+        putchar(';');
     }
 
     return 0;
