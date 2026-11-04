@@ -16,10 +16,12 @@ void UArray_append_(UArray *self, const UArray *other)
 
 void UArray_appendCString_(UArray *self, const char *s)
 {
+	if (NULL == self || NULL == s)
+		return;
 	while (*s)
 	{
-		UArray_appendLong_(self, *s);
-		s ++;
+		UArray_appendLong_(self, (unsigned char)*s);
+		s++;
 	}
 }
 
@@ -30,31 +32,45 @@ void UArray_prepend_(UArray *self, const UArray *other)
 
 int UArray_equalsAnyCase_(const UArray *self, const UArray *other)
 {
-	if (self->size == other->size)
-	{
-		return UArray_findAnyCase_(self, other) == 0;
-	}
-
-	return 0;
+	if (NULL == self || NULL == other || self->size != other->size)
+		return 0;
+	if (self->size == 0)
+		return 1;
+	return UArray_findAnyCase_(self, other) == 0;
 }
 
 void UArray_replace_with_(UArray *self, const UArray *a1, const UArray *a2)
 {
 	long i;
 	size_t start = 0;
-	UArray visible = UArray_stackRange(self, start, self->size);
-
-	while ((i = UArray_find_(&visible, a1)) != -1)
-	{
-		size_t index = start + i;
-		UArray_removeRange(self, index, a1->size);
-		UArray_at_putAll_(self, index, a2);
-		start = index + a2->size;
-		visible = UArray_stackRange(self, start, self->size - start);
+	UArray *pattern, *replacement;
+	if (NULL == self || NULL == a1 || NULL == a2 || a1->size == 0)
+		return;
+	pattern = UArray_clone(a1);
+	if (NULL == pattern)
+		return;
+	replacement = UArray_clone(a2);
+	if (NULL == replacement) {
+		UArray_free(pattern);
+		return;
 	}
+
+	while (start <= self->size) {
+		UArray visible = UArray_stackRange(self, start, self->size - start);
+		i = UArray_find_(&visible, pattern);
+		if (i < 0)
+			break;
+		{
+			size_t index = start + (size_t)i;
+			UArray_removeRange(self, index, pattern->size);
+			UArray_at_putAll_(self, index, replacement);
+			start = index + replacement->size;
+		}
+	}
+	UArray_free(replacement);
+	UArray_free(pattern);
 	UArray_changed(self);
 }
-
 BASEKIT_API void UArray_replaceCString_withCString_(UArray *self, const char *s1, const char *s2)
 {
 	UArray a1 = UArray_stackAllocedWithCString_((char *)s1);
@@ -66,20 +82,34 @@ void UArray_replaceAnyCase_with_(UArray *self, const UArray *a1, const UArray *a
 {
 	long i;
 	size_t start = 0;
-	UArray visible = UArray_stackRange(self, start, self->size);
-
-	while ((i = UArray_findAnyCase_(&visible, a1)) != -1)
-	{
-		size_t index = start + i;
-		UArray_removeRange(self, index, a1->size);
-		UArray_at_putAll_(self, index, a2);
-		start = index + a2->size;
-		visible = UArray_stackRange(self, start, self->size - start);
+	UArray *pattern, *replacement;
+	if (NULL == self || NULL == a1 || NULL == a2 || a1->size == 0)
+		return;
+	pattern = UArray_clone(a1);
+	if (NULL == pattern)
+		return;
+	replacement = UArray_clone(a2);
+	if (NULL == replacement) {
+		UArray_free(pattern);
+		return;
 	}
 
+	while (start <= self->size) {
+		UArray visible = UArray_stackRange(self, start, self->size - start);
+		i = UArray_findAnyCase_(&visible, pattern);
+		if (i < 0)
+			break;
+		{
+			size_t index = start + (size_t)i;
+			UArray_removeRange(self, index, pattern->size);
+			UArray_at_putAll_(self, index, replacement);
+			start = index + replacement->size;
+		}
+	}
+	UArray_free(replacement);
+	UArray_free(pattern);
 	UArray_changed(self);
 }
-
 BASEKIT_API void UArray_remove_(UArray *self, const UArray *a1)
 {
 	UArray blank = UArray_stackAllocedEmptyUArray();
