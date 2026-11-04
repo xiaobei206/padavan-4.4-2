@@ -460,67 +460,87 @@ const char *BStream_readCString(BStream *self)
 void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned int a)
 {
 	BStreamTag tag;
-	if (NULL == self || NULL == self->ba)
+	unsigned char byte;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
 		return;
 	tag.isArray = a;
 	tag.type = t;
 	tag.byteCount = b;
-
+	byte = BStreamTag_asUnsignedChar(&tag);
 	{
-		unsigned char c = BStreamTag_asUnsignedChar(&tag);
-		BStreamTag tag2 = BStreamTag_FromUnsignedChar(c);
-
-		if (tag2.isArray != tag.isArray ||
-			tag2.type != tag.type ||
-			tag2.byteCount != tag.byteCount)
-		{
+		BStreamTag decoded = BStreamTag_FromUnsignedChar(byte);
+		if (decoded.isArray != tag.isArray || decoded.type != tag.type ||
+			decoded.byteCount != tag.byteCount) {
 			BStream_error_(self, "unsupported binary stream tag");
 			return;
 		}
-
-		BStream_writeUint8_(self, c);
 	}
+	BStream_writeUint8_(self, byte);
 }
+
 
 void BStream_writeTaggedUint8_(BStream *self, uint8_t v)
 {
-	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+	size_t oldSize;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
 		return;
+	oldSize = UArray_size(self->ba);
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 1, 0);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeUint8_(self, v);
 	if (UArray_size(self->errorBa) != 0)
-		return;
-	BStream_writeUint8_(self, v);
+		BStream_rollbackWrite_(self, oldSize);
 }
+
 
 void BStream_writeTaggedUint32_(BStream *self, uint32_t v)
 {
-	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+	size_t oldSize;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
 		return;
+	oldSize = UArray_size(self->ba);
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 4, 0);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeUint32_(self, v);
 	if (UArray_size(self->errorBa) != 0)
-		return;
-	BStream_writeUint32_(self, v);
+		BStream_rollbackWrite_(self, oldSize);
 }
+
 
 void BStream_writeTaggedInt32_(BStream *self, int32_t v)
 {
-	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+	size_t oldSize;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
 		return;
+	oldSize = UArray_size(self->ba);
 	BStream_writeTag(self, BSTREAM_SIGNED_INT, 4, 0);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeInt32_(self, v);
 	if (UArray_size(self->errorBa) != 0)
-		return;
-	BStream_writeInt32_(self, v);
+		BStream_rollbackWrite_(self, oldSize);
 }
+
+
 #if !defined(__SYMBIAN32__)
 void BStream_writeTaggedInt64_(BStream *self, int64_t v)
 {
-	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+	size_t oldSize;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
 		return;
+	oldSize = UArray_size(self->ba);
 	BStream_writeTag(self, BSTREAM_SIGNED_INT, 8, 0);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeInt64_(self, v);
 	if (UArray_size(self->errorBa) != 0)
-		return;
-	BStream_writeInt64_(self, v);
+		BStream_rollbackWrite_(self, oldSize);
 }
+
+
 #endif
 
 /*
@@ -531,37 +551,46 @@ void BStream_writeTaggedInt64_(BStream *self, int64_t v)
 
 void BStream_writeTaggedDouble_(BStream *self, double v)
 {
-	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+	size_t oldSize;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
 		return;
+	oldSize = UArray_size(self->ba);
 	BStream_writeTag(self, BSTREAM_FLOAT, 8, 0);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeDouble_(self, v);
 	if (UArray_size(self->errorBa) != 0)
-		return;
-	BStream_writeDouble_(self, v);
+		BStream_rollbackWrite_(self, oldSize);
 }
+
 
 void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, size_t length)
 {
+	size_t oldSize;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
-		(length > 0 && NULL == data))
+		(self->ba->itemSize != 1) || (length > 0 && NULL == data) ||
+		UArray_size(self->errorBa) != 0)
 		return;
-	if (UArray_size(self->errorBa) != 0)
+	if (length > INT32_MAX) {
+		BStream_error_(self, "tagged data length is out of range");
 		return;
-	if (length > INT32_MAX || self->index > (size_t)-1 - 6 ||
-		length > (size_t)-1 - self->index - 6) {
+	}
+	oldSize = UArray_size(self->ba);
+	if (oldSize > (size_t)-1 - 6 ||
+		length > (size_t)-1 - oldSize - 6 ||
+		oldSize + 6 + length == (size_t)-1) {
 		BStream_error_(self, "tagged data length is out of range");
 		return;
 	}
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 1, 1);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeTaggedInt32_(self, (int32_t)length);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeData_length_(self, data, length);
 	if (UArray_size(self->errorBa) != 0)
-		return;
-	BStream_writeTaggedInt32_(self, (int32_t)length);
-	if (UArray_size(self->errorBa) != 0)
-		return;
-	if (length > 0) {
-		UArray_appendBytes_size_(self->ba, (unsigned char *)data, length);
-		self->index += length;
-	}
+		BStream_rollbackWrite_(self, oldSize);
 }
+
 
 void BStream_writeTaggedCString_(BStream *self, const char *s)
 {
@@ -572,14 +601,20 @@ void BStream_writeTaggedCString_(BStream *self, const char *s)
 	BStream_writeTaggedData_length_(self, (const unsigned char *)s, strlen(s));
 }
 
+
 void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 {
-	if (NULL == self || NULL == ba) {
+	size_t length;
+	if (NULL == self || NULL == ba || ba->itemSize == 0 ||
+		ba->size > (size_t)-1 / ba->itemSize ||
+		(ba->size > 0 && NULL == ba->data)) {
 		BStream_error_(self, "invalid tagged array");
 		return;
 	}
-	BStream_writeTaggedData_length_(self, UArray_bytes(ba), UArray_size(ba));
+	length = UArray_sizeInBytes(ba);
+	BStream_writeTaggedData_length_(self, UArray_bytes(ba), length);
 }
+
 
 // reading --------------------------------------
 
