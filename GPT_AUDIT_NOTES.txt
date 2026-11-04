@@ -24,3 +24,6 @@ f1ee8e1  watchdog.c: validate weekday bits and HHMM range before scheduler actio
 8636c48  netutils.c: reject invalid/overlong interface names before ioctl copy.
 66c0935  netutils.c: validate helper pointers, MAC input and sysctl/bridge arguments.
 782befc  net_wan6.c: reserve suffix space for get_ifaddr6 output.
+576dc1d  pids.c: handle /proc scan and allocation failures without null dereferences.
+09c3597  flash_mtd.c: validate partition ranges and stop on bad-block ioctl errors.
+8acfba0  flash_mtd.c: handle partial MTD I/O and fail incomplete write verification.
