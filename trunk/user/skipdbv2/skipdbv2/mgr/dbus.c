@@ -544,10 +544,17 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
-            write(remote_fd, client->buf, n2);
+            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
-            setnonblock(remote_fd);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
             n1 = parse_list_result(gclient);
         } else if(!strcmp("export", argv[1])) {
             if (argc < 3) {
@@ -560,10 +567,17 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
-            write(remote_fd, client->buf, n2);
+            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
-            setnonblock(remote_fd);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
             n1 = parse_script_result(gclient);
         } else if(!strcmp("update", argv[1])) {
             if(argc < 3) {
@@ -590,10 +604,17 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
-            write(remote_fd, client->buf, n2);
+            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
-            setnonblock(remote_fd);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
             n1 = parse_get_result(gclient);
         } else if(!strcmp("remove", argv[1])) {
             if(argc < 3) {
@@ -606,8 +627,12 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
-            write(remote_fd, client->buf, n2);
+            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
             //setnonblock(remote_fd);
             //n1 = parse_common_result(gclient);
@@ -622,8 +647,12 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
-            write(remote_fd, client->buf, n2);
+            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
             //setnonblock(remote_fd);
             //n1 = parse_common_result(gclient);
@@ -639,7 +668,11 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
             //print_time("started");
-            write(remote_fd, client->buf, n2);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
             //print_time("end");
 
             //setnonblock(remote_fd);
@@ -655,9 +688,16 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            write(remote_fd, client->buf, n2);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
-            setnonblock(remote_fd);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
             n1 = parse_get_result(gclient);
         } else if(!strcmp("desc", argv[1])) {
             if((argc < 3) || (NULL == strstr(argv[2], "="))) {
@@ -670,9 +710,16 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            write(remote_fd, client->buf, n2);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
-            setnonblock(remote_fd);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
             n1 = parse_get_result(gclient);
         } else if(!strcmp("ram", argv[1])) {
             if((argc < 3) || (NULL == strstr(argv[2], "="))) {
@@ -685,7 +732,11 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            write(remote_fd, client->buf, n2);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
             //setnonblock(remote_fd);
             //n1 = parse_common_result(client);
@@ -700,7 +751,11 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            write(remote_fd, client->buf, n2);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
             //setnonblock(remote_fd);
             //n1 = parse_common_result(client);
@@ -715,8 +770,12 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, client->buf_max, "%s%07d %s __event__%s %s\n", MAGIC, n1, client->command, argv[2], argv[3]);
-            write(remote_fd, client->buf, n2);
+            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s __event__%s %s\n", MAGIC, n1, client->command, argv[2], argv[3]);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
             //setnonblock(remote_fd);
             //n1 = parse_common_result(client);
@@ -736,8 +795,12 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3], argv[4]);
-            write(remote_fd, client->buf, n2);
+            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3], argv[4]);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
             //setnonblock(remote_fd);
             //n1 = parse_common_result(client);
@@ -758,8 +821,12 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3], argv[4]);
-            write(remote_fd, client->buf, n2);
+            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3], argv[4]);
+            if (n2 <= 0 || n2 > client->buf_max ||
+                write_util(client, n2) != 0) {
+                err = -23;
+                break;
+            }
 
             //setnonblock(remote_fd);
             //n1 = parse_common_result(client);
