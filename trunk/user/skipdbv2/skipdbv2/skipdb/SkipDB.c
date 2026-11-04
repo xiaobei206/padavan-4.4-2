@@ -1038,9 +1038,5 @@ int SkipDB_maxPos(SkipDB *self)
 	if (NULL == self || NULL == self->udb || NULL == self->udb->records ||
 		NULL == self->udb->records->file)
 		return 0;
-	return self->udb->records->file->maxPos;
-}
-
-
-    return self->udb->records->file->maxPos;
+	return (int)self->udb->records->file->maxPos;
 }
