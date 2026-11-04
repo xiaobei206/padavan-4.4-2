@@ -46,54 +46,84 @@ int test_if_hidden_share(const char *share_path)
 
 int get_mount_layer(const char *basedir, char **mount_path, char **share)
 {
-	char *follow_info, *follow_info_end;
-	int layer = BASE_LAYER, len = 0;
+	const char *component, *separator;
+	size_t path_len, component_len, prefix_len, share_len;
+	char *follow_info_end;
+	int layer = BASE_LAYER;
 
-	if (!basedir)
+	if (!basedir || !mount_path || !share || basedir[0] != '/')
 		return -1;
+	*mount_path = NULL;
+	*share = NULL;
+
+	path_len = strlen(basedir);
+	if (path_len > 1 && basedir[path_len - 1] == '/')
+		return -1;
+	component = basedir + 1;
+	while (*component) {
+		const char *component_start = component;
+		while (*component && *component != '/')
+			++component;
+		component_len = (size_t)(component - component_start);
+		if (component_len == 0 ||
+		    (component_len == 1 && component_start[0] == '.') ||
+		    (component_len == 2 && component_start[0] == '.' &&
+		     component_start[1] == '.'))
+			return -1;
+		if (*component == '/') {
+			++component;
+			if (*component == '/')
+				return -1;
+		}
+	}
 
 	if (!strcmp(basedir, "/"))
 		return layer;
 
-	len = strlen(basedir);
-	if (len > 1)
+	if (path_len > 1)
 		layer++;
 
-	follow_info = (char *)basedir;
-	while (*follow_info != 0 && (follow_info = index(follow_info+1, '/')) != NULL)
+	follow_info_end = NULL;
+	component = basedir;
+	while (*component &&
+	       (component = index(component + 1, '/')) != NULL)
 		++layer;
 
 	if (layer >= MOUNT_LAYER) {
-		follow_info = (char *)basedir;
-		follow_info = index(follow_info+1, '/');
-		if (follow_info == NULL)
-			len = strlen(basedir);
-		else
-			len = strlen(basedir)-strlen(follow_info);
-		*mount_path = (char *)malloc(sizeof(char)*(len+1));
-		if (*mount_path == NULL)
+		separator = index(basedir + 1, '/');
+		if (layer >= SHARE_LAYER && !separator)
 			return -1;
-		strncpy(*mount_path, basedir, len);
-		(*mount_path)[len] = 0;
-	}
+		prefix_len = separator ? (size_t)(separator - basedir) : path_len;
 
-	if (layer >= SHARE_LAYER) {
-		++follow_info;
-		follow_info_end = index(follow_info, '/');
-		if (follow_info_end == NULL)
-			len = strlen(follow_info);
-		else
-			len = strlen(follow_info)-strlen(follow_info_end);
-		*share = (char *)malloc(sizeof(char)*(len+1));
-		if (*share == NULL)
+		*mount_path = (char *)malloc(prefix_len + 1);
+		if (!*mount_path)
 			return -1;
-		strncpy(*share, follow_info, len);
-		(*share)[len] = 0;
+		memcpy(*mount_path, basedir, prefix_len);
+		(*mount_path)[prefix_len] = '\0';
+
+		if (layer >= SHARE_LAYER) {
+			component = separator + 1;
+			follow_info_end = (char *)index(component, '/');
+			share_len = follow_info_end ?
+				(size_t)(follow_info_end - component) : strlen(component);
+			if (share_len == 0) {
+				free(*mount_path);
+				*mount_path = NULL;
+				return -1;
+			}
+			*share = (char *)malloc(share_len + 1);
+			if (!*share) {
+				free(*mount_path);
+				*mount_path = NULL;
+				return -1;
+			}
+			memcpy(*share, component, share_len);
+			(*share)[share_len] = '\0';
+		}
 	}
 
 	return layer;
 }
-
 char* read_file_to_buffer(const char *target_file)
 {
 	FILE *fp;
@@ -141,7 +171,7 @@ int get_permission_ftp(const char *account, const char *mount_path, const char *
 	char *target, *follow_info;
 	int len, result;
 
-	if (!mount_path || !folder)
+	if (!account || !mount_path || !*mount_path || !folder || !*folder)
 		return -1;
 
 	snprintf(var_file, sizeof(var_file), "%s/.__%s_var.txt", mount_path, account);
@@ -166,7 +196,10 @@ int get_permission_ftp(const char *account, const char *mount_path, const char *
 	}
 
 	follow_info += len;
-	if (follow_info[3] != '\n') {
+	if (strlen(follow_info) < 4 || follow_info[3] != '\n' ||
+	    follow_info[0] < '0' || follow_info[0] > '3' ||
+	    follow_info[1] < '0' || follow_info[1] > '3' ||
+	    follow_info[2] < '0' || follow_info[2] > '3') {
 		free(var_info);
 		return -1;
 	}
@@ -187,11 +220,17 @@ int asus_check_permission(struct vsf_session* p_sess, int perm)
 
 	if (!tunable_chroot_local_user)
 		return 1;
+	if (!p_sess)
+		return 0;
 
 	str_getcwd(&p_sess->cwd_str);
 
 	i_result = 1;
 	i_layer = get_mount_layer(str_getbuf(&p_sess->cwd_str), &mount_path, &share_name);
+	if (i_layer < 0) {
+		i_result = 0;
+		goto free_and_exit;
+	}
 
 	if (mount_path && test_if_hidden_share(mount_path)) {
 		i_result = 0;
@@ -260,6 +299,8 @@ int asus_check_file_visible(struct vsf_session* p_sess, const struct mystr* p_fi
 
 	if (!tunable_chroot_local_user)
 		return 1;
+	if (!p_sess)
+		return 0;
 
 	p_filename = str_getbuf(p_filename_str);
 	if (!strcmp(p_filename, ".") || !strcmp(p_filename, ".."))
@@ -273,6 +314,10 @@ int asus_check_file_visible(struct vsf_session* p_sess, const struct mystr* p_fi
 
 	i_result = 1;
 	i_layer = get_mount_layer(p_fullpath, &mount_path, &share_name);
+	if (i_layer < 0) {
+		i_result = 0;
+		goto free_and_exit;
+	}
 
 	if (mount_path && test_if_hidden_share(mount_path)) {
 		i_result = 0;
@@ -338,6 +383,9 @@ struct passwd *asus_getpwnam(const char *name)
 	char *tmp_user, *tmp_pass;
 	int acc_num, i;
 
+	if (!name)
+		return NULL;
+
 	if (strcmp(name, "root") == 0){
 		strcpy(pw_name, name);
 		strcpy(pw_passwd, "*");
@@ -370,7 +418,10 @@ struct passwd *asus_getpwnam(const char *name)
 			tmp_user = nvram_safe_get(nvram_value);
 			sprintf(nvram_value, "acc_password%d", i);
 			tmp_pass = nvram_safe_get(nvram_value);
-			if(strcmp(name, tmp_user) == 0){
+			if (strcmp(name, tmp_user) == 0) {
+				if (strlen(name) >= sizeof(pw_name) ||
+				    strlen(tmp_pass) >= sizeof(pw_passwd))
+					return NULL;
 				strcpy(pw_name, name);
 				strcpy(pw_passwd, tmp_pass);
 				resultbuf.pw_name = pw_name;
