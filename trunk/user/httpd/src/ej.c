@@ -21,6 +21,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <limits.h>
 
 #include <httpd.h>
 
@@ -242,56 +243,96 @@ load_dictionary(char *lang, pkw_t pkw)
 {
 	FILE *dfp;
 	char dfn[16];
-	char *p, *q;
-	int res, dict_size = 0;
+	char *p, *q, *line_end;
+	unsigned char **new_idx;
+	long file_size;
+	size_t remaining, line_len;
+	int dict_size, new_size;
 
 	if (!pkw)
 		return 0;
 
-	snprintf(dfn, sizeof (dfn), "%s.dict", lang);
+	memset(pkw, 0, sizeof(*pkw));
+	if (!lang || !*lang || strlen(lang) >= sizeof(dfn) - sizeof(".dict"))
+		return 0;
+	for (p = lang; *p; ++p) {
+		if (!isalnum((unsigned char)*p) && *p != '_' && *p != '-')
+			return 0;
+	}
+
+	if (snprintf(dfn, sizeof(dfn), "%s.dict", lang) >= (int)sizeof(dfn))
+		return 0;
 	dfp = fopen(dfn, "r");
 	if (!dfp)
 		return 0;
 
-	memset(pkw, 0, sizeof(kw_t));
+	if (fseek(dfp, 0L, SEEK_END) != 0)
+		goto load_fail;
+	file_size = ftell(dfp);
+	if (file_size < 0 || file_size > INT_MAX - 128)
+		goto load_fail;
+	dict_size = (int)file_size + 128;
+	if (fseek(dfp, 0L, SEEK_SET) != 0)
+		goto load_fail;
 
-	fseek(dfp, 0L, SEEK_END);
-	dict_size = ftell(dfp) + 128;
-
-	pkw->buf = malloc(dict_size);
-	if (!pkw->buf) {
-		fclose(dfp);
-		return 0;
-	}
-
+	pkw->buf = malloc((size_t)dict_size);
+	if (!pkw->buf)
+		goto load_fail;
+	memset(pkw->buf, 0, (size_t)dict_size);
 	snprintf(pkw->dict, sizeof(pkw->dict), "%s", lang);
-	REALLOC_VECTOR (pkw->idx, pkw->len, pkw->tlen, sizeof (unsigned char*));
+	q = (char *)pkw->buf;
 
-	fseek(dfp, 0L, SEEK_SET);
+	/* The allocated buffer includes the original file size plus slack. Read
+	 * with an explicit remaining capacity and grow the index without asserts. */
+	while (1) {
+		remaining = (size_t)dict_size - (size_t)(q - (char *)pkw->buf);
+		if (remaining <= 1)
+			goto load_fail;
+		if (!fgets(q, (int)remaining, dfp))
+			break;
 
-	q = pkw->buf;
+		line_end = strchr(q, '\n');
+		if (line_end)
+			*line_end = '\0';
+		else if (strlen(q) >= remaining - 1)
+			goto load_fail;
 
-	while ((res = fscanf(dfp, "%[^\n]", q)) != EOF) {
-		fgetc(dfp);
-		
-		if (res < 1)
+		line_len = strlen(q);
+		if (line_len > 0 && q[line_len - 1] == '\r')
+			q[--line_len] = '\0';
+		if (line_len == 0)
 			continue;
-		
+
 		p = strchr(q, '=');
 		if (!p)
 			continue;
-		
-		REALLOC_VECTOR (pkw->idx, pkw->len, pkw->tlen, sizeof (unsigned char*));
-		pkw->idx[pkw->len] = q;
-		pkw->len++;
-		q = p + strlen(p);
-		*q = '\0';
-		q++;
+
+		if (pkw->len >= pkw->tlen) {
+			if (pkw->tlen > INT_MAX - INC_ITEM)
+				goto load_fail;
+			new_size = pkw->tlen + INC_ITEM;
+			if ((size_t)new_size > (size_t)-1 / sizeof(*new_idx))
+				goto load_fail;
+			new_idx = realloc(pkw->idx, (size_t)new_size * sizeof(*new_idx));
+			if (!new_idx)
+				goto load_fail;
+			memset(new_idx + pkw->tlen, 0,
+			       (size_t)(new_size - pkw->tlen) * sizeof(*new_idx));
+			pkw->idx = new_idx;
+			pkw->tlen = new_size;
+		}
+
+		pkw->idx[pkw->len++] = (unsigned char *)q;
+		q += line_len + 1;
 	}
 
 	fclose(dfp);
-
 	return 1;
+
+load_fail:
+	fclose(dfp);
+	release_dictionary(pkw);
+	return 0;
 }
 
 // This translation engine can not process <%...%> interlace with <#...#>
