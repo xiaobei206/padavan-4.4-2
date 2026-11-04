@@ -68,3 +68,4 @@ fca881f  raether_qdma.c: release page spinlock around QDMA readback copy.
 d121241  check_crontab.sh: translate wildcard alias to a literal cron '*', not '\\*'.
 b6d065f  common_ex.c: restore single newline trimming and reject truncated module parameter reads.
 1f04fee  firewall_ex.c: bound shared firewall string-pool writes and handle pool exhaustion safely.
+2a12b2a  flash_mtd.c: reject read/write lengths whose signed offsets could overflow.
