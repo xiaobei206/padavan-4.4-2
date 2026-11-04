@@ -524,7 +524,8 @@ is_usb_storage_mounted(void)
 {
 	FILE *fp;
 	int ret;
-	char line[256];
+	size_t dev_len;
+	char line[256], dev_path[64], dev_name[64];
 
 	fp = fopen(PROC_MOUNTS_FILE, "r");
 	if (!fp)
@@ -532,9 +533,24 @@ is_usb_storage_mounted(void)
 
 	ret = 0;
 	while (fgets(line, sizeof(line), fp)) {
-		if (strncmp(line, "/dev/sd", 7) == 0) {
+		if (sscanf(line, "%63s", dev_path) != 1)
+			continue;
+		if (strncmp(dev_path, "/dev/sd", 7) != 0)
+			continue;
+
+		/* Mounts list partition names; resolve the containing disk instead. */
+		snprintf(dev_name, sizeof(dev_name), "%s", dev_path + 5);
+		dev_len = strlen(dev_name);
+		while (dev_len > 2 &&
+		       dev_name[dev_len - 1] >= '0' &&
+		       dev_name[dev_len - 1] <= '9')
+			dev_name[--dev_len] = '\0';
+		if (dev_len <= 2)
+			continue;
+
 #if defined(CONFIG_USB_SUPPORT)
-			int port_num = get_usb_root_port_by_sd_device(line+5);
+		{
+			int port_num = get_usb_root_port_by_sd_device(dev_name);
 			switch (port_num)
 			{
 			case 1:
@@ -546,15 +562,14 @@ is_usb_storage_mounted(void)
 			}
 			if ((ret & 0x3) == 0x3)
 				break;
-#else
-			ret = 1;
-			break;
-#endif
 		}
+#else
+		ret = 1;
+		break;
+#endif
 	}
 
 	fclose(fp);
-
 	return ret;
 }
 
