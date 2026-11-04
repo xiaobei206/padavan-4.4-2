@@ -450,25 +450,47 @@ void SkipDBRecord_toStream_(SkipDBRecord *self, BStream *s)
 	//BStream_show(s);
 }
 
-void SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
+int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
 {
+	int level, max;
+	size_t stream_size;
+
+	if (NULL == self || NULL == s || NULL == s->ba ||
+		NULL == self->key || NULL == self->value || NULL == s->errorBa)
+		return 0;
+	UArray_setSize_(s->errorBa, 0);
+	stream_size = UArray_size(s->ba);
+	if (s->index > stream_size)
+		return 0;
+
 	BStream_readTaggedUArray_(s, self->key);
+	if (UArray_size(s->errorBa) != 0)
+		return 0;
 	BStream_readTaggedUArray_(s, self->value);
+	if (UArray_size(s->errorBa) != 0)
+		return 0;
+	max = BStream_readTaggedInt32(s);
+	if (UArray_size(s->errorBa) != 0 || max < 0 ||
+		max > SKIPDB_MAX_LEVEL)
+		return 0;
 
-	{
-		int level, max = BStream_readTaggedInt32(s);
-
-		SkipDBRecord_level_(self, max);
-
-		for (level = 0; level < max; level ++)
-		{
-			PID_TYPE pid = BStream_readTaggedInt32(s);
-			uint8_t sMatch = BStream_readTaggedUint8(s);
-			SkipDBRecord_atLevel_setPid_setSuffix_(self, level, pid, sMatch);
-		}
+	SkipDBRecord_level_(self, max);
+	if (self->level != max)
+		return 0;
+	for (level = 0; level < max; ++level) {
+		int32_t encoded_pid = BStream_readTaggedInt32(s);
+		uint8_t suffix;
+		if (UArray_size(s->errorBa) != 0 || encoded_pid < 0)
+			return 0;
+		suffix = BStream_readTaggedUint8(s);
+		if (UArray_size(s->errorBa) != 0)
+			return 0;
+		SkipDBRecord_atLevel_setPid_setSuffix_(self, level,
+			(PID_TYPE)encoded_pid, suffix);
 	}
-
-	//BStream_show(s);
+	if (UArray_size(s->errorBa) != 0 || s->index != stream_size)
+		return 0;
+	return 1;
 }
 
 void SkipDBRecord_save(SkipDBRecord *self)
