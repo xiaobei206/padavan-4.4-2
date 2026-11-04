@@ -516,7 +516,8 @@ void SkipDBRecord_save(SkipDBRecord *self)
 		!UDB_isOpen(UDB_udb(sdb)))
 		return;
 	BStream_empty(stream);
-	SkipDBRecord_toStream_(self, stream);
+	if (!SkipDBRecord_toStream_(self, stream))
+		return;
 	data = Datum_FromUArray_(BStream_byteArray(stream));
 	pid = SkipDBRecord_pid(self);
 	if (pid) {
