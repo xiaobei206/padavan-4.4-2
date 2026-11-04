@@ -26,6 +26,8 @@
 #include <stdint.h>
 #include <errno.h>
 #include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/time.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
