@@ -42,11 +42,14 @@ static void nvram_commit_safe()
 
 int get_account_list(int *acc_num, char ***account_list)
 {
-	char nvram_name[24], *nvram_value;
-	char **tmp_account_list, **tmp_account;
-	int acc_max, len, i, j;
+	char nvram_name[24], *nvram_value, **tmp_account_list;
+	int acc_max, len, i, j, count;
+
+	if (!acc_num || !account_list)
+		return -1;
 
 	*acc_num = 0;
+	*account_list = NULL;
 
 	acc_max = nvram_get_int("acc_num");
 	if (acc_max > MAX_ACCOUNT_NUM)
@@ -54,147 +57,139 @@ int get_account_list(int *acc_num, char ***account_list)
 	if (acc_max <= 0)
 		return 0;
 
-	tmp_account_list = NULL;
+	tmp_account_list = (char **)calloc((size_t)acc_max, sizeof(char *));
+	if (!tmp_account_list)
+		return -1;
+
+	count = 0;
 	for (i = 0; i < acc_max; ++i) {
-		sprintf(nvram_name, "acc_username%d", i);
+		snprintf(nvram_name, sizeof(nvram_name), "acc_username%d", i);
 		nvram_value = nvram_safe_get(nvram_name);
 		len = strlen(nvram_value);
 		if (len < 1)
 			continue;
-		
-		tmp_account = (char **)malloc(sizeof(char *)*(i+1));
-		if (tmp_account == NULL) {
-			continue;
-		}
-		
-		tmp_account[i] = (char *)malloc(sizeof(char)*(len+1));
-		if (tmp_account[i] == NULL) {
-			free(tmp_account);
-			continue;
-		}
-		strcpy(tmp_account[i], nvram_value);
-		tmp_account[i][len] = 0;
-		
-		if (i != 0) {
-			for (j = 0; j < i; ++j)
-				tmp_account[j] = tmp_account_list[j];
-			
+
+		tmp_account_list[count] = (char *)malloc((size_t)len + 1);
+		if (!tmp_account_list[count]) {
+			for (j = 0; j < count; ++j)
+				free(tmp_account_list[j]);
 			free(tmp_account_list);
-			tmp_account_list = tmp_account;
+			return -1;
 		}
-		else
-			tmp_account_list = tmp_account;
-		
-		*acc_num += 1;
+
+		memcpy(tmp_account_list[count], nvram_value, (size_t)len + 1);
+		++count;
 	}
 
-	if (*acc_num > 0)
-		*account_list = tmp_account_list;
+	if (count == 0) {
+		free(tmp_account_list);
+		return 0;
+	}
 
+	*acc_num = count;
+	*account_list = tmp_account_list;
 	return 0;
 }
-
 int get_folder_list_in_mount_path(const char *const mount_path, int *sh_num, char ***folder_list)
 {
-	char **tmp_folder_list, target[20];
-	int len, i;
-	char *list_file, *list_info;
-	char *follow_info, *follow_info_end, backup;
+	char **tmp_folder_list = NULL;
+	char target[32];
+	char *list_file = NULL, *list_info = NULL;
+	char *follow_info, *line_end, *endptr;
+	int i, count;
+	long parsed_count;
+	size_t list_file_len, list_info_len, name_len;
+	int target_len;
 
-	// 1. get list file
-	len = strlen(mount_path)+strlen("/.__folder_list.txt");
-	list_file = (char *)malloc(sizeof(char)*(len+1));
-	if (list_file == NULL) {
+	if (!mount_path || !*mount_path || !sh_num || !folder_list)
 		return -1;
-	}
-	sprintf(list_file, "%s/.__folder_list.txt", mount_path);
-	list_file[len] = 0;
 
-	// 2. read if the list file is existed
+	*sh_num = 0;
+	*folder_list = NULL;
+
+	list_file_len = strlen(mount_path) + strlen("/.__folder_list.txt");
+	if (list_file_len < strlen(mount_path))
+		return -1;
+	list_file = (char *)malloc(list_file_len + 1);
+	if (!list_file)
+		return -1;
+
+	snprintf(list_file, list_file_len + 1, "%s/.__folder_list.txt", mount_path);
+
 	if (!test_if_file(list_file))
 		initial_folder_list_in_mount_path(mount_path);
 
 	list_info = read_whole_file(list_file);
-	if (list_info == NULL) {
-		free(list_file);
-		return -1;
-	}
 	free(list_file);
-
-	// 3. find sh_num
-	follow_info = strstr(list_info, "sh_num=");
-	if (follow_info == NULL) {
-		free(list_info);
+	if (!list_info)
 		return -1;
-	}
+
+	list_info_len = strlen(list_info);
+	follow_info = strstr(list_info, "sh_num=");
+	if (!follow_info)
+		goto invalid_list;
 
 	follow_info += strlen("sh_num=");
-	follow_info_end = follow_info;
-	while (*follow_info_end != 0 && *follow_info_end != '\n')
-		++follow_info_end;
-	if (*follow_info_end == 0) {
+	if (*follow_info < '0' || *follow_info > '9')
+		goto invalid_list;
+
+	parsed_count = strtol(follow_info, &endptr, 10);
+	if (endptr == follow_info || parsed_count < 0 || parsed_count > INT_MAX)
+		goto invalid_list;
+	if (*endptr != '\n' && !(*endptr == '\r' && endptr[1] == '\n'))
+		goto invalid_list;
+
+	count = (int)parsed_count;
+	if (count == 0) {
 		free(list_info);
-		return -1;
-	}
-	backup = *follow_info_end;
-	*follow_info_end = 0;
-
-	*sh_num = atoi(follow_info);
-	*follow_info_end = backup;
-
-	if (*sh_num <= 0)
 		return 0;
-
-	// 4. get folder list from the folder list file
-	tmp_folder_list = (char **)malloc(sizeof(char *)*((*sh_num)+1));
-	if (tmp_folder_list == NULL) {
-		free(list_info);
-		return -1;
 	}
 
-	for (i = 0; i < *sh_num; ++i) {
-		// 5. get folder name
-		memset(target, 0, 20);
-		sprintf(target, "\nsh_name%d=", i);
+	/* Each entry needs at least: newline + "sh_nameN=" + newline. */
+	if ((size_t)count > list_info_len / 11)
+		goto invalid_list;
+
+	tmp_folder_list = (char **)calloc((size_t)count, sizeof(char *));
+	if (!tmp_folder_list)
+		goto invalid_list;
+
+	for (i = 0; i < count; ++i) {
+		target_len = snprintf(target, sizeof(target), "\nsh_name%d=", i);
+		if (target_len < 0 || target_len >= (int)sizeof(target))
+			goto invalid_entries;
+
 		follow_info = strstr(list_info, target);
-		if (follow_info == NULL) {
-			free(list_info);
-			free_2_dimension_list(sh_num, &tmp_folder_list);
-			return -1;
-		}
-		
-		follow_info += strlen(target);
-		follow_info_end = follow_info;
-		while (*follow_info_end != 0 && *follow_info_end != '\n')
-			++follow_info_end;
-		if (*follow_info_end == 0) {
-			free(list_info);
-			free_2_dimension_list(sh_num, &tmp_folder_list);
-			return -1;
-		}
-		backup = *follow_info_end;
-		*follow_info_end = 0;
-		
-		len = strlen(follow_info);
-		tmp_folder_list[i] = (char *)malloc(sizeof(char)*(len+1));
-		if (tmp_folder_list == NULL) {
-			*follow_info_end = backup;
-			free(list_info);
-			free_2_dimension_list(sh_num, &tmp_folder_list);
-			return -1;
-		}
-		strcpy(tmp_folder_list[i], follow_info);
-		tmp_folder_list[i][len] = 0;
-		
-		*follow_info_end = backup;
+		if (!follow_info)
+			goto invalid_entries;
+
+		follow_info += target_len;
+		line_end = strchr(follow_info, '\n');
+		if (!line_end)
+			goto invalid_entries;
+
+		name_len = (size_t)(line_end - follow_info);
+		if (name_len == 0)
+			goto invalid_entries;
+
+		tmp_folder_list[i] = (char *)malloc(name_len + 1);
+		if (!tmp_folder_list[i])
+			goto invalid_entries;
+
+		memcpy(tmp_folder_list[i], follow_info, name_len);
+		tmp_folder_list[i][name_len] = '\0';
 	}
 
-	if (*sh_num > 0)
-		*folder_list = tmp_folder_list;
-
+	free(list_info);
+	*sh_num = count;
+	*folder_list = tmp_folder_list;
 	return 0;
-}
 
+invalid_entries:
+	free_2_dimension_list(&count, &tmp_folder_list);
+invalid_list:
+	free(list_info);
+	return -1;
+}
 int get_all_folder_in_mount_path(const char *const mount_path, int *sh_num, char ***folder_list)
 {
 	DIR *pool_to_open;
