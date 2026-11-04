@@ -513,25 +513,37 @@ load_user_config(FILE *fp, const char *dir_name, const char *file_name, const ch
 {
 	FILE *fp_user;
 	char line[256], real_path[128];
+	int path_len;
 
-	snprintf(real_path, sizeof(real_path), "%s/%s", dir_name, file_name);
+	if (!fp || !dir_name || !file_name)
+		return;
+
+	path_len = snprintf(real_path, sizeof(real_path), "%s/%s", dir_name, file_name);
+	if (path_len < 0 || path_len >= (int)sizeof(real_path))
+		return;
+
 	fp_user = fopen(real_path, "r");
 	if (fp_user) {
 		while (fgets(line, sizeof(line), fp_user)) {
-			if (line[0] == '\0' ||
-			    line[0] == '\r' ||
-			    line[0] == '\n' ||
-			    line[0] == '#' ||
-			    line[0] == ';')
+			size_t len = strlen(line);
+
+			if (len == 0 || line[0] == '\r' || line[0] == '\n' ||
+			    line[0] == '#' || line[0] == ';')
 				continue;
-			
+
 			if (forbid_list && is_param_forbidden(line, forbid_list))
 				continue;
-			
-			line[strlen(line) - 1] = '\n';
-			fprintf(fp, line);
+
+			if (line[len - 1] != '\n') {
+				if (len + 1 >= sizeof(line))
+					continue;
+				line[len++] = '\n';
+				line[len] = '\0';
+			}
+
+			fputs(line, fp);
 		}
-		
+
 		fclose(fp_user);
 	}
 }
