@@ -1273,6 +1273,38 @@ umount_ejected(void)
 	restore_home_dir();
 }
 
+static int
+is_disk_or_partition(const char *candidate, const char *disk, int is_mmc)
+{
+	size_t disk_len;
+
+	if (!candidate || !disk || !*disk)
+		return 0;
+
+	disk_len = strlen(disk);
+	if (strncmp(candidate, disk, disk_len) != 0)
+		return 0;
+
+	candidate += disk_len;
+	if (!*candidate)
+		return 1;
+
+	if (is_mmc) {
+		if (*candidate != 'p')
+			return 0;
+		candidate++;
+	}
+
+	if (!*candidate)
+		return 0;
+	for (; *candidate; candidate++) {
+		if (*candidate < '0' || *candidate > '9')
+			return 0;
+	}
+
+	return 1;
+}
+
 static void
 umount_dev(const char *dev_name, int is_root_dev)
 {
@@ -1291,7 +1323,7 @@ umount_dev(const char *dev_name, int is_root_dev)
 				continue;
 			if (strncmp(devname, "/dev/sd", 7) == 0) {
 				if (is_root_dev) {
-					if (strncmp(devname+5, dev_name, 3) == 0)
+					if (is_disk_or_partition(devname+5, dev_name, 0))
 						is_our_dev = 1;
 				} else {
 					if (strcmp(devname+5, dev_name) == 0)
@@ -1301,7 +1333,7 @@ umount_dev(const char *dev_name, int is_root_dev)
 #if defined (USE_MMC_SUPPORT)
 			else if (strncmp(devname, "/dev/mmcblk", 11) == 0) {
 				if (is_root_dev) {
-					if (!strncmp(devname+5, dev_name, 7))
+					if (is_disk_or_partition(devname+5, dev_name, 1))
 						is_our_dev = 1;
 				} else {
 					if (!strcmp(devname+5, dev_name))
