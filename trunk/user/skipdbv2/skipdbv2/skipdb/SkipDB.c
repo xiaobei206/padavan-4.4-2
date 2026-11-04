@@ -25,52 +25,57 @@ void SkipDB_readRootRecord(SkipDB *self);
 SkipDB *SkipDB_new(void)
 {
 	SkipDB *self = (SkipDB *)calloc(1, sizeof(SkipDB));
+	if (NULL == self)
+		return NULL;
+
 	self->udb = UDB_new();
-
-	self->p = SKIPDB_PROBABILITY_DISTRIBUTION;
 	self->stream = BStream_new();
-
 	self->cursors = List_new();
-
 	self->pidsToRemove = List_new();
 	self->dirtyRecords = List_new();
-
-	self->cacheHighWaterMark = 10000;
-	self->cacheLowWaterMark  = 500;
-
 	self->pidToRecord = PHash_new();
 	self->randomGen = RandomGen_new();
 
-	/*
-    self->header = SkipDBRecord_newWithDB_(self);
-    SkipDBRecord_keyDatum_(self->header, Datum_Empty());
-    SkipDBRecord_valueDatum_(self->header, Datum_Empty());
-	self->headerPid = 0;
-	*/
+	if (NULL == self->udb || NULL == self->stream ||
+		NULL == self->cursors || NULL == self->pidsToRemove ||
+		NULL == self->dirtyRecords || NULL == self->pidToRecord ||
+		NULL == self->randomGen) {
+		SkipDB_dealloc(self);
+		return NULL;
+	}
 
-        self->headerPid = 1;
-
+	self->p = SKIPDB_PROBABILITY_DISTRIBUTION;
+	self->cacheHighWaterMark = 10000;
+	self->cacheLowWaterMark = 500;
+	self->headerPid = 1;
 	return self;
 }
 
 void SkipDB_dealloc(SkipDB *self)
 {
-	SkipDB_clearUpdate(self);
+	if (NULL == self)
+		return;
 
-	BStream_free(self->stream);
+	SkipDB_clearUpdate(self);
+	if (self->stream)
+		BStream_free(self->stream);
 	SkipDB_freeAllCachedRecords(self);
 
-	// cursors are allocated and must be freed individually.
-	List_do_(self->cursors, (ListDoCallback *)SkipDBCursor_release);
-	List_free(self->cursors);
-
-        UDB_free(self->udb);
-        self->udb = NULL;
-
-	List_free(self->pidsToRemove);
-	List_free(self->dirtyRecords);
-	PHash_free(self->pidToRecord);
-	RandomGen_free(self->randomGen);
+	/* Cursors are independently reference-counted. */
+	if (self->cursors) {
+		List_do_(self->cursors, (ListDoCallback *)SkipDBCursor_release);
+		List_free(self->cursors);
+	}
+	if (self->udb)
+		UDB_free(self->udb);
+	if (self->pidsToRemove)
+		List_free(self->pidsToRemove);
+	if (self->dirtyRecords)
+		List_free(self->dirtyRecords);
+	if (self->pidToRecord)
+		PHash_free(self->pidToRecord);
+	if (self->randomGen)
+		RandomGen_free(self->randomGen);
 	free(self);
 }
 
