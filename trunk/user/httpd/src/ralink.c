@@ -1796,7 +1796,7 @@ ej_wl_scan_5g(int eid, webs_t wp, int argc, char **argv)
 			site_signal[9] = '\0';
 
 			memset(ssid_str, 0, sizeof(ssid_str));
-			char_to_ascii(ssid_str, trim_r(site_ssid));
+			char_to_ascii(ssid_str, sizeof(ssid_str), (const uint8_t *)trim_r(site_ssid));
 
 			if (!strlen(ssid_str))
 				strcpy(ssid_str, "???");
@@ -1915,7 +1915,7 @@ ej_wl_scan_2g(int eid, webs_t wp, int argc, char **argv)
 			site_signal[9] = '\0';
 			
 			memset(ssid_str, 0, sizeof(ssid_str));
-			char_to_ascii(ssid_str, trim_r(site_ssid));
+			char_to_ascii(ssid_str, sizeof(ssid_str), (const uint8_t *)trim_r(site_ssid));
 			
 			if (!strlen(ssid_str))
 				strcpy(ssid_str, "???");
