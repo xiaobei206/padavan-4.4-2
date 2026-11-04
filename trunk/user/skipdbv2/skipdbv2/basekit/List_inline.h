@@ -16,51 +16,52 @@ The List is not responsible for io_freeing it's elements.
 #define LIST_FOREACH(list, index, value, code) \
 { \
 	const List *foreachList = list; \
-	size_t index, foreachMax = foreachList->size; \
-	\
-	for (index = 0; index < foreachMax; index ++) \
+	size_t index, foreachMax = foreachList ? foreachList->size : 0; \
+	for (index = 0; foreachList && index < foreachMax; index ++) \
 	{ \
-		void *value = foreachList->items[index]; \
+		void *value = foreachList->items ? foreachList->items[index] : NULL; \
 		code; \
 	} \
 }
+
 
 #define LIST_SAFEFOREACH(list, index, value, code) \
 { \
 	const List *foreachList = list; \
 	size_t index; \
-	\
-	for (index = 0; index < List_size(foreachList); index ++) \
+	for (index = 0; foreachList && index < List_size(foreachList); index ++) \
 	{ \
 		void *value = List_at_(foreachList, index); \
 		code; \
 	} \
 }
+
 
 #define LIST_REVERSEFOREACH(list, index, value, code) \
 { \
 	const List *foreachList = list; \
-	size_t index = List_size(foreachList); \
-	\
-	while (index) \
+	size_t index = foreachList ? List_size(foreachList) : 0; \
+	while (foreachList && index > 0) \
 	{ \
-		void *value = List_at_(foreachList, (index --)); \
+		void *value = List_at_(foreachList, --index); \
 		code; \
 	} \
 }
 
+
 #define LIST_SAFEREVERSEFOREACH(list, index, value, code) \
 { \
 	const List *foreachList = list; \
-	size_t index = List_size(foreachList); \
-	\
-	for (index = List_size(foreachList) - 1; index > 0; index --) \
+	size_t index = foreachList ? List_size(foreachList) : 0; \
+	while (foreachList && index > 0) \
 	{ \
-		void *value = List_at_(foreachList, index); \
+		if (index > List_size(foreachList)) index = List_size(foreachList); \
+		if (index == 0) break; \
+		void *value = List_at_(foreachList, --index); \
 		code; \
-		if (index > List_size(foreachList) - 1) { index = List_size(foreachList) - 1; } \
 	} \
 }
+
 
 #define LIST_DO_(list, func) \
 { \
@@ -92,33 +93,40 @@ IOINLINE void List_ifNeededSizeTo_(List *self, size_t newSize)
 
 IOINLINE void *List_rawAt_(List *self, size_t index)
 {
+	if (NULL == self || index >= self->size || NULL == self->items)
+		return NULL;
 	return self->items[index];
 }
 
 
+
 IOINLINE void *List_at_(const List *self, size_t index)
 {
-	if (index < self->size)
-	{
-		return self->items[index];
-	}
-
-	return (void *)NULL;
+	if (NULL == self || index >= self->size || NULL == self->items)
+		return NULL;
+	return self->items[index];
 }
+
 
 // --------------------------------------------
 
 IOINLINE long List_indexOf_(List *self, void *item)
 {
-	LIST_FOREACH(self, i, v, if(v == item) return i);
+	size_t i;
+	if (NULL == self)
+		return -1;
+	for (i = 0; i < self->size; i++)
+		if (self->items && self->items[i] == item)
+			return i <= (size_t)LONG_MAX ? (long)i : -1;
 	return -1;
 }
 
+
 IOINLINE int List_contains_(List *self, void *item)
 {
-	LIST_FOREACH(self, i, v, if(v == item) return 1);
-	return 0;
+	return List_indexOf_(self, item) >= 0;
 }
+
 
 IOINLINE void *List_append_(List *self, void *item)
 {
@@ -161,11 +169,11 @@ IOINLINE void List_appendSeq_(List *self, const List *otherList)
 
 IOINLINE void List_compactIfNeeded(List *self)
 {
-	if(self->memSize > 1024 && self->size * sizeof(void *) * 4 < self->memSize)
-	{
+	if (self && self->memSize > 1024 &&
+		self->size < self->memSize / (sizeof(void *) * 4))
 		List_compact(self);
-	}
 }
+
 
 IOINLINE void List_removeIndex_(List *self, size_t index)
 {
@@ -248,8 +256,15 @@ IOINLINE void List_removeLast_(List *self, void *item)
 
 IOINLINE void List_removeItems_(List *self, List *other)
 {
+	if (NULL == self || NULL == other)
+		return;
+	if (self == other) {
+		List_removeAll(self);
+		return;
+	}
 	LIST_FOREACH(other, i, v, List_remove_(self, v));
 }
+
 
 IOINLINE void List_at_insert_(List *self, size_t index, void *item)
 {
@@ -391,13 +406,22 @@ IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)
 
 IOINLINE void List_qsort(List *self, ListSortCallback *callback)
 {
-	qsort(self->items, self->size, sizeof(void *), *callback);
+	if (NULL == self || NULL == callback ||
+		(self->size > 0 && NULL == self->items))
+		return;
+	if (self->size > 1)
+		qsort(self->items, self->size, sizeof(void *), *callback);
 }
+
 
 IOINLINE void *List_bsearch(List *self, const void *key, ListSortCallback *callback)
 {
+	if (NULL == self || NULL == callback ||
+		(self->size > 0 && NULL == self->items))
+		return NULL;
 	return bsearch(key, self->items, self->size, sizeof(void *), callback);
 }
+
 
 IOINLINE void *List_first(const List *self)
 {
@@ -406,8 +430,11 @@ IOINLINE void *List_first(const List *self)
 
 IOINLINE void *List_last(List *self)
 {
-	return List_at_(self, List_size(self) - 1);
+	if (NULL == self || self->size == 0 || NULL == self->items)
+		return NULL;
+	return self->items[self->size - 1];
 }
+
 
 #undef IO_IN_C_FILE
 #endif
