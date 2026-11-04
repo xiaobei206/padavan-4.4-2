@@ -144,6 +144,24 @@ static char *find_terminated_value_separator(Datum value)
 }
 
 /* Check the command/key/value envelope before persisting a value. */
+static int response_frame_fits(const char *command,
+    const char *key, int value_len)
+{
+    size_t command_len, key_len;
+
+    if (NULL == command || NULL == key || value_len < 0)
+        return 0;
+    command_len = strlen(command);
+    key_len = strlen(key);
+    if (command_len > (size_t)READ_MAX ||
+        key_len > (size_t)READ_MAX ||
+        command_len > (size_t)READ_MAX - key_len ||
+        command_len + key_len > (size_t)READ_MAX - 2)
+        return 0;
+    return (size_t)value_len <=
+        (size_t)READ_MAX - command_len - key_len - 2;
+}
+
 static int value_fits_list_frame(const char *key, size_t value_len)
 {
     size_t key_len;
@@ -557,10 +575,14 @@ static int client_send_key(EV_P_ skipd_client* client, char* cmd, char* key, cha
 }
 
 static int client_send(EV_P_ skipd_client* client, char* buf, int len) {
-    return client_send_key(EV_A_ client
-            , (NULL == client->command ? "errcmd": client->command)
-            , (NULL == client->key ? "errkey": client->key)
-            , buf, len);
+    char *command = NULL == client->command ? "errcmd" : client->command;
+    char *key = NULL == client->key ? "errkey" : client->key;
+    char *error = "response too large\n";
+
+    if (!response_frame_fits(command, key, len))
+        return client_send_key(EV_A_ client, command, "__error__",
+            error, (int)strlen(error));
+    return client_send_key(EV_A_ client, command, key, buf, len);
 }
 
 static int client_ccr_write(EV_P_ skipd_client* client) {
