@@ -730,19 +730,18 @@ match( const char *pattern, const char *string )
 static void
 eat_post_data(FILE *conn_fp, int clen)
 {
-	char fake_buf[128];
+	char discard[1024];
 
 	do_cgi_clear();
-
-	if (clen <= 0)
-		return;
-	if (!fgets(fake_buf, MIN(clen, (int)sizeof(fake_buf) - 1) + 1, conn_fp))
+	if (!conn_fp || clen <= 0)
 		return;
 
-	clen -= (int)strlen(fake_buf);
-	while (clen-- > 0) {
-		if (fgetc(conn_fp) == EOF)
+	while (clen > 0) {
+		size_t amount = (size_t)MIN(clen, (int)sizeof(discard));
+		size_t received = fread(discard, 1, amount, conn_fp);
+		if (received == 0)
 			break;
+		clen -= (int)received;
 	}
 }
 
