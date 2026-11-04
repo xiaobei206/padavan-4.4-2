@@ -793,7 +793,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
         } else if (!value_fits_list_frame(client->key, dvalue.size)) {
-            p1 = "value too big to send\n";
+            p1 = "response too large\n";
             if (client_send_key(EV_A_ client, "__error__",
                     client->command, p1, strlen(p1)) != 0) {
                 client->break_level = ccr_break_killed;
