@@ -2230,37 +2230,102 @@ do_applydb_cgi(char *url, FILE *stream)
 	applydb_cgi(stream, NULL, NULL, 0, url, NULL, NULL);
 }
 
-static int db_print(dbclient* client, webs_t wp, char* prefix, char* key, char* value) {
-	websWrite(wp,"o[\"%s\"]=\'%s\';\n", key, value);
+static int
+is_valid_js_identifier(const char *name)
+{
+	const unsigned char *p;
+
+	if (!name || !*name)
+		return 0;
+	if (!(isalpha((unsigned char)*name) || *name == '_'))
+		return 0;
+	for (p = (const unsigned char *)name + 1; *p; ++p) {
+		if (!(isalnum(*p) || *p == '_'))
+			return 0;
+	}
+	return 1;
+}
+
+static void
+write_js_string(webs_t wp, const char *value)
+{
+	const unsigned char *p;
+
+	websWrite(wp, "%s", "'");
+	for (p = (const unsigned char *)(value ? value : ""); *p; ++p) {
+		switch (*p) {
+		case '\'':
+			websWrite(wp, "%s", "\\'");
+			break;
+		case '\\':
+			websWrite(wp, "%s", "\\\\");
+			break;
+		case '\b':
+			websWrite(wp, "%s", "\\b");
+			break;
+		case '\f':
+			websWrite(wp, "%s", "\\f");
+			break;
+		case '\n':
+			websWrite(wp, "%s", "\\n");
+			break;
+		case '\r':
+			websWrite(wp, "%s", "\\r");
+			break;
+		case '\t':
+			websWrite(wp, "%s", "\\t");
+			break;
+		default:
+			if (*p < 0x20 || *p == 0x7f)
+				websWrite(wp, "\\x%02x", (unsigned int)*p);
+			else
+				fputc(*p, wp);
+			break;
+		}
+	}
+	websWrite(wp, "%s", "'");
+}
+
+static int
+db_print(dbclient *client, webs_t wp, char *prefix, char *key, char *value)
+{
+	(void)client;
+	(void)prefix;
+	websWrite(wp, "o[");
+	write_js_string(wp, key);
+	websWrite(wp, "]=");
+	write_js_string(wp, value);
+	websWrite(wp, ";\\n");
 	return 0;
 }
 
 static void
 do_dbconf(char *url, FILE *stream)
 {
-	char *name = NULL;
-	char * delim = ",";
-	char *pattern = websGetVar(wp, "p","");
-	char *dup_pattern = strdup(pattern);
-	char *sepstr = dup_pattern;
+	char *name, *pattern, *dup_pattern, *sepstr;
 	dbclient client;
-	dbclient_start(&client);
-	if(strstr(sepstr,delim)) {
-		for(name = strsep(&sepstr, delim); name != NULL; name = strsep(&sepstr, delim)) {
-			websWrite(stream,"var db_%s=(function() {\nvar o={};\n", name);
 
-			dbclient_list(&client, name, stream, db_print);
-			websWrite(stream,"return o;\n})();\n" );
-		}
-	} else {
-		name= strdup(pattern);
-		websWrite(stream,"var db_%s=(function() {\nvar o={};\n", name);
+	(void)url;
+	pattern = websGetVar(wp, "p", "");
+	if (!pattern || !*pattern)
+		return;
+	dup_pattern = strdup(pattern);
+	if (!dup_pattern)
+		return;
+
+	sepstr = dup_pattern;
+	dbclient_start(&client);
+	while ((name = strsep(&sepstr, ",")) != NULL) {
+		if (!is_valid_js_identifier(name))
+			continue;
+		websWrite(stream, "var db_%s=(function() {\nvar o={};\n", name);
 		dbclient_list(&client, name, stream, db_print);
-		websWrite(stream,"return o;\n})();\n" );
+		websWrite(stream, "return o;\n})();\n");
 	}
-	free(dup_pattern);
 	dbclient_end(&client);
+	free(dup_pattern);
 }
+
 #endif
 
 static int shadowsocks_status_hook(int eid, webs_t wp, int argc, char **argv)
@@ -4731,31 +4796,29 @@ ej_bandwidth(int eid, webs_t wp, int argc, char **argv)
 static int
 ej_backup_nvram(int eid, webs_t wp, int argc, char **argv)
 {
-	char *list;
-	char *p, *k;
+	char *list, *p, *k;
 	const char *v;
 
-	if ((argc != 1) || ((list = strdup(argv[0])) == NULL))
+	if (argc != 1 || !argv || !argv[0] || !(list = strdup(argv[0])))
 		return 0;
 
 	websWrite(wp, "\nnvram = {\n");
 	p = list;
 	while ((k = strsep(&p, ",")) != NULL) {
-		if (*k == 0)
+		if (!is_valid_js_identifier(k))
 			continue;
 		v = nvram_safe_get(k);
-		websWrite(wp, "\t%s: '", k);
-		websWrite(wp, v);
-		websWrite(wp, "',\n");
+		websWrite(wp, "\t%s: ", k);
+		write_js_string(wp, v);
+		websWrite(wp, ",\n");
 	}
 	free(list);
-	websWrite(wp, "\thttp_id: '");
-	websWrite(wp, nvram_safe_get("http_id"));
-	websWrite(wp, "'};\n");
+	websWrite(wp, "\thttp_id: ");
+	write_js_string(wp, nvram_safe_get("http_id"));
+	websWrite(wp, "};\n");
 
 	return 0;
 }
-
 #if !defined (USE_USB_SUPPORT)
 static int
 ej_get_usb_ports_info(int eid, webs_t wp, int argc, char **argv)
