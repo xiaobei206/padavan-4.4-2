@@ -8,139 +8,239 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <limits.h>
 
-// read ------------------------------------------------------
+/* read ------------------------------------------------------ */
 
 size_t UArray_fread_(UArray *self, FILE *fp)
 {
-	size_t itemsRead = fread(self->data, self->itemSize, self->size, fp);
+	size_t itemsRead;
+	if (NULL == self || NULL == fp || self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	if (self->size == 0)
+		return 0;
+
+	itemsRead = fread(self->data, self->itemSize, self->size, fp);
 	UArray_setSize_(self, itemsRead);
+	if (self->size != itemsRead) {
+		/* Shrinking realloc may fail; the old allocation remains large enough. */
+		self->size = itemsRead;
+		if (self->data)
+			self->data[itemsRead * self->itemSize] = 0;
+		UArray_changed(self);
+	}
 	return itemsRead;
 }
 
 long UArray_readFromCStream_(UArray *self, FILE *fp)
 {
 	long totalItemsRead = 0;
-	long itemsPerBuffer =  4096 / self->itemSize;
-	UArray *buffer = UArray_new();
+	size_t itemsPerBuffer;
+	UArray *buffer;
+	if (NULL == self || NULL == fp || self->itemSize == 0 ||
+		(self->size > 0 && NULL == self->data))
+		return -1;
+
+	itemsPerBuffer = 4096 / self->itemSize;
+	if (itemsPerBuffer == 0)
+		itemsPerBuffer = 1;
+	buffer = UArray_new();
+	if (NULL == buffer)
+		return -1;
 	UArray_setItemType_(buffer, self->itemType);
+	if (buffer->itemType != self->itemType) {
+		UArray_free(buffer);
+		return -1;
+	}
 	UArray_setSize_(buffer, itemsPerBuffer);
-
-	if (!fp) { perror("UArray_readFromCStream_"); return -1; }
-
-	while(!feof(fp) && !ferror(fp))
-	{
-		size_t itemsRead;
-		UArray_setSize_(buffer, itemsPerBuffer);
-		itemsRead = UArray_fread_(buffer, fp);
-
-		totalItemsRead += itemsRead;
-		UArray_append_(self, buffer);
-		if (itemsRead != itemsPerBuffer) break;
+	if (buffer->size != itemsPerBuffer ||
+		(itemsPerBuffer > 0 && NULL == buffer->data)) {
+		UArray_free(buffer);
+		return -1;
 	}
 
-	if (ferror(fp)) { perror("UArray_readFromCStream_"); return -1; }
+	while (!feof(fp) && !ferror(fp)) {
+		size_t itemsRead;
+		size_t oldSize;
+		UArray_setSize_(buffer, itemsPerBuffer);
+		if (buffer->size != itemsPerBuffer) {
+			UArray_free(buffer);
+			return -1;
+		}
+		itemsRead = UArray_fread_(buffer, fp);
+		if (itemsRead > (size_t)(LONG_MAX - totalItemsRead) ||
+			itemsRead > (size_t)-1 - self->size) {
+			UArray_free(buffer);
+			return -1;
+		}
+		oldSize = self->size;
+		UArray_append_(self, buffer);
+		if (self->size != oldSize + itemsRead) {
+			UArray_free(buffer);
+			return -1;
+		}
+		totalItemsRead += (long)itemsRead;
+		if (itemsRead != itemsPerBuffer)
+			break;
+	}
 
+	if (ferror(fp)) {
+		perror("UArray_readFromCStream_");
+		UArray_free(buffer);
+		return -1;
+	}
 	UArray_free(buffer);
 	return totalItemsRead;
 }
 
 long UArray_readNumberOfItems_fromCStream_(UArray *self, size_t size, FILE *stream)
 {
-	size_t itemsRead;
-	UArray *buffer = UArray_new();
+	size_t itemsRead, oldSize;
+	UArray *buffer;
+	if (NULL == self || NULL == stream || self->itemSize == 0 ||
+		size > (size_t)LONG_MAX || size > (size_t)-1 - self->size ||
+		(size > 0 && self->size > (size_t)-1 / self->itemSize))
+		return -1;
+
+	buffer = UArray_new();
+	if (NULL == buffer)
+		return -1;
 	UArray_setItemType_(buffer, self->itemType);
+	if (buffer->itemType != self->itemType) {
+		UArray_free(buffer);
+		return -1;
+	}
 	UArray_setSize_(buffer, size);
+	if (buffer->size != size || (size > 0 && NULL == buffer->data)) {
+		UArray_free(buffer);
+		return -1;
+	}
 
 	itemsRead = UArray_fread_(buffer, stream);
+	oldSize = self->size;
 	UArray_append_(self, buffer);
-
 	UArray_free(buffer);
-	return itemsRead;
+	if (self->size != oldSize + itemsRead)
+		return -1;
+	return (long)itemsRead;
 }
 
 long UArray_readFromFilePath_(UArray *self, const UArray *path)
 {
 	FILE *stream;
+	UArray *sysPath;
 	long itemsRead;
-	UArray *sysPath = (UArray_itemSize(path) == 1) ? (UArray *)path : UArray_asUTF8(path);
-	const char *p = UArray_asCString(sysPath);
-
-	//printf("UArray_readFromFilePath_(\"%s\")\n", p);
-
-	stream = fopen(p, "rb");
-	if (!stream) return -1;
+	if (NULL == self || NULL == path)
+		return -1;
+	sysPath = UArray_asUTF8(path);
+	if (NULL == sysPath || NULL == UArray_asCString(sysPath)) {
+		UArray_free(sysPath);
+		return -1;
+	}
+	stream = fopen(UArray_asCString(sysPath), "rb");
+	if (NULL == stream) {
+		UArray_free(sysPath);
+		return -1;
+	}
 	itemsRead = UArray_readFromCStream_(self, stream);
-	fclose(stream);
-
-	if(sysPath != path) UArray_free(sysPath);
+	if (fclose(stream) != 0 && itemsRead >= 0)
+		itemsRead = -1;
+	UArray_free(sysPath);
 	return itemsRead;
 }
-
 
 #define CHUNK_SIZE 4096
 
 int UArray_readLineFromCStream_(UArray *self, FILE *stream)
 {
 	int readSomething = 0;
+	char *s;
+	if (NULL == self || NULL == stream || self->itemSize != 1 ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
 
-	if(self->itemSize == 1)
-	{
-		char *s = (char *)io_calloc(1, CHUNK_SIZE);
-
-		while (fgets(s, CHUNK_SIZE, stream) != NULL)
-		{
-			char *eol1 = strchr(s, '\n');
-			char *eol2 = strchr(s, '\r');
-
-			readSomething = 1;
-
-			if (eol1) { *eol1 = 0; } // remove the \n return character
-			if (eol2) { *eol2 = 0; } // remove the \r return character
-
-			if (*s)
-			{
-				UArray_appendCString_(self, s);
+	s = (char *)io_calloc(1, CHUNK_SIZE);
+	if (NULL == s)
+		return 0;
+	while (fgets(s, CHUNK_SIZE, stream) != NULL) {
+		char *eol1 = strchr(s, '\n');
+		char *eol2 = strchr(s, '\r');
+		readSomething = 1;
+		if (eol1) *eol1 = 0;
+		if (eol2) *eol2 = 0;
+		if (*s) {
+			size_t length = strlen(s);
+			size_t oldSize = self->size;
+			if (length > (size_t)-1 - oldSize) {
+				io_free(s);
+				return -1;
 			}
-
-			if (eol1 || eol2)
-			{
-				break;
+			UArray_appendCString_(self, s);
+			if (self->size != oldSize + length) {
+				io_free(s);
+				return -1;
 			}
 		}
-
-		io_free(s);
+		if (eol1 || eol2)
+			break;
 	}
-
+	if (ferror(stream)) {
+		io_free(s);
+		return -1;
+	}
+	io_free(s);
 	return readSomething;
 }
 
-// write ------------------------------------------------------
+/* write ------------------------------------------------------ */
 
 size_t UArray_fwrite_(const UArray *self, size_t size, FILE *fp)
 {
-	return fwrite(self->data, 1, self->itemSize * size, fp);
+	if (NULL == self || NULL == fp || self->itemSize == 0 ||
+		size > self->size || size > (size_t)-1 / self->itemSize ||
+		(size > 0 && NULL == self->data))
+		return 0;
+	if (size == 0)
+		return 0;
+	return fwrite(self->data, self->itemSize, size, fp);
 }
 
 long UArray_writeToCStream_(const UArray *self, FILE *stream)
 {
-	size_t totalItemsRead = UArray_fwrite_(self, self->size, stream);
-	if (ferror(stream)) { perror("UArray_readFromCStream_"); return -1; }
-	return totalItemsRead;
+	size_t itemsWritten;
+	if (NULL == self || NULL == stream)
+		return -1;
+	itemsWritten = UArray_fwrite_(self, self->size, stream);
+	if (ferror(stream) || itemsWritten != self->size ||
+		itemsWritten > (size_t)LONG_MAX) {
+		perror("UArray_writeToCStream_");
+		return -1;
+	}
+	return (long)itemsWritten;
 }
 
 long UArray_writeToFilePath_(const UArray *self, const UArray *path)
 {
-	UArray *sysPath = (UArray_itemSize(path) == 1) ? (UArray *)path : UArray_asUTF8(path);
-	FILE *fp = fopen(UArray_asCString(sysPath), "w");
-	long itemsWritten = -1;
-
-	if (fp)
-	{
-		itemsWritten = UArray_writeToCStream_(self, fp);
-		fclose(fp);
+	UArray *sysPath;
+	FILE *fp;
+	long itemsWritten;
+	if (NULL == self || NULL == path)
+		return -1;
+	sysPath = UArray_asUTF8(path);
+	if (NULL == sysPath || NULL == UArray_asCString(sysPath)) {
+		UArray_free(sysPath);
+		return -1;
 	}
-
+	fp = fopen(UArray_asCString(sysPath), "wb");
+	if (NULL == fp) {
+		UArray_free(sysPath);
+		return -1;
+	}
+	itemsWritten = UArray_writeToCStream_(self, fp);
+	if (fclose(fp) != 0 && itemsWritten >= 0)
+		itemsWritten = -1;
+	UArray_free(sysPath);
 	return itemsWritten;
 }
-
