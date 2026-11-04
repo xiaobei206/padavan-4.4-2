@@ -2336,8 +2336,34 @@ static int ddnsto_status_hook(int eid, webs_t wp, int argc, char **argv)
 #if defined (APP_SQM)
 static int sqm_status_hook(int eid, webs_t wp, int argc, char **argv)
 {
-	int sqm_status_code = system("tc qdisc | grep -w -q `nvram get sqm_qdisc`");
-	websWrite(wp, "function sqm_status() { return %d;}\n", sqm_status_code);
+	FILE *fp;
+	char line[256], *match;
+	const char *qdisc = nvram_safe_get("sqm_qdisc");
+	size_t qdisc_len;
+	int sqm_status_code = 1;
+
+	qdisc_len = qdisc ? strlen(qdisc) : 0;
+	if (qdisc_len > 0 && qdisc_len < sizeof(line) &&
+	    (fp = popen("tc qdisc", "r")) != NULL) {
+		while (fgets(line, sizeof(line), fp)) {
+			match = line;
+			while ((match = strstr(match, qdisc)) != NULL) {
+				if ((match == line ||
+				     (!isalnum((unsigned char)match[-1]) && match[-1] != '_')) &&
+				    (match[qdisc_len] == '\0' ||
+				     (!isalnum((unsigned char)match[qdisc_len]) &&
+				      match[qdisc_len] != '_'))) {
+					sqm_status_code = 0;
+					break;
+				}
+				++match;
+			}
+			if (sqm_status_code == 0)
+				break;
+		}
+		pclose(fp);
+	}
+	websWrite(wp, "function sqm_status() { return %d;}\\n", sqm_status_code);
 	return 0;
 }
 #endif
