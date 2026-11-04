@@ -71,7 +71,7 @@ is_valid_account_password(const char *password)
 	if (!password || !*password)
 		return 0;
 	len = strlen(password);
-	if (len > 128)
+	if (len >= 128) /* VSFTP_PASSWORD_MAX includes the terminating NUL. */
 		return 0;
 	for (p = (const unsigned char *)password; *p; ++p) {
 		/* Newlines/control bytes can corrupt generated FTP/SMB metadata. */
