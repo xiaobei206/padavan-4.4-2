@@ -73,8 +73,9 @@ int setnonblock(int fd) {
     int flags;
 
     flags = fcntl(fd, F_GETFL);
-    flags |= O_NONBLOCK;
-    return fcntl(fd, F_SETFL, flags);
+    if (flags < 0)
+        return -1;
+    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
 static int check_buf(dbclient* client, int len) {
@@ -528,6 +529,11 @@ int main(int argc, char **argv, char * envp[])
         perror("connect to skipd error");
         return -1;
 #endif
+    }
+    /* Make the bounded write/read deadlines effective from the first frame. */
+    if (setnonblock(remote_fd) < 0) {
+        close(remote_fd);
+        return EXIT_FAILURE;
     }
     gclient = (dbclient*)calloc(1, sizeof(dbclient));
     if (NULL == gclient) {
