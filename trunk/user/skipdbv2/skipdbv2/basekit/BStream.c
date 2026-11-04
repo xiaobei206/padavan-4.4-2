@@ -131,8 +131,12 @@ void BStream_writeByte_(BStream *self, unsigned char v)
 
 void BStream_writeUint8_(BStream *self, uint8_t v)
 {
+	if (NULL == self || NULL == self->ba) {
+		BStream_error_(self, "invalid binary stream");
+		return;
+	}
 	UArray_appendLong_(self->ba, v);
-	self->index ++;
+	self->index++;
 }
 
 static void reverseBytes(unsigned char *d, size_t length)
@@ -153,6 +157,11 @@ static void reverseBytes(unsigned char *d, size_t length)
 
 void BStream_writeNumber_size_(BStream *self, unsigned char *v, size_t length)
 {
+	if (NULL == self || NULL == self->ba || NULL == self->typeBuf ||
+		(length > 0 && NULL == v) || length > 512) {
+		BStream_error_(self, "invalid binary number write");
+		return;
+	}
 	memcpy(self->typeBuf, v, length);
 
 	if (self->flipEndian)
@@ -166,6 +175,14 @@ void BStream_writeNumber_size_(BStream *self, unsigned char *v, size_t length)
 
 void BStream_writeData_length_(BStream *self, const unsigned char *data, size_t length)
 {
+	if (NULL == self || NULL == self->ba || (length > 0 && NULL == data)) {
+		BStream_error_(self, "invalid binary stream data write");
+		return;
+	}
+	if (length > (size_t)-1 - self->index) {
+		BStream_error_(self, "binary stream length overflow");
+		return;
+	}
 	UArray_appendBytes_size_(self->ba, (unsigned char *)data, length);
 	self->index += length;
 }
@@ -194,16 +211,31 @@ void BStream_writeDouble_(BStream *self, double v)
 
 void BStream_writeCString_(BStream *self, const char *s)
 {
-	int length = strlen(s);
-	BStream_writeInt32_(self, length);
-	BStream_writeData_length_(self, (unsigned char *)s, length);
+	size_t length;
+	if (NULL == self || NULL == s)
+		return;
+	length = strlen(s);
+	if (length > INT32_MAX) {
+		BStream_error_(self, "string too large for binary stream");
+		return;
+	}
+	BStream_writeInt32_(self, (int32_t)length);
+	BStream_writeData_length_(self, (const unsigned char *)s, length);
 }
 
 void BStream_writeUArray_(BStream *self, UArray *ba)
 {
-	BStream_writeInt32_(self, UArray_size(ba));
+	size_t length;
+	if (NULL == self || NULL == self->ba || NULL == ba)
+		return;
+	length = UArray_size(ba);
+	if (length > INT32_MAX) {
+		BStream_error_(self, "array too large for binary stream");
+		return;
+	}
+	BStream_writeInt32_(self, (int32_t)length);
 	UArray_append_(self->ba, ba);
-	self->index += UArray_size(ba);
+	self->index += length;
 }
 
 // reading --------------------------------------
@@ -215,13 +247,20 @@ unsigned char BStream_readByte(BStream *self)
 
 uint8_t BStream_readUint8(BStream *self)
 {
-	if (self->index < UArray_size(self->ba))
-	{
-		unsigned char b = UArray_bytes(self->ba)[self->index];
-		self->index ++;
-		return b;
+	const unsigned char *bytes;
+	if (NULL == self || NULL == self->ba) {
+		BStream_error_(self, "invalid binary stream");
+		return 0;
 	}
-
+	if (self->index < UArray_size(self->ba)) {
+		bytes = UArray_bytes(self->ba);
+		if (NULL == bytes) {
+			BStream_error_(self, "missing binary stream data");
+			return 0;
+		}
+		return bytes[self->index++];
+	}
+	BStream_error_(self, "truncated binary stream byte");
 	return 0;
 }
 
@@ -325,6 +364,8 @@ UArray *BStream_readUArray(BStream *self)
 
 const char *BStream_readCString(BStream *self)
 {
+	if (NULL == self || NULL == self->tmp)
+		return NULL;
 	BStream_readUArray_(self, self->tmp);
 	return (const char *)UArray_bytes(self->tmp);
 }
@@ -334,6 +375,8 @@ const char *BStream_readCString(BStream *self)
 void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned int a)
 {
 	BStreamTag tag;
+	if (NULL == self || NULL == self->ba)
+		return;
 	tag.isArray = a;
 	tag.type = t;
 	tag.byteCount = b;
@@ -346,8 +389,8 @@ void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned in
 			tag2.type != tag.type ||
 			tag2.byteCount != tag.byteCount)
 		{
-			printf("tags don't match\n");
-			exit(-1);
+			BStream_error_(self, "unsupported binary stream tag");
+			return;
 		}
 
 		BStream_writeUint8_(self, c);
@@ -403,10 +446,18 @@ void BStream_writeTaggedDouble_(BStream *self, double v)
 
 void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, size_t length)
 {
+	if (NULL == self || NULL == self->ba || (length > 0 && NULL == data))
+		return;
+	if (length > INT32_MAX || length > (size_t)-1 - self->index) {
+		BStream_error_(self, "tagged data length is out of range");
+		return;
+	}
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 1, 1);
-	BStream_writeTaggedInt32_(self, length);
-	UArray_appendBytes_size_(self->ba, (unsigned char *)data, length);
-	self->index += length;
+	BStream_writeTaggedInt32_(self, (int32_t)length);
+	if (length > 0) {
+		UArray_appendBytes_size_(self->ba, (unsigned char *)data, length);
+		self->index += length;
+	}
 }
 
 void BStream_writeTaggedCString_(BStream *self, const char *s)
@@ -430,15 +481,7 @@ int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int 
 	BStreamTag readTag = BStreamTag_FromUnsignedChar(c);
 	BStreamTag expectedTag = BStreamTag_TagArray_type_byteCount_(a, t, b);
 
-	if (!BStreamTag_isEqual_(&readTag, &expectedTag))
-	{
-		printf("BStream error: read:\n ");
-		BStreamTag_print(&readTag);
-		printf(" but expected:\n ");
-		BStreamTag_print(&expectedTag);
-		printf("\n");
-		BStream_show(self);
-		printf("\n");
+	if (!BStreamTag_isEqual_(&readTag, &expectedTag)) {
 		BStream_error_(self, "unexpected binary stream tag");
 		return -1;
 	}
@@ -462,7 +505,12 @@ int BStream_readTaggedInt(BStream *self)
 
 uint8_t BStream_readTaggedUint8(BStream *self)
 {
-	return BStream_readTaggedInt32(self);
+	int32_t value = BStream_readTaggedInt32(self);
+	if (UArray_size(self->errorBa) != 0 || value < 0 || value > UINT8_MAX) {
+		BStream_error_(self, "tagged byte out of range");
+		return 0;
+	}
+	return (uint8_t)value;
 }
 
 uint32_t BStream_readTaggedUint32(BStream *self)
@@ -511,8 +559,7 @@ intptr_t BStream_readTaggedPointer(BStream *self)
 	unsigned char c = BStream_readByte(self);
 	BStreamTag t = BStreamTag_FromUnsignedChar(c);
 
-	if (t.type == BSTREAM_POINTER)
-	{
+	if (t.type != BSTREAM_POINTER) {
 		BStream_error_(self, "expected pointer");
 		return 0;
 	}
