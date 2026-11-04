@@ -79,4 +79,9 @@ if(SKIPDB_BUILD_TESTS)
     ADD_EXECUTABLE(dbapi_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbapi_protocol.c)
     add_test(NAME dbapi_protocol_test COMMAND dbapi_protocol_test)
+
+    ADD_EXECUTABLE(skipdb_cursor_previous_test
+        ${PROJECT_SOURCE_DIR}/tests/skipdb_cursor_previous.c)
+    TARGET_LINK_LIBRARIES(skipdb_cursor_previous_test skipdb m)
+    add_test(NAME skipdb_cursor_previous_test COMMAND skipdb_cursor_previous_test)
 endif()
