@@ -3205,57 +3205,107 @@ static int ej_get_nvram_list(int eid, webs_t wp, int argc, char **argv) {
 }
 
 // for detect static IP's client.
+static void
+write_json_string(webs_t wp, const char *value)
+{
+	const unsigned char *p;
+
+	websWrite(wp, "%s", "\"");
+	for (p = (const unsigned char *)value; p && *p; ++p) {
+		switch (*p) {
+		case '"':
+			websWrite(wp, "%s", "\\\"");
+			break;
+		case '\\':
+			websWrite(wp, "%s", "\\\\");
+			break;
+		case '\b':
+			websWrite(wp, "%s", "\\b");
+			break;
+		case '\f':
+			websWrite(wp, "%s", "\\f");
+			break;
+		case '\n':
+			websWrite(wp, "%s", "\\n");
+			break;
+		case '\r':
+			websWrite(wp, "%s", "\\r");
+			break;
+		case '\t':
+			websWrite(wp, "%s", "\\t");
+			break;
+		default:
+			if (*p < 0x20)
+				websWrite(wp, "\\u%04x", (unsigned int)*p);
+			else
+				fputc(*p, wp);
+			break;
+		}
+	}
+	websWrite(wp, "%s", "\"");
+}
+
 static int ej_get_static_client(int eid, webs_t wp, int argc, char **argv)
 {
 	FILE *fp;
-	char buf[512], *head, *tail, field[512];
-	int i, lock, len, first_client, first_field;
+	char buf[512], field[512], *head, *tail;
+	int i, lock, first_client;
+	size_t len, field_len;
+	const char *field_start;
 
 	lock = file_lock("networkmap");
-
 	first_client = 1;
 	fp = fopen("/tmp/static_ip.inf", "r");
 	if (fp) {
 		while (fgets(buf, sizeof(buf), fp)) {
+			/* Reject truncated records instead of parsing partial fields. */
+			if (!strchr(buf, '\n') && !feof(fp)) {
+				int ch;
+				while ((ch = fgetc(fp)) != EOF && ch != '\n')
+					;
+				continue;
+			}
+
+			len = strlen(buf);
+			while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+				buf[--len] = '\0';
+			if (len == 0)
+				continue;
+
 			if (first_client)
 				first_client = 0;
 			else
 				websWrite(wp, ", ");
-			
-			len = strlen(buf);
-			buf[len-1] = ',';
+			websWrite(wp, "[");
+
 			head = buf;
-			first_field = 1;
 			for (i = 0; i < 6; ++i) {
 				tail = strchr(head, ',');
-				if (tail != NULL) {
-					memset(field, 0, sizeof(field));
-					strncpy(field, head, (tail-head));
-				}
-				
-				if (first_field) {
-					first_field = 0;
-					websWrite(wp, "[");
-				} else
+				field_start = head;
+				field_len = tail ? (size_t)(tail - head) : strlen(head);
+				if (field_len >= sizeof(field))
+					field_len = sizeof(field) - 1;
+				memcpy(field, field_start, field_len);
+				field[field_len] = '\0';
+
+				if (i > 0)
 					websWrite(wp, ", ");
-				
-				if (strlen(field) > 0)
-					websWrite(wp, "\"%s\"", field);
+				if (field_len > 0)
+					write_json_string(wp, field);
 				else
-					websWrite(wp, "null");
-				
-				head = tail+1;
-				
-				if (i == 5)
-					websWrite(wp, "]");
+					websWrite(wp, "%s", "null");
+
+				if (!tail)
+					head += strlen(head);
+				else
+					head = tail + 1;
 			}
+			websWrite(wp, "]");
 		}
-		
 		fclose(fp);
 	}
 
 	file_unlock(lock);
-
 	return 0;
 }
 
