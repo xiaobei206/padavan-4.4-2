@@ -29,23 +29,50 @@
 
 int f_write(const char *path, const void *buffer, int len, unsigned flags, unsigned cmode)
 {
-	static const char nl = '\n';
-	int f;
-	int r = -1;
-	mode_t m;
+	const char nl = '\n';
+	const char *data = (const char *)buffer;
+	int f, total = 0, n;
+	mode_t old_umask;
 
-	m = umask(0);
-	if (cmode == 0) cmode = 0666;
-	if ((f = open(path, (flags & FW_APPEND) ? (O_WRONLY|O_CREAT|O_APPEND) : (O_WRONLY|O_CREAT|O_TRUNC), cmode)) >= 0) {
-		if ((buffer == NULL) || ((r = write(f, buffer, len)) == len)) {
-			if (flags & FW_NEWLINE) {
-				if (write(f, &nl, 1) == 1) ++r;
-			}
-		}
-		close(f);
+	if (!path || len < 0 || (len > 0 && !buffer))
+		return -1;
+
+	old_umask = umask(0);
+	if (cmode == 0)
+		cmode = 0666;
+	f = open(path, (flags & FW_APPEND) ?
+		 (O_WRONLY | O_CREAT | O_APPEND) :
+		 (O_WRONLY | O_CREAT | O_TRUNC), cmode);
+	if (f < 0) {
+		umask(old_umask);
+		return -1;
 	}
-	umask(m);
-	return r;
+
+	while (total < len) {
+		n = write(f, data + total, (size_t)(len - total));
+		if (n < 0 && errno == EINTR)
+			continue;
+		if (n <= 0) {
+			total = -1;
+			break;
+		}
+		total += n;
+	}
+
+	if (total >= 0 && (flags & FW_NEWLINE)) {
+		do {
+			n = write(f, &nl, 1);
+		} while (n < 0 && errno == EINTR);
+		if (n != 1)
+			total = -1;
+		else
+			total++;
+	}
+
+	if (close(f) != 0 && total >= 0)
+		total = -1;
+	umask(old_umask);
+	return total;
 }
 
 // for bandwidth =========================================================
