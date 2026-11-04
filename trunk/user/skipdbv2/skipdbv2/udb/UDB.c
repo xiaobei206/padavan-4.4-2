@@ -134,8 +134,11 @@ void UDB_open(UDB *self)
 
 	/* Only an exact committed marker permits journal replay after a crash. */
 	if (UDB_readCommitted(self) != 1) {
-		JFile_clipLog(self->index->file);
-		JFile_clipLog(self->records->file);
+		if (JFile_clipLog(self->index->file) != 0 ||
+			JFile_clipLog(self->records->file) != 0) {
+			UDB_close(self);
+			return;
+		}
 	}
 
 	UDBIndex_open(self->index);
