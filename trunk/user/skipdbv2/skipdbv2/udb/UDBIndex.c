@@ -189,11 +189,15 @@ void UDBIndex_commit(UDBIndex *self)
 int UDBIndex_findHoles(UDBIndex *self)
 {
 	PID_TYPE pid;
+	long pid_count;
 
 	if (NULL == self || NULL == self->holes || NULL == self->file ||
 		NULL == self->file->file)
 		return 0;
-	pid = (PID_TYPE)UDBIndex_pidCount(self);
+	pid_count = UDBIndex_pidCount(self);
+	if (pid_count <= 0)
+		return 0;
+	pid = (PID_TYPE)pid_count;
 	List_removeAll(self->holes);
 
 	/* PID 0 is reserved as the null/sentinel record, not a reusable hole. */
@@ -376,23 +380,32 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 
 long UDBIndex_pidCount(UDBIndex *self)
 {
+	long end_pos;
+
 	if (NULL == self || NULL == self->file || NULL == self->file->file)
-		return 0;
-	return JFile_setPositionToEnd(self->file) / sizeof(UDBIndexEntry);
+		return -1;
+	end_pos = JFile_setPositionToEnd(self->file);
+	if (end_pos < 0 ||
+		end_pos % (long)sizeof(UDBIndexEntry) != 0)
+		return -1;
+	return end_pos / (long)sizeof(UDBIndexEntry);
 }
 
 void UDBIndex_show(UDBIndex *self)
 {
-	PID_TYPE pid, maxPid = UDBIndex_pidCount(self);
-	
+	long pid_count = UDBIndex_pidCount(self);
+	PID_TYPE pid;
+
 	printf("UDBIndex: (pid/pos)\n\n");
-	
-	for (pid = 0; pid < maxPid; pid ++)
-	{
+	if (pid_count < 0) {
+		printf("  unable to read PID index length\n\n");
+		return;
+	}
+
+	for (pid = 0; pid < (PID_TYPE)pid_count; pid++) {
 		PID_TYPE pos = UDBIndex_posForPid_(self, pid);
 		printf("  %i -> %i\n", (int)pid, (int)pos);
 	}
-	
 	printf("\n");
 }
 
