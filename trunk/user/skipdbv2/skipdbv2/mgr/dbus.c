@@ -869,8 +869,13 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
 
-            //setnonblock(remote_fd);
-            //n1 = parse_common_result(client);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
+            n1 = parse_common_result(client);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("time", argv[1])) {
             if(argc < 5) {
                 err = -21;
@@ -901,8 +906,13 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
 
-            //setnonblock(remote_fd);
-            //n1 = parse_common_result(client);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
+            n1 = parse_common_result(client);
+            if (n1 < 0)
+                err = n1;
         } else {
             err = -24; /* Unknown command. */
         }
