@@ -285,6 +285,34 @@ static void sigint_cb (EV_P_ ev_signal *w, int revents) {
     ev_break(EV_A_ EVBREAK_ALL);
 }
 
+static int is_safe_script_command(const char *cmd, size_t length)
+{
+    size_t i, component_start = 0;
+
+    if (NULL == cmd || length == 0)
+        return 0;
+    for (i = 0; i < length; ++i) {
+        unsigned char c = (unsigned char)cmd[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' ||
+              c == '.' || c == '/'))
+            return 0;
+        if (c == '/') {
+            if (i == component_start && i != 0)
+                return 0;
+            if (i - component_start == 2 &&
+                cmd[component_start] == '.' && cmd[component_start + 1] == '.')
+                return 0;
+            component_start = i + 1;
+        }
+    }
+    if (length == component_start ||
+        (length - component_start == 2 &&
+         cmd[component_start] == '.' && cmd[component_start + 1] == '.'))
+        return 0;
+    return 1;
+}
+
 static void sys_script(const char *cmd, size_t cmd_size)
 {
     int written;
@@ -293,8 +321,11 @@ static void sys_script(const char *cmd, size_t cmd_size)
     if (NULL == cmd || cmd_size == 0 || cmd[cmd_size - 1] != '\0')
         return;
     cmd_len = strnlen(cmd, cmd_size);
-    if (cmd_len != cmd_size - 1)
+    if (cmd_len != cmd_size - 1 || cmd_len == 0 ||
+        !is_safe_script_command(cmd, cmd_len)) {
+        skipd_log(SKIPD_DEBUG, "invalid script path; not executed\n");
         return;
+    }
 
     if (script_log_fd >= 0) {
         written = snprintf(static_buffer, sizeof(static_buffer),
