@@ -231,6 +231,8 @@ int get_folder_list_in_mount_path(const char *const mount_path, int *sh_num, cha
 
 		memcpy(tmp_folder_list[i], follow_info, name_len);
 		tmp_folder_list[i][name_len] = '\0';
+		if (!is_valid_folder_name(tmp_folder_list[i]))
+			goto invalid_entries;
 	}
 
 	free(list_info);
@@ -437,6 +439,35 @@ int initial_one_var_file_in_mount_path(const char *const account, const char *co
 	return 0;
 }
 
+static void
+clear_share_var_files(const char *mount_path)
+{
+	DIR *dir;
+	struct dirent *entry;
+	char path[512];
+	int path_len;
+	size_t name_len;
+
+	dir = opendir(mount_path);
+	if (!dir)
+		return;
+
+	while ((entry = readdir(dir)) != NULL) {
+		name_len = strlen(entry->d_name);
+		if (name_len < 6 || strncmp(entry->d_name, ".__", 3) != 0 ||
+		    strcmp(entry->d_name + name_len - 4, ".txt") != 0)
+			continue;
+
+		path_len = snprintf(path, sizeof(path), "%s/%s", mount_path, entry->d_name);
+		if (path_len < 0 || path_len >= (int)sizeof(path))
+			continue;
+
+		unlink(path);
+	}
+
+	closedir(dir);
+}
+
 int initial_all_var_file_in_mount_path(const char *const mount_path)
 {
 	int i;
@@ -446,14 +477,15 @@ int initial_all_var_file_in_mount_path(const char *const mount_path)
 	if (mount_path == NULL || strlen(mount_path) <= 0)
 		return -1;
 
-	// delete all var files
-	doSystem("rm -f /%s/.__*.txt", mount_path);
+	/* Delete managed files without interpolating the mount path into a shell. */
+	clear_share_var_files(mount_path);
 
 	// initial the var file for ftp anonymous
 	initial_one_var_file_in_mount_path(FTP_ANONYMOUS_USER, mount_path);
 
 	// get the account number and account_list
-	get_account_list(&acc_num, &account_list);
+	if (get_account_list(&acc_num, &account_list) != 0)
+		return -1;
 
 	// initial the var file
 	for (i = 0; i < acc_num; ++i)
