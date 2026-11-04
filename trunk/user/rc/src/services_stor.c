@@ -42,13 +42,18 @@
 void
 spindown_hdd(char *sd_dev)
 {
+	char *argv[3];
+
 	if (!sd_dev)
 		return;
 
 	if (strncmp(sd_dev, "sd", 2) != 0)
 		return;
 
-	doSystem("/sbin/spindown.sh %s", sd_dev);
+	argv[0] = "/sbin/spindown.sh";
+	argv[1] = sd_dev;
+	argv[2] = NULL;
+	_eval(argv, NULL, 0, NULL);
 }
 
 static int
