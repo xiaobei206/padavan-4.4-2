@@ -230,6 +230,7 @@ int UDBRecord_readHeader(UDBRecord *self)
     if (objectsRead != 1 ||
         (self->header.tag != RECORD_TAG_NORMAL &&
          self->header.tag != RECORD_TAG_EMPTY) ||
+        self->header.pid == 0 ||
         self->header.size > file_size - self->pos - sizeof(UDBRecordHeader)) {
         self->header.tag = RECORD_TAG_EMPTY;
         self->header.pid = 0;
