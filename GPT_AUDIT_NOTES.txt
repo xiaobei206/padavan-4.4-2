@@ -57,3 +57,5 @@ dc7d704  mtk_esw/ioctl.c: reject failed user-memory copies and zero-init MIB out
 ae5d00c  raether.c: check Ethernet ioctl user copies and validate PHY dump port.
 6ac6665  common_ex.c: preserve mkdir_if_none existing/new directory return semantics.
 8b8b3e8  pids.c: bound /proc PID path formatting and retry interrupted reads.
+c6efccb  automount.sh: remove eval of filesystem metadata; validate mount/device components.
+ae80761  hddtune.sh: validate hotplug device and normalize NVRAM numeric options.
