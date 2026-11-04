@@ -1300,19 +1300,25 @@ int mod_folder(const char *const mount_path, const char *const folder, const cha
 	sprintf(new_full_path, "%s/%s", mount_path, new_folder);
 	new_full_path[len] = 0;
 
+	/* Never rename a file or follow a damaged folder-list state. */
+	if (test_if_dir(full_path) != 1) {
+		free(full_path);
+		free(new_full_path);
+		return -1;
+	}
 	result = test_if_exist_folder_in_mount_path(mount_path, folder);
+	if (result < 0) {
+		free(full_path);
+		free(new_full_path);
+		return -1;
+	}
 	if (result == 0) {
-		result = test_if_dir(full_path);
-		
-		if (result != 1) {
+		/* The directory exists but is absent from the metadata list. */
+		if (add_folder(mount_path, folder) != 0) {
 			free(full_path);
 			free(new_full_path);
-			
 			return -1;
 		}
-		
-		// the folder is existed but not in .__folder_list.txt
-		add_folder(mount_path, folder);
 	}
 
 	/* Renaming to an existing path can replace an empty directory or file.
