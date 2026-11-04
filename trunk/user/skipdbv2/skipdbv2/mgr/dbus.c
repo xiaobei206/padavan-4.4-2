@@ -205,7 +205,7 @@ int parse_get_result(dbclient *client) {
         putchar('\n');
 
     if ((n2 == 6 && memcmp(client->buf, "error\n", 6) == 0) ||
-        (n2 == 16 && memcmp(client->buf, "database error\n", 15) == 0) ||
+        (n2 == 15 && memcmp(client->buf, "database error\n", 15) == 0) ||
         (n2 == 17 && memcmp(client->buf, "integer overflow\n", 17) == 0))
         return -5;
     return 0;
@@ -667,8 +667,13 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
 
-            //setnonblock(remote_fd);
-            //n1 = parse_common_result(gclient);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
+            n1 = parse_common_result(gclient);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("fire", argv[1])) {
             if(argc < 3) {
                 err = -15;
@@ -687,8 +692,13 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
 
-            //setnonblock(remote_fd);
-            //n1 = parse_common_result(gclient);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
+            n1 = parse_common_result(gclient);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("set", argv[1])) {
             if((argc < 3) || (NULL == strstr(argv[2], "="))) {
                 err = -16;
@@ -708,8 +718,13 @@ int main(int argc, char **argv, char * envp[])
             }
             //print_time("end");
 
-            //setnonblock(remote_fd);
-            //n1 = parse_common_result(client);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
+            n1 = parse_common_result(client);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("inc", argv[1])) {
             if((argc < 3) || (NULL == strstr(argv[2], "="))) {
                 err = -16;
@@ -775,8 +790,13 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
 
-            //setnonblock(remote_fd);
-            //n1 = parse_common_result(client);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
+            n1 = parse_common_result(client);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("replace", argv[1])) {
             if((argc < 3) || (NULL == strstr(argv[2], "="))) {
                 err = -16;
@@ -794,8 +814,13 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
 
-            //setnonblock(remote_fd);
-            //n1 = parse_common_result(client);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
+            n1 = parse_get_result(client);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("event", argv[1])) {
             if(argc < 4) {
                 err = -18;
@@ -814,8 +839,13 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
 
-            //setnonblock(remote_fd);
-            //n1 = parse_common_result(client);
+            if (setnonblock(remote_fd) < 0) {
+                err = -23;
+                break;
+            }
+            n1 = parse_common_result(client);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("delay", argv[1])) {
             if(argc < 5) {
                 err = -19;
