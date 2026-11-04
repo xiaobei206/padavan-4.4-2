@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <errno.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -1274,6 +1275,7 @@ int mod_folder(const char *const mount_path, const char *const folder, const cha
 	FILE *fp;
 	char *follow_info, backup;
 	char *full_path, *new_full_path;
+	struct stat target_stat;
 
 	if (mount_path == NULL || strlen(mount_path) <= 0)
 		return -1;
@@ -1310,7 +1312,23 @@ int mod_folder(const char *const mount_path, const char *const folder, const cha
 		add_folder(mount_path, folder);
 	}
 
-	//  modify the folder
+	/* Renaming to an existing path can replace an empty directory or file.
+	 * Treat an exact same-name request as a no-op and reject any other target
+	 * that already exists, including folders absent from the metadata list. */
+	if (strcmp(folder, new_folder) == 0) {
+		free(full_path);
+		free(new_full_path);
+		return 0;
+	}
+	result = test_if_exist_folder_in_mount_path(mount_path, new_folder);
+	if (result != 0 || lstat(new_full_path, &target_stat) == 0 ||
+	    errno != ENOENT) {
+		free(full_path);
+		free(new_full_path);
+		return -1;
+	}
+
+	// Modify the folder only when the target path is unused.
 	result = rename(full_path, new_full_path);
 	free(full_path);
 	free(new_full_path);
