@@ -16,42 +16,54 @@ int UArray_MachineIsLittleEndian(void)
 	return ((unsigned char *)(&i))[0] == 1;
 }
 
-static int UArray_SizeOfUTFChar(const uint8_t *s)
+static int UArray_SizeOfUTFChar(const uint8_t *s, const uint8_t *end)
 {
-	uint8_t c = *s;
-
-	if (c & 0x80)
-	{
-		if((c & 0xE0) == 0xC0) return 2;
-		if((c & 0xF0) == 0xE0) return 3;
-		if((c & 0xF8) == 0xF0) return 4;
-		if((c & 0xFC) == 0xF8) return 5;
-		if((c & 0xFE) == 0xFC) return 6;
+	uint8_t c;
+	int length;
+	if (NULL == s || NULL == end || s >= end)
 		return -1;
-	}
-
-	return 1;
+	c = *s;
+	if (c <= 0x7f)
+		return 1;
+	if (c >= 0xc2 && c <= 0xdf)
+		length = 2;
+	else if (c >= 0xe0 && c <= 0xef)
+		length = 3;
+	else if (c >= 0xf0 && c <= 0xf4)
+		length = 4;
+	else
+		return -1;
+	if ((size_t)(end - s) < (size_t)length ||
+		!isLegalUTF8Sequence((const UTF8 *)s, (const UTF8 *)end))
+		return -1;
+	return length;
 }
 
 int UArray_maxCharSize(const UArray *self)
 {
+	if (NULL == self)
+		return -1;
 	if (self->encoding == CENCODING_UTF8)
 	{
 		int maxCharSize = 1;
 		size_t i = 0;
-
+		if (self->itemSize != 1 ||
+			self->size > (size_t)-1 / self->itemSize ||
+			(self->size > 0 && NULL == self->data))
+			return -1;
 		while (i < self->size)
 		{
-			int charSize = UArray_SizeOfUTFChar(self->data + i);
-			if (charSize > maxCharSize)  maxCharSize = charSize;
-			if (charSize == -1) return -1;
-			i += charSize;
+			int charSize = UArray_SizeOfUTFChar(self->data + i,
+				self->data + self->size);
+			if (charSize < 1)
+				return -1;
+			if (charSize > maxCharSize)
+				maxCharSize = charSize;
+			i += (size_t)charSize;
 		}
-
 		return maxCharSize;
 	}
-
-	return self->itemSize;
+	return self->itemSize <= INT_MAX ? (int)self->itemSize : -1;
 }
 
 void UArray_truncateAfterConvertToEncoding_(UArray *self){
@@ -72,9 +84,13 @@ void UArray_truncateAfterConvertToEncoding_(UArray *self){
 
 int UArray_convertToFixedSizeType(UArray *self)
 {
+	if (NULL == self)
+		return 0;
 	if (self->encoding == CENCODING_UTF8)
 	{
 		int maxCharSize = UArray_maxCharSize(self);
+		if (maxCharSize < 1)
+			return 0;
 
 		if(maxCharSize == 1)
 		{
@@ -97,20 +113,29 @@ int UArray_convertToFixedSizeType(UArray *self)
 
 int UArray_isMultibyte(const UArray *self)
 {
-	if (self->encoding == CENCODING_UTF8)
+	if (NULL == self || (self->size > 0 && NULL == self->data))
+		return 0;
+	if (self->encoding == CENCODING_UTF8 && self->itemSize == 1)
 	{
-		UARRAY_INTFOREACH(self, i, v, if (ismbchar((int)v)) return 1; );
+		UARRAY_INTFOREACH(self, i, v, if (ismbchar((unsigned char)v)) return 1; );
 	}
-
 	return 0;
 }
 
 int UArray_isLegalUTF8(const UArray *self)
 {
-	void *sourceStart = self->data;
-	void *sourceEnd   = self->data + self->size * self->itemSize;
-
-	return isLegalUTF8Sequence(sourceStart, sourceEnd);
+	size_t i = 0;
+	if (NULL == self || self->itemSize != 1 ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	while (i < self->size) {
+		int length = UArray_SizeOfUTFChar(self->data + i,
+			self->data + self->size);
+		if (length < 1)
+			return 0;
+		i += (size_t)length;
+	}
+	return 1;
 }
 
 UArray *UArray_asNumberArrayString(const UArray *self)
