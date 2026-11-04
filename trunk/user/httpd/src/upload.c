@@ -196,7 +196,7 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 	FILE *fp = NULL;
 	char buf[64+UPLOAD_BUF_SIZE+1], buf_obj[32], *ptr;
 	int cnt, count, offset, ret, ch, valid_header, boundary_found;
-	long filelen, end_pos, back_len;
+	long filelen, max_payload_len, end_pos, back_len;
 
 	if (!stream || !fn || !*fn || !obj_name || !func_hdr ||
 	    clen < 0 || hdr_size <= 0 || hdr_size > UPLOAD_BUF_SIZE)
@@ -229,6 +229,7 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 	if (!(fp = fopen(fn, "w+")))
 		goto err;
 
+	max_payload_len = clen;
 	filelen = clen;
 	offset = 0;
 	cnt = 0;
@@ -255,7 +256,7 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 			
 			if (func_hdr(ptr, &filelen) != 0 ||
 			    filelen < hdr_size ||
-			    filelen > (long)count + (long)clen)
+			    filelen > max_payload_len)
 				goto err;
 
 			valid_header = 1;
