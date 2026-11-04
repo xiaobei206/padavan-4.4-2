@@ -93,6 +93,7 @@ typedef struct _skipd_client {
     int send_len;
     int send_pos;
 
+    SkipDBCursor *cursor;
     skipd_server* server;
 } skipd_client;
 
@@ -224,6 +225,10 @@ static void client_release(EV_P_ skipd_client* client) {
 
     if(NULL != client->origin) {
         free(client->origin);
+    }
+    if (client->cursor) {
+        SkipDBCursor_release(client->cursor);
+        client->cursor = NULL;
     }
 
     free(client);
@@ -671,6 +676,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         client->server->in_doing++;
         CS->skey = Datum_FromCString_(client->key);
         CS->record = SkipDB_list_first(client->server->db, CS->skey, &CS->cursor);
+        client->cursor = CS->cursor;
         while(NULL != CS->record) {
             dkey = SkipDBRecord_keyDatum(CS->record);
             dvalue = SkipDBRecord_valueDatum(CS->record);
@@ -685,9 +691,11 @@ static int client_run_command(EV_P_ skipd_client* client)
         client_send(EV_A_ client, p1, strlen(p1));
         ccrReturn(ctx, ccr_error_ok);
 
-        if(NULL != CS->cursor) {
+        if (CS->cursor) {
             SkipDBCursor_release(CS->cursor);
+            CS->cursor = NULL;
         }
+        client->cursor = NULL;
         client->server->in_doing--;
 
         ccrReturn(ctx, ccr_error_ok1);
