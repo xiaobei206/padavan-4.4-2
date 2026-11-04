@@ -140,6 +140,17 @@ void UDB_setSecondaryPath_(UDB *self, const char *secondaryPath)
 */
 
 
+void UDB_setLogPath_(UDB *self, const char *path)
+{
+	if (NULL == self || NULL == path || self->isOpen ||
+		NULL == self->index || NULL == self->records)
+		return;
+
+	/* JFile derives each log filename from the database file basename. */
+	UDBIndex_setLogPath_(self->index, path);
+	UDBRecords_setLogPath_(self->records, path);
+}
+
 char *UDB_path(UDB *self)
 {
 	return self ? self->path : NULL;
