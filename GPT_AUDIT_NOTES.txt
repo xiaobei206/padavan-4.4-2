@@ -1,0 +1,10 @@
+Padavan GPT audit notes (brief)
+Date: 2026-11-04
+
+957d39d  Makefile: define prepare-headers for alternate toolchains.
+2abc940  firewall_ex.c: bound IP-range output to remaining buffer space.
+522b5fd  firewall_ex.c: remove unsafe buffer-guard fallback.
+a4521aa  net_wan.c: accept DHCP classless default routes (/0), validate route fields.
+883b4fb  net_wan.c: correct CIDR parser terminator check.
+
+Note: source-level edits only; full firmware build and hardware tests not yet run.
