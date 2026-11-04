@@ -54,6 +54,7 @@
 #define RFC1123FMT		"%a, %d %b %Y %H:%M:%S GMT"
 #define MAX_LISTEN_BACKLOG	511
 #define MAX_CONN_ACCEPT		50
+#define MAX_HTTP_CLIENTS 64
 #define MAX_CONN_TIMEOUT	30
 #define MAX_AUTH_LEN		128
 
@@ -1322,6 +1323,14 @@ main(int argc, char **argv)
 					
 					item->fd = accept(listen_fd[i], &item->usa.sa, &sz);
 					if (item->fd >= 0) {
+						/* select()/FD_SET() cannot safely represent high descriptors;
+						 * bound idle clients so they cannot exhaust the single-threaded daemon. */
+						if (item->fd >= FD_SETSIZE || pool.count >= MAX_HTTP_CLIENTS) {
+							shutdown(item->fd, SHUT_RDWR);
+							close(item->fd);
+							free(item);
+							continue;
+						}
 #if defined (SUPPORT_HTTPS)
 						item->ssl = (i > 0) ? 1 : 0;
 #endif
