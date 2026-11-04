@@ -1197,6 +1197,11 @@ int UArray_isZero(const UArray *self)
 
 long UArray_find_(const UArray *self, const UArray *other)
 {
+	if (NULL == self || NULL == other ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data) ||
+		self->size > (size_t)LONG_MAX)
+		return -1;
 	DUARRAY_OP(UARRAY_FIND_TYPES, NULL, self, other);
 	return -1;
 }
@@ -1208,10 +1213,16 @@ int UArray_contains_(const UArray *self, const UArray *other)
 
 long UArray_find_from_(const UArray *self, const UArray *other, size_t from)
 {
-	UArray s = UArray_stackRange(self, from, self->size - from);
-	long i = UArray_find_(&s, other);
-
-	return i == -1 ? -1 : from + i;
+	UArray s;
+	long i;
+	if (NULL == self || NULL == other || from > self->size ||
+		from > (size_t)LONG_MAX)
+		return -1;
+	s = UArray_stackRange(self, from, self->size - from);
+	i = UArray_find_(&s, other);
+	if (i < 0 || (size_t)i > (size_t)LONG_MAX - from)
+		return -1;
+	return (long)(from + (size_t)i);
 }
 
 #define UARRAY_FINDANYCASE_TYPES(OP2, TYPE1, self, TYPE2, other)\
@@ -1226,7 +1237,7 @@ long UArray_find_from_(const UArray *self, const UArray *other, size_t from)
 					{\
 						TYPE1 v1 = ((TYPE1 *)self->data)[i + j];\
 						TYPE2 v2 = ((TYPE2 *)other->data)[j];\
-						if (tolower((int)v1) != tolower((int)v2)) { match = 0; break; }\
+						if (tolower((unsigned char)v1) != tolower((unsigned char)v2)) { match = 0; break; }\
 					}\
 					if(match) { return i; }\
 			}\
@@ -1309,24 +1320,28 @@ BASEKIT_API long UArray_rFind_from_(const UArray *self, const UArray *other, siz
 
 #define UARRAY_RFINDANYCASE_TYPES(OP2, TYPE1, self, TYPE2, other)\
 {\
-	long i, j;\
-		if(self->size < other->size) return -1;\
-			for(i = self->size - other->size + 1; i > -1; i --)\
-			{\
-				int match = 1;\
-				for(j = 0; j < other->size; j ++)\
-				{\
-					int v1 = ((TYPE1 *)self->data)[i+j];\
-						int v2 = ((TYPE2 *)other->data)[j];\
-							if (tolower(v1) != tolower(v2)) { match = 0; break; }\
-				}\
-				if(match) return i;\
-			}\
-			return -1;\
+	size_t i, j;\
+	if (self->size < other->size || self->size > (size_t)LONG_MAX) return -1;\
+	i = self->size - other->size;\
+	for (;;) {\
+		int match = 1;\
+		for (j = 0; j < other->size; j++) {\
+			TYPE1 v1 = ((TYPE1 *)self->data)[i + j];\
+			TYPE2 v2 = ((TYPE2 *)other->data)[j];\
+			if (tolower((unsigned char)v1) != tolower((unsigned char)v2)) { match = 0; break; }\
+		}\
+		if (match) return (long)i;\
+		if (i == 0) break;\
+		i--;\
+	}\
+	return -1;\
 }
-
 long UArray_rFindAnyCase_(const UArray *self, const UArray *other)
 {
+	if (NULL == self || NULL == other ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return -1;
 	DUARRAY_OP(UARRAY_RFINDANYCASE_TYPES, NULL, self, other);
 	return -1;
 }
@@ -1349,6 +1364,11 @@ long UArray_rFindAnyCase_(const UArray *self, const UArray *other)
 
 long UArray_rFindAnyValue_(const UArray *self, const UArray *other)
 {
+	if (NULL == self || NULL == other ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data) ||
+		self->size > (size_t)LONG_MAX)
+		return -1;
 	DUARRAY_OP(UARRAY_RFINDANYVALUE_TYPES, NULL, self, other);
 	return -1;
 }
