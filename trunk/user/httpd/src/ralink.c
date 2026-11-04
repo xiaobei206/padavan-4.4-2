@@ -1712,6 +1712,8 @@ ej_wl_scan_5g(int eid, webs_t wp, int argc, char **argv)
 		dbg("errors in getting site survey result\n");
 		return websWrite(wp, "[%s]", empty);
 	}
+	if (wrq.u.data.length > sizeof(data))
+		return websWrite(wp, "%s", empty);
 
 #if defined (USE_WSC_WPS)
 	line_len = SSURV_LINE_LEN_WPS;
@@ -1723,9 +1725,10 @@ ej_wl_scan_5g(int eid, webs_t wp, int argc, char **argv)
 	if (wrq.u.data.length > 0)
 	{
 		op = sp = wrq.u.data.pointer+line_len+2; // skip \n+\n
-		len = strlen(op);
+		len = (int)strnlen(op, sizeof(data) - (size_t)(op - data));
 
-		while (*sp && ((len - (sp-op)) >= 0))
+		while (*sp && ((len - (sp-op)) >= 0) &&
+		       (size_t)(sp - data) + (size_t)line_len <= sizeof(data))
 		{
 			memcpy(site_line, sp, line_len);
 
@@ -1829,6 +1832,8 @@ ej_wl_scan_2g(int eid, webs_t wp, int argc, char **argv)
 		dbg("errors in getting site survey result\n");
 		return websWrite(wp, "[%s]",empty);
 	}
+	if (wrq.u.data.length > sizeof(data))
+		return websWrite(wp, "%s", empty);
 
 #if (defined (USE_WSC_WPS) || defined(USE_RT3352_MII))
 	line_len = SSURV_LINE_LEN_WPS;
@@ -1839,9 +1844,10 @@ ej_wl_scan_2g(int eid, webs_t wp, int argc, char **argv)
 	if (wrq.u.data.length > 0)
 	{
 		op = sp = wrq.u.data.pointer+line_len+2; // skip \n+\n
-		len = strlen(op);
+		len = (int)strnlen(op, sizeof(data) - (size_t)(op - data));
 		
-		while (*sp && ((len - (sp-op)) >= 0))
+		while (*sp && ((len - (sp-op)) >= 0) &&
+		       (size_t)(sp - data) + (size_t)line_len <= sizeof(data))
 		{
 			memcpy(site_line, sp, line_len);
 
