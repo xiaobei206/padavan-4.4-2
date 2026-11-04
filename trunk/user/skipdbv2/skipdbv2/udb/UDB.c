@@ -256,6 +256,8 @@ void UDB_open(UDB *self)
 		return;
 	}
 	recovering = (marker == 1);
+	self->index->file->deferLogReplay = recovering;
+	self->records->file->deferLogReplay = recovering;
 
 	/* Validate both durable journals before opening either database file. */
 	if (recovering &&
@@ -273,10 +275,6 @@ void UDB_open(UDB *self)
 			UDB_close(self);
 			return;
 		}
-	} else {
-		/* Defer per-file replay until both journal streams are open. */
-		self->index->file->deferLogReplay = 1;
-		self->records->file->deferLogReplay = 1;
 	}
 
 	if (!UDBIndex_open(self->index)) {
