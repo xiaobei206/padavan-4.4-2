@@ -383,8 +383,13 @@ IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)
 {
 	size_t getIndex = 0;
 	size_t putIndex = 0;
-	size_t count = self->size;
-	void **items = self->items;
+	size_t count;
+	void **items;
+	if (NULL == self || NULL == callback ||
+		(self->size > 0 && NULL == self->items))
+		return 0;
+	count = self->size;
+	items = self->items;
 
 	while (getIndex < count)
 	{
@@ -392,19 +397,16 @@ IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)
 
 		if (item && !((*callback)(item)))
 		{
-			if (getIndex!=putIndex)
-			{
+			if (getIndex != putIndex)
 				items[putIndex] = item;
-			}
-
-			putIndex ++;
+			putIndex++;
 		}
-
-		getIndex ++;
+		getIndex++;
 	}
 
+	if (items && count > putIndex)
+		memset(items + putIndex, 0, (count - putIndex) * sizeof(void *));
 	self->size = putIndex;
-
 	return getIndex - putIndex;
 }
 
