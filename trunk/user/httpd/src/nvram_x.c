@@ -28,8 +28,15 @@
 char *nvram_get_list_x(const char *name, int index)
 {
 	char nv_name[64];
+	int len;
 
-	snprintf(nv_name, sizeof(nv_name), "%s%d", name, index);
+	if (!name || !*name || index < 0)
+		return "";
+
+	len = snprintf(nv_name, sizeof(nv_name), "%s%d", name, index);
+	if (len < 0 || len >= (int)sizeof(nv_name))
+		return "";
+
 	return nvram_safe_get(nv_name);
 }
 
