@@ -334,3 +334,5 @@ cbebf5d5  skipd.c: handle -h as success and reject unknown command-line options.
 Verification: source inspection and GitHub commit-diff inspection only; no firmware build or runtime tests were run.
 1285e942  skipd.c: reject unexpected positional arguments after option parsing.
 f5d24b85  skipd.c: replace unsafe /tmp/skipd.log shell redirection with a checked no-follow log descriptor; fall back to /dev/null if unavailable.
+1285e942  skipd.c: reject unexpected positional arguments after option parsing.
+f5d24b85  skipd.c: route script output through a verified descriptor, with a safe fallback when secure logging is unavailable.
