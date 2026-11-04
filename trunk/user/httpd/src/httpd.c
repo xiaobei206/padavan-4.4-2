@@ -847,10 +847,13 @@ set_preferred_lang(char *cur)
 	return 0;
 }
 
+static volatile sig_atomic_t request_timed_out;
+
 static void
 http_request_timeout_signal(int signal_number)
 {
 	(void)signal_number;
+	request_timed_out = 1;
 }
 
 static void
@@ -870,6 +873,7 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	uaddr conn_ip;
 
 	/* Bound the complete request line and header phase, not each read independently. */
+	request_timed_out = 0;
 	alarm(15);
 
 	/* Initialize the request variables. */
@@ -878,7 +882,16 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	/* Parse the first line of the request. */
 	if (!fgets(line, sizeof(line), conn_fp)) {
 		alarm(0);
+		if (request_timed_out) {
+			clearerr(conn_fp);
+			return;
+		}
 		send_error( 400, "Bad Request", NULL, "No request found.", conn_fp);
+		return;
+	}
+	if (request_timed_out) {
+		alarm(0);
+		clearerr(conn_fp);
 		return;
 	}
 
@@ -903,6 +916,11 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	end = line + sizeof(line) - 1;
 
 	while ( (cur < end) && (fgets(cur, line + sizeof(line) - cur, conn_fp)) ) {
+		if (request_timed_out) {
+			alarm(0);
+			clearerr(conn_fp);
+			return;
+		}
 		if (strcmp(cur, "\n") == 0 || strcmp(cur, "\r\n") == 0) {
 			headers_done = 1;
 			break;
@@ -969,6 +987,12 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 				cur = cp + 1;
 			}
 		}
+	}
+
+	if (request_timed_out) {
+		alarm(0);
+		clearerr(conn_fp);
+		return;
 	}
 
 	if (!headers_done) {
