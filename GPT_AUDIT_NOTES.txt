@@ -1,5 +1,9 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+17482df  JFile.c: replay legacy zero-length journal records rather than abandoning journal recovery.
+b03b562  JFile.c: reject overflowing/null read-write requests; roll back partial journal appends and avoid zero-byte log records.
+e61187c  JFile.c: avoid truncating existing DBs on open errors; check open failures and refresh maxPos after journal replay.
+0ec1bac  UDB.c: allocate replacement paths before freeing old strings; handle committed-file creation failures and require exact commit marker.
 15bb9dc  JFile.c: replace realloc-then-strcpy path setters with allocation-checked path/log-name construction.
 cf62612  JFile.c: bound journal offsets/record lengths while locating completed transactions to avoid seeks past corrupt log data.
 ba77956  UDBIndex.c: validate index-file offsets and return zero on out-of-range or short reads instead of exposing uninitialized entry data.
