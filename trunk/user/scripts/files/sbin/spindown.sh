@@ -9,8 +9,20 @@ case "$1" in
 	[!A-Za-z0-9]*|*[!A-Za-z0-9_-]*) exit 1 ;;
 esac
 
-# check whether this exact device is mounted
-if awk -v dev="/dev/$1" '$1 == dev { found=1 } END { exit !found }' /proc/mounts; then
+# Refuse to spin down a mounted disk or any of its partitions.
+if awk -v dev="/dev/$1" '
+{
+	source = $1
+	if (source == dev) {
+		found = 1
+	} else if (index(source, dev) == 1) {
+		suffix = substr(source, length(dev) + 1)
+		if (suffix ~ /^[0-9]+$/ || suffix ~ /^p[0-9]+$/)
+			found = 1
+	}
+}
+END { exit !found }
+' /proc/mounts; then
 	exit 1
 fi
 
