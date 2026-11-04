@@ -15,3 +15,5 @@ be34849  net6.c: reject truncated IPv6 input and empty/invalid prefixes.
 911d060  net_wan6.c: validate DHCP-provided 6rd prefix lengths and relay addresses.
 8aea77c  services_stor.c: close Samba config on invalid input; bound share-name formatting.
 0c316d7  services_stor.c: enlarge mount target buffer and check path concatenation.
+931f587  services_stor.c: pass Samba account values as argv, not shell text.
+76e1d0d  usb_modem.c: pass QMI PIN/APN/login values as argv, not shell text.
