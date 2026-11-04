@@ -10,6 +10,7 @@
 #define IO_IN_C_FILE
 #endif
 #include "Common_inline.h"
+#include <limits.h>
 #ifdef IO_DECLARE_INLINES
 
 #include <stdio.h>
