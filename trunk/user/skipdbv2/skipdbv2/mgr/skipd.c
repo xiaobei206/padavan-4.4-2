@@ -140,7 +140,7 @@ static int open_script_log(void)
 #ifdef O_NOFOLLOW
     struct stat st;
     int fd = open("/tmp/skipd.log",
-        O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600);
+        O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW | O_NONBLOCK, 0600);
     if (fd < 0)
         return -1;
     if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
