@@ -56,40 +56,77 @@ void SHash_print(SHash* self)
 
 void SHash_tableInit_(SHash* self, int log2tableSize)
 {
-	if (log2tableSize > 20)
-		printf("ouuups");
-	self->log2tableSize = log2tableSize;
-	self->tableSize = 1<<self->log2tableSize;
-	self->records = (SHashRecord *)io_calloc(1, sizeof(SHashRecord) * self->tableSize * 2);
-	self->mask = self->tableSize-1;
+	SHashRecord *records;
+	unsigned int tableSize;
+	size_t count, bytes;
+	if (NULL == self || log2tableSize < 1 || log2tableSize > 20)
+		return;
+	tableSize = 1u << (unsigned int)log2tableSize;
+	count = (size_t)tableSize * 2;
+	if (count > (size_t)-1 / sizeof(SHashRecord))
+		return;
+	bytes = count * sizeof(SHashRecord);
+	records = (SHashRecord *)io_calloc(1, bytes);
+	if (NULL == records)
+		return;
+	self->records = records;
+	self->log2tableSize = (unsigned int)log2tableSize;
+	self->tableSize = tableSize;
+	self->mask = tableSize - 1;
 }
+
 
 SHash *SHash_new(void)
 {
 	SHash *self = (SHash *)io_calloc(1, sizeof(SHash));
-	self->numKeys = 0;
+	if (NULL == self)
+		return NULL;
 	SHash_tableInit_(self, 1);
-	//printf("ok");
+	if (NULL == self->records) {
+		io_free(self);
+		return NULL;
+	}
 	return self;
 }
 
+
 SHash *SHash_clone(SHash *self)
 {
-	SHash *child = SHash_new();
+	SHash *child;
+	if (NULL == self || NULL == self->records)
+		return NULL;
+	child = SHash_new();
+	if (NULL == child)
+		return NULL;
 	SHash_copy_(child, self);
+	if (NULL == child->records || child->tableSize != self->tableSize ||
+		child->numKeys != self->numKeys ||
+		child->keysEqual != self->keysEqual ||
+		child->hashForKey != self->hashForKey) {
+		SHash_free(child);
+		return NULL;
+	}
 	return child;
 }
 
+
 void SHash_free(SHash *self)
 {
+	if (NULL == self)
+		return;
 	io_free(self->records);
 	io_free(self);
 }
 
+
 size_t SHash_memorySize(SHash *self)
 {
-	return sizeof(SHash) + (self->tableSize * 2 * sizeof(SHashRecord));
+	if (NULL == self || self->tableSize >
+		((size_t)-1 - sizeof(SHash)) / (2 * sizeof(SHashRecord)))
+		return 0;
+	return sizeof(SHash) + ((size_t)self->tableSize * 2 * sizeof(SHashRecord));
 }
+
 
 void SHash_compact(SHash *self)
 {
@@ -98,11 +135,25 @@ void SHash_compact(SHash *self)
 
 void SHash_copy_(SHash *self, SHash *other)
 {
-	SHashRecord *records = self->records;
-	memcpy(self, other, sizeof(SHash));
-	self->records = (SHashRecord *)io_realloc(records, sizeof(SHashRecord) * self->tableSize * 2);
-	memcpy(self->records, other->records, sizeof(SHashRecord) * self->tableSize * 2);
+	SHashRecord *records, *oldRecords;
+	SHash copy;
+	size_t bytes;
+	if (NULL == self || NULL == other || self == other ||
+		NULL == other->records || other->tableSize == 0 ||
+		other->tableSize > (size_t)-1 / (2 * sizeof(SHashRecord)))
+		return;
+	bytes = (size_t)other->tableSize * 2 * sizeof(SHashRecord);
+	records = (SHashRecord *)io_malloc(bytes);
+	if (NULL == records)
+		return;
+	memcpy(records, other->records, bytes);
+	copy = *other;
+	copy.records = records;
+	oldRecords = self->records;
+	*self = copy;
+	io_free(oldRecords);
 }
+
 
 /*	this is where our cuckoo acts :
 	it kicks records out of nests until it finds an empty nest or gets tired
@@ -111,147 +162,147 @@ void SHash_copy_(SHash *self, SHash *other)
 SHashRecord *SHash_cuckoo_(SHash *self, SHashRecord* thisRecord)
 {
 	unsigned int hash;
-	SHashRecord* record;
+	SHashRecord *record;
+	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+		NULL == thisRecord || NULL == thisRecord->key ||
+		NULL == self->keysEqual || NULL == self->hashForKey)
+		return NULL;
 	record = SHash_recordAt_(self, thisRecord->key);
-
 	if (record != &self->nullRecord && NULL == record->key)
 		return record;
-	else
+	if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
+		return record;
 	{
-		if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
-		{
-			return record;
+		int i;
+		if (self->balance) {
+			self->balance = 0;
+			hash = SHash_hash_more(self, SHash_hash(self, thisRecord->key));
+			record = SHASH_RECORDS_AT_HASH_(self, 1, hash);
+			if (NULL == record->key)
+				return record;
+			SHashRecord_swap(record, thisRecord);
+			if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
+				return record;
 		}
-		else
-		{
-			int i;
-			// to balance load
-			if (self->balance)
-			{
-				self->balance = 0;
-
-				hash = SHash_hash_more(self, SHash_hash(self, thisRecord->key));
-				record = SHASH_RECORDS_AT_HASH_(self, 1, hash);
-				if (NULL == record->key)
-					return record;
-				else
-					SHashRecord_swap(record, thisRecord);
-
-				if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
-					return record;
-			}
-			self->balance = 1;
-
-			for (i = 0; i < SHash_maxLoops(self); i++)
-			{
-				hash = SHash_hash(self, thisRecord->key);
-				record = SHASH_RECORDS_AT_HASH_(self, 0, hash);
-				if (NULL == record->key)
-					return record;
-				else
-					SHashRecord_swap(record, thisRecord);
-
-				if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
-					return record;
-
-				hash = SHash_hash_more(self, SHash_hash(self, thisRecord->key));
-				record = SHASH_RECORDS_AT_HASH_(self, 1, hash);
-				if (NULL == record->key)
-					return record;
-				else
-					SHashRecord_swap(record, thisRecord);
-
-				if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
-					return record;
-			}
-
-			// the cuckoo is tired ^^
-			return NULL;
+		self->balance = 1;
+		for (i = 0; i < SHash_maxLoops(self); i++) {
+			hash = SHash_hash(self, thisRecord->key);
+			record = SHASH_RECORDS_AT_HASH_(self, 0, hash);
+			if (NULL == record->key)
+				return record;
+			SHashRecord_swap(record, thisRecord);
+			if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
+				return record;
+			hash = SHash_hash_more(self, SHash_hash(self, thisRecord->key));
+			record = SHASH_RECORDS_AT_HASH_(self, 1, hash);
+			if (NULL == record->key)
+				return record;
+			SHashRecord_swap(record, thisRecord);
+			if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
+				return record;
 		}
 	}
-
 	return NULL;
 }
 
+
 void SHash_grow(SHash *self)
 {
-	unsigned int oldTableSize = self->tableSize;
-	SHashRecord* oldRecords = self->records;
+	SHash saved;
+	SHashRecord *oldRecords;
+	unsigned int oldTableSize;
+	int log2tableSize;
+	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+		self->log2tableSize >= 20 ||
+		NULL == self->keysEqual || NULL == self->hashForKey)
+		return;
+	saved = *self;
+	oldRecords = self->records;
+	oldTableSize = self->tableSize;
 
-	self->records = NULL;
-	while (self->records == NULL)
-	{
+	for (log2tableSize = (int)saved.log2tableSize + 1;
+		log2tableSize <= 20; ++log2tableSize) {
 		unsigned int i;
-
-		SHash_tableInit_(self, self->log2tableSize + 1);
-
-		// enumerate old records
-
-		i = 0;
-		while (i < oldTableSize*2)
-		{
-			SHashRecord thisRecord = oldRecords[i];
-			i++;
-
-			if (thisRecord.key)
-			{
-				SHashRecord *record = SHash_cuckoo_(self, &thisRecord);
-				if (!record) // collision
-				{
-					io_free(self->records);
-					self->records = NULL;
-					break; // grow & rehash
-				}
-				*record = thisRecord;
-			}
+		int failed = 0;
+		self->records = NULL;
+		SHash_tableInit_(self, log2tableSize);
+		if (NULL == self->records) {
+			*self = saved;
+			return;
 		}
+		for (i = 0; i < oldTableSize * 2; ++i) {
+			SHashRecord thisRecord = oldRecords[i];
+			SHashRecord *record;
+			if (NULL == thisRecord.key)
+				continue;
+			record = SHash_cuckoo_(self, &thisRecord);
+			if (NULL == record) {
+				failed = 1;
+				break;
+			}
+			*record = thisRecord;
+		}
+		if (!failed) {
+			io_free(oldRecords);
+			return;
+		}
+		io_free(self->records);
+		self->records = NULL;
 	}
-	io_free(oldRecords);
+	*self = saved;
 }
+
 
 void SHash_growWithRecord(SHash *self, SHashRecord* thisRecord)
 {
-	// put the value anywhere, SHash_grow will rehash
-	unsigned int i,j;
-
-	for (j = 0; j < 2; j ++)
-	for (i = 0; i < self->tableSize; i ++)
-	{
-		SHashRecord *record = SHASH_RECORDS_AT_(self, j, i);
-
-		if (record != &self->nullRecord && NULL == record->key)
-		{
-			*record = *thisRecord;
-			self->numKeys ++;
-			SHash_grow(self);
-			return;
-		}
-	}
-
-	// we can never be there
-	return;
+	void *key, *value;
+	unsigned int oldTableSize;
+	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+		NULL == thisRecord || NULL == thisRecord->key ||
+		NULL == self->keysEqual || NULL == self->hashForKey)
+		return;
+	key = thisRecord->key;
+	value = thisRecord->value;
+	oldTableSize = self->tableSize;
+	SHash_grow(self);
+	if (self->tableSize > oldTableSize && self->records)
+		SHash_at_put_(self, key, value);
 }
+
 
 void SHash_removeValue_(SHash *self, void *value)
 {
-	SHashRecord *record;
-	int index = 0;
-
-	while (index < self->tableSize*2)
-	{
-		record = self->records + index;
-		index ++;
-
-		if (record->key && record->value == value)
-		{
-			self->numKeys --;
+	size_t i, count;
+	if (NULL == self || NULL == self->records || self->tableSize == 0)
+		return;
+	count = (size_t)self->tableSize * 2;
+	for (i = 0; i < count; ++i) {
+		SHashRecord *record = self->records + i;
+		if (record->key && record->value == value) {
+			if (self->numKeys > 0)
+				self->numKeys--;
 			memset(record, 0, sizeof(SHashRecord));
 			return;
 		}
 	}
 }
 
+
 void *SHash_firstKeyForValue_(SHash *self, void *v)
+{
+	size_t i, count;
+	if (NULL == self || NULL == self->records || self->tableSize == 0)
+		return NULL;
+	count = (size_t)self->tableSize * 2;
+	for (i = 0; i < count; ++i) {
+		SHashRecord *record = self->records + i;
+		if (record->key && record->value == v)
+			return record->key;
+	}
+	return NULL;
+}
+
+
 {
 	unsigned int i,j;
 
