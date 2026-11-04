@@ -534,8 +534,14 @@ void UDB_at_put_(UDB *self, PID_TYPE pid, Datum d)
 	/* Retain the old location before UDBRecords_newRecord reuses its cursor. */
 	old_pos = UDBIndex_posForPid_(self->index, pid);
 	if (old_pos == 0) {
-		/* Updating an unmapped PID would create an orphaned duplicate row. */
-		UDB_close(self);
+		/* Newly allocated PIDs have no index mapping until their first write.
+		 * Only accept IDs actually reserved by the allocator, never arbitrary gaps. */
+		if (!UDBIndex_isReservedPid_(self->index, pid)) {
+			UDB_close(self);
+			return;
+		}
+		if (!UDB_append_withPid_(self, d, pid))
+			UDB_close(self);
 		return;
 	}
 	old_record = UDBRecords_recordAtPos_(self->records, old_pos);
