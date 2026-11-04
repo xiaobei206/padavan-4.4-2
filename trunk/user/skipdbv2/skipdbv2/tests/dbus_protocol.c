@@ -243,8 +243,9 @@ int main(void)
     static const char list_end_frame[] = "__end__ list __end__\n";
     static const char list_error_frame[] = "__error__ list list response error\n";
     static const char script_item[] = "list MY_KEY hi\0";
+    static const char script_empty_item[] = "list EMPTY ";
     static const char expected_list[] = "alpha=__end__\n";
-    static const char expected_script[] = "export MY_KEY='hi';";
+    static const char expected_script[] = "export MY_KEY='hi';export EMPTY='';";
     static const char *const list_frames[] = {
         list_value_is_end, list_end_frame
     };
@@ -252,10 +253,11 @@ int main(void)
         sizeof(list_value_is_end) - 1, sizeof(list_end_frame) - 1
     };
     static const char *const script_frames[] = {
-        script_item, list_end_frame
+        script_item, script_empty_item, list_end_frame
     };
     static const size_t script_frame_lengths[] = {
-        sizeof(script_item) - 1, sizeof(list_end_frame) - 1
+        sizeof(script_item) - 1, sizeof(script_empty_item) - 1,
+        sizeof(list_end_frame) - 1
     };
     static const char *const error_frames[] = { list_error_frame };
     static const size_t error_frame_lengths[] = {
@@ -286,7 +288,7 @@ int main(void)
             sizeof(missing_key_separator) - 1, -4, NULL, 0) != 0 ||
         run_list_stream_case(0, list_frames, list_frame_lengths, 2,
             0, expected_list, sizeof(expected_list) - 1) != 0 ||
-        run_list_stream_case(1, script_frames, script_frame_lengths, 2,
+        run_list_stream_case(1, script_frames, script_frame_lengths, 3,
             0, expected_script, sizeof(expected_script) - 1) != 0 ||
         run_list_stream_case(0, error_frames, error_frame_lengths, 1,
             -5, NULL, 0) != 0)
