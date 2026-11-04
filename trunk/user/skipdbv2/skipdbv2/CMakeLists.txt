@@ -71,4 +71,8 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/udb_reserved_pid.c)
     TARGET_LINK_LIBRARIES(udb_reserved_pid_test skipdb m)
     add_test(NAME udb_reserved_pid_test COMMAND udb_reserved_pid_test)
+
+    ADD_EXECUTABLE(dbus_protocol_test
+        ${PROJECT_SOURCE_DIR}/tests/dbus_protocol.c)
+    add_test(NAME dbus_protocol_test COMMAND dbus_protocol_test)
 endif()
