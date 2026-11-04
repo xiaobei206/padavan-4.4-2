@@ -694,7 +694,7 @@ ej_nvram_char_to_ascii(int eid, webs_t wp, int argc, char **argv)
 
 	char tmpstr[256];
 	memset(tmpstr, 0x0, sizeof(tmpstr));
-	char_to_ascii(tmpstr, nvram_safe_get(name));
+	char_to_ascii(tmpstr, sizeof(tmpstr), (const uint8_t *)nvram_safe_get(name));
 	ret += websWrite(wp, "%s", tmpstr);
 
 	return ret;
