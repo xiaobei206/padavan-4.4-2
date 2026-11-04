@@ -26,9 +26,18 @@ size_t line_capacity = 0;
 char *out_buf = NULL;
 size_t out_len = 0;
 size_t out_pos = 0;
+static int exit_status = EXIT_SUCCESS;
 
 static void send_cb(EV_P_ ev_io *w, int revents)
 {
+    if (revents & EV_ERROR) {
+        errno = EIO;
+        perror("skbus I/O");
+        exit_status = EXIT_FAILURE;
+        ev_break(EV_A_ EVBREAK_ALL);
+        return;
+    }
+
     if (revents & EV_WRITE) {
         while (out_pos < out_len) {
             ssize_t n;
@@ -49,6 +58,7 @@ static void send_cb(EV_P_ ev_io *w, int revents)
             if (n == 0)
                 errno = EPIPE;
             perror("skbus send");
+            exit_status = EXIT_FAILURE;
             ev_break(EV_A_ EVBREAK_ALL);
             return;
         }
@@ -75,13 +85,16 @@ static void send_cb(EV_P_ ev_io *w, int revents)
             if (fwrite(buffer, 1, (size_t)n, stdout) != (size_t)n ||
                 fflush(stdout) != 0) {
                 perror("skbus stdout");
+                exit_status = EXIT_FAILURE;
                 ev_break(EV_A_ EVBREAK_ALL);
             }
         } else if (n == 0) {
-            puts("orderly disconnect");
+            fprintf(stderr, "skbus: server disconnected\n");
+            exit_status = EXIT_FAILURE;
             ev_break(EV_A_ EVBREAK_ALL);
         } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
             perror("skbus recv");
+            exit_status = EXIT_FAILURE;
             ev_break(EV_A_ EVBREAK_ALL);
         }
     }
@@ -93,27 +106,38 @@ static void stdin_cb(EV_P_ ev_io *w, int revents)
     int header_len;
 
     (void)w;
-    (void)revents;
+    if (revents & EV_ERROR) {
+        errno = EIO;
+        perror("skbus stdin");
+        exit_status = EXIT_FAILURE;
+        ev_break(EV_A_ EVBREAK_ALL);
+        return;
+    }
     line_len = getline(&line, &line_capacity, stdin);
     if (line_len <= 0) {
-        if (line_len < 0 && !feof(stdin))
+        if (line_len < 0 && !feof(stdin)) {
             perror("skbus getline");
+            exit_status = EXIT_FAILURE;
+        }
         ev_break(EV_A_ EVBREAK_ALL);
         return;
     }
     if ((size_t)line_len > SKBUS_MAX_PAYLOAD || line_len > 9999999) {
         fprintf(stderr, "input exceeds the %d-byte protocol limit\n",
             SKBUS_MAX_PAYLOAD);
+        exit_status = EXIT_FAILURE;
         return;
     }
     if (out_buf != NULL) {
         fprintf(stderr, "previous request is still being sent\n");
+        exit_status = EXIT_FAILURE;
         return;
     }
 
     out_buf = (char *)malloc(HEADER_PREFIX + (size_t)line_len + 1);
     if (NULL == out_buf) {
         perror("skbus request allocation");
+        exit_status = EXIT_FAILURE;
         ev_break(EV_A_ EVBREAK_ALL);
         return;
     }
@@ -123,6 +147,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents)
         free(out_buf);
         out_buf = NULL;
         fprintf(stderr, "unable to construct protocol header\n");
+        exit_status = EXIT_FAILURE;
         ev_break(EV_A_ EVBREAK_ALL);
         return;
     }
@@ -146,6 +171,7 @@ static void remote_cb(EV_P_ ev_io *w, int revents)
         if (socket_error != 0)
             errno = socket_error;
         perror("skbus connect");
+        exit_status = EXIT_FAILURE;
         ev_break(EV_A_ EVBREAK_ALL);
         return;
     }
@@ -224,5 +250,5 @@ int main(void)
         close(remote_fd);
     free(out_buf);
     free(line);
-    return 0;
+    return exit_status;
 }
