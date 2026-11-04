@@ -83,11 +83,12 @@ IOINLINE size_t List_size(const List *self)
 
 IOINLINE void List_ifNeededSizeTo_(List *self, size_t newSize)
 {
-	if (newSize * sizeof(void *) >= self->memSize)
-	{
+	if (NULL == self || newSize > (size_t)-1 / sizeof(void *))
+		return;
+	if (newSize * sizeof(void *) > self->memSize)
 		List_preallocateToSize_(self, newSize);
-	}
 }
+
 
 IOINLINE void *List_rawAt_(List *self, size_t index)
 {
@@ -121,16 +122,42 @@ IOINLINE int List_contains_(List *self, void *item)
 
 IOINLINE void *List_append_(List *self, void *item)
 {
+	if (NULL == self || self->size == (size_t)-1)
+		return NULL;
 	List_ifNeededSizeTo_(self, self->size + 1);
-	self->items[self->size] = item;
-	self->size ++;
+	if (self->size + 1 > self->memSize / sizeof(void *) ||
+		NULL == self->items)
+		return NULL;
+	self->items[self->size++] = item;
 	return item;
 }
 
+
 IOINLINE void List_appendSeq_(List *self, const List *otherList)
 {
-	LIST_FOREACH(otherList, i, v, List_append_(self, v));
+	size_t i, oldSize;
+	if (NULL == self || NULL == otherList ||
+		otherList->size > (size_t)-1 - self->size)
+		return;
+	if (self == otherList) {
+		oldSize = self->size;
+		List_ifNeededSizeTo_(self, oldSize * 2);
+		if (oldSize * 2 > self->memSize / sizeof(void *))
+			return;
+		memmove(self->items + oldSize, self->items,
+			oldSize * sizeof(void *));
+		self->size += oldSize;
+		return;
+	}
+	oldSize = self->size;
+	List_ifNeededSizeTo_(self, oldSize + otherList->size);
+	if (oldSize + otherList->size > self->memSize / sizeof(void *))
+		return;
+	for (i = 0; i < otherList->size; ++i)
+		self->items[oldSize + i] = otherList->items[i];
+	self->size = oldSize + otherList->size;
 }
+
 
 IOINLINE void List_compactIfNeeded(List *self)
 {
@@ -142,101 +169,82 @@ IOINLINE void List_compactIfNeeded(List *self)
 
 IOINLINE void List_removeIndex_(List *self, size_t index)
 {
-	if (index >= 0 && index < self->size)
-	{
-		if ( index != self->size - 1)
-		{
-			memmove(&self->items[index], &self->items[index + 1],
-				   (self->size - 1 - index) * sizeof(void *));
-		}
-
-		self->size --;
-
-		List_compactIfNeeded(self);
-	}
-}
-
-IOINLINE void List_removeIndex_toIndex_(List *self, size_t index1, size_t index2)
-{
-	long length;
-
-	if (index1 < 0)
-	{
-		index1 = 0;
-	}
-
-	if (index1 > self->size - 1)
-	{
-		index1 = self->size - 1;
-	}
-
-	if (index2 < 0)
-	{
-		index2 = 0;
-	}
-
-	if (index2 > self->size - 1)
-	{
-		index2 = self->size - 1;
-	}
-
-	length = index2 - index1;
-
-	if (length <= 0)
-	{
+	if (NULL == self || index >= self->size)
 		return;
-	}
-
-	memmove(&self->items[index1], &self->items[index2],
-		   (self->size - index2) * sizeof(void *));
-
-	self->size -= length;
-
+	if (index + 1 < self->size)
+		memmove(&self->items[index], &self->items[index + 1],
+			(self->size - index - 1) * sizeof(void *));
+	self->size--;
+	if (self->items)
+		self->items[self->size] = NULL;
 	List_compactIfNeeded(self);
 }
 
+
+IOINLINE void List_removeIndex_toIndex_(List *self, size_t index1, size_t index2)
+{
+	size_t count;
+	if (NULL == self || self->size == 0)
+		return;
+	if (index1 > self->size)
+		index1 = self->size;
+	if (index2 > self->size)
+		index2 = self->size;
+	if (index1 >= index2)
+		return;
+	count = index2 - index1;
+	memmove(&self->items[index1], &self->items[index2],
+		(self->size - index2) * sizeof(void *));
+	self->size -= count;
+	memset(self->items + self->size, 0, count * sizeof(void *));
+	List_compactIfNeeded(self);
+}
+
+
 IOINLINE void List_remove_(List *self, void *item)
 {
-	size_t index;
-
-	for (index = 0; index < self->size; index ++)
-	{
+	size_t index = 0;
+	if (NULL == self)
+		return;
+	while (index < self->size) {
 		if (self->items[index] == item)
-		{
 			List_removeIndex_(self, index);
-		}
+		else
+			index++;
 	}
 }
 
+
 IOINLINE int List_removeFirst_(List *self, void *item)
 {
-	int i, max = self->size;
-
-	for (i = 0; i < max; i ++)
-	{
-		if (self->items[i] == item)
-		{
+	size_t i;
+	if (NULL == self)
+		return 0;
+	for (i = 0; i < self->size; ++i) {
+		if (self->items[i] == item) {
 			List_removeIndex_(self, i);
 			return 1;
 		}
 	}
-
 	return 0;
 }
 
+
 IOINLINE void List_removeLast_(List *self, void *item)
 {
-	int index = self->size - 1;
-
-	for (index = self->size - 1; index > -1; index --)
-	{
-		if (self->items[index] == item)
-		{
+	size_t index;
+	if (NULL == self)
+		return;
+	index = self->size;
+	while (index > 0) {
+		--index;
+		if (self->items[index] == item) {
 			List_removeIndex_(self, index);
-			break;
+			return;
 		}
 	}
 }
+
 
 IOINLINE void List_removeItems_(List *self, List *other)
 {
@@ -245,109 +253,110 @@ IOINLINE void List_removeItems_(List *self, List *other)
 
 IOINLINE void List_at_insert_(List *self, size_t index, void *item)
 {
-	if (index < 0)
-	{
+	size_t oldSize;
+	if (NULL == self || self->size == (size_t)-1)
 		return;
-	}
-
-	if (index > self->size - 1)
-	{
-		List_preallocateToSize_(self, index + 1);
-	}
-	else
-	{
-		List_ifNeededSizeTo_(self, self->size + 1);
-	}
-
+	oldSize = self->size;
+	if (index > oldSize)
+		index = oldSize;
+	List_ifNeededSizeTo_(self, oldSize + 1);
+	if (oldSize + 1 > self->memSize / sizeof(void *) ||
+		NULL == self->items)
+		return;
 	memmove(&self->items[index + 1], &self->items[index],
-		   (self->size - index) * sizeof(void *));
-
+		(oldSize - index) * sizeof(void *));
 	self->items[index] = item;
-	self->size ++;
+	self->size = oldSize + 1;
 }
+
 
 IOINLINE void List_at_put_(List *self, size_t index, void *item)
 {
-	if (index < 0)
-	{
+	size_t oldSize, needed;
+	if (NULL == self || index == (size_t)-1)
+		return;
+	if (index < self->size) {
+		self->items[index] = item;
 		return;
 	}
-
-	List_ifNeededSizeTo_(self, index);
+	needed = index + 1;
+	oldSize = self->size;
+	List_ifNeededSizeTo_(self, needed);
+	if (needed > self->memSize / sizeof(void *) || NULL == self->items)
+		return;
+	if (needed > oldSize)
+		memset(self->items + oldSize, 0, (needed - oldSize) * sizeof(void *));
 	self->items[index] = item;
-
-	if (index + 1 > self->size)
-	{
-		self->size = index + 1;
-	}
+	self->size = needed;
 }
+
 
 IOINLINE void List_swap_with_(List *self, long index1, long index2)
 {
-	if (index1 < 0 || index2 < 0)
-	{
+	void **items;
+	void *v1;
+	if (NULL == self || index1 < 0 || index2 < 0 ||
+		(size_t)index1 >= self->size || (size_t)index2 >= self->size ||
+		index1 == index2)
 		return;
-	}
-
-	if (index1 != index2)
-	{
-		void **items = self->items;
-		register void *v1 = items[index1];
-
-		items[index1] = items[index2];
-		items[index2] = v1;
-	}
+	items = self->items;
+	v1 = items[index1];
+	items[index1] = items[index2];
+	items[index2] = v1;
 }
+
 
 IOINLINE void List_reverse(List *self)
 {
-	register void **i = self->items;
-	register void **j = i + (self->size - 1);
-	register void *iv;
-
-	while (j > i)
-	{
-		iv = *i;
-		*i = *j;
-		*j = iv;
-		j --;
-		i ++;
+	size_t i, j;
+	void *value;
+	if (NULL == self || self->size < 2 || NULL == self->items)
+		return;
+	i = 0;
+	j = self->size - 1;
+	while (i < j) {
+		value = self->items[i];
+		self->items[i] = self->items[j];
+		self->items[j] = value;
+		++i;
+		--j;
 	}
 }
+
 
 // stack --------------------------------------------------
 
 IOINLINE void List_push_(List *self, void *item)
 {
+	if (NULL == self || self->size == (size_t)-1)
+		return;
 	List_ifNeededSizeTo_(self, self->size + 1);
-	self->items[self->size] = item;
-	self->size ++;
+	if (self->size + 1 > self->memSize / sizeof(void *) ||
+		NULL == self->items)
+		return;
+	self->items[self->size++] = item;
 }
+
 
 IOINLINE void *List_pop(List *self)
 {
 	void *item;
-
-	if (!self->size)
-	{
-		return (void *)NULL;
-	}
-
-	self->size --;
-	item = self->items[self->size];
+	if (NULL == self || self->size == 0 || NULL == self->items)
+		return NULL;
+	item = self->items[--self->size];
+	self->items[self->size] = NULL;
 	List_compactIfNeeded(self);
 	return item;
 }
 
+
 IOINLINE void *List_top(const List *self)
 {
-	if (!self->size)
-	{
-		return (void *)NULL;
-	}
-
+	if (NULL == self || !self->size || NULL == self->items)
+		return NULL;
 	return self->items[self->size - 1];
 }
+
 
 /* --- perform -------------------------------------------------- */
 
