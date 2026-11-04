@@ -645,7 +645,7 @@ int get_permission(const char *account,
 	}
 
 	follow_info += len;
-	if (follow_info[3] != '\n') {
+	if (strlen(follow_info) < 4 || follow_info[3] != '\n') {
 		free(var_info);
 		return -1;
 	}
@@ -744,7 +744,7 @@ int set_permission(const char *account,
 	free(target);
 
 	follow_info += len;
-	if (follow_info[3] != '\n') {
+	if (strlen(follow_info) < 4 || follow_info[3] != '\n') {
 		free(var_info);
 		return -1;
 	}
