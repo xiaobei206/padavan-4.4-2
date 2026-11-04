@@ -323,77 +323,53 @@ void SkipDB_freeExcessCachedRecords(SkipDB *self)
 {
 	if (NULL == self || NULL == self->cursors || NULL == self->header)
 		return;
-	// this is only called after a sync, so there are no dirty records
-	//return;
 
 	if (self->cachedRecordCount > self->cacheHighWaterMark)
 	{
 		SkipDBRecord *r;
-		SkipDBRecord *lastMarkedRecord = NULL;
+		size_t kept = 0;
 		size_t lowMark = self->cacheLowWaterMark;
 
-		//printf("SkipDB_freeExcessCachedRecords() start %i\n", (int)self->cachedRecordCount);
-
-		// make sure we keep the header
-
+		/* Keep the root in the cache and clear marks left by earlier passes
+		 * before applying the current cursor/recent-record protection set. */
 		SkipDB_noteAccessedRecord_(self, self->header);
 		r = self->youngestRecord;
-
-		// mark the cursor records
-
-		List_do_(self->cursors, (ListDoCallback *)SkipDBCursor_mark);
-
-		// mark the recent records
-
-		while (lowMark-- && r)
-		{
-			r->mark = 1;
-			r = r->olderRecord;
-		}
-
-		// unmark the rest of the records
-
 		while (r)
 		{
 			r->mark = 0;
 			r = r->olderRecord;
 		}
 
-		// remove the references to older records
-
-		lowMark = self->cacheLowWaterMark;
+		List_do_(self->cursors, (ListDoCallback *)SkipDBCursor_mark);
 		r = self->youngestRecord;
-
-		while (r && r->mark)
+		while (r && kept < lowMark)
 		{
-			if (lowMark > 0)
-				lowMark--;
-			SkipDBRecord_removeReferencesToUnmarked(r);
-			lastMarkedRecord = r;
+			r->mark = 1;
+			kept++;
 			r = r->olderRecord;
 		}
+		self->header->mark = 1;
 
-		// dealloc the remaining records
+		/* Drop cached links from every record we keep to any record about
+		 * to be evicted; persistent PIDs remain available for lazy reload. */
+		for (r = self->youngestRecord; r; r = r->olderRecord)
+		{
+			if (r->mark)
+				SkipDBRecord_removeReferencesToUnmarked(r);
+		}
 
+		/* Remove unmarked records in-place. Keep marked cursor records linked
+		 * in the age list, even when they are older than an evicted gap. */
+		r = self->youngestRecord;
 		while (r)
 		{
 			SkipDBRecord *next = r->olderRecord;
-
-			// to avoid SkipDBRecord_removeFromAgeList() issues
-			r->olderRecord   = NULL;
-			r->youngerRecord = NULL;
-
 			if (r->mark)
-				break;
-
-			SkipDBRecord_dealloc(r); // what about SkipDBRecord_removeFromAgeList()?
+				r->mark = 0;
+			else
+				SkipDBRecord_dealloc(r);
 			r = next;
 		}
-
-		if (lastMarkedRecord)
-			lastMarkedRecord->olderRecord = NULL; // clip the list
-
-		//printf("SkipDB_freeExcessCachedRecords() done %i\n", (int)self->cachedRecordCount);
 	}
 }
 
