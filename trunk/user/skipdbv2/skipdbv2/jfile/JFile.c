@@ -391,7 +391,7 @@ void JFile_fseek(JFile *self, long offset, int whence)
 	}
 	if (base < 0 ||
 		(offset > 0 && base > LONG_MAX - offset) ||
-		(offset < 0 && base < -offset))
+		(offset < 0 && offset < -base))
 		return;
 	next = base + offset;
 	if (next < 0)
@@ -412,57 +412,74 @@ long JFile_setPositionToEnd(JFile *self)
 	return self->pos;
 }
 
-void JFile_hardSyncFileDescriptor_(JFile *self, int fd)
+int JFile_hardSyncFileDescriptor_(JFile *self, int fd)
 {
-	#ifdef F_FULLFSYNC
-		fcntl(fd, F_FULLFSYNC, NULL);
-	#else
-		#warning Linux cant ensure data sync to physical media
-		fsync(fd);
-	#endif
+	(void)self;
+	if (fd < 0)
+		return -1;
+#ifdef F_FULLFSYNC
+	return fcntl(fd, F_FULLFSYNC, 0);
+#else
+	/* Linux fsync provides the strongest portable durability request here. */
+	return fsync(fd);
+#endif
 }
 
 void JFile_syncFileWritesToDisk(JFile *self)
 {
 	if (NULL == self || NULL == self->file)
 		return;
-	if (fflush(self->file) != 0)
-		return;
-	if (self->fullSync && fileno(self->file) >= 0)
-		JFile_hardSyncFileDescriptor_(self, fileno(self->file));
+	if (fflush(self->file) != 0 ||
+		(self->fullSync &&
+		 (fileno(self->file) < 0 ||
+		  JFile_hardSyncFileDescriptor_(self, fileno(self->file)) != 0))) {
+		fclose(self->file);
+		self->file = NULL;
+	}
 }
 
 void JFile_syncLogWritesToDisk(JFile *self)
 {
 	long end;
-	int last;
+	int last, fd;
 
-	if (NULL == self || NULL == self->log || fflush(self->log) != 0)
+	if (NULL == self || NULL == self->log)
 		return;
-	if (self->fullSync && fileno(self->log) >= 0)
-		JFile_hardSyncFileDescriptor_(self, fileno(self->log));
+	if (fflush(self->log) != 0)
+		goto fail;
+	fd = fileno(self->log);
+	if (self->fullSync &&
+		(fd < 0 || JFile_hardSyncFileDescriptor_(self, fd) != 0))
+		goto fail;
 
-	if (fseek(self->log, 0, SEEK_END) != 0 || (end = ftell(self->log)) <= 0)
-		return;
-	if (fseek(self->log, -1, SEEK_END) != 0)
-		return;
+	if (fseek(self->log, 0, SEEK_END) != 0 ||
+		(end = ftell(self->log)) <= 0 ||
+		fseek(self->log, -1, SEEK_END) != 0)
+		goto fail;
 	last = fgetc(self->log);
 	if (last != JFILE_END_TRANSACTION_ITEM)
-		return;
+		goto fail;
 	if (fseek(self->log, -1, SEEK_END) != 0 ||
 		fputc(JFILE_END_TRANSACTION, self->log) == EOF ||
 		fflush(self->log) != 0)
-		return;
-	if (self->fullSync && fileno(self->log) >= 0)
-		JFile_hardSyncFileDescriptor_(self, fileno(self->log));
+		goto fail;
+	fd = fileno(self->log);
+	if (self->fullSync &&
+		(fd < 0 || JFile_hardSyncFileDescriptor_(self, fd) != 0))
+		goto fail;
+	return;
+
+fail:
+	if (self && self->log) {
+		fclose(self->log);
+		self->log = NULL;
+	}
 }
 
 void JFile_writeLogToFileIfNeeded(JFile *self)
 {
-	if (ftell(self->log))
-	{
+	if (self && self->log && ftell(self->log) > 0)
 		JFile_writeLogToFile(self);
-	}
 }
 
 void JFile_writeLogToFile(JFile *self)
@@ -556,7 +573,7 @@ void JFile_writeLogToFile(JFile *self)
 	{
 		//printf("writing log\n");
 		JFile_syncFileWritesToDisk(self);
-		if (JFile_clipLog(self) != 0)
+		if (NULL == self->file || JFile_clipLog(self) != 0)
 			goto fatalError;
 	}
 
@@ -565,6 +582,10 @@ void JFile_writeLogToFile(JFile *self)
 	fatalError:
 		fprintf(stderr, "JFile: FATAL ERROR: invalid log file '%s' - may result in inconsistency\n",
 			(self && self->logPath) ? self->logPath : "(unknown)");
+		if (self && self->log) {
+			fclose(self->log);
+			self->log = NULL;
+		}
 
 }
 
@@ -576,28 +597,32 @@ void JFile_begin(JFile *self)
 
 void JFile_commitToFile(JFile *self)
 {
+	if (NULL == self || NULL == self->file || NULL == self->log)
+		return;
 	JFile_commitToLog(self);
-	/*
-	if (!JFile_verifyLog(self))
-	{
-		printf("log '%s' not valid\n", self->logPath);
-		exit(-1);
-	}
-	*/
+	if (NULL == self->file || NULL == self->log)
+		return;
 	JFile_writeLogToFile(self);
 }
 
 void JFile_commitToLog(JFile *self)
 {
-	if (self->journalingOn)
-	{
-		if (ftell(self->log))
-		{
-			JFile_syncLogWritesToDisk(self);
+	long log_pos;
+
+	if (NULL == self)
+		return;
+	if (self->journalingOn) {
+		if (NULL == self->log)
+			return;
+		log_pos = ftell(self->log);
+		if (log_pos < 0) {
+			fclose(self->log);
+			self->log = NULL;
+			return;
 		}
-	}
-	else
-	{
+		if (log_pos > 0)
+			JFile_syncLogWritesToDisk(self);
+	} else {
 		JFile_syncFileWritesToDisk(self);
 	}
 }
