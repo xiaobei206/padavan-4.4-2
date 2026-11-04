@@ -612,7 +612,7 @@ get_module_refcount(const char *module_name)
 
 	errno = 0;
 	refcount = strtol(mod_refval, &end, 10);
-	if (errno == ERANGE || end == mod_refval || (*end && *end != '\\n') ||
+		if (errno == ERANGE || end == mod_refval || (*end && *end != '\n') ||
 	    refcount < 0 || refcount > INT_MAX)
 		return -1;
 
@@ -640,7 +640,7 @@ module_smart_load(const char *module_name, const char *module_param)
 		if (!param_copy)
 			return 0;
 		cursor = param_copy;
-		while ((token = strsep(&cursor, " \\t\\r\\n")) != NULL) {
+		while ((token = strsep(&cursor, " \t\r\n")) != NULL) {
 			const unsigned char *p;
 			if (!*token)
 				continue;
@@ -711,7 +711,7 @@ module_param_get(const char *module_name, const char *module_param, char *param_
 	fclose(fp);
 
 	len = strlen(param_value);
-	if (len > 0 && param_value[len - 1] == '\\n')
+		param_value[len - 1] = '\0';
 		param_value[len - 1] = '\\0';
 
 	return 0;
