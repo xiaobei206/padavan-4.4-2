@@ -137,7 +137,8 @@ char static_buffer[STATIC_BUF_LEN+1];
 static char *find_terminated_value_separator(Datum value)
 {
     if (NULL == value.data || value.size < 2 ||
-        ((char*)value.data)[value.size - 1] != '\0')
+        ((char*)value.data)[value.size - 1] != '\0' ||
+        memchr(value.data, '\0', value.size - 1) != NULL)
         return NULL;
     return (char*)memchr(value.data, ' ', value.size - 1);
 }
@@ -188,7 +189,7 @@ static void sys_script(const char *cmd, size_t cmd_size)
     if (NULL == cmd || cmd_size == 0 || cmd[cmd_size - 1] != '\0')
         return;
     cmd_len = strnlen(cmd, cmd_size);
-    if (cmd_len == cmd_size)
+    if (cmd_len != cmd_size - 1)
         return;
 
     written = snprintf(static_buffer, sizeof(static_buffer),
@@ -578,6 +579,8 @@ static int client_ccr_read_util(skipd_client* client, int step_len) {
             }
         }
     }
+    /* Bound all subsequent string parsing to this exact protocol frame. */
+    client->origin[step_len] = '\0';
     ccrFinish(ctx, ccr_error_ok1);
 }
 
