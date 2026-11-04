@@ -8,8 +8,7 @@ func_load_module()
 	esac
 	(
 		flock 500
-		module_exist=`grep -F -- "$module_name" /proc/modules`
-		if [ -z "$module_exist" ] ; then
+		if ! awk -v module="$module_name" '$1 == module { found=1 } END { exit !found }' /proc/modules; then
 			modprobe -q "$module_name"
 			[ $? -eq 0 ] && usleep 300000
 		fi
