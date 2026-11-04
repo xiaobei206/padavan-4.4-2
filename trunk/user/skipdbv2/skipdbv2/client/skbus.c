@@ -3,165 +3,226 @@
 #include <sys/un.h>
 #include <errno.h>
 #include <string.h>
-#include <sys/fcntl.h> // fcntl
-#include <unistd.h> // close
+#include <sys/fcntl.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
+#include <stddef.h>
 #include <ev.h>
 
 #define MAGIC "magicv1 "
 #define MAGIC_LEN 8
 #define HEADER_LEN 8
 #define HEADER_PREFIX (MAGIC_LEN + HEADER_LEN)
+#define SKBUS_MAX_PAYLOAD 65536
 
-// TODO
-// disconnect and reconnect on each newline
-
-// Nasty globals for now
-// feel free to fork this example and clean it up
 EV_P;
 ev_io stdin_watcher;
 ev_io remote_w;
 ev_io send_w;
-int remote_fd;
-char* line = NULL;
-size_t len = 0;
+int remote_fd = -1;
+char *line = NULL;
+size_t line_capacity = 0;
+char *out_buf = NULL;
+size_t out_len = 0;
+size_t out_pos = 0;
 
-static void send_cb (EV_P_ ev_io *w, int revents)
+static void send_cb(EV_P_ ev_io *w, int revents)
 {
-  char *p;
+    if (revents & EV_WRITE) {
+        while (out_pos < out_len) {
+            ssize_t n;
+#ifdef MSG_NOSIGNAL
+            n = send(remote_fd, out_buf + out_pos, out_len - out_pos,
+                MSG_NOSIGNAL);
+#else
+            n = send(remote_fd, out_buf + out_pos, out_len - out_pos, 0);
+#endif
+            if (n > 0) {
+                out_pos += (size_t)n;
+                continue;
+            }
+            if (n < 0 && errno == EINTR)
+                continue;
+            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+                return;
+            if (n == 0)
+                errno = EPIPE;
+            perror("skbus send");
+            ev_break(EV_A_ EVBREAK_ALL);
+            return;
+        }
 
-  if (revents & EV_WRITE)
-  {
-    puts ("remote ready for writing...");
-
-    p = malloc(HEADER_PREFIX + len + 1);
-    sprintf(p, "%s%07d %s", MAGIC, len, line);
-    puts(p);
-    if (-1 == send(remote_fd, p, len + HEADER_PREFIX, 0)) {
-      perror("echo send");
-      exit(EXIT_FAILURE);
-    }
-    free(p);
-
-    // once the data is sent, stop notifications that
-    // data can be sent until there is actually more
-    // data to send
-    ev_io_stop(EV_A_ &send_w);
-    ev_io_set(&send_w, remote_fd, EV_READ);
-    ev_io_start(EV_A_ &send_w);
-  }
-  else if (revents & EV_READ)
-  {
-    int n;
-    char str[100] = ".\0";
-
-    printf("[r,remote]");
-    n = recv(remote_fd, str, 100, 0);
-    if (n <= 0) {
-      if (0 == n) {
-        // an orderly disconnect
-        puts("orderly disconnect");
+        free(out_buf);
+        out_buf = NULL;
+        out_len = 0;
+        out_pos = 0;
         ev_io_stop(EV_A_ &send_w);
-        close(remote_fd);
-      }  else if (EAGAIN == errno) {
-        puts("should never get in this state with libev");
-      } else {
-        perror("recv");
-      }
-      return;
+        ev_io_set(&send_w, remote_fd, EV_READ);
+        ev_io_start(EV_A_ &send_w);
     }
-    printf("socket client said: %s", str);
 
-  }
+    if (revents & EV_READ) {
+        unsigned char buffer[101];
+        ssize_t n;
+
+        do {
+            n = recv(remote_fd, buffer, sizeof(buffer) - 1, 0);
+        } while (n < 0 && errno == EINTR);
+
+        if (n > 0) {
+            /* Responses are framed/binary data; write exactly the received bytes. */
+            if (fwrite(buffer, 1, (size_t)n, stdout) != (size_t)n ||
+                fflush(stdout) != 0) {
+                perror("skbus stdout");
+                ev_break(EV_A_ EVBREAK_ALL);
+            }
+        } else if (n == 0) {
+            puts("orderly disconnect");
+            ev_break(EV_A_ EVBREAK_ALL);
+        } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            perror("skbus recv");
+            ev_break(EV_A_ EVBREAK_ALL);
+        }
+    }
 }
 
-static void stdin_cb (EV_P_ ev_io *w, int revents)
+static void stdin_cb(EV_P_ ev_io *w, int revents)
 {
-  int len2; // not sure if this is at all useful
+    ssize_t line_len;
+    int header_len;
 
-  puts ("stdin written to, reading...");
-  len2 = getline(&line, &len, stdin);
-  len = len2;
-  //fprintf(stderr, "line=%s len2=%d len=%d\n", line, len2, len);
-  ev_io_stop(EV_A_ &send_w);
-  ev_io_set (&send_w, remote_fd, EV_READ | EV_WRITE);
-  ev_io_start(EV_A_ &send_w);
+    (void)w;
+    (void)revents;
+    line_len = getline(&line, &line_capacity, stdin);
+    if (line_len <= 0) {
+        if (line_len < 0 && !feof(stdin))
+            perror("skbus getline");
+        ev_break(EV_A_ EVBREAK_ALL);
+        return;
+    }
+    if ((size_t)line_len > SKBUS_MAX_PAYLOAD || line_len > 9999999) {
+        fprintf(stderr, "input exceeds the %d-byte protocol limit\n",
+            SKBUS_MAX_PAYLOAD);
+        return;
+    }
+    if (out_buf != NULL) {
+        fprintf(stderr, "previous request is still being sent\n");
+        return;
+    }
+
+    out_buf = (char *)malloc(HEADER_PREFIX + (size_t)line_len + 1);
+    if (NULL == out_buf) {
+        perror("skbus request allocation");
+        ev_break(EV_A_ EVBREAK_ALL);
+        return;
+    }
+    header_len = snprintf(out_buf, HEADER_PREFIX + 1, "%s%07d ",
+        MAGIC, (int)line_len);
+    if (header_len != HEADER_PREFIX) {
+        free(out_buf);
+        out_buf = NULL;
+        fprintf(stderr, "unable to construct protocol header\n");
+        ev_break(EV_A_ EVBREAK_ALL);
+        return;
+    }
+    memcpy(out_buf + HEADER_PREFIX, line, (size_t)line_len);
+    out_len = HEADER_PREFIX + (size_t)line_len;
+    out_pos = 0;
+
+    ev_io_stop(EV_A_ &send_w);
+    ev_io_set(&send_w, remote_fd, EV_READ | EV_WRITE);
+    ev_io_start(EV_A_ &send_w);
 }
 
-static void remote_cb (EV_P_ ev_io *w, int revents)
+static void remote_cb(EV_P_ ev_io *w, int revents)
 {
-  puts ("connected, now watching stdin");
-  // Once the connection is established, listen to stdin
-  ev_io_start(EV_A_ &stdin_watcher);
-  // Once we're connected, that's the end of that
-  ev_io_stop(EV_A_ &remote_w);
+    int socket_error = 0;
+    socklen_t error_len = sizeof(socket_error);
+
+    (void)revents;
+    if (getsockopt(remote_fd, SOL_SOCKET, SO_ERROR,
+            &socket_error, &error_len) != 0 || socket_error != 0) {
+        if (socket_error != 0)
+            errno = socket_error;
+        perror("skbus connect");
+        ev_break(EV_A_ EVBREAK_ALL);
+        return;
+    }
+
+    puts("connected, now watching stdin");
+    ev_io_start(EV_A_ &stdin_watcher);
+    ev_io_start(EV_A_ &send_w);
+    ev_io_stop(EV_A_ w);
 }
 
-
-// Simply adds O_NONBLOCK to the file descriptor of choice
-int setnonblock(int fd)
+static int setnonblock(int fd)
 {
-  int flags;
-
-  flags = fcntl(fd, F_GETFL);
-  flags |= O_NONBLOCK;
-  return fcntl(fd, F_SETFL, flags);
+    int flags = fcntl(fd, F_GETFL);
+    if (flags < 0)
+        return -1;
+    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-static void connection_new(EV_P_ char* sock_path) {
-  int len, opt = 0;
-  struct sockaddr_un remote;
-
-  if (-1 == (remote_fd = socket(AF_UNIX, SOCK_STREAM, 0))) {
-      perror("socket");
-      exit(1);
-  }
-
-  //setsockopt(remote_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-
-  // Set it non-blocking
-  if (-1 == setnonblock(remote_fd)) {
-    perror("echo client socket nonblock");
-    exit(EXIT_FAILURE);
-  }
-
-  // this should be initialized before the connect() so
-  // that no packets are dropped when initially sent?
-  // http://cr.yp.to/docs/connect.html
-
-  // initialize the connect callback so that it starts the stdin asap
-  ev_io_init (&remote_w, remote_cb, remote_fd, EV_WRITE);
-  ev_io_start(EV_A_ &remote_w);
-  // initialize the send callback, but wait to start until there is data to write
-  ev_io_init(&send_w, send_cb, remote_fd, EV_READ);
-  ev_io_start(EV_A_ &send_w);
-
-  remote.sun_family = AF_UNIX;
-  strcpy(remote.sun_path, sock_path);
-  len = strlen(remote.sun_path) + sizeof(remote.sun_family);
-
-  if (-1 == connect(remote_fd, (struct sockaddr *)&remote, len)) {
-      perror("connect");
-      //exit(1);
-  }
-}
-
-int main (void)
+static void connection_new(EV_P_ const char *sock_path)
 {
-  loop = EV_DEFAULT;
-  // initialise an io watcher, then start it
-  // this one will watch for stdin to become readable
-  setnonblock(0);
-  ev_io_init(&stdin_watcher, stdin_cb, /*STDIN_FILENO*/ 0, EV_READ);
+    socklen_t address_len;
+    size_t path_len;
+    struct sockaddr_un remote;
 
-  connection_new(EV_A_ "/tmp/.skipd_server_sock");
+    if (NULL == sock_path) {
+        errno = EINVAL;
+        perror("skbus socket path");
+        exit(EXIT_FAILURE);
+    }
+    path_len = strnlen(sock_path, sizeof(remote.sun_path));
+    if (path_len == 0 || path_len >= sizeof(remote.sun_path)) {
+        errno = ENAMETOOLONG;
+        perror("skbus socket path");
+        exit(EXIT_FAILURE);
+    }
 
-  // now wait for events to arrive
-  ev_loop(EV_A_ 0);
+    remote_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (remote_fd < 0) {
+        perror("skbus socket");
+        exit(EXIT_FAILURE);
+    }
+    if (setnonblock(remote_fd) < 0) {
+        perror("skbus socket nonblock");
+        close(remote_fd);
+        remote_fd = -1;
+        exit(EXIT_FAILURE);
+    }
 
-  // unloop was called, so exit
-  return 0;
+    memset(&remote, 0, sizeof(remote));
+    remote.sun_family = AF_UNIX;
+    memcpy(remote.sun_path, sock_path, path_len + 1);
+    address_len = (socklen_t)(offsetof(struct sockaddr_un, sun_path) +
+        path_len + 1);
+
+    ev_io_init(&remote_w, remote_cb, remote_fd, EV_WRITE);
+    ev_io_start(EV_A_ &remote_w);
+    ev_io_init(&send_w, send_cb, remote_fd, EV_READ);
+    ev_io_init(&stdin_watcher, stdin_cb, STDIN_FILENO, EV_READ);
+
+    if (connect(remote_fd, (struct sockaddr *)&remote, address_len) < 0 &&
+        errno != EINPROGRESS && errno != EAGAIN) {
+        perror("skbus connect");
+        close(remote_fd);
+        remote_fd = -1;
+        exit(EXIT_FAILURE);
+    }
+}
+
+int main(void)
+{
+    loop = EV_DEFAULT;
+    connection_new(EV_A_ "/tmp/.skipd_server_sock");
+    ev_loop(EV_A_ 0);
+
+    if (remote_fd >= 0)
+        close(remote_fd);
+    free(out_buf);
+    free(line);
+    return 0;
 }
