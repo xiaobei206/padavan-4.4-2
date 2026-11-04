@@ -19,17 +19,44 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <signal.h>
 #include <unistd.h>
 
 #include "notify_rc.h"
 
+static int
+is_valid_event_name(const char *event_name)
+{
+	const unsigned char *p;
+	size_t len;
+
+	if (!event_name || !*event_name ||
+	    !strcmp(event_name, ".") || !strcmp(event_name, ".."))
+		return 0;
+
+	len = strlen(event_name);
+	if (len > 128)
+		return 0;
+	for (p = (const unsigned char *)event_name; *p; ++p) {
+		if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.')
+			return 0;
+	}
+	return 1;
+}
+
 static void notify_rc_internal(const char *event_name, int wait_sec)
 {
 	FILE *fp;
 	int i;
 	char *full_name;
+
+	/* Event names become filenames under the init notification directories. */
+	if (!is_valid_event_name(event_name)) {
+		fprintf(stderr, "notify_rc: invalid event name\\n");
+		return;
+	}
 
 	full_name = (char *)(malloc(strlen(event_name) + 32));
 	if (!full_name) {
