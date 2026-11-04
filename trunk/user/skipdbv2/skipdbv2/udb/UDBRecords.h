@@ -36,6 +36,7 @@ char *UDBRecords_path(UDBRecords *self);
 
 void UDBRecords_delete(UDBRecords *self);
 void UDBRecords_open(UDBRecords *self);
+int UDBRecords_finishOpening(UDBRecords *self);
 void UDBRecords_close(UDBRecords *self);
 
 void UDBRecords_begin(UDBRecords *self);
