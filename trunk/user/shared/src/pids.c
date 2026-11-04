@@ -90,7 +90,8 @@ static int read_to_buf(const char *filename, void *buf)
 void* xzalloc(size_t size)
 {
         void *ptr = malloc(size);
-        memset(ptr, 0, size);
+        if (ptr)
+                memset(ptr, 0, size);
         return ptr;
 }
 
@@ -125,7 +126,14 @@ static procps_status_t* alloc_procps_scan(void)
 {
 	unsigned n = getpagesize();
 	procps_status_t* sp = xzalloc(sizeof(procps_status_t));
+
+	if (!sp)
+		return NULL;
 	sp->dir = opendir("/proc");
+	if (!sp->dir) {
+		free(sp);
+		return NULL;
+	}
 	while (1) {
 		n >>= 1;
 		if (!n) break;
@@ -205,6 +213,8 @@ void* xrealloc_vector_helper(void *vector, unsigned sizeof_and_shift, int idx)
         if (!(idx & (mask - 1))) {
                 sizeof_and_shift >>= 8; /* sizeof(vector[0]) */
                 vector = xrealloc(vector, sizeof_and_shift * (idx + mask + 1));
+                if (!vector)
+                        return NULL;
                 memset((char*)vector + (sizeof_and_shift * idx), 0, sizeof_and_shift * (mask + 1));
         }
         return vector;
@@ -215,7 +225,10 @@ void* xrealloc_vector_helper(void *vector, unsigned sizeof_and_shift, int idx)
 
 void free_procps_scan(procps_status_t* sp)
 {
-	closedir(sp->dir);
+	if (!sp)
+		return;
+	if (sp->dir)
+		closedir(sp->dir);
 	free(sp->argv0);
 	free(sp);
 }
@@ -231,8 +244,11 @@ procps_status_t* procps_scan(procps_status_t* sp, int flags)
 	int n;
 	struct stat sb;
 
-	if (!sp)
+	if (!sp) {
 		sp = alloc_procps_scan();
+		if (!sp)
+			return NULL;
+	}
 
 	for (;;) {
 		entry = readdir(sp->dir);
@@ -274,14 +290,16 @@ procps_status_t* procps_scan(procps_status_t* sp, int flags)
 			if (n < 0)
 				break;
 			cp = strrchr(buf, ')'); /* split into "PID (cmd" and "<rest>" */
-			/*if (!cp || cp[1] != ' ')
-				break;*/
+			if (!cp || cp[1] != ' ')
+				break;
 			cp[0] = '\0';
 			if (sizeof(sp->comm) < 16)
 				BUG_comm_size();
 			comm1 = strchr(buf, '(');
-			/*if (comm1)*/
-				strncpy(sp->comm, comm1 + 1, sizeof(sp->comm));
+			if (!comm1)
+				break;
+			strncpy(sp->comm, comm1 + 1, sizeof(sp->comm) - 1);
+			sp->comm[sizeof(sp->comm) - 1] = '\0';
 
 			n = sscanf(cp+2,
 				"%c %u "               /* state, ppid */
@@ -335,10 +353,11 @@ procps_status_t* procps_scan(procps_status_t* sp, int flags)
 			if (n <= 0)
 				break;
 			if (flags & PSSCAN_ARGVN) {
-				sp->argv_len = n;
-				sp->argv0 = malloc(n + 1);
-				memcpy(sp->argv0, buf, n + 1);
-				/* sp->argv0[n] = '\0'; - buf has it */
+				sp->argv0 = malloc((size_t)n + 1);
+				if (sp->argv0) {
+					sp->argv_len = (unsigned int)n;
+					memcpy(sp->argv0, buf, (size_t)n + 1);
+				}
 			} else {
 				sp->argv_len = 0;
 				sp->argv0 = strdup(buf);
@@ -360,6 +379,9 @@ const char* bb_basename(const char *name)
 static int comm_match(procps_status_t *p, const char *procName)
 {
 	int argv1idx;
+
+	if (!p || !procName)
+		return 0;
 
 	/* comm does not match */
 	if (strncmp(p->comm, procName, 15) != 0)
@@ -402,7 +424,11 @@ pid_t* find_pid_by_name(const char *procName)
 	int i = 0;
 	procps_status_t* p = NULL;
 
+	if (!procName)
+		return NULL;
 	pidList = xzalloc(sizeof(*pidList));
+	if (!pidList)
+		return NULL;
 	while ((p = procps_scan(p, PSSCAN_PID|PSSCAN_COMM|PSSCAN_ARGVN))) {
 		if (comm_match(p, procName)
 		/* or we require argv0 to match (essential for matching reexeced /proc/self/exe)*/
@@ -411,7 +437,13 @@ pid_t* find_pid_by_name(const char *procName)
 		) {
 			if (p->state[0] != 'Z')
 			{
-				pidList = xrealloc_vector(pidList, 2, i);
+				pid_t *new_list = xrealloc_vector(pidList, 2, i);
+				if (!new_list) {
+					free(pidList);
+					free_procps_scan(p);
+					return NULL;
+				}
+				pidList = new_list;
 				pidList[i++] = p->pid;
 			}
 		}
@@ -428,6 +460,8 @@ int pids_main(char *appname)
 	int count = 0;
 
 	pidList = find_pid_by_name(appname);
+	if (!pidList)
+		return 0;
 	for (pl = pidList; *pl; pl++) {
 		count++;
 		fprintf(stderr, "%u ", (unsigned)*pl);
@@ -447,6 +481,8 @@ int pids(char *appname)
 	int count = 0;
 
 	pidList = find_pid_by_name(appname);
+	if (!pidList)
+		return 0;
 	for (pl = pidList; *pl; pl++) {
 		count++;
 	}
