@@ -403,8 +403,16 @@ int SkipDB_isOpen(SkipDB *self)
 
 void SkipDB_clearCache(SkipDB *self)
 {
+	size_t i;
 	if (NULL == self || !SkipDB_isOpen(self))
 		return;
+	if (self->cursors) {
+		for (i = 0; i < self->cursors->size; ++i) {
+			SkipDBCursor *cursor = (SkipDBCursor *)self->cursors->items[i];
+			if (cursor)
+				cursor->record = NULL;
+		}
+	}
 	if (self->header) {
 		SkipDB_freeAllCachedRecords(self);
 		SkipDB_readRootRecord(self);
@@ -779,10 +787,19 @@ void SkipDB_removeAt_(SkipDB *self, Datum k)
 
 	{
 		PID_TYPE pid = SkipDBRecord_pid(record);
+		size_t i;
 		if (pid != 0 && self->pidsToRemove)
 			List_append_(self->pidsToRemove, (void *)pid);
 		if (self->dirtyRecords)
 			List_remove_(self->dirtyRecords, record);
+		/* Cursors hold raw record pointers; invalidate them before freeing it. */
+		if (self->cursors) {
+			for (i = 0; i < self->cursors->size; ++i) {
+				SkipDBCursor *cursor = (SkipDBCursor *)self->cursors->items[i];
+				if (cursor && cursor->record == record)
+					cursor->record = NULL;
+			}
+		}
 	}
 
 	SkipDBRecord_dealloc(record);
