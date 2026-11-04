@@ -1,5 +1,10 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+fed23be  disk_io_tools.c: cast high-bit input safely for isprint.
+73f5689  disk_io_tools.c: cap metadata-file reads; fix line-search NULL handling, comparator overreads and trim underflow.
+1417be3  aidisk.c: reject truncated removable-drive child paths.
+569b3e7  aidisk.c: JSON-escape USB, disk, account and shared-folder names emitted into JavaScript.
+0e3f2e0  ej.c: avoid pointer underflow while parsing empty quoted ASP arguments.
 0e3f2e0  ej.c: prevent pointer underflow while trimming empty quoted ASP arguments.
 6c699fa  dbapi.c: prevent 32-bit millisecond timeout overflow and handle gettimeofday failures.
 f4d6cbb  web_ex.c: reject truncated static-client records, handle missing commas and JSON-escape field strings.
