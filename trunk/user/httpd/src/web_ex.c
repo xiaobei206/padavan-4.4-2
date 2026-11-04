@@ -2334,6 +2334,10 @@ write_js_string(webs_t wp, const char *value)
 		case '\\':
 			websWrite(wp, "%s", "\\\\");
 			break;
+		case '<':
+			/* Prevent untrusted text from ending an inline script. */
+			websWrite(wp, "%s", "\\x3c");
+			break;
 		case '\b':
 			websWrite(wp, "%s", "\\b");
 			break;
@@ -3322,8 +3326,12 @@ static int login_state_hook(int eid, webs_t wp, int argc, char **argv) {
 	fill_login_ip(s_addr, sizeof(s_addr));
 
 	websWrite(wp, "function login_safe() { return %d; }\n", get_login_safe());
-	websWrite(wp, "function login_ip_str() { return '%s'; }\n", s_addr);
-	websWrite(wp, "function login_mac_str() { return '%s'; }\n", get_login_mac());
+	websWrite(wp, "function login_ip_str() { return ");
+	write_js_string(wp, s_addr);
+	websWrite(wp, "; }\n");
+	websWrite(wp, "function login_mac_str() { return ");
+	write_js_string(wp, get_login_mac());
+	websWrite(wp, "; }\n");
 
 	return 0;
 }
@@ -3402,6 +3410,16 @@ write_json_string(webs_t wp, const char *value)
 			break;
 		case '\\':
 			websWrite(wp, "%s", "\\\\");
+			break;
+		case '<':
+			/* JSON may be embedded in HTML script elements. */
+			websWrite(wp, "%s", "\\u003c");
+			break;
+		case '>':
+			websWrite(wp, "%s", "\\u003e");
+			break;
+		case '&':
+			websWrite(wp, "%s", "\\u0026");
 			break;
 		case '\b':
 			websWrite(wp, "%s", "\\b");
