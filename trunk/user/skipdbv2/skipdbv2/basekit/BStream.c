@@ -91,7 +91,7 @@ void BStream_setUArray_(BStream *self, UArray *ba)
 		(ba->size > 0 && NULL == ba->data))
 		return;
 	if (self->ba == ba) {
-		self->index = UArray_size(ba);
+		self->index = 0;
 		if (self->errorBa)
 			UArray_setSize_(self->errorBa, 0);
 		return;
@@ -346,11 +346,22 @@ uint8_t BStream_readUint8(BStream *self)
 void BStream_readNumber_size_(BStream *self, unsigned char *v, int size)
 {
 	size_t available;
-	if (NULL == self || NULL == self->ba || NULL == v || size < 0)
+	const uint8_t *b;
+	if (NULL == v || size < 0)
 		return;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		self->ba->itemSize != 1) {
+		BStream_error_(self, "invalid binary stream read");
+		memset(v, 0, (size_t)size);
+		return;
+	}
+	if (UArray_size(self->errorBa) != 0) {
+		memset(v, 0, (size_t)size);
+		return;
+	}
 	available = UArray_size(self->ba);
 	if (self->index <= available && (size_t)size <= available - self->index) {
-		const uint8_t *b = UArray_bytes(self->ba);
+		b = UArray_bytes(self->ba);
 		if (size > 0 && NULL == b)
 			goto invalid;
 		if (size > 0)
@@ -364,6 +375,7 @@ invalid:
 	BStream_error_(self, "truncated binary stream");
 	memset(v, 0, (size_t)size);
 }
+
 
 uint32_t BStream_readUint32(BStream *self)
 {
@@ -398,30 +410,35 @@ double BStream_readDouble(BStream *self)
 unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)
 {
 	size_t available;
-	unsigned char *bytes;
-	if (NULL == self || NULL == self->ba)
+	const unsigned char *bytes;
+	if (NULL == self || NULL == self->ba || self->ba->itemSize != 1) {
+		BStream_error_(self, "invalid binary stream data read");
 		return NULL;
+	}
 	available = UArray_size(self->ba);
 	if (self->index > available || length > available - self->index) {
 		BStream_error_(self, "truncated binary stream data");
 		return NULL;
 	}
-	bytes = (unsigned char *)UArray_bytes(self->ba);
-	if (length == 0)
-		return bytes ? bytes + self->index : NULL;
-	if (NULL == bytes) {
+	bytes = UArray_bytes(self->ba);
+	if (length > 0 && NULL == bytes) {
 		BStream_error_(self, "missing binary stream data");
 		return NULL;
 	}
+	if (length == 0)
+		return bytes ? (unsigned char *)(bytes + self->index) : NULL;
 	self->index += length;
-	return bytes + self->index - length;
+	return (unsigned char *)(bytes + self->index - length);
 }
+
 
 void BStream_readUArray_(BStream *self, UArray *b)
 {
 	int32_t encoded_size;
 	unsigned char *data;
-	if (NULL == self || NULL == b)
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		NULL == b || b == self->ba || self->ba->itemSize != 1 ||
+		UArray_size(self->errorBa) != 0)
 		return;
 	encoded_size = BStream_readInt32(self);
 	if (UArray_size(self->errorBa) != 0)
@@ -435,7 +452,11 @@ void BStream_readUArray_(BStream *self, UArray *b)
 		return;
 	UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t,
 		(size_t)encoded_size, 1);
+	if (b->itemSize != 1 || b->size != (size_t)encoded_size ||
+		(encoded_size > 0 && NULL == b->data))
+		BStream_error_(self, "unable to allocate binary array");
 }
+
 
 UArray *BStream_readUArray(BStream *self)
 {
@@ -654,16 +675,12 @@ int BStream_readTaggedInt(BStream *self)
 
 uint8_t BStream_readTaggedUint8(BStream *self)
 {
-	int32_t value;
-	if (NULL == self || NULL == self->errorBa)
+	if (NULL == self || NULL == self->errorBa ||
+		BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 0) != 0)
 		return 0;
-	value = BStream_readTaggedInt32(self);
-	if (UArray_size(self->errorBa) != 0 || value < 0 || value > UINT8_MAX) {
-		BStream_error_(self, "tagged byte out of range");
-		return 0;
-	}
-	return (uint8_t)value;
+	return BStream_readUint8(self);
 }
+
 
 uint32_t BStream_readTaggedUint32(BStream *self)
 {
@@ -697,15 +714,37 @@ int32_t BStream_readTaggedInt32(BStream *self)
 	if (UArray_size(self->errorBa) != 0)
 		return 0;
 	t = BStreamTag_FromUnsignedChar(c);
-
-	if (t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 1)
+	if (t.isArray == 0 && t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 1)
 		return (int32_t)BStream_readUint8(self);
-	if (t.type == BSTREAM_SIGNED_INT && t.byteCount == 4)
-		return (int32_t)BStream_readInt32(self);
-
+	if (t.isArray == 0 && t.type == BSTREAM_SIGNED_INT && t.byteCount == 4)
+		return BStream_readInt32(self);
 	BStream_error_(self, "unhandled int type/size combination");
 	return 0;
 }
+
+#if !defined(__SYMBIAN32__)
+int64_t BStream_readTaggedInt64(BStream *self)
+{
+	unsigned char c;
+	BStreamTag t;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
+		return 0;
+	c = BStream_readByte(self);
+	if (UArray_size(self->errorBa) != 0)
+		return 0;
+	t = BStreamTag_FromUnsignedChar(c);
+	if (t.isArray == 0 && t.type == BSTREAM_SIGNED_INT && t.byteCount == 8)
+		return BStream_readInt64(self);
+	if (t.isArray == 0 && t.type == BSTREAM_SIGNED_INT && t.byteCount == 4)
+		return (int64_t)BStream_readInt32(self);
+	if (t.isArray == 0 && t.type == BSTREAM_UNSIGNED_INT && t.byteCount == 1)
+		return (int64_t)BStream_readUint8(self);
+	BStream_error_(self, "unhandled 64-bit integer tag");
+	return 0;
+}
+#endif
+
 
 intptr_t BStream_readTaggedPointer(BStream *self)
 {
@@ -776,7 +815,8 @@ void BStream_readTaggedUArray_(BStream *self, UArray *b)
 	int32_t encoded_size;
 	unsigned char *data;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
-		NULL == b || UArray_size(self->errorBa) != 0)
+		NULL == b || b == self->ba || self->ba->itemSize != 1 ||
+		UArray_size(self->errorBa) != 0)
 		return;
 	if (BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1) != 0)
 		return;
@@ -792,7 +832,11 @@ void BStream_readTaggedUArray_(BStream *self, UArray *b)
 		return;
 	UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t,
 		(size_t)encoded_size, 1);
+	if (b->itemSize != 1 || b->size != (size_t)encoded_size ||
+		(encoded_size > 0 && NULL == b->data))
+		BStream_error_(self, "unable to allocate tagged array");
 }
+
 
 UArray *BStream_readTaggedUArray(BStream *self)
 {
@@ -804,24 +848,14 @@ UArray *BStream_readTaggedUArray(BStream *self)
 
 const char *BStream_readTaggedCString(BStream *self)
 {
-	int32_t encoded_size;
-	unsigned char *data;
-	if (NULL == self || NULL == self->ba || NULL == self->errorBa)
+	if (NULL == self || NULL == self->tmp || NULL == self->errorBa)
 		return NULL;
-	if (BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1) != 0)
-		return NULL;
-	encoded_size = BStream_readTaggedInt32(self);
+	BStream_readTaggedUArray_(self, self->tmp);
 	if (UArray_size(self->errorBa) != 0)
 		return NULL;
-	if (encoded_size < 0) {
-		BStream_error_(self, "negative tagged string length");
-		return NULL;
-	}
-	data = BStream_readDataOfLength_(self, (size_t)encoded_size);
-	if (encoded_size > 0 && NULL == data)
-		return NULL;
-	return (const char *)data;
+	return UArray_asCString(self->tmp);
 }
+
 
 int BStream_atEnd(BStream *self)
 {
