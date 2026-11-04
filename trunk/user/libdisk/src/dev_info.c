@@ -52,20 +52,30 @@ int get_device_type_by_device(const char *device_name)
 
 char *get_blk_sd_path_by_device(const char *device_name, char *buf, int buf_size)
 {
-	char sysblock_n[] = "/sys/block/sda";
-	int len;
+	char sysblock_n[PATH_MAX];
+	const char *p;
+	int path_len, len;
 
-	if (strlen(device_name) < 3)
+	if (!device_name || !buf || buf_size < 2 ||
+	    strncmp(device_name, "sd", 2) != 0 || !device_name[2])
 		return NULL;
 
-	sysblock_n[13] = device_name[2];
-
-	len = readlink(sysblock_n, buf, buf_size);
-	if (len > 0 && len < buf_size) {
-		buf[len] = '\0';
-		return buf;
+	for (p = device_name + 2; *p; ++p) {
+		if (*p < 'a' || *p > 'z')
+			return NULL;
 	}
 
-	return NULL;
+	path_len = snprintf(sysblock_n, sizeof(sysblock_n), "/sys/block/%s", device_name);
+	if (path_len < 0 || path_len >= (int)sizeof(sysblock_n))
+		return NULL;
+
+	len = readlink(sysblock_n, buf, (size_t)buf_size - 1);
+	if (len <= 0 || len >= buf_size - 1) {
+		buf[0] = '\0';
+		return NULL;
+	}
+
+	buf[len] = '\0';
+	return buf;
 }
 
