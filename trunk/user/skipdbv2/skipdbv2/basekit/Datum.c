@@ -34,9 +34,10 @@ Datum Datum_FromData_length_(unsigned char *data, PID_TYPE size)
 {
 	Datum d;
 	d.data = data;
-	d.size = size;
+	d.size = data ? size : 0;
 	return d;
 }
+
 
 Datum Datum_FromCString_(const char *s)
 {
@@ -60,10 +61,15 @@ Datum Datum_FromPid_(PID_TYPE pid)
 Datum Datum_FromUArray_(UArray *ba)
 {
 	Datum d;
+	if (NULL == ba || ba->itemSize == 0 ||
+		ba->size > (size_t)-1 / ba->itemSize ||
+		(ba->size > 0 && NULL == ba->data))
+		return Datum_Empty();
 	d.data = (unsigned char *)UArray_bytes(ba);
 	d.size = UArray_sizeInBytes(ba);
 	return d;
 }
+
 
 Datum Datum_Empty(void)
 {
@@ -76,20 +82,13 @@ Datum Datum_Empty(void)
 Datum Datum_datumAt_(Datum *self, size_t i)
 {
 	Datum d;
-	
-	if (i < self->size)
-	{
-		d.data = self->data + i;
-		d.size = self->size - i;
-	}
-	else
-	{
-		d.data = NULL;
-		d.size = 0;
-	}
-	
+	if (NULL == self || (self->size > 0 && NULL == self->data) || i >= self->size)
+		return Datum_Empty();
+	d.data = self->data + i;
+	d.size = self->size - i;
 	return d;
 }
+
 
 
 int Datum_compare_(Datum *self, Datum *other)
@@ -173,18 +172,14 @@ size_t Datum_matchingPrefixSizeWith_(Datum *self, Datum *other)
 Datum *Datum_newFrom_to_(Datum *self, size_t start, size_t end)
 {
 	Datum *d;
-	if (NULL == self)
+	if (NULL == self || (self->size > 0 && NULL == self->data) ||
+		start > end || end > self->size)
 		return NULL;
 	d = (Datum *)malloc(sizeof(Datum));
 	if (NULL == d)
 		return NULL;
-	if (start <= end && end <= self->size) {
-		d->data = self->data ? self->data + start : NULL;
-		d->size = end - start;
-		return d;
-	}
-	d->data = NULL;
-	d->size = 0;
+	d->data = self->data ? self->data + start : NULL;
+	d->size = end - start;
 	return d;
 }
 
@@ -299,18 +294,20 @@ void *Datum_split_(Datum *self, void *delimsList) /* returns a List */
 
 unsigned int Datum_hash(Datum *self)
 {
-	PID_TYPE length = self->size;
-	unsigned char *key = self->data;
+	PID_TYPE length;
+	const unsigned char *key;
 	unsigned int h = 5381;
-	
-	while (length-- > 0)
-	{
-		h += (h << 5); /* h(i) = (h(i-1) * 33) ^ key(i) */
-		h ^= *key ++;
+	if (NULL == self || (self->size > 0 && NULL == self->data))
+		return 0;
+	length = self->size;
+	key = self->data;
+	while (length-- > 0) {
+		h += (h << 5);
+		h ^= *key++;
 	}
-	
 	return h;
 }
+
 
 /*
  typedef int (DatumDetectWithFunc)(void *, Datum *); // 1 = match, -1 = break 
