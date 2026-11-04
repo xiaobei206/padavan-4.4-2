@@ -766,9 +766,21 @@ static int client_run_command(EV_P_ skipd_client* client)
         dvalue = SkipDB_at_(client->server->db, dkey);
         if(NULL == dvalue.data) {
             p1 = "none\n";
-            client_send(EV_A_ client, p1, strlen(p1));
-        } else {
-            client_send(EV_A_ client, (char*)dvalue.data, dvalue.size);
+            if (client_send(EV_A_ client, p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+        } else if (!value_fits_list_frame(client->key, dvalue.size)) {
+            p1 = "value too big to send\n";
+            if (client_send_key(EV_A_ client, client->command,
+                    "__error__", p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+        } else if (client_send(EV_A_ client,
+                (char*)dvalue.data, (int)dvalue.size) != 0) {
+            client->break_level = ccr_break_killed;
+            ccrStop(ctx, ccr_error_err2);
         }
         ccrReturn(ctx, ccr_error_ok1);
     } else if(!strcmp(client->command, "replace")) {
