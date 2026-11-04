@@ -819,7 +819,13 @@ static int client_run_command(EV_P_ skipd_client* client)
         delay_obj->server = client->server;
 
         dkey = Datum_FromCString_(client->key);
-        existed = SkipDB_exists(client->server->db, dkey);
+        /* Do not overwrite an existing scheduled command on duplicate add. */
+        if (SkipDB_exists(client->server->db, dkey)) {
+            p1 = "exists\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            free(delay_obj);
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         SkipDB_beginTransaction(client->server->db);
         write_ok = SkipDB_at_put_(client->server->db, dkey, dvalue);
         server_sync(EV_A_ client->server);
@@ -829,14 +835,6 @@ static int client_run_command(EV_P_ skipd_client* client)
             free(delay_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        if (existed) {
-            p1 = "exists\n";
-            /* client_send copies the key into the frame before this free. */
-            client_send(EV_A_ client, p1, strlen(p1));
-            free(delay_obj);
-            ccrReturn(ctx, ccr_error_ok1);
-        }
-
         ev_timer_init(&delay_obj->watcher, delay_cmd_cb, delay_obj->tick, delay_obj->tick);
         ev_timer_start(EV_A_ &delay_obj->watcher);
 
@@ -912,7 +910,13 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
         client->key = time_obj->key;
         dkey = Datum_FromCString_(client->key);
-        existed = SkipDB_exists(client->server->db, dkey);
+        /* Do not overwrite an existing scheduled command on duplicate add. */
+        if (SkipDB_exists(client->server->db, dkey)) {
+            p1 = "exists\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            free(time_obj);
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         SkipDB_beginTransaction(client->server->db);
         write_ok = SkipDB_at_put_(client->server->db, dkey, dvalue);
         server_sync(EV_A_ client->server);
@@ -922,13 +926,6 @@ static int client_run_command(EV_P_ skipd_client* client)
             free(time_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        if (existed) {
-            p1 = "exists\n";
-            client_send(EV_A_ client, p1, strlen(p1));
-            free(time_obj);
-            ccrReturn(ctx, ccr_error_ok1);
-        }
-
         t1 = time(NULL);
         tnow = localtime(&t1);
         if (NULL == tnow) {
