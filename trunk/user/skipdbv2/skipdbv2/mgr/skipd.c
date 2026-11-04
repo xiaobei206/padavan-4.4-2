@@ -756,7 +756,10 @@ static int client_run_command(EV_P_ skipd_client* client)
         SkipDB_removeAt_(client->server->db, dkey);
         //SkipDB_commitTransaction(client->server->db);
         server_sync(EV_A_ client->server);
-        p1 = "ok\n";
+        if (!SkipDB_isOpen(client->server->db))
+            p1 = "database error\n";
+        else
+            p1 = "ok\n";
         client_send(EV_A_ client, p1, strlen(p1));
         ccrReturn(ctx, ccr_error_ok1);
     } else if(!strcmp(client->command, "delay")) {
