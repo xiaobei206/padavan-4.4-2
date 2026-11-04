@@ -80,6 +80,7 @@ char *UDBRecords_path(UDBRecords *self)
 
 void UDBRecords_open(UDBRecords *self)
 {
+	long data_size;
 	if (NULL == self || NULL == self->file ||
 		NULL == self->record || NULL == self->firstEmptyRecord)
 		return;
@@ -87,7 +88,15 @@ void UDBRecords_open(UDBRecords *self)
 	if (NULL == self->file->file || NULL == self->file->log)
 		return;
 
-	if (JFile_setPositionToEnd(self->file) == 0) {
+	data_size = JFile_setPositionToEnd(self->file);
+	if (data_size < 0 ||
+		(data_size > 0 && (size_t)data_size < sizeof(PID_TYPE))) {
+		fprintf(stderr, "UDBRecords: truncated first-empty metadata header\\n");
+		JFile_close(self->file);
+		return;
+	}
+
+	if (data_size == 0) {
 		/* Position zero stores the first-empty-record offset. */
 		JFile_begin(self->file);
 		if (!UDBRecords_firstEmptyRecordPos_(self, 0)) {
