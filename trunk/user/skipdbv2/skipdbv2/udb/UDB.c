@@ -398,16 +398,27 @@ void UDB_commitTransaction(UDB *self)
 		return;
 	}
 
+	/* Apply both journals while retaining both recovery logs. */
 	UDBIndex_commit(self->index);
+	if (!UDB_streamsOpen(self)) {
+		UDB_close(self);
+		return;
+	}
 	UDBRecords_commit(self->records);
 	if (!UDB_streamsOpen(self)) {
-		/* Marker 1 lets a later open replay the durable transaction again. */
 		UDB_close(self);
 		return;
 	}
 
+	/* The data files are durable; only now may recovery be disarmed. */
 	if (UDB_setCommittedFlag_(self, 0) != 0) {
-		/* Do not permit another transaction while the marker may still be 1. */
+		UDB_close(self);
+		return;
+	}
+
+	/* With marker 0, leftover journals are harmless and can be truncated. */
+	if (JFile_clipLog(self->index->file) != 0 ||
+		JFile_clipLog(self->records->file) != 0) {
 		UDB_close(self);
 		return;
 	}
