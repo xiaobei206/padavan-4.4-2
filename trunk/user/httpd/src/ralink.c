@@ -57,7 +57,7 @@ ej_lan_leases(int eid, webs_t wp, int argc, char **argv)
 	FILE *fp = NULL;
 	int ret = 0;
 	int i;
-	char buff[256], dh_lease[32], dh_mac[64], dh_ip[64], dh_host[64];
+	char buff[256], dh_lease[40], dh_mac[64], dh_ip[64], dh_host[64];
 #if defined (USE_IPV6)
 	int ip6_count = 0;
 	struct in6_addr addr6;
@@ -90,7 +90,7 @@ ej_lan_leases(int eid, webs_t wp, int argc, char **argv)
 
 		// convert MAC to upper case
 		for (i=0; i<strlen(dh_mac); i++)
-			dh_mac[i] = toupper(dh_mac[i]);
+			dh_mac[i] = (char)toupper((unsigned char)dh_mac[i]);
 
 		ret += websWrite(wp, "%-19s", (dh_ip[0]!=0) ? dh_ip : " ");
 		ret += websWrite(wp, "%-21s", (dh_mac[0]!=0) ? dh_mac : " " );
@@ -308,9 +308,11 @@ ej_route_table(int eid, webs_t wp, int argc, char **argv)
 		if (nl)
 		{
 			int ifl = 0;
-			while (buff[ifl]!=' ' && buff[ifl]!='\t' && buff[ifl]!='\0')
+			while (buff[ifl] != ' ' && buff[ifl] != '\t' && buff[ifl] != '\0')
 				ifl++;
-			buff[ifl]=0;    /* interface */
+			if (buff[ifl] == '\0')
+				continue;
+			buff[ifl] = 0;    /* interface */
 			if (sscanf(buff+ifl+1, "%lx%lx%d%d%d%d%lx",
 			   &d, &g, &flgs, &ref, &use, &metric, &m) != 7)
 				continue;
