@@ -153,3 +153,14 @@ b8ad62e  ralink.c: return failure for wireless ioctl socket errors.
 0b49e2e  httpd.c: bound HTTP header reads and reject incomplete requests.
 a1e2900  httpd.c: preserve following headers after multipart boundary.
 ffbc3c4  httpd.c: reject unsupported HTTP Transfer-Encoding.
+
+377ff1f  nvram_x.c: validate base list key and index before formatting NVRAM names.
+228d6c6  aspbw.c: validate hexadecimal SSIDs and bound encoder output.
+5328215  httpd.h: update SSID encoder to accept output capacity.
+8ce5423  web_ex.c: pass bounded output capacity to SSID encoder.
+7f03ce8  ralink.c: pass bounded output capacity to site-survey SSID encoder.
+535766c  web_ex.c: bound NVRAM-to-SSID encoding output.
+a184d76  aspbw.c: validate file read buffers and retry interrupted reads.
+c4f84ea  aspbw.c: handle short writes and invalid file-helper inputs.
+40c5e86  ralink.c: validate wireless range ioctl response lengths.
+1ffa65b  ralink.c: clamp station-table counts to response and buffer capacity.
