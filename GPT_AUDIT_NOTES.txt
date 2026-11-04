@@ -55,3 +55,4 @@ b52fd0f  common_ex.c: write user config as plain text and preserve final line.
 40e1cdb  gpio_pins.c: bound LED sysfs path formatting.
 dc7d704  mtk_esw/ioctl.c: reject failed user-memory copies and zero-init MIB output.
 ae5d00c  raether.c: check Ethernet ioctl user copies and validate PHY dump port.
+6ac6665  common_ex.c: preserve mkdir_if_none existing/new directory return semantics.
