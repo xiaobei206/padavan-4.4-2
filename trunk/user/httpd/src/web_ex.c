@@ -442,14 +442,18 @@ websScan(const char *query)
 		if (!v2)
 			break;
 		
-		if (v3!=NULL) {
-			i_len = v3-v2-1;
+		if (v3 != NULL && v3 > v2) {
+			i_len = (unsigned int)(v3 - v2 - 1);
 			if (i_len > (SCAN_MAX_VALUE_LEN - 1))
-				i_len = (SCAN_MAX_VALUE_LEN - 1);
-			strncpy(value, v2+1, i_len);
+				i_len = SCAN_MAX_VALUE_LEN - 1;
+			memcpy(value, v2 + 1, i_len);
 			value[i_len] = 0;
+		} else if (v3 != NULL) {
+			/* Skip a malformed field with no '=' before the next '&'. */
+			v1 = v3;
+			continue;
 		} else {
-			snprintf(value, sizeof(value), "%s", v2+1);
+			snprintf(value, sizeof(value), "%s", v2 + 1);
 		}
 		
 		if (v2 != NULL && ((sp = strchr(v1+1, ' ')) == NULL || (sp > v2))) {
