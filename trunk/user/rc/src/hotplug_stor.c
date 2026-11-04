@@ -44,6 +44,9 @@ check_root_partition(const char *devname, int is_mmc)
 
 	if (!devname || !*devname)
 		return 0;
+#if !defined (USE_MMC_SUPPORT)
+	(void)is_mmc;
+#endif
 	devname_len = strlen(devname);
 	if (devname_len >= sizeof(ptname))
 		return 0;
@@ -112,7 +115,9 @@ mdev_sd_main(int argc, char **argv)
 	// If remove the device?
 	if (!get_hotplug_action(action)) {
 		try_device_swapoff(device_name);
-		if (strlen(device_name) < 4)
+		len = strlen(device_name);
+		if (len > 2 && device_name[0] == 's' && device_name[1] == 'd' &&
+		    (device_name[len - 1] < '0' || device_name[len - 1] > '9'))
 			notify_rc("on_unplug_mass_storage");
 		
 		goto out_unlock;
@@ -190,7 +195,8 @@ mdev_mmc_main(int argc, char **argv)
 	// If remove the device?
 	if (!get_hotplug_action(action)) {
 		try_device_swapoff(device_name);
-		if (len < 9)
+		if (strncmp(device_name, "mmcblk", 6) == 0 &&
+		    !strchr(device_name + 6, 'p'))
 			notify_rc("on_unplug_mass_storage");
 		
 		goto out_unlock;
