@@ -53,7 +53,7 @@ void build_dns6_var(void)
 void reset_wan6_vars(void)
 {
 	struct in6_addr addr6;
-	char addr6s[INET6_ADDRSTRLEN] = {0};
+	char addr6s[INET6_ADDRSTRLEN + 5] = {0};
 	char *wan_addr6, *wan_gate6;
 	int wan_size6;
 
@@ -67,7 +67,7 @@ void reset_wan6_vars(void)
 			ipv6_from_string(wan_addr6, &addr6);
 			inet_ntop(AF_INET6, &addr6, addr6s, INET6_ADDRSTRLEN);
 			if (wan_size6 > 0 && wan_size6 < 128)
-				sprintf(addr6s, "%s/%d", addr6s, wan_size6);
+				snprintf(addr6s + strlen(addr6s), sizeof(addr6s) - strlen(addr6s), "/%d", wan_size6);
 		}
 	}
 
@@ -207,7 +207,7 @@ void start_sit_tunnel(int ipv6_type, char *wan_ifname, char *wan_addr4, char *wa
 {
 	int sit_ttl, sit_mtu, size4, size6;
 	char *sit_remote, *sit_relay, *sit_ep, *wan_gate6;
-	char addr6s[INET6_ADDRSTRLEN];
+	char addr6s[INET6_ADDRSTRLEN + 5];
 	struct in_addr addr4;
 	struct in6_addr addr6;
 
@@ -252,12 +252,12 @@ void start_sit_tunnel(int ipv6_type, char *wan_ifname, char *wan_addr4, char *wa
 	else if (ipv6_type == IPV6_6RD) {
 		struct in_addr net4;
 		struct in6_addr net6;
-		char sit_6rd_prefix[INET6_ADDRSTRLEN], sit_6rd_relay_prefix[32];
+		char sit_6rd_prefix[INET6_ADDRSTRLEN + 5], sit_6rd_relay_prefix[32];
 		
 		memcpy(&net6, &addr6, sizeof(addr6));
 		ipv6_to_net(&net6, size6);
 		inet_ntop(AF_INET6, &net6, sit_6rd_prefix, INET6_ADDRSTRLEN);
-		sprintf(sit_6rd_prefix, "%s/%d", sit_6rd_prefix, size6);
+		snprintf(sit_6rd_prefix + strlen(sit_6rd_prefix), sizeof(sit_6rd_prefix) - strlen(sit_6rd_prefix), "/%d", size6);
 		
 		strcpy(sit_6rd_relay_prefix, "0.0.0.0/0");
 		size4 = get_wan_unit_value_int(0, "6rd_size");
@@ -281,7 +281,7 @@ void start_sit_tunnel(int ipv6_type, char *wan_ifname, char *wan_addr4, char *wa
 	/* WAN IPv6 address */
 	inet_ntop(AF_INET6, &addr6, addr6s, INET6_ADDRSTRLEN);
 	if (size6 > 0)
-		sprintf(addr6s, "%s/%d", addr6s, size6);
+		snprintf(addr6s + strlen(addr6s), sizeof(addr6s) - strlen(addr6s), "/%d", size6);
 
 	control_if_ipv6_radv(IFNAME_SIT, 0);
 	doSystem("ip link set mtu %d dev %s up", sit_mtu, IFNAME_SIT);
@@ -316,7 +316,7 @@ void start_sit_tunnel(int ipv6_type, char *wan_ifname, char *wan_addr4, char *wa
 		}
 		
 		inet_ntop(AF_INET6, &addr6, addr6s, INET6_ADDRSTRLEN);
-		sprintf(addr6s, "%s/%d", addr6s, 64);
+		snprintf(addr6s + strlen(addr6s), sizeof(addr6s) - strlen(addr6s), "/64");
 		
 		clear_if_addr6(IFNAME_BR);
 		doSystem("ip -6 addr add %s dev %s", addr6s, IFNAME_BR);
