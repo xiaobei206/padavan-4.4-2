@@ -3948,38 +3948,82 @@ do_uncgi_query(const char *query)
 		init_cgi(post_buf);
 }
 #if defined(APP_SHADOWSOCKS)
-static void do_html_post_and_get(char *url, FILE *stream, int len, char *boundary){
-	char *query = NULL;
+static void
+do_html_post_and_get(char *url, FILE *stream, int len, char *boundary)
+{
+	const char *url_query = NULL;
+	const char *question;
+	size_t body_len, query_len, combined_len, offset;
+	char *post_query;
 
 	init_cgi(NULL);
+	post_buf[0] = '\0';
+	post_buf_backup[0] = '\0';
+	post_json_buf[0] = '\0';
 
-	memset(post_buf, 0, sizeof(post_buf));
-	memset(post_buf_backup, 0, sizeof(post_buf));
-	memset(post_json_buf, 0, sizeof(post_json_buf));
+	if (!stream || len < 0 || (size_t)len >= sizeof(post_buf))
+		return;
 
-	if (fgets(post_buf, MIN(len+1, sizeof(post_buf)), stream)){
-		len -= strlen(post_buf);
-
-		while (len--)
-			(void)fgetc(stream);
+	body_len = 0;
+	while (body_len < (size_t)len) {
+		size_t nread = fread(post_buf + body_len, 1,
+				     (size_t)len - body_len, stream);
+		if (nread == 0) {
+			post_buf[0] = '\0';
+			return;
+		}
+		body_len += nread;
 	}
-	sprintf(post_json_buf, "%s", post_buf);
+	post_buf[body_len] = '\0';
 
-	query = url;
-	query = strsep(&query, "?");
+	if (body_len >= sizeof(post_json_buf))
+		return;
+	memcpy(post_json_buf, post_buf, body_len + 1);
 
-	if (query && strlen(query) > 0){
-		if (strlen(post_buf) > 0)
-			sprintf(post_buf_backup, "?%s&%s", post_buf, query);
-		else
-			sprintf(post_buf_backup, "?%s", query);
-		sprintf(post_buf, "%s", post_buf_backup+1);
+	question = url ? strchr(url, '?') : NULL;
+	if (question)
+		url_query = question + 1;
+	query_len = url_query ? strlen(url_query) : 0;
+
+	combined_len = body_len;
+	if (query_len > 0) {
+		if (combined_len > 0)
+			combined_len++;
+		if (query_len > sizeof(post_buf_backup) - 2 ||
+		    combined_len > sizeof(post_buf_backup) - 2 - query_len) {
+			post_buf[0] = '\0';
+			post_buf_backup[0] = '\0';
+			post_json_buf[0] = '\0';
+			return;
+		}
+		combined_len += query_len;
+	} else if (combined_len > sizeof(post_buf_backup) - 2) {
+		post_buf[0] = '\0';
+		post_buf_backup[0] = '\0';
+		post_json_buf[0] = '\0';
+		return;
 	}
-	else if (strlen(post_buf) > 0)
-		sprintf(post_buf_backup, "?%s", post_buf);
-	//websScan(post_buf_backup);
+
+	offset = 0;
+	post_buf_backup[offset++] = '?';
+	if (body_len > 0) {
+		memcpy(post_buf_backup + offset, post_buf, body_len);
+		offset += body_len;
+	}
+	if (query_len > 0) {
+		if (body_len > 0)
+			post_buf_backup[offset++] = '&';
+		memcpy(post_buf_backup + offset, url_query, query_len);
+		offset += query_len;
+	}
+	post_buf_backup[offset] = '\0';
+
+	post_query = post_buf_backup + 1;
+	memcpy(post_buf, post_query, offset);
+	post_buf[offset - 1] = '\0';
 	init_cgi(post_buf);
 }
+
 #endif
 static void
 do_html_apply_post(const char *url, FILE *stream, int clen, char *boundary)
