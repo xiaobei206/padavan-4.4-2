@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <limits.h>
 
 void UArray_append_(UArray *self, const UArray *other)
 {
@@ -408,25 +409,27 @@ size_t UArray_splitCount_(const UArray *self, const PtrUArray *delims)
 
 BASEKIT_API int UArray_beginsWith_(UArray *self, const UArray *other)
 {
-	if (self->size >= other->size)
-	{
-		UArray tmp = UArray_stackRange(self, 0, other->size);
-		return UArray_find_(&tmp, other) != -1;
-	}
-
-	return 0;
+	UArray tmp;
+	if (NULL == self || NULL == other || self->size < other->size ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return 0;
+	tmp = UArray_stackRange(self, 0, other->size);
+	return UArray_find_(&tmp, other) == 0;
 }
+
 
 BASEKIT_API int UArray_endsWith_(UArray *self, const UArray *other)
 {
-	if (self->size >= other->size)
-	{
-		UArray tmp = UArray_stackRange(self, self->size - other->size, other->size);
-		return UArray_find_(&tmp, other) != -1;
-	}
-
-	return 0;
+	UArray tmp;
+	if (NULL == self || NULL == other || self->size < other->size ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return 0;
+	tmp = UArray_stackRange(self, self->size - other->size, other->size);
+	return UArray_find_(&tmp, other) == 0;
 }
+
 
 // escape and quote
 
