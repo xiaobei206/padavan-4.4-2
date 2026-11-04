@@ -3933,97 +3933,122 @@ nvram_remove_group_item(struct variable *v, int *delMap)
  * 2. 
  */
 
-static int 
+static int
 nvram_add_group_table(webs_t wp, char *serviceId, struct variable *v, int count)
 {
-    struct variable *gv;
-    char buf[NVRAM_MAX_VALUE_LEN];
-    char bufs[NVRAM_MAX_VALUE_LEN*2];
-    int i, j, fieldLen, rowLen, fieldCount, value;
-    int addlen=0;
+	struct variable *gv;
+	char buf[NVRAM_MAX_VALUE_LEN];
+	char bufs[NVRAM_MAX_VALUE_LEN * 2];
+	size_t used, value_len, out_used;
+	int i, j, fieldLen, rowLen, value;
 
-    if (v->argv[0]==NULL) 
-    {
-       return 0;
-    }
+	if (!v || !v->argv || !v->argv[0] || !v->argv[2])
+		return 0;
 
-    bufs[0] = 0x0;
-    rowLen = atoi(v->argv[2]);
+	rowLen = atoi(v->argv[2]);
+	if (rowLen < 0)
+		rowLen = 0;
+	if ((size_t)rowLen >= sizeof(bufs))
+		rowLen = sizeof(bufs) - 1;
 
-    if (count==-1)
-    {
-       for (i=0;i<rowLen;i++)
-       {
-           bufs[i] = ' ';
-       }
-       value = -1;
-       bufs[i] = 0x0;
+	bufs[0] = '\0';
+	value = count;
 
-       goto ToHTML;
-    }
+	if (count == -1) {
+		memset(bufs, ' ', (size_t)rowLen);
+		bufs[rowLen] = '\0';
+		value = -1;
+		goto ToHTML;
+	}
 
-    fieldCount = 0;
+	for (gv = (struct variable *)v->argv[0]; gv->name != NULL; gv++) {
+		const char *stored = nvram_get_list_x(gv->name, count);
 
-    value = count;
+		if (snprintf(buf, sizeof(buf), "%s", stored ? stored : "") < 0)
+			continue;
 
-    for (gv = (struct variable *)v->argv[0]; gv->name!=NULL; gv++)
-    {
-    	strcpy(buf, nvram_get_list_x(gv->name, count));
-    	addlen=0;
-    	
-    	fieldLen = atoi(gv->longname)+addlen;
-    	rowLen+=addlen;
-    	
-    	if (fieldLen!=0)
-    	{
-    	   if (strlen(buf)>fieldLen)
-    	   {
-    	      buf[fieldLen] = 0x0;
-    	   }
-    	   else
-    	   {
-    	      i = strlen(buf);
-    	      j = i;
-    	      for (;i<fieldLen;i++)
-    	      {
-    		 buf[j++] = ' ';
-    	      }
-    	      buf[j] = 0x0;
-    	   }
-    	}
-    	
-    	if (fieldCount==0)
-    	   sprintf(bufs, "%s", buf);
-    	else
-    	   snprintf(bufs, sizeof(bufs), "%s%s", bufs, buf);
-    	
-    	fieldCount++;
-    }
+		fieldLen = gv->longname ? atoi(gv->longname) : 0;
+		if (fieldLen < 0)
+			fieldLen = 0;
+		if ((size_t)fieldLen >= sizeof(buf))
+			fieldLen = sizeof(buf) - 1;
 
-    if (strlen(bufs) > rowLen)
-       bufs[rowLen] = 0x0;
+		if (fieldLen > 0) {
+			size_t current_len = strlen(buf);
+			if (current_len > (size_t)fieldLen) {
+				buf[fieldLen] = '\0';
+			} else {
+				j = (int)current_len;
+				while (j < fieldLen)
+					buf[j++] = ' ';
+				buf[j] = '\0';
+			}
+		}
+
+		/* Append without overlapping snprintf source/destination buffers. */
+		used = strlen(bufs);
+		value_len = strlen(buf);
+		if (value_len > sizeof(bufs) - 1 - used)
+			value_len = sizeof(bufs) - 1 - used;
+		memcpy(bufs + used, buf, value_len);
+		bufs[used + value_len] = '\0';
+		if (used + value_len >= sizeof(bufs) - 1)
+			break;
+	}
+
+	if (strlen(bufs) > (size_t)rowLen)
+		bufs[rowLen] = '\0';
 
 ToHTML:
-    /* Replace ' ' to &nbsp; */
-    buf[0] = 0;
-    j = 0;
+	/* Preserve column spacing while escaping text for HTML output. */
+	out_used = 0;
+	for (i = 0; bufs[i] != '\0'; i++) {
+		const char *escaped = NULL;
+		size_t escaped_len = 0;
 
-    for (i=0; i<strlen(bufs);i++)
-    {
-    	if (bufs[i] == ' ')
-    	{
-    	   buf[j++] = '&';
-    	   buf[j++] = 'n';
-    	   buf[j++] = 'b';
-    	   buf[j++] = 's';
-    	   buf[j++] = 'p';
-    	   buf[j++] = ';';
-    	}
-    	else buf[j++] = bufs[i];
-    }
-    buf[j] = 0x0;
+		switch (bufs[i]) {
+		case ' ':
+			escaped = "&nbsp;";
+			escaped_len = 6;
+			break;
+		case '&':
+			escaped = "&amp;";
+			escaped_len = 5;
+			break;
+		case '<':
+			escaped = "&lt;";
+			escaped_len = 4;
+			break;
+		case '>':
+			escaped = "&gt;";
+			escaped_len = 4;
+			break;
+		case '"':
+			escaped = "&quot;";
+			escaped_len = 6;
+			break;
+		case '\'': 
+			escaped = "&#39;";
+			escaped_len = 5;
+			break;
+		default:
+			break;
+		}
 
-    return (websWrite(wp, "<option value=\"%d\">%s</option>", value, buf));
+		if (escaped) {
+			if (escaped_len > sizeof(buf) - 1 - out_used)
+				break;
+			memcpy(buf + out_used, escaped, escaped_len);
+			out_used += escaped_len;
+		} else {
+			if (out_used >= sizeof(buf) - 1)
+				break;
+			buf[out_used++] = bufs[i];
+		}
+	}
+	buf[out_used] = '\0';
+
+	return websWrite(wp, "<option value=\"%d\">%s</option>", value, buf);
 }
 
 static int
