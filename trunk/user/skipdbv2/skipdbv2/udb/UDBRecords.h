@@ -28,7 +28,7 @@ typedef struct
 UDBRecords *UDBRecords_new(void);
 void UDBRecords_free(UDBRecords *self);
 
-JFile *UDBRecords_jfile(UDBIndex *self);
+JFile *UDBRecords_jfile(UDBRecords *self);
 
 void UDBRecords_setPath_(UDBRecords *self, const char *s);
 void UDBRecords_setLogPath_(UDBRecords *self, const char *s);
