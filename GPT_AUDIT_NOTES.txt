@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+a790c61  netutils.c: validate sysctl/bridge path components and reject truncated paths.
 efc48e7  usb_info.c: avoid substring-based USB root-port misclassification; guard NULL node names.
 4b428a7  usb_info.c: reject unsafe sysfs device components and truncated class-device paths.
 7db1c8d  disk_initial.c: bound parent-disk name and reject truncated sysfs size paths.
