@@ -262,11 +262,18 @@ void UArray_convertToEncoding_(UArray *self, CENCODING encoding)
 			converted = UArray_asUTF32(self);
 			break;
 		case CENCODING_NUMBER:
-			UArray_setItemType_(self, CTYPE_uint8_t);
-			if (self->itemType != CTYPE_uint8_t ||
-				self->itemSize != sizeof(uint8_t))
+			converted = UArray_clone(self);
+			if (NULL == converted)
 				return;
-			self->encoding = encoding;
+			UArray_setItemType_(converted, CTYPE_uint8_t);
+			if (converted->itemType != CTYPE_uint8_t ||
+				converted->itemSize != sizeof(uint8_t)) {
+				UArray_free(converted);
+				return;
+			}
+			converted->encoding = encoding;
+			UArray_swapWith_(self, converted);
+			UArray_free(converted);
 			UArray_changed(self);
 			return;
 		default:
