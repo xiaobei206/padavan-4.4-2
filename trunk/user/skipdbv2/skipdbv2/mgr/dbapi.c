@@ -268,55 +268,72 @@ static int ignore_result(dbclient *client) {
 
 static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_parse fn) {
     int n1, n2;
-    char *p1, *p2, *magic = MAGIC;
-    size_t key_len, value_len;
+    char *command_end, *key_start, *key_end, *value;
+    size_t command_len, key_len, value_len;
 
-    for(;;) {
+    for (;;) {
         n1 = read_util(client, HEADER_PREFIX, 110);
-        if(n1 < 0) {
+        if (n1 < 0)
             return n1;
-        }
 
-        if(0 != memcmp(client->buf, magic, MAGIC_LEN)) {
-            //message error
+        if (0 != memcmp(client->buf, MAGIC, MAGIC_LEN))
             return -3;
-        }
 
-        client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
-            n2 <= LIST_LEN + 1 || n2 > READ_MAX) {
-            //message error or malformed list result
+        client->buf[HEADER_PREFIX - 1] = '\\0';
+        if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
+            n2 <= 0 || n2 > READ_MAX)
             return -4;
-        }
 
         n1 = read_util(client, n2, 510);
-        if(n1 < 0) {
+        if (n1 < 0)
             return n1;
+        client->buf[n2] = '\\0';
+
+        command_end = (char *)memchr(client->buf, ' ', (size_t)n2);
+        if (NULL == command_end || command_end == client->buf)
+            return -4;
+        command_len = (size_t)(command_end - client->buf);
+
+        key_start = command_end + 1;
+        key_end = (char *)memchr(key_start, ' ',
+            (size_t)(client->buf + n2 - key_start));
+        if (NULL == key_end || key_end == key_start)
+            return -4;
+        key_len = (size_t)(key_end - key_start);
+        value = key_end + 1;
+        value_len = (size_t)(client->buf + n2 - value);
+
+        if (memchr(key_start, '\\0', key_len) != NULL)
+            return -4;
+
+        /*
+         * The end marker is a dedicated command, not a magic value. A real
+         * database entry may legally contain the text "__end__\\n".
+         */
+        if (command_len == 6 &&
+            memcmp(client->buf, "__end__", 6) == 0) {
+            if (key_len == 4 && memcmp(key_start, "list", 4) == 0 &&
+                value_len == 7 && memcmp(value, "__end__\\n", 7) == 0)
+                break;
+            return -4;
         }
 
-        client->buf[n2] = '\0';
-
-        if (n2 == 7 && memcmp(client->buf, "__end__\n", 7) == 0)
-            break;
-
-        p1 = client->buf + LIST_LEN;
-        p2 = (char *)memchr(p1, ' ', (size_t)(n2 - LIST_LEN));
-        if (NULL == p2 || p2 == p1)
+        if (command_len != 4 || memcmp(client->buf, "list", 4) != 0 ||
+            value_len == 0)
             return -4;
-        key_len = (size_t)(p2 - p1);
-        if (memchr(p1, '\0', key_len) != NULL)
-            return -4;
-        *p2++ = '\0';
 
-        value_len = (size_t)(client->buf + n2 - p2);
-        /* SkipDB string Datums include their final NUL; tolerate raw text too. */
-        if (value_len > 0 && p2[value_len - 1] == '\0')
+        *key_end = '\\0';
+        /* SkipDB string Datums include their final NUL; tolerate raw text. */
+        if (value[value_len - 1] == '\\0' ||
+            value[value_len - 1] == '\\n')
             --value_len;
-        if (memchr(p2, '\0', value_len) != NULL)
+        else
             return -4;
-        p2[value_len] = '\0';
+        if (memchr(value, '\\0', value_len) != NULL)
+            return -4;
+        value[value_len] = '\\0';
 
-        if (0 != (*fn)(client, o, prefix, p1, p2))
+        if (0 != (*fn)(client, o, prefix, key_start, value))
             return -5;
     }
 
