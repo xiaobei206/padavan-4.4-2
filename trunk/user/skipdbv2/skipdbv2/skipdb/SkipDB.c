@@ -103,6 +103,24 @@ SKIPDB_API int SkipDB_open(SkipDB *self)
 	if (SkipDB_isOpen(self))
 		return (int)self->headerPid;
 
+	/* Drop stale in-memory state after close or failed transaction. */
+	if (self->dirtyRecords)
+		List_removeAll(self->dirtyRecords);
+	if (self->pidsToRemove)
+		List_removeAll(self->pidsToRemove);
+	SkipDB_clearUpdate(self);
+	if (self->cursors) {
+		size_t i;
+		for (i = 0; i < self->cursors->size; ++i) {
+			SkipDBCursor *cursor = (SkipDBCursor *)self->cursors->items[i];
+			if (cursor)
+				cursor->record = NULL;
+		}
+	}
+	if (self->youngestRecord || self->header)
+		SkipDB_freeAllCachedRecords(self);
+	self->headerPid = 1;
+
 	UDB_open(self->udb);
 	if (!UDB_isOpen(self->udb))
 		return 0;
