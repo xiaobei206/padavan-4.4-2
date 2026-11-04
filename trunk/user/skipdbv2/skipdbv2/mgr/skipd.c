@@ -2033,6 +2033,11 @@ int main(int argc, char **argv)
             }
     }
 
+    if (optind < argc) {
+        fprintf(stderr, "skipd: unexpected positional argument\n");
+        return EXIT_FAILURE;
+    }
+
     if(0 == strlen(server->db_path) || (0 != check_dbpath(server))) {
         //syslog not initialize hear
         fprintf(stderr, "Database path error\n");
