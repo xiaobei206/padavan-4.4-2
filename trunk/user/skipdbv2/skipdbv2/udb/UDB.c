@@ -342,6 +342,10 @@ void UDB_close(UDB *self)
 		return;
 	UDBIndex_close(self->index);
 	UDBRecords_close(self->records);
+	if (self->index && self->index->file)
+		self->index->file->deferLogReplay = 0;
+	if (self->records && self->records->file)
+		self->records->file->deferLogReplay = 0;
 	if (self->committedFile) {
 		fclose(self->committedFile);
 		self->committedFile = NULL;
