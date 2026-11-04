@@ -317,12 +317,19 @@ void JFile_writeLogToFile(JFile *self)
 	size_t writeCount = 0;
 	int logNotEmpty = 0;
 	int lastTerminator = 0;
-	fseek(self->log, 0, SEEK_SET);
+	long log_end;
+
+	if (NULL == self || NULL == self->log || NULL == self->file ||
+		fseek(self->log, 0, SEEK_END) != 0 ||
+		(log_end = ftell(self->log)) < 0 ||
+		fseek(self->log, 0, SEEK_SET) != 0)
+		goto fatalError;
 
 	while (1)
 	{
-		long pos;
+		long pos, data_pos;
 		size_t total;
+		unsigned char *new_buf;
 
 		if (fread(&pos, sizeof(long), 1, self->log) != 1)
 		{
@@ -342,11 +349,27 @@ void JFile_writeLogToFile(JFile *self)
                     return;
                 }
 
-		self->buf = realloc(self->buf, total);
+		data_pos = ftell(self->log);
+		if (pos < 0 || data_pos < 0 || data_pos >= log_end ||
+			total > (size_t)(log_end - data_pos - 1) ||
+			total > (size_t)LONG_MAX ||
+			pos > LONG_MAX - (long)total)
+		{
+			printf("JFile: invalid log record bounds\n");
+			goto fatalError;
+		}
+
+		new_buf = (unsigned char *)realloc(self->buf, total);
+		if (NULL == new_buf)
+		{
+			printf("JFile: out of memory reading log\n");
+			goto fatalError;
+		}
+		self->buf = new_buf;
 
 		if (fread(self->buf, total, 1, self->log) != 1)
 		{
-			printf("JFile: error reading buf %d\n", total);
+			printf("JFile: error reading buf %lu\n", (unsigned long)total);
 			goto fatalError;
 		}
 
@@ -359,8 +382,12 @@ void JFile_writeLogToFile(JFile *self)
 			goto fatalError;
 		}
 
-		fseek(self->file, pos, SEEK_SET);
-		fwrite(self->buf, total, 1, self->file);
+		if (fseek(self->file, pos, SEEK_SET) != 0 ||
+			fwrite(self->buf, total, 1, self->file) != 1)
+		{
+			printf("JFile: error applying log record\n");
+			goto fatalError;
+		}
 		writeCount ++;
 		logNotEmpty = 1;
 	}
