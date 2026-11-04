@@ -311,8 +311,12 @@ UDBRecord *UDBRecords_firstEmptyRecord(UDBRecords *self)
 	return NULL;
 }
 
-void UDBRecords_truncate_(UDBRecords *self, off_t size)
+int UDBRecords_truncate_(UDBRecords *self, off_t size)
 {
-	if (self && self->file)
-		JFile_truncate_(self->file, size);
+	if (NULL == self || NULL == self->file || size < 0 ||
+		size > (off_t)LONG_MAX)
+		return 0;
+	JFile_truncate_(self->file, size);
+	return self->file->file != NULL && self->file->log != NULL &&
+		self->file->maxPos == (long)size;
 }
