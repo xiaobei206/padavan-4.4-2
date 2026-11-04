@@ -9,76 +9,97 @@
 List *List_new(void)
 {
 	List *self = (List *)io_calloc(1, sizeof(List));
+	if (NULL == self)
+		return NULL;
 	self->size = 0;
-	self->memSize = sizeof(void *)*LIST_START_SIZE;
+	self->memSize = sizeof(void *) * LIST_START_SIZE;
 	self->items = (void **)io_calloc(1, self->memSize);
+	if (NULL == self->items) {
+		io_free(self);
+		return NULL;
+	}
 	return self;
 }
 
+
 List *List_clone(const List *self)
 {
-	List *child = List_new();
+	List *child;
+	if (NULL == self)
+		return NULL;
+	child = List_new();
+	if (NULL == child)
+		return NULL;
 	List_copy_(child, self);
-	/*
-	 List *child = cpalloc(self, sizeof(List));
-	 child->items = cpalloc(self->items, self->memSize);
-	 */
+	if (child->size != self->size) {
+		List_free(child);
+		return NULL;
+	}
 	return child;
 }
 
+
 static size_t indexWrap(long index, size_t size)
 {
-	if (index < 0)
-	{
-		index = size - index;
-
-		if (index < 0)
-		{
-			index = 0;
-		}
+	size_t distance;
+	if (index < 0) {
+		distance = (size_t)(-(index + 1)) + 1;
+		return distance >= size ? 0 : size - distance;
 	}
-
-	if (index > (int)size)
-	{
-		index = size;
-	}
-
-	return (size_t)index;
+	return (size_t)index > size ? size : (size_t)index;
 }
+
 
 void List_sliceInPlace(List* self, long startIndex, long endIndex)
 {
-	size_t i, size = List_size(self);
-	List *tmp = List_new();
-	size_t start = indexWrap(startIndex, size);
-	size_t end   = indexWrap(endIndex, size);
-
-	for (i = start; i < size && i < end + 1; i ++)
-	{
-		List_append_(tmp, List_at_(self, i));
+	size_t i, start, end, oldSize;
+	List *tmp;
+	if (NULL == self)
+		return;
+	tmp = List_new();
+	if (NULL == tmp)
+		return;
+	oldSize = self->size;
+	start = indexWrap(startIndex, oldSize);
+	end = indexWrap(endIndex, oldSize);
+	if (start <= end) {
+		for (i = start; i < oldSize && i <= end; ++i) {
+			if (NULL == List_append_(tmp, self->items[i]) &&
+				tmp->size == i - start) {
+				List_free(tmp);
+				return;
+			}
+		}
 	}
-
 	List_copy_(self, tmp);
 	List_free(tmp);
 }
 
+
 List *List_cloneSlice(const List *self, long startIndex, long endIndex)
 {
 	List *child = List_clone(self);
+	if (NULL == child)
+		return NULL;
 	List_sliceInPlace(child, startIndex, endIndex);
 	return child;
 }
 
+
 void List_free(List *self)
 {
-	//printf("List_free(%p)\n", (void *)self);
+	if (NULL == self)
+		return;
 	io_free(self->items);
 	io_free(self);
 }
 
+
 UArray List_asStackAllocatedUArray(List *self)
 {
 	UArray a = UArray_stackAllocedEmptyUArray();
+	if (NULL == self)
+		return a;
 	a.itemType = CTYPE_uintptr_t;
 	a.itemSize = sizeof(uintptr_t);
 	a.size = self->size;
@@ -86,83 +107,149 @@ UArray List_asStackAllocatedUArray(List *self)
 	return a;
 }
 
+
 size_t List_memorySize(const List *self)
 {
+	if (NULL == self || self->size > ((size_t)-1 - sizeof(List)) / sizeof(void *))
+		return 0;
 	return sizeof(List) + (self->size * sizeof(void *));
 }
 
+
 void List_removeAll(List *self)
 {
+	if (NULL == self)
+		return;
+	if (self->items && self->size > 0)
+		memset(self->items, 0, self->size * sizeof(void *));
 	self->size = 0;
 	List_compactIfNeeded(self);
 }
 
+
 void List_copy_(List *self, const List *otherList)
 {
-	if (self == otherList || (!otherList->size && !self->size))
-	{
+	size_t oldSize;
+	if (NULL == self || NULL == otherList || self == otherList)
 		return;
+	if (otherList->size > (size_t)-1 / sizeof(void *))
+		return;
+	oldSize = self->size;
+	if (otherList->size > 0) {
+		List_preallocateToSize_(self, otherList->size);
+		if (otherList->size > self->memSize / sizeof(void *) ||
+			NULL == self->items || NULL == otherList->items)
+			return;
+		memmove(self->items, otherList->items,
+			otherList->size * sizeof(void *));
 	}
-
-	List_preallocateToSize_(self, otherList->size);
-	memmove(self->items, otherList->items, sizeof(void *) * (otherList->size));
+	if (oldSize > otherList->size && self->items)
+		memset(self->items + otherList->size, 0,
+			(oldSize - otherList->size) * sizeof(void *));
 	self->size = otherList->size;
 }
 
+
 int List_equals_(const List *self, const List *otherList)
 {
-	return (self->size == otherList->size &&
-		   memcmp(self->items, otherList->items, sizeof(void *) * self->size) == 0);
+	if (NULL == self || NULL == otherList || self->size != otherList->size)
+		return 0;
+	if (self->size == 0)
+		return 1;
+	if (NULL == self->items || NULL == otherList->items)
+		return 0;
+	return memcmp(self->items, otherList->items,
+		self->size * sizeof(void *)) == 0;
 }
+
 
 /* --- sizing ------------------------------------------------ */
 
 void List_setSize_(List *self, size_t index)
 {
-	List_ifNeededSizeTo_(self, index);
+	size_t oldSize;
+	if (NULL == self || index > (size_t)-1 / sizeof(void *))
+		return;
+	oldSize = self->size;
+	if (index > oldSize) {
+		List_preallocateToSize_(self, index);
+		if (index > self->memSize / sizeof(void *) || NULL == self->items)
+			return;
+		memset(self->items + oldSize, 0,
+			(index - oldSize) * sizeof(void *));
+	} else if (index < oldSize && self->items) {
+		memset(self->items + index, 0, (oldSize - index) * sizeof(void *));
+	}
 	self->size = index;
+	List_compactIfNeeded(self);
 }
+
 
 void List_preallocateToSize_(List *self, size_t index)
 {
-	size_t s = index * sizeof(void *);
-
-	if (s >= self->memSize)
-	{
-		size_t newSize = self->memSize * LIST_RESIZE_FACTOR;
-
-		if (s > newSize)
-		{
-			newSize = s;
+	size_t required, newSize, oldMemSize;
+	void **newItems;
+	if (NULL == self || index > (size_t)-1 / sizeof(void *))
+		return;
+	required = index * sizeof(void *);
+	if (required <= self->memSize && (required == 0 || self->items))
+		return;
+	oldMemSize = self->memSize;
+	newSize = oldMemSize ? oldMemSize : sizeof(void *);
+	while (newSize < required) {
+		if (newSize > (size_t)-1 / LIST_RESIZE_FACTOR) {
+			newSize = required;
+			break;
 		}
-
-		self->items = (void **)io_realloc(self->items, newSize);
-		memset(self->items + self->size, 0, (newSize - (self->size*sizeof(void *))));
-		self->memSize = newSize;
+		newSize *= LIST_RESIZE_FACTOR;
 	}
+	newItems = (void **)io_realloc(self->items, newSize);
+	if (NULL == newItems)
+		return;
+	if (newSize > oldMemSize)
+		memset((uint8_t *)newItems + oldMemSize, 0, newSize - oldMemSize);
+	self->items = newItems;
+	self->memSize = newSize;
 }
+
 
 void List_compact(List *self)
 {
-	self->memSize = self->size * sizeof(void *);
-	self->items = (void **)io_realloc(self->items, self->memSize);
+	size_t newSize;
+	void **newItems;
+	if (NULL == self)
+		return;
+	if (self->size > (size_t)-1 / sizeof(void *))
+		return;
+	newSize = self->size * sizeof(void *);
+	if (newSize == 0) {
+		io_free(self->items);
+		self->items = NULL;
+		self->memSize = 0;
+		return;
+	}
+	newItems = (void **)io_realloc(self->items, newSize);
+	if (NULL == newItems)
+		return;
+	self->items = newItems;
+	self->memSize = newSize;
 }
+
 
 // -----------------------------------------------------------
 
 void List_print(const List *self)
 {
 	size_t i;
-
-	printf("List <%p> [%i bytes]\n", (void *)self, (int)self->memSize);
-
-	for (i = 0; i < self->size; i ++)
-	{
-		printf("%i: %p\n", i, (void *)self->items[i]);
-	}
-
+	if (NULL == self)
+		return;
+	printf("List <%p> [%lu bytes]\n", (const void *)self,
+		(unsigned long)self->memSize);
+	for (i = 0; i < self->size; i++)
+		printf("%lu: %p\n", (unsigned long)i, self->items ? self->items[i] : NULL);
 	printf("\n");
 }
+
 
 // enumeration -----------------------------------------
 
@@ -224,15 +311,23 @@ void *List_anyOne(const List *self)
 void List_shuffle(List *self)
 {
 	size_t i, j;
-
-	for (i = 0; i < self->size - 1; i ++)
-	{
-		j = i + rand() % (self->size - i);
-		List_swap_with_(self, i, j);
+	if (NULL == self || self->size < 2)
+		return;
+	for (i = 0; i < self->size - 1; i++) {
+		j = i + (size_t)rand() % (self->size - i);
+		List_swap_with_(self, (long)i, (long)j);
 	}
 }
 
+
 void *List_removeLast(List *self)
+{
+	if (NULL == self || self->size == 0)
+		return NULL;
+	return List_pop(self);
+}
+
+
 {
 	void *item = List_at_(self, self->size - 1);
 
