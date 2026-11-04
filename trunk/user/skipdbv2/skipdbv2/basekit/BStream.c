@@ -626,7 +626,7 @@ void BStream_writeTaggedCString_(BStream *self, const char *s)
 void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 {
 	size_t length;
-	if (NULL == self || NULL == ba || ba->itemSize == 0 ||
+	if (NULL == self || NULL == ba || ba == self->ba || ba->itemSize == 0 ||
 		ba->size > (size_t)-1 / ba->itemSize ||
 		(ba->size > 0 && NULL == ba->data)) {
 		BStream_error_(self, "invalid tagged array");
