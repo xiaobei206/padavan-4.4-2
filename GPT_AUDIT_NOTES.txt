@@ -67,3 +67,4 @@ fca881f  raether_qdma.c: release page spinlock around QDMA readback copy.
 3ada525  spindown.sh: refuse standby when the disk or a numbered partition remains mounted.
 d121241  check_crontab.sh: translate wildcard alias to a literal cron '*', not '\\*'.
 b6d065f  common_ex.c: restore single newline trimming and reject truncated module parameter reads.
+1f04fee  firewall_ex.c: bound shared firewall string-pool writes and handle pool exhaustion safely.
