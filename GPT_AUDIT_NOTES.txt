@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+db9b8d2  skipd.c: bound time-token copy, require exact HH:MM:SS parsing, handle timer allocation failures, and fix delay duplicate-response use-after-free.
 2e2ffcf  skipd.c: validate fire script identifiers and bound/check generated path buffers before execution.
 4250d5e  skipd.c: reject nonpositive frame lengths, handle receive-buffer allocation failure, and guard client allocation/nonblocking setup.
 21d1d66  dbapi.c: recognize only the exact SkipDB list end frame; values containing __end__ no longer truncate results.
