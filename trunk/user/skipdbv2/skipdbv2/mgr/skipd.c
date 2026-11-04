@@ -227,7 +227,7 @@ static int next_daily_delay(const char *time_text, time_t now, double *delay)
     target.tm_year = local_now->tm_year;
     target.tm_mon = local_now->tm_mon;
     target.tm_mday = local_now->tm_mday;
-    target.tm_isdst = local_now->tm_isdst;
+    target.tm_isdst = -1;
     next = mktime(&target);
     if (next == (time_t)-1)
         return 0;
