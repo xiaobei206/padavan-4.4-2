@@ -346,32 +346,56 @@ static void time_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
 
 static int client_send_key(EV_P_ skipd_client* client, char* cmd, char* key, char* buf, int len) {
     char pref_buf[HEADER_PREFIX+1];
-    int n, resp_len = (len + 2);
+    size_t cmd_len, key_len, body_len;
+    int n, resp_len;
+    char *new_send;
+
+    if(NULL == client || NULL == cmd || NULL == key || len < 0 ||
+       (len > 0 && NULL == buf))
+        return -1;
+
+    cmd_len = strlen(cmd);
+    key_len = strlen(key);
+    if(cmd_len > READ_MAX || key_len > READ_MAX ||
+       cmd_len > (size_t)READ_MAX - key_len ||
+       cmd_len + key_len > (size_t)READ_MAX - 2 ||
+       (size_t)len > (size_t)READ_MAX - cmd_len - key_len - 2)
+        return -1;
+
+    body_len = cmd_len + key_len + (size_t)len + 2;
+    if(body_len == 0 || body_len > READ_MAX ||
+       body_len > (size_t)INT_MAX - HEADER_PREFIX)
+        return -1;
+    resp_len = (int)(body_len + HEADER_PREFIX);
 
     memcpy(pref_buf, global_magic, MAGIC_LEN);
-
-    resp_len += strlen(cmd);
-    resp_len += strlen(key);
-
-    sprintf(pref_buf + MAGIC_LEN, "%07d ", resp_len);
-    resp_len += HEADER_PREFIX;
+    snprintf(pref_buf + MAGIC_LEN, sizeof(pref_buf) - MAGIC_LEN, "%07d ", (int)body_len);
 
     if(NULL == client->send) {
-        client->send = (char*)malloc(BUF_MAX+1);
+        client->send = (char*)malloc(BUF_MAX + 1);
+        if(NULL == client->send)
+            return -1;
         client->send_max = BUF_MAX;
         client->send_len = 0;
     }
 
     if(resp_len > client->send_max) {
+        new_send = (char*)malloc((size_t)resp_len + 1);
+        if(NULL == new_send)
+            return -1;
         free(client->send);
-        client->send = (char*)malloc(resp_len);
+        client->send = new_send;
         client->send_max = resp_len;
         client->send_len = 0;
     }
 
     memcpy(client->send, pref_buf, HEADER_PREFIX);
-    n = sprintf(client->send + HEADER_PREFIX, "%s %s ", cmd, key);
-    memcpy(client->send + HEADER_PREFIX + n, buf, len);
+    n = snprintf(client->send + HEADER_PREFIX,
+                 (size_t)resp_len - HEADER_PREFIX + 1, "%s %s ", cmd, key);
+    if(n < 0 || (size_t)n != cmd_len + key_len + 2)
+        return -1;
+    if(len > 0)
+        memcpy(client->send + HEADER_PREFIX + n, buf, (size_t)len);
     client->send[resp_len] = '\0';
     client->send_len = resp_len;
     client->send_pos = 0;
