@@ -26,6 +26,7 @@ typedef struct
 {
     JFile *file;
     List *holes;
+    List *reserved;
     PID_TYPE maxPid;
 } UDBIndex;
 
