@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <limits.h>
 #include <syslog.h>
 #include <ctype.h>
 #include <string.h>
@@ -91,13 +92,17 @@ err:
 int
 route_add(char *ifname, int metric, char *dst, char *gateway, char *genmask)
 {
-	return route_manip(SIOCADDRT, ifname, metric+1, dst, gateway, genmask);
+	if (metric < 0 || metric == INT_MAX)
+		return EINVAL;
+	return route_manip(SIOCADDRT, ifname, metric + 1, dst, gateway, genmask);
 }
 
 int
 route_del(char *ifname, int metric, char *dst, char *gateway, char *genmask)
 {
-	return route_manip(SIOCDELRT, ifname, metric+1, dst, gateway, genmask);
+	if (metric < 0 || metric == INT_MAX)
+		return EINVAL;
+	return route_manip(SIOCDELRT, ifname, metric + 1, dst, gateway, genmask);
 }
 
 int
@@ -105,7 +110,8 @@ control_static_routes(char *ift, char *ifname, int is_add)
 {
 	char word[128], *next;
 	char *route_buf;
-	char *ipaddr, *netmask, *gateway, *metric;
+	char *ipaddr, *netmask, *gateway, *metric, *metric_end;
+	long metric_value;
 
 	if (is_add && nvram_invmatch("sr_enable_x", "1"))
 		return 0;
@@ -131,11 +137,17 @@ control_static_routes(char *ift, char *ifname, int is_add)
 			continue;
 		if (!is_valid_ipv4(gateway))
 			gateway = nvram_safe_get("wanx_gateway");	// oleg patch
-		
+
+		errno = 0;
+		metric_value = strtol(metric, &metric_end, 10);
+		if (errno == ERANGE || metric_end == metric || *metric_end ||
+		    metric_value < 0 || metric_value >= INT_MAX)
+			continue;
+
 		if (is_add)
-			route_add(ifname, atoi(metric), ipaddr, gateway, netmask);
+			route_add(ifname, (int)metric_value, ipaddr, gateway, netmask);
 		else
-			route_del(ifname, atoi(metric), ipaddr, gateway, netmask);
+			route_del(ifname, (int)metric_value, ipaddr, gateway, netmask);
 	}
 
 	free(route_buf);
