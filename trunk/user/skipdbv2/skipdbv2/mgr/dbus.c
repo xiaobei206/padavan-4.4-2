@@ -151,97 +151,63 @@ static int read_util(dbclient* client, int len, unsigned int delay) {
 
 int parse_common_result(dbclient *client) {
     int n1, n2;
-    char* magic = MAGIC;
+    const char *magic = MAGIC;
+    int success;
 
-    do {
-        n1 = read_util(client, HEADER_PREFIX, 110);
-        if(n1 < 0) {
-            return n1;
-        }
+    n1 = read_util(client, HEADER_PREFIX, 110);
+    if (n1 < 0)
+        return n1;
+    if (0 != memcmp(client->buf, magic, MAGIC_LEN))
+        return -3;
 
-        if(0 != memcmp(client->buf, magic, MAGIC_LEN)) {
-            //message error
-            return -3;
-        }
+    client->buf[HEADER_PREFIX - 1] = '\0';
+    if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
+        n2 <= 0 || n2 > READ_MAX)
+        return -4;
 
-        client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
-            n2 <= 0 || n2 > READ_MAX) {
-            //message error or excessive response size
-            return -4;
-        }
+    n1 = read_util(client, n2, 110);
+    if (n1 < 0)
+        return n1;
 
-        n1 = read_util(client, n2, 110);
-        if(n1 < 0) {
-            return n1;
-        }
-
-        client->buf[n2] = '\0';
-
-        if(client->buf[n2-1] != '\n') {
-            //TODO fix hear
-            printf("%s\n", client->buf);
-        } else {
-            printf("%s", client->buf);
-        }
-    } while(0);
-
-    return 0;
+    success = (n2 == 3 && memcmp(client->buf, "ok\n", 3) == 0) ||
+        (n2 == 9 && memcmp(client->buf, "delay_ok\n", 9) == 0);
+    if (n2 > 0 && fwrite(client->buf, 1, (size_t)n2, stdout) != (size_t)n2)
+        return -5;
+    if (n2 == 0 || client->buf[n2 - 1] != '\n')
+        putchar('\n');
+    return success ? 0 : -5;
 }
 
 int parse_get_result(dbclient *client) {
     int n1, n2;
-    char *p1, *p2, *magic = MAGIC;
+    const char *magic = MAGIC;
 
-    do {
-        n1 = read_util(client, HEADER_PREFIX, 110);
-        if(n1 < 0) {
-            return n1;
-        }
+    n1 = read_util(client, HEADER_PREFIX, 110);
+    if (n1 < 0)
+        return n1;
+    if (0 != memcmp(client->buf, magic, MAGIC_LEN))
+        return -3;
 
-        if(0 != memcmp(client->buf, magic, MAGIC_LEN)) {
-            //message error
-            return -3;
-        }
+    client->buf[HEADER_PREFIX - 1] = '\0';
+    if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
+        n2 < 0 || n2 > READ_MAX)
+        return -4;
 
-        client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
-            n2 <= 0 || n2 > READ_MAX) {
-            //message error or excessive response size
-            return -4;
-        }
+    n1 = read_util(client, n2, 510);
+    if (n1 < 0)
+        return n1;
 
-        n1 = read_util(client, n2, 510);
-        if(n1 < 0) {
-            return n1;
-        }
+    /* get/inc/desc/replace responses are the raw Datum payload, not a
+     * key/value record. Preserve the exact length, including embedded NULs. */
+    if (n2 > 0 && fwrite(client->buf, 1, (size_t)n2, stdout) != (size_t)n2)
+        return -5;
+    if (n2 == 0 || client->buf[n2 - 1] != '\n')
+        putchar('\n');
 
-        client->buf[n2] = '\0';
-        p1 = strstr(client->buf, " ");
-        if(NULL == p1)
-            return -4;
-        p2 = strstr(p1 + 1, " ");
-        if(NULL == p2)
-            return -4;
-        {
-            int value_len = n2 - (int)(p2 - client->buf) - 1;
-            if (value_len < 0)
-                return -4;
-            if (value_len == 5 && memcmp(p2 + 1, "none\n", 5) == 0)
-                return 0;
-            if (value_len == 0) {
-                putchar('\n');
-                return 0;
-            }
-            if (p2[value_len] != '\n')
-                printf("%.*s\n", value_len, p2 + 1);
-            else
-                printf("%.*s", value_len, p2 + 1);
-        }
-        return 0;
-    } while(0);
-
-    printf("\n");
+    if ((n2 == 6 && memcmp(client->buf, "error\n", 6) == 0) ||
+        (n2 == 16 && memcmp(client->buf, "database error\n", 15) == 0) ||
+        (n2 == 17 && memcmp(client->buf, "integer overflow\n", 17) == 0))
+        return -5;
     return 0;
 }
 
@@ -474,6 +440,12 @@ static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[])
         client->buf[n2] = '\0';
         if (write_util(client, n2) != 0)
             return -1;
+        if (setnonblock(client->remote_fd) < 0)
+            return -1;
+        n2 = !strcmp(command, "replace")
+            ? parse_get_result(client) : parse_common_result(client);
+        if (n2 < 0)
+            return n2;
     }
     return 0;
 }
