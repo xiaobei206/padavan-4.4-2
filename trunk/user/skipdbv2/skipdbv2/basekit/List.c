@@ -326,17 +326,3 @@ void *List_removeLast(List *self)
 		return NULL;
 	return List_pop(self);
 }
-
-
-{
-	void *item = List_at_(self, self->size - 1);
-
-	if (item)
-	{
-		self->size --;
-		List_compactIfNeeded(self);
-	}
-
-	return item;
-}
-
