@@ -891,7 +891,7 @@ static int client_run_command(EV_P_ skipd_client* client)
             "__time__%s", client->key);
         if (tmp2 < 0 || (size_t)tmp2 >= sizeof(time_obj->key)) {
             free(time_obj);
-            p1 = "key too big\\n";
+            p1 = "key too big\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
