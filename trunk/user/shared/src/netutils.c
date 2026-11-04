@@ -543,6 +543,8 @@ get_interface_hwaddr(const char *ifname, unsigned char mac[6])
 	struct ifreq ifr;
 	int sockfd, result = 0;
 
+	if (!mac)
+		return -1;
 	if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) < 0)
 		return -1;
 
@@ -567,6 +569,8 @@ set_interface_hwaddr(const char *ifname, const char *mac_str)
 	struct ifreq ifr;
 	int sockfd, ret;
 
+	if (!mac_str)
+		return -1;
 	if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) < 0)
 		return -1;
 
@@ -576,7 +580,10 @@ set_interface_hwaddr(const char *ifname, const char *mac_str)
 		return -1;
 	}
 	ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
-	ether_atoe(mac_str, ifr.ifr_hwaddr.sa_data);
+	if (!ether_atoe(mac_str, (unsigned char *)ifr.ifr_hwaddr.sa_data)) {
+		close(sockfd);
+		return -1;
+	}
 
 	ret = ioctl(sockfd, SIOCSIFHWADDR, &ifr);
 
@@ -618,8 +625,13 @@ void
 set_interface_conf_int(const char *ver, const char *ifname, const char *param, int value)
 {
 	char conf_path[80];
+	int path_len;
 
-	snprintf(conf_path, sizeof(conf_path), "/proc/sys/net/%s/conf/%s/%s", ver, ifname, param);
+	if (!ver || !ifname || !param)
+		return;
+	path_len = snprintf(conf_path, sizeof(conf_path), "/proc/sys/net/%s/conf/%s/%s", ver, ifname, param);
+	if (path_len < 0 || path_len >= (int)sizeof(conf_path))
+		return;
 	fput_int(conf_path, value);
 }
 
@@ -702,11 +714,14 @@ int
 br_add_del_bridge(const char *brname, int is_add)
 {
 	int sockfd, ret;
+	char bridge_name[IFNAMSIZ];
 
+	if (copy_ifname(bridge_name, sizeof(bridge_name), brname) < 0)
+		return -1;
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 		return -1;
 
-	ret = ioctl(sockfd, (is_add) ? SIOCBRADDBR : SIOCBRDELBR, brname);
+	ret = ioctl(sockfd, (is_add) ? SIOCBRADDBR : SIOCBRDELBR, bridge_name);
 
 	close(sockfd);
 
@@ -902,6 +917,8 @@ char *get_ifaddr6(const char *ifname, int linklocal, char *p_addr6s)
 	struct ifaddrs *ifap, *ife;
 	const struct sockaddr_in6 *addr6;
 
+	if (!ifname || !p_addr6s)
+		return NULL;
 	if (getifaddrs(&ifap) < 0)
 		return NULL;
 
@@ -909,7 +926,7 @@ char *get_ifaddr6(const char *ifname, int linklocal, char *p_addr6s)
 	{
 		if (strcmp(ifname, ife->ifa_name) != 0)
 			continue;
-		if (ife->ifa_addr == NULL)
+		if (ife->ifa_addr == NULL || ife->ifa_netmask == NULL)
 			continue;
 		if (ife->ifa_addr->sa_family == AF_INET6)
 		{
