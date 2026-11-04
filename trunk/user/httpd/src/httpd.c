@@ -848,6 +848,12 @@ set_preferred_lang(char *cur)
 }
 
 static void
+http_request_timeout_signal(int signal_number)
+{
+	(void)signal_number;
+}
+
+static void
 handle_request(FILE *conn_fp, const conn_item_t *item)
 {
 	char line[4096];
@@ -863,11 +869,15 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	struct stat st, *p_st = NULL;
 	uaddr conn_ip;
 
+	/* Bound the complete request line and header phase, not each read independently. */
+	alarm(15);
+
 	/* Initialize the request variables. */
 	authorization = boundary = NULL;
 
 	/* Parse the first line of the request. */
 	if (!fgets(line, sizeof(line), conn_fp)) {
+		alarm(0);
 		send_error( 400, "Bad Request", NULL, "No request found.", conn_fp);
 		return;
 	}
@@ -884,6 +894,7 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	strsep(&cp, " ");
 
 	if ( !method || !path || !protocol ) {
+		alarm(0);
 		send_error( 400, "Bad Request", NULL, "Can't parse request.", conn_fp );
 		return;
 	}
@@ -907,6 +918,7 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			cur = cp + strlen(cp) + 1;
 		}
 		else if (strncasecmp(cur, "Transfer-Encoding:", 18) == 0) {
+			alarm(0);
 			send_error(400, "Bad Request", NULL, "Transfer encoding is unsupported.", conn_fp);
 			return;
 		}
@@ -914,12 +926,14 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			cp = cur + 15;
 			cp += strspn(cp, " \t");
 			if (!isdigit((unsigned char)*cp) || clen_seen) {
+				alarm(0);
 				send_error(400, "Bad Request", NULL, "Content length invalid.", conn_fp);
 				return;
 			}
 			errno = 0;
 			parsed_clen = strtoul(cp, &clen_end, 10);
 			if (errno == ERANGE || parsed_clen > 50000000UL) {
+				alarm(0);
 				send_error(400, "Bad Request", NULL, "Content length invalid.", conn_fp);
 				return;
 			}
@@ -930,6 +944,7 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			if (*clen_end == '\n')
 				clen_end++;
 			if (*clen_end != '\0') {
+				alarm(0);
 				send_error(400, "Bad Request", NULL, "Content length invalid.", conn_fp);
 				return;
 			}
@@ -957,9 +972,12 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	}
 
 	if (!headers_done) {
+		alarm(0);
 		send_error(400, "Bad Request", NULL, "Incomplete request headers.", conn_fp);
 		return;
 	}
+
+	alarm(0);
 
 	/* Allow slower request bodies, but bound header reads to the accept timeout. */
 	body_timeout.tv_sec = MAX_CONN_TIMEOUT;
@@ -1131,6 +1149,7 @@ main(int argc, char **argv)
 {
 	FILE *pid_fp;
 	struct timeval tv, io_timeout;
+	struct sigaction alarm_action;
 	fd_set active_rfds;
 	usockaddr usa[2];
 	int listen_fd[2], http_port[2];
@@ -1236,6 +1255,11 @@ main(int argc, char **argv)
 	signal(SIGUSR1, catch_sig);
 	signal(SIGUSR2, catch_sig);
 	signal(SIGTERM, catch_sig);
+	memset(&alarm_action, 0, sizeof(alarm_action));
+	alarm_action.sa_handler = http_request_timeout_signal;
+	alarm_action.sa_flags = 0;
+	sigemptyset(&alarm_action.sa_mask);
+	sigaction(SIGALRM, &alarm_action, NULL);
 
 	cnt_fd = (listen_fd[1] >= 0) ? 2 : 1;
 
