@@ -441,9 +441,10 @@ PID_TYPE UDB_put_(UDB *self, Datum d) // returns pid
 
 void UDB_at_put_(UDB *self, PID_TYPE pid, Datum d)
 {
-	if (UDB_isInTransaction(self))
-	{
-		UDB_append_withPid_(self, d, pid);
+	if (UDB_isInTransaction(self) &&
+		!UDB_append_withPid_(self, d, pid)) {
+		/* This API has no status return; abort rather than silently partial-commit. */
+		UDB_close(self);
 	}
 }
 
