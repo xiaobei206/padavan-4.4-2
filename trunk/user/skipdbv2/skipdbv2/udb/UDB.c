@@ -197,7 +197,10 @@ void UDB_open(UDB *self)
 		}
 	}
 
-	UDBIndex_open(self->index);
+	if (!UDBIndex_open(self->index)) {
+		UDB_close(self);
+		return;
+	}
 	UDBRecords_open(self->records);
 	if (!UDB_streamsOpen(self)) {
 		UDB_close(self);
