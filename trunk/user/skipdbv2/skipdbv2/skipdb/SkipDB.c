@@ -260,41 +260,43 @@ void SkipDB_freeAllCachedRecords(SkipDB *self)
 
 void SkipDB_setCacheHighWaterMark_(SkipDB *self, size_t recordCount)
 {
+	if (NULL == self)
+		return;
 	self->cacheHighWaterMark = recordCount;
-
 	if (recordCount < self->cacheLowWaterMark)
-	{
 		self->cacheLowWaterMark = recordCount / 2;
-	}
 }
 
 size_t SkipDB_cacheHighWaterMark(SkipDB *self)
 {
-	return self->cacheHighWaterMark;
+	return self ? self->cacheHighWaterMark : 0;
 }
 
 void SkipDB_setCacheLowWaterMark_(SkipDB *self, size_t recordCount)
 {
+	if (NULL == self)
+		return;
 	self->cacheLowWaterMark = recordCount;
-
 	if (recordCount > self->cacheHighWaterMark)
-	{
-		self->cacheHighWaterMark = recordCount * 2;
-	}
+		self->cacheHighWaterMark = recordCount > (size_t)-1 / 2
+			? (size_t)-1 : recordCount * 2;
 }
 
 size_t SkipDB_cacheLowWaterMark(SkipDB *self)
 {
-	return self->cacheLowWaterMark;
+	return self ? self->cacheLowWaterMark : 0;
 }
 
 int SkipDB_headerIsEmpty(SkipDB *self)
 {
-	return SkipDBRecord_pointersAreEmpty(self->header);
+	return self && self->header
+		? SkipDBRecord_pointersAreEmpty(self->header) : 1;
 }
 
 void SkipDB_freeExcessCachedRecords(SkipDB *self)
 {
+	if (NULL == self || NULL == self->cursors || NULL == self->header)
+		return;
 	// this is only called after a sync, so there are no dirty records
 	//return;
 
@@ -317,7 +319,7 @@ void SkipDB_freeExcessCachedRecords(SkipDB *self)
 
 		// mark the recent records
 
-		while (lowMark --)
+		while (lowMark-- && r)
 		{
 			r->mark = 1;
 			r = r->olderRecord;
@@ -336,11 +338,12 @@ void SkipDB_freeExcessCachedRecords(SkipDB *self)
 		lowMark = self->cacheLowWaterMark;
 		r = self->youngestRecord;
 
-		while (r->mark)
+		while (r && r->mark)
 		{
-			lowMark --;
+			if (lowMark > 0)
+				lowMark--;
 			SkipDBRecord_removeReferencesToUnmarked(r);
-			lastMarkedRecord = r; // remember this so we can clip the list
+			lastMarkedRecord = r;
 			r = r->olderRecord;
 		}
 
@@ -355,16 +358,14 @@ void SkipDB_freeExcessCachedRecords(SkipDB *self)
 			r->youngerRecord = NULL;
 
 			if (r->mark)
-			{
-				printf("error - attempt to dealloc marked record\n");
-				exit(-1);
-			}
+				break;
 
 			SkipDBRecord_dealloc(r); // what about SkipDBRecord_removeFromAgeList()?
 			r = next;
 		}
 
-		lastMarkedRecord->olderRecord = NULL; // clip the list
+		if (lastMarkedRecord)
+			lastMarkedRecord->olderRecord = NULL; // clip the list
 
 		//printf("SkipDB_freeExcessCachedRecords() done %i\n", (int)self->cachedRecordCount);
 	}
