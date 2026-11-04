@@ -363,23 +363,38 @@ int JFile_readInt(JFile *self)
 
 void JFile_setPosition_(JFile *self, long pos)
 {
+	if (NULL == self || pos < 0)
+		return;
 	self->pos = pos;
 }
 
 void JFile_fseek(JFile *self, long offset, int whence)
 {
-	switch (whence)
-	{
-		case SEEK_CUR:
-			self->pos += offset;
-			break;
+	long base, next;
+
+	if (NULL == self)
+		return;
+	switch (whence) {
 		case SEEK_SET:
-			self->pos = offset;
+			base = 0;
+			break;
+		case SEEK_CUR:
+			base = self->pos;
 			break;
 		case SEEK_END:
-			self->pos = self->maxPos + offset;
+			base = self->maxPos;
 			break;
+		default:
+			return;
 	}
+	if (base < 0 ||
+		(offset > 0 && base > LONG_MAX - offset) ||
+		(offset < 0 && base < -offset))
+		return;
+	next = base + offset;
+	if (next < 0)
+		return;
+	self->pos = next;
 }
 
 long JFile_position(JFile *self)
@@ -389,6 +404,8 @@ long JFile_position(JFile *self)
 
 long JFile_setPositionToEnd(JFile *self)
 {
+	if (NULL == self || self->maxPos < 0)
+		return 0;
 	self->pos = self->maxPos;
 	return self->pos;
 }
@@ -405,33 +422,37 @@ void JFile_hardSyncFileDescriptor_(JFile *self, int fd)
 
 void JFile_syncFileWritesToDisk(JFile *self)
 {
-	//printf("f"); fflush(stdout);
-	fflush(self->file);
-
-	if(self->fullSync)
-	{
+	if (NULL == self || NULL == self->file)
+		return;
+	if (fflush(self->file) != 0)
+		return;
+	if (self->fullSync && fileno(self->file) >= 0)
 		JFile_hardSyncFileDescriptor_(self, fileno(self->file));
-	}
 }
 
 void JFile_syncLogWritesToDisk(JFile *self)
 {
-	//printf("j"); fflush(stdout);
-	fflush(self->log);
-	if (self->fullSync)
-	{
-			JFile_hardSyncFileDescriptor_(self, fileno(self->log));
-	}
+	long end;
+	int last;
 
-	fseek(self->log, -1, SEEK_END);
+	if (NULL == self || NULL == self->log || fflush(self->log) != 0)
+		return;
+	if (self->fullSync && fileno(self->log) >= 0)
+		JFile_hardSyncFileDescriptor_(self, fileno(self->log));
 
-	fputc(JFILE_END_TRANSACTION, self->log);
-
-	fflush(self->log);
-	if (self->fullSync)
-	{
-			JFile_hardSyncFileDescriptor_(self, fileno(self->log));
-	}
+	if (fseek(self->log, 0, SEEK_END) != 0 || (end = ftell(self->log)) <= 0)
+		return;
+	if (fseek(self->log, -1, SEEK_END) != 0)
+		return;
+	last = fgetc(self->log);
+	if (last != JFILE_END_TRANSACTION_ITEM)
+		return;
+	if (fseek(self->log, -1, SEEK_END) != 0 ||
+		fputc(JFILE_END_TRANSACTION, self->log) == EOF ||
+		fflush(self->log) != 0)
+		return;
+	if (self->fullSync && fileno(self->log) >= 0)
+		JFile_hardSyncFileDescriptor_(self, fileno(self->log));
 }
 
 void JFile_writeLogToFileIfNeeded(JFile *self)
@@ -601,9 +622,18 @@ void JFile_clipLog(JFile *self)
 
 void JFile_truncate_(JFile *self, off_t size)
 {
+	if (NULL == self || NULL == self->file || size < 0 ||
+		size > (off_t)LONG_MAX)
+		return;
 	JFile_commitToLog(self);
 	JFile_commitToFile(self);
-	ftruncate(fileno(self->file), size);
+	if (ftruncate(fileno(self->file), size) != 0)
+		return;
+	if (fflush(self->file) != 0)
+		return;
+	self->maxPos = (long)size;
+	if (self->pos > self->maxPos)
+		self->pos = self->maxPos;
 }
 
 int JFile_needsSync(JFile *self)
@@ -613,8 +643,11 @@ int JFile_needsSync(JFile *self)
 
 size_t JFile_logSize(JFile *self)
 {
-	// this only valid when not in the middle of a commit
-	return ftell(self->log);
+	long pos;
+	if (NULL == self || NULL == self->log)
+		return 0;
+	pos = ftell(self->log);
+	return pos < 0 ? 0 : (size_t)pos;
 }
 
 long JFile_lastCommitPosition(JFile *self)
