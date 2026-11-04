@@ -50,6 +50,8 @@ mtd_dev_idx(const char *mtd_part)
 	char line[128], bnm[64], *p;
 	int idx, ret_idx = -1;
 
+	if (!mtd_part || !*mtd_part)
+		return -1;
 	if (!(fp = fopen("/proc/mtd", "r")))
 		return -1;
 
@@ -80,6 +82,8 @@ mtd_dev_open(const char *mtd_part, int flags, struct mtd_info *p_mi)
 	char mtd_dev[16];
 	int idx, fd;
 
+	if (!p_mi)
+		return -1;
 	idx = mtd_dev_idx(mtd_part);
 	if (idx < 0)
 		return -1;
@@ -94,7 +98,7 @@ mtd_dev_open(const char *mtd_part, int flags, struct mtd_info *p_mi)
 		return -1;
 	}
 
-	sprintf(p_mi->dev, "mtd%d", idx);
+	snprintf(p_mi->dev, sizeof(p_mi->dev), "mtd%d", idx);
 	p_mi->size = miu.size;
 	p_mi->erasesize = miu.erasesize;
 	p_mi->writesize = miu.writesize;
@@ -109,8 +113,13 @@ mtd_block_is_bad(int fd, int mtd_type, loff_t offset)
 	if (mtd_type != MTD_NANDFLASH && mtd_type != MTD_MLCNANDFLASH)
 		return 0;
 
-	if (ioctl(fd, MEMGETBADBLOCK, &offset) > 0)
-		return 1;
+	{
+		int ret = ioctl(fd, MEMGETBADBLOCK, &offset);
+		if (ret > 0)
+			return 1;
+		if (ret < 0)
+			return -1;
+	}
 
 	return 0;
 }
@@ -157,7 +166,7 @@ flash_mtd_read(const char *mtd_part, int offset, unsigned char *buf, size_t coun
 
 	ret = 0;
 
-	if (((size_t)offset + count) > mi.size) {
+	if ((size_t)offset > mi.size || count > (size_t)mi.size - (size_t)offset) {
 		fprintf(stderr, "%s: out of MTD partition (offset: 0x%x, count: 0x%x, %s size: 0x%x)\n",
 			__func__, offset, count, mi.dev, mi.size);
 		ret = -3;
@@ -193,7 +202,8 @@ out_err:
 int
 flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t count)
 {
-	int fd, ret, cnt, len, ofs, ofs_align, bad_shift;
+	int fd, ret, cnt, len, ofs, ofs_align;
+	size_t bad_shift;
 	unsigned char *ptr, *tmp = NULL, *tmp_ubi = NULL;
 	struct mtd_info mi;
 	struct erase_info_user ei;
@@ -211,7 +221,8 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 
 	ret = 0;
 
-	if (((size_t)offset + count) > mi.size) {
+	if (!mi.erasesize || !mi.writesize || count > INT_MAX ||
+	    (size_t)offset > mi.size || count > (size_t)mi.size - (size_t)offset) {
 		fprintf(stderr, "%s: out of MTD partition (offset: 0x%x, count: 0x%x, %s size: 0x%x)\n",
 			__func__, offset, count, mi.dev, mi.size);
 		ret = -3;
@@ -225,12 +236,16 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 		int old_offset = offset;
 		size_t tmp_count, old_count = count;
 		
+		if ((size_t)offset + count > (size_t)-1 - (mi.writesize - 1)) {
+			ret = -3;
+			goto out_err;
+		}
 		tmp_count = ROUNDUP((size_t)offset + count, mi.writesize);
 		offset = ROUNDDOWN(offset, (int)mi.writesize);
 		count = tmp_count - offset;
 		
 		if (offset != old_offset || count != old_count) {
-			if (((size_t)offset + count) > mi.size) {
+			if ((size_t)offset > mi.size || count > (size_t)mi.size - (size_t)offset) {
 				fprintf(stderr, "%s: out of UBI partition. (aligned offset: 0x%x, count: 0x%x, %s size: 0x%x)\n",
 					__func__, offset, count, mi.dev, mi.size);
 				ret = -3;
@@ -266,21 +281,31 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 	bad_shift = 0;
 
 	while (cnt > 0) {
-		ofs_align = ofs & ~(mi.erasesize - 1);	/* aligned to erase boundary */
+		ofs_align = (ofs / (int)mi.erasesize) * (int)mi.erasesize;	/* aligned to erase boundary */
 		len = (int)mi.erasesize - (ofs - ofs_align);
 		if (cnt < len)
 			len = cnt;
 		
-		ei.start = ofs_align;
-		ei.start += bad_shift;
-		ei.length = mi.erasesize;
-		
-		/* check bad block */
-		if (mtd_block_is_bad(fd, mi.type, ei.start)) {
-			bad_shift += mi.erasesize;
-			continue;
+		if (bad_shift > (size_t)mi.size - (size_t)ofs_align ||
+		    mi.erasesize > (size_t)mi.size - (size_t)ofs_align - bad_shift) {
+			ret = -3;
+			break;
 		}
-		
+		ei.start = (unsigned int)((size_t)ofs_align + bad_shift);
+		ei.length = mi.erasesize;
+
+		/* check bad block */
+		{
+			int bad_block = mtd_block_is_bad(fd, mi.type, ei.start);
+			if (bad_block < 0) {
+				ret = -4;
+				break;
+			}
+			if (bad_block > 0) {
+				bad_shift += mi.erasesize;
+				continue;
+			}
+		}
 		/* backup */
 		if (lseek(fd, ei.start, SEEK_SET) < 0) {
 			fprintf(stderr, "%s: failed to seek 0x%x on %s (errno: %d)\n",
