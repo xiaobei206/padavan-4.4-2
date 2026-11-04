@@ -256,54 +256,101 @@ int parse_get_result(dbclient *client) {
     return 0;
 }
 
+/*
+ * List replies share the normal command/key/value envelope. The terminal
+ * frame uses a distinct command token so a real value equal to "__end__\\n"
+ * cannot prematurely terminate the stream.
+ *
+ * Returns 1 for the terminal frame, 0 for a list item, or a negative error.
+ */
+static int split_list_frame(dbclient *client, int body_len,
+    char **key, size_t *key_len, char **value, size_t *value_len)
+{
+    char *body, *command_end, *key_start, *key_end, *payload;
+    size_t command_len, key_size, payload_size;
+
+    if (NULL == client || NULL == client->buf || body_len <= 0 ||
+        NULL == key || NULL == key_len || NULL == value || NULL == value_len)
+        return -4;
+
+    body = client->buf;
+    command_end = (char *)memchr(body, ' ', (size_t)body_len);
+    if (NULL == command_end || command_end == body)
+        return -4;
+
+    command_len = (size_t)(command_end - body);
+    key_start = command_end + 1;
+    key_end = (char *)memchr(key_start, ' ',
+        (size_t)(body + body_len - key_start));
+    if (NULL == key_end || key_end == key_start)
+        return -4;
+
+    key_size = (size_t)(key_end - key_start);
+    payload = key_end + 1;
+    payload_size = (size_t)(body + body_len - payload);
+    if (memchr(key_start, '\\0', key_size) != NULL)
+        return -4;
+
+    if (command_len == 6 && memcmp(body, "__end__", 6) == 0) {
+        if (key_size == 4 && memcmp(key_start, "list", 4) == 0 &&
+            payload_size == 7 && memcmp(payload, "__end__\\n", 7) == 0)
+            return 1;
+        return -4;
+    }
+
+    if (command_len != 4 || memcmp(body, "list", 4) != 0)
+        return -4;
+
+    *key_end = '\\0';
+    *key = key_start;
+    *key_len = key_size;
+    *value = payload;
+    *value_len = payload_size;
+    return 0;
+}
+
 int parse_list_result(dbclient *client) {
-    int n1, n2;
-    char *p1, *p2, *magic = MAGIC;
+    int n1, n2, parsed;
+    char *key, *value;
+    size_t key_len, value_len;
+    char *magic = MAGIC;
 
-    for(;;) {
+    for (;;) {
         n1 = read_util(client, HEADER_PREFIX, 110);
-        if(n1 < 0) {
+        if (n1 < 0)
             return n1;
-        }
 
-        if(0 != memcmp(client->buf, magic, MAGIC_LEN)) {
-            //message error
+        if (0 != memcmp(client->buf, magic, MAGIC_LEN))
             return -3;
-        }
 
-        client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
-            n2 <= 0 || n2 > READ_MAX) {
-            //message error or excessive response size
+        client->buf[HEADER_PREFIX - 1] = '\\0';
+        if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
+            n2 <= 0 || n2 > READ_MAX)
             return -4;
-        }
 
         n1 = read_util(client, n2, 510);
-        if(n1 < 0) {
+        if (n1 < 0)
             return n1;
-        }
+        client->buf[n2] = '\\0';
 
-        client->buf[n2] = '\0';
-
-        if (n2 == 7 && memcmp(client->buf, "__end__\n", 7) == 0) {
+        parsed = split_list_frame(client, n2, &key, &key_len,
+            &value, &value_len);
+        if (parsed < 0)
+            return parsed;
+        if (parsed == 1)
             break;
-        }
 
-        p2 = client->buf;
-        p1 = strstr(p2, " ");
-        if (NULL == p1)
-            return -4;
-        p2 = p1 + 1;
-        p1 = strstr(p2, " ");
-        if (NULL == p1)
-            return -4;
-        *p1 = '=';
+        /* SkipDB string Datums include one trailing NUL byte. */
+        if (value_len > 0 && value[value_len - 1] == '\\0')
+            --value_len;
 
-        if (client->buf[n2 - 1] == '\n') {
-            printf("%s", p2);
-        } else {
-            printf("%s\n", p2);
-        }
+        if (fwrite(key, 1, key_len, stdout) != key_len ||
+            putchar('=') == EOF ||
+            (value_len > 0 &&
+             fwrite(value, 1, value_len, stdout) != value_len))
+            return -5;
+        if (value_len == 0 || value[value_len - 1] != '\\n')
+            putchar('\\n');
     }
 
     return 0;
@@ -338,58 +385,50 @@ static void print_shell_quoted(const char *value, size_t length)
 }
 
 int parse_script_result(dbclient *client) {
-    int n1, n2;
-    char *p1, *p2;
-    size_t remaining;
-    char* magic = MAGIC;
+    int n1, n2, parsed;
+    char *key, *value;
+    size_t key_len, value_len;
+    char *magic = MAGIC;
 
-    for(;;) {
+    for (;;) {
         n1 = read_util(client, HEADER_PREFIX, 110);
-        if(n1 < 0) {
+        if (n1 < 0)
             return n1;
-        }
 
-        if(0 != memcmp(client->buf, magic, MAGIC_LEN)) {
+        if (0 != memcmp(client->buf, magic, MAGIC_LEN))
             return -3;
-        }
 
-        client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
-            n2 <= LIST_LEN + 1 || n2 > READ_MAX) {
+        client->buf[HEADER_PREFIX - 1] = '\\0';
+        if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
+            n2 <= 0 || n2 > READ_MAX)
             return -4;
-        }
 
         n1 = read_util(client, n2, 510);
-        if(n1 < 0) {
+        if (n1 < 0)
             return n1;
-        }
+        client->buf[n2] = '\\0';
 
-        client->buf[n2] = '\0';
-        if (n2 == 7 && memcmp(client->buf, "__end__\n", 7) == 0) {
+        parsed = split_list_frame(client, n2, &key, &key_len,
+            &value, &value_len);
+        if (parsed < 0)
+            return parsed;
+        if (parsed == 1)
             break;
-        }
 
-        p1 = client->buf + LIST_LEN;
-        p2 = (char *)memchr(p1, ' ', (size_t)(n2 - LIST_LEN));
-        if (NULL == p2 || p2 == p1)
+        if (value_len == 0 ||
+            (value[value_len - 1] != '\\0' &&
+             value[value_len - 1] != '\\n'))
             return -4;
-        *p2++ = '\0';
-
-        remaining = (size_t)(client->buf + n2 - p2);
-        if (remaining == 0)
-            return -4;
-        if (client->buf[n2 - 1] == '\0' || client->buf[n2 - 1] == '\n')
-            --remaining;
-        else
-            return -4;
-        if (memchr(p2, '\0', remaining) != NULL ||
-            !valid_shell_identifier(p1))
+        --value_len;
+        if (memchr(value, '\\0', value_len) != NULL ||
+            !valid_shell_identifier(key))
             return -4;
 
         fputs("export ", stdout);
-        fputs(p1, stdout);
+        if (fwrite(key, 1, key_len, stdout) != key_len)
+            return -5;
         putchar('=');
-        print_shell_quoted(p2, remaining);
+        print_shell_quoted(value, value_len);
         putchar(';');
     }
 
