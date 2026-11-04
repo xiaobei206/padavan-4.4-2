@@ -91,8 +91,12 @@ int UDBIndex_open(UDBIndex *self)
 int UDBIndex_finishOpening(UDBIndex *self)
 {
 	if (NULL == self || NULL == self->file ||
-		NULL == self->file->file || NULL == self->file->log)
+		NULL == self->file->file || NULL == self->file->log ||
+		self->file->maxPos < 0 ||
+		self->file->maxPos % (long)sizeof(UDBIndexEntry) != 0) {
+		fprintf(stderr, "UDBIndex: truncated PID index entry\\n");
 		return 0;
+	}
 	JFile_begin(self->file);
 	if (!UDBIndex_setPos_forPid_(self, 0, 0))
 		return 0;
