@@ -95,6 +95,7 @@ typedef struct _skipd_client {
 
     SkipDBCursor *cursor;
     char *owned_key;
+    int in_doing;
     skipd_server* server;
 } skipd_client;
 
@@ -230,6 +231,11 @@ static void client_release(EV_P_ skipd_client* client) {
     if (client->cursor) {
         SkipDBCursor_release(client->cursor);
         client->cursor = NULL;
+    }
+    if (client->in_doing && client->server) {
+        if (client->server->in_doing > 0)
+            client->server->in_doing--;
+        client->in_doing = 0;
     }
     if (client->owned_key) {
         free(client->owned_key);
@@ -680,6 +686,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         p1 = p2+1;
 
         client->server->in_doing++;
+        client->in_doing = 1;
         CS->skey = Datum_FromCString_(client->key);
         CS->record = SkipDB_list_first(client->server->db, CS->skey, &CS->cursor);
         client->cursor = CS->cursor;
@@ -702,7 +709,10 @@ static int client_run_command(EV_P_ skipd_client* client)
             CS->cursor = NULL;
         }
         client->cursor = NULL;
-        client->server->in_doing--;
+        if (client->in_doing) {
+            client->server->in_doing--;
+            client->in_doing = 0;
+        }
 
         ccrReturn(ctx, ccr_error_ok1);
     } else if(!strcmp(client->command, "remove")) {
@@ -938,7 +948,8 @@ static int client_run_command(EV_P_ skipd_client* client)
         } else {
             path_len = snprintf(client->key, DELAY_KEY_LEN*2, "/jffs/scripts/%s.sh", p1);
             if(path_len < 0 || path_len >= DELAY_KEY_LEN*2) {
-                free(client->key);
+                free(client->owned_key);
+                client->owned_key = NULL;
                 client->key = NULL;
                 p1 = "script path too long\n";
                 client_send(EV_A_ client, p1, strlen(p1));
@@ -964,6 +975,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         CS->n = 0;
         CS->skey = Datum_FromCString_(client->key);
         client->server->in_doing++;
+        client->in_doing = 1;
         CS->record = SkipDB_list_first(client->server->db, CS->skey, &CS->cursor);
         client->cursor = CS->cursor;
         while(NULL != CS->record) {
@@ -980,13 +992,15 @@ static int client_run_command(EV_P_ skipd_client* client)
         client_send(EV_A_ client, p1, strlen(p1));
         ccrReturn(ctx, ccr_error_ok);
 
-        client->server->in_doing--;
         if (CS->cursor) {
             SkipDBCursor_release(CS->cursor);
             CS->cursor = NULL;
         }
         client->cursor = NULL;
-        client->server->in_doing--;
+        if (client->in_doing) {
+            client->server->in_doing--;
+            client->in_doing = 0;
+        }
         if (client->owned_key) {
             free(client->owned_key);
             client->owned_key = NULL;
