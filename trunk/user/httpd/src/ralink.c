@@ -442,7 +442,8 @@ ej_conntrack_table(int eid, webs_t wp, int argc, char **argv)
 {
 	FILE *fp;
 	int ret;
-	char buff[1024], ipv[16], proto[16], state[32], src[64], dst[64], sport[8], dport[8];
+	char buff[1024], ipv[16], proto[16], state[32];
+	char src[64], dst[64], sport[8], dport[8], src_endpoint[80], dst_endpoint[80];
 
 	ret = 0;
 	ret += websWrite(wp, "Proto   Source Address & Port                           Destination Address & Port\n");
@@ -479,11 +480,12 @@ ej_conntrack_table(int eid, webs_t wp, int argc, char **argv)
 			}
 		}
 #endif
-		strcat(src, ":");
-		strcat(src, sport);
-		strcat(dst, ":");
-		strcat(dst, dport);
-		ret += websWrite(wp, "%-8s%-48s%s\n", proto, src, dst);
+		if (snprintf(src_endpoint, sizeof(src_endpoint), "%s:%s", src, sport) < 0 ||
+		    snprintf(dst_endpoint, sizeof(dst_endpoint), "%s:%s", dst, dport) < 0)
+			continue;
+		src_endpoint[sizeof(src_endpoint) - 1] = '\0';
+		dst_endpoint[sizeof(dst_endpoint) - 1] = '\0';
+		ret += websWrite(wp, "%-8s%-48s%s\n", proto, src_endpoint, dst_endpoint);
 	}
 
 	fclose(fp);
