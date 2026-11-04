@@ -133,6 +133,30 @@ ev_signal signal_watcher2;
 
 #define STATIC_BUF_LEN 511
 char static_buffer[STATIC_BUF_LEN+1];
+static int script_log_fd = -1;
+
+static int open_script_log(void)
+{
+#ifdef O_NOFOLLOW
+    struct stat st;
+    int fd = open("/tmp/skipd.log",
+        O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600);
+    if (fd < 0)
+        return -1;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
+        st.st_uid != geteuid() || fchmod(fd, 0600) != 0) {
+        int saved_errno = errno ? errno : EPERM;
+        close(fd);
+        errno = saved_errno;
+        return -1;
+    }
+    return fd;
+#else
+    /* Never follow a predictable /tmp path without O_NOFOLLOW support. */
+    errno = ENOTSUP;
+    return -1;
+#endif
+}
 
 static char *find_terminated_value_separator(Datum value)
 {
@@ -270,8 +294,15 @@ static void sys_script(const char *cmd, size_t cmd_size)
     if (cmd_len != cmd_size - 1)
         return;
 
-    written = snprintf(static_buffer, sizeof(static_buffer),
-        "%s > /tmp/skipd.log 2>&1 &\n", cmd);
+    if (script_log_fd >= 0) {
+        written = snprintf(static_buffer, sizeof(static_buffer),
+            "%s >> /proc/self/fd/%d 2>&1 &\n", cmd, script_log_fd);
+    } else {
+        /* Fail closed on logging setup errors rather than redirecting through
+         * a symlinkable pathname in the world-writable /tmp directory. */
+        written = snprintf(static_buffer, sizeof(static_buffer),
+            "%s > /dev/null 2>&1 &\n", cmd);
+    }
     if (written < 0 || (size_t)written >= sizeof(static_buffer)) {
         static_buffer[0] = '\0';
         skipd_log(SKIPD_DEBUG, "script command too long; not executed\n");
@@ -2054,6 +2085,9 @@ int main(int argc, char **argv)
 
     setlogmask(LOG_UPTO (LOG_DEBUG));
     openlog("skipd", syslog_options, LOG_DAEMON);
+    script_log_fd = open_script_log();
+    if (script_log_fd < 0)
+        skipd_log(SKIPD_DEBUG, "secure script log unavailable; command output disabled\n");
 
     //kill -SIGUSR2 22459
     signal(SIGPIPE, SIG_IGN);
@@ -2093,6 +2127,8 @@ int main(int argc, char **argv)
     skipd_log(SKIPD_DEBUG, "exit..\n");
     // This point is only ever reached if the loop is manually exited
     close(server->fd);
+    if (script_log_fd >= 0)
+        close(script_log_fd);
     return EXIT_SUCCESS;
 }
 
