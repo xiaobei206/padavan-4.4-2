@@ -10,6 +10,7 @@ UDBRecords ioDoc(
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 UDBRecords *UDBRecords_new(void)
 {
@@ -86,8 +87,14 @@ void UDBRecords_open(UDBRecords *self)
 	if (JFile_setPositionToEnd(self->file) == 0) {
 		/* Position zero stores the first-empty-record offset. */
 		JFile_begin(self->file);
-		UDBRecords_firstEmptyRecordPos_(self, 0);
+		if (!UDBRecords_firstEmptyRecordPos_(self, 0)) {
+			fclose(self->file->log);
+			self->file->log = NULL;
+			return;
+		}
 		JFile_commitToLog(self->file);
+		if (NULL == self->file->log)
+			return;
 	}
 
 	UDBRecord_setJFile_(self->record, self->file);
@@ -157,17 +164,21 @@ UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)
 	return NULL;
 }
 
-void UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)
+int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)
 {
-	PID_TYPE pos = UDBRecord_pos(record);
-	
-	if ((!self->firstEmptyPos) || 
-	    (pos && pos < self->firstEmptyPos)) 
-	{
-		UDBRecords_firstEmptyRecordPos_(self, pos);
+	PID_TYPE pos;
+	if (NULL == self || NULL == record || NULL == self->file)
+		return 0;
+	pos = UDBRecord_pos(record);
+	if (!UDBRecord_remove(record))
+		return 0;
+
+	if ((!self->firstEmptyPos) ||
+		(pos && pos < self->firstEmptyPos)) {
+		if (!UDBRecords_firstEmptyRecordPos_(self, pos))
+			return 0;
 	}
-	
-	UDBRecord_remove(record);
+	return 1;
 }
 
 /*
@@ -245,34 +256,63 @@ PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)
 	return pos;
 }
 
-void UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)
+int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)
 {
-	if (NULL == self || NULL == self->file)
-		return;
+	PID_TYPE old_empty;
+	long old_file_pos, old_max_pos;
+
+	if (NULL == self || NULL == self->file || self->file->file == NULL ||
+		self->file->log == NULL || pos > (PID_TYPE)LONG_MAX)
+		return 0;
+	if (pos != 0 &&
+		(pos < sizeof(PID_TYPE) || self->file->maxPos < 0 ||
+		 pos > (PID_TYPE)self->file->maxPos ||
+		 (PID_TYPE)self->file->maxPos - pos < sizeof(UDBRecordHeader)))
+		return 0;
+
+	old_empty = self->firstEmptyPos;
+	old_file_pos = self->file->pos;
+	old_max_pos = self->file->maxPos;
 	self->firstEmptyPos = pos;
-	JFile_fseek(self->file, 0, SEEK_SET);
-	JFile_fwrite(self->file, (unsigned char *)(&(self->firstEmptyPos)), sizeof(PID_TYPE), 1);
+	JFile_setPosition_(self->file, 0);
+	if (JFile_fwrite(self->file, (unsigned char *)&self->firstEmptyPos,
+			 sizeof(PID_TYPE), 1) != 1) {
+		self->firstEmptyPos = old_empty;
+		self->file->pos = old_file_pos;
+		self->file->maxPos = old_max_pos;
+		return 0;
+	}
+	return 1;
 }
 
 UDBRecord *UDBRecords_firstEmptyRecord(UDBRecords *self)
 {
-	// store the position of the first empty record 
-	
-	//printf("self->firstEmptyPos = %i\n", (int)self->firstEmptyPos);
-	if (self->firstEmptyPos)
-	{
+	UDBRecord *found;
+	if (NULL == self || NULL == self->file ||
+		NULL == self->record || NULL == self->firstEmptyRecord)
+		return NULL;
+
+	if (self->firstEmptyPos) {
 		UDBRecord_setPos_(self->firstEmptyRecord, self->firstEmptyPos);
-		
-		if (UDBRecord_readHeader(self->firstEmptyRecord))
-		{
+		if (UDBRecord_readHeader(self->firstEmptyRecord) &&
+			UDBRecord_isEmpty(self->firstEmptyRecord))
 			return self->firstEmptyRecord;
-		}
 	}
-	
+
+	/* Recover a stale/corrupt first-empty pointer by scanning validated records. */
+	found = UDBRecords_findFirstEmptyRecord(self);
+	if (found) {
+		UDBRecord_setPos_(self->firstEmptyRecord, UDBRecord_pos(found));
+		self->firstEmptyRecord->header = found->header;
+		self->firstEmptyPos = UDBRecord_pos(found);
+		return self->firstEmptyRecord;
+	}
+	self->firstEmptyPos = 0;
 	return NULL;
 }
 
 void UDBRecords_truncate_(UDBRecords *self, off_t size)
 {
-	JFile_truncate_(self->file, size);
+	if (self && self->file)
+		JFile_truncate_(self->file, size);
 }
