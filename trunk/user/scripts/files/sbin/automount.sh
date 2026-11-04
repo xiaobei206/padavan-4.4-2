@@ -39,10 +39,8 @@ ID_FS_LABEL=$(/sbin/blkid -s LABEL -o value "$dev_full" 2>/dev/null)
 
 if [ "$ID_FS_TYPE" == "swap" ] ; then
 	[ ! -x /sbin/swapon ] && exit 1
-	swap_used=`cat /proc/swaps | grep '^/dev/' | grep 'partition' 2>/dev/null`
-	if [ -z "$swap_used" ] ; then
-		swapon $dev_full
-		if [ $? -eq 0 ] ; then
+	if ! awk -v dev="$dev_full" '$1 == dev { found=1 } END { exit !found }' /proc/swaps; then
+		if swapon "$dev_full" ; then
 			logger -t "automount" "Activate swap partition $dev_full SUCCESS!"
 		fi
 	fi
