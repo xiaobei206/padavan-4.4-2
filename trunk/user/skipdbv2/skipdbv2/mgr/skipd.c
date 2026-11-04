@@ -273,17 +273,16 @@ static void client_write(EV_P_ ev_io *w, int revents) {
     //skipd_log(SKIPD_DEBUG, "begin for writing\n");
 
     rt = client_ccr_write(EV_A_ client);
-    if(ccr_break_killed == client->break_level) {
+    if(rt == ccr_error_ok)
+        return; /* EAGAIN: keep coroutine state and wait for writability. */
+    if(rt < 0 || ccr_break_killed == client->break_level) {
         client_release(EV_A_ client);
     } else {
-            // rt > 0, So reset it
-            memset(&client->ccr_write, 0, sizeof(struct ccrContextTag));
-            client->break_level = 0;
+        memset(&client->ccr_write, 0, sizeof(struct ccrContextTag));
+        client->break_level = 0;
 
-            //change to read state directly,
-            //如果read过程还有资源未释放，跳回read进行资源释放
-            //event_active(&client->io_read, EV_READ, 0);
-            client_read_inner(EV_A_ client, 0);
+        /* Resume any request coroutine that yielded while preparing output. */
+        client_read_inner(EV_A_ client, 0);
     }
 
     //TODO void event_active (struct event *ev, int res, short ncalls)
@@ -446,36 +445,34 @@ static int client_ccr_write(EV_P_ skipd_client* client) {
 
     ccrBegin(ctx);
     while(client->send_pos < client->send_len) {
-        //use send instead of write
-        CS->n = write(client->fd, client->send + client->send_pos, client->send_len - client->send_pos);
-        //CS->n = send(client->fd, client->send + client->send_pos, client->send_len - client->send_pos, 0);
-        if(CS->n <= 0) {
-            if(errno == EINTR || errno == EAGAIN) {
+        CS->n = write(client->fd, client->send + client->send_pos,
+                      client->send_len - client->send_pos);
+        if(CS->n < 0) {
+            if(errno == EINTR)
+                continue;
+            if(errno == EAGAIN || errno == EWOULDBLOCK) {
                 ccrReturn(ctx, ccr_error_ok);
-            } else {
-                //TODO fixme
-                client->send_len = 0;
-                client->send_pos = 0;
-                ev_io_stop(EV_A_ &client->io_write);
-                ev_io_start(EV_A_ &client->io_read);
-
-                ccrStop(ctx, ccr_error_err1);
+                continue;
             }
-        }
 
-        if((client->send_len -= CS->n) > 0) {
-            //write again
-            client->send_pos += CS->n;
-            ccrReturn(ctx, ccr_error_ok);
-        } else {
-            //Finished write
             client->send_len = 0;
             client->send_pos = 0;
-            ev_io_stop(EV_A_ &client->io_write);
-            ev_io_start(EV_A_ &client->io_read);
-            ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_err1);
         }
+        if(CS->n == 0) {
+            client->send_len = 0;
+            client->send_pos = 0;
+            ccrStop(ctx, ccr_error_err1);
+        }
+
+        /* Keep send_len as the total frame length; send_pos is the offset. */
+        client->send_pos += CS->n;
     }
+
+    client->send_len = 0;
+    client->send_pos = 0;
+    ev_io_stop(EV_A_ &client->io_write);
+    ev_io_start(EV_A_ &client->io_read);
     ccrFinish(ctx, ccr_error_ok1);
 }
 
