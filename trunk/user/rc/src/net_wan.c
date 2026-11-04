@@ -1834,13 +1834,23 @@ add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
 	if (!nvram_match("dr_enable_x", "1"))
 		return;
 
+	if (!ifname || !*ifname)
+		return;
+	if (!rt)
+		rt = "";
+	if (!rt_rfc)
+		rt_rfc = "";
+	if (!rt_ms)
+		rt_ms = "";
+
 	/* routes */
 	routes = strdup(rt);
 	for (tmp = routes; tmp && *tmp; )
 	{
 		ipaddr = strsep(&tmp, "/");
 		gateway = strsep(&tmp, " ");
-		if (gateway && is_valid_ipv4(ipaddr)) {
+		if (gateway && *gateway &&
+		    is_valid_ipv4(ipaddr) && is_valid_ipv4(gateway)) {
 			route_add(ifname, metric, ipaddr, gateway, netmask);
 		}
 	}
