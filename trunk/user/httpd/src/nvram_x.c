@@ -54,9 +54,25 @@ void nvram_del_list_map_x(const char *name, int group_count, int *delMap)
 {
 	char oname[64], nname[64], tmp[256], *oval;
 	int i, i_len, ni, di, group_count_new;
+	int map_count = 0, previous = -1;
 
 	if (!name || !delMap || !*name ||
 	    group_count < 1 || group_count > MAX_GROUP_COUNT)
+		return;
+
+	/* This function may be called with a map populated from HTTP input.
+	 * Validate it independently so malformed indexes cannot desynchronize
+	 * the compacting loop or decrement the row count below zero. */
+	while (map_count <= MAX_GROUP_COUNT && delMap[map_count] != -1) {
+		if (map_count == MAX_GROUP_COUNT ||
+		    delMap[map_count] < 0 ||
+		    delMap[map_count] >= group_count ||
+		    delMap[map_count] <= previous)
+			return;
+		previous = delMap[map_count];
+		++map_count;
+	}
+	if (map_count > group_count)
 		return;
 
 	ni = 0;
