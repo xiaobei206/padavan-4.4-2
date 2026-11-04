@@ -428,32 +428,34 @@ SkipDBRecord *SkipDBRecord_recordAtLevel_(SkipDBRecord *self, int level)
 
 // serialization ------------------------------------
 
-void SkipDBRecord_toStream_(SkipDBRecord *self, BStream *s)
+int SkipDBRecord_toStream_(SkipDBRecord *self, BStream *s)
 {
+	int level, max;
+	if (NULL == self || NULL == s || NULL == self->key ||
+		NULL == self->value || NULL == s->ba || NULL == s->errorBa)
+		return 0;
+	max = self->level;
+	if (max < 0 || max > SKIPDB_MAX_LEVEL ||
+		(max > 0 && self->pointers == NULL))
+		return 0;
+
 	BStream_writeTaggedUArray_(s, self->key);
 	BStream_writeTaggedUArray_(s, self->value);
-
-	//printf("writing record '%s'\n", (char *)UArray_asCString(self->key));
-
-	{
-		int level, max = SkipDBRecord_level(self);
-		BStream_writeTaggedInt32_(s, max);
-
-		for (level = 0; level < max; level ++)
-		{
-			SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
-			PID_TYPE pid = SkipDBRecord_allocedPidAtLevel_(self, level);
-			BStream_writeTaggedInt32_(s, pid);
-
-			//if (p->record) printf("'%s' %i\n", (char *)UArray_asCString(p->record->key), (int)pid);
-
-			BStream_writeTaggedUint8_(s, p->matchingPrefixSize);
-		}
+	BStream_writeTaggedInt32_(s, max);
+	for (level = 0; level < max; ++level) {
+		SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
+		PID_TYPE pid;
+		if (NULL == p)
+			return 0;
+		pid = SkipDBRecord_allocedPidAtLevel_(self, level);
+		if (p->record != NULL && pid == 0)
+			return 0;
+		if (pid > INT32_MAX)
+			return 0;
+		BStream_writeTaggedInt32_(s, (int32_t)pid);
+		BStream_writeTaggedUint8_(s, p->matchingPrefixSize);
 	}
-
-	//printf("\n");
-
-	//BStream_show(s);
+	return UArray_size(s->errorBa) == 0;
 }
 
 int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
