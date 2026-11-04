@@ -11,6 +11,7 @@ docDescription("")
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <unistd.h>
 
 UDBRecord *UDBRecord_new(void)
 {
@@ -97,27 +98,89 @@ int UDBRecord_isEmpty(UDBRecord *self)
 
 // save ----------------------------------------- 
 
-void UDBRecord_saveHeader(UDBRecord *self)
+int UDBRecord_saveHeader(UDBRecord *self)
 {
     if (NULL == self || NULL == self->file ||
         self->pos > (PID_TYPE)LONG_MAX)
-        return;
-    if (self->pos)
-        JFile_setPosition_(self->file, (long)self->pos);
-    JFile_fwrite(self->file, (unsigned char *)&self->header,
-                 sizeof(UDBRecordHeader), 1);
+        return 0;
+    JFile_setPosition_(self->file, (long)self->pos);
+    return JFile_fwrite(self->file, (unsigned char *)&self->header,
+                        sizeof(UDBRecordHeader), 1) == 1;
 }
 
-void UDBRecord_saveWithDatum_(UDBRecord *self, Datum d)
+static int UDBRecord_rollbackSave(UDBRecord *self, long log_start,
+                                  long old_file_pos, long old_max_pos)
 {
+    JFile *file = self->file;
+    if (file->journalingOn) {
+        if (file->log && log_start >= 0 &&
+            fflush(file->log) == 0 &&
+            ftruncate(fileno(file->log), (off_t)log_start) == 0 &&
+            fseek(file->log, log_start, SEEK_SET) == 0) {
+            clearerr(file->log);
+            file->pos = old_file_pos;
+            file->maxPos = old_max_pos;
+            return 1;
+        }
+        if (file->log) {
+            fclose(file->log);
+            file->log = NULL;
+        }
+        return 0;
+    }
+
+    /* Record saves append at EOF, so truncation safely removes a partial row. */
+    if (file->file && old_file_pos == old_max_pos &&
+        ftruncate(fileno(file->file), (off_t)old_max_pos) == 0 &&
+        fseek(file->file, old_file_pos, SEEK_SET) == 0) {
+        clearerr(file->file);
+        file->pos = old_file_pos;
+        file->maxPos = old_max_pos;
+        return 1;
+    }
+    if (file->file) {
+        fclose(file->file);
+        file->file = NULL;
+    }
+    return 0;
+}
+
+int UDBRecord_saveWithDatum_(UDBRecord *self, Datum d)
+{
+    UDBRecordHeader old_header;
+    long old_file_pos, old_max_pos, log_start = -1;
+
     if (NULL == self || NULL == self->file ||
-        (d.size > 0 && NULL == d.data))
-        return;
+        (d.size > 0 && NULL == d.data) ||
+        self->file->file == NULL || self->file->maxPos < 0 ||
+        self->pos > (PID_TYPE)LONG_MAX)
+        return 0;
+
+    old_file_pos = self->file->pos;
+    old_max_pos = self->file->maxPos;
+    if (self->file->journalingOn) {
+        if (NULL == self->file->log ||
+            fseek(self->file->log, 0, SEEK_END) != 0 ||
+            (log_start = ftell(self->file->log)) < 0)
+            return 0;
+    } else if (self->pos != (PID_TYPE)old_max_pos) {
+        return 0;
+    }
+
+    old_header = self->header;
     self->header.tag = RECORD_TAG_NORMAL;
     self->header.size = d.size;
-    UDBRecord_saveHeader(self);
-    if (d.size > 0)
-        JFile_fwrite(self->file, d.data, d.size, 1);
+    if (!UDBRecord_saveHeader(self))
+        goto failed;
+    if (d.size > 0 &&
+        JFile_fwrite(self->file, d.data, d.size, 1) != 1)
+        goto failed;
+    return 1;
+
+failed:
+    UDBRecord_rollbackSave(self, log_start, old_file_pos, old_max_pos);
+    self->header = old_header;
+    return 0;
 }
 
 // read ----------------------------------------- 
