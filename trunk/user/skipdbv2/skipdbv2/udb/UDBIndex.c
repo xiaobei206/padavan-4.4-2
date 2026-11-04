@@ -10,18 +10,35 @@ UDBIndex ioDoc(
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 UDBIndex *UDBIndex_new(void)
 {
 	UDBIndex *self = (UDBIndex *)calloc(1, sizeof(UDBIndex));
+	if (NULL == self)
+		return NULL;
 	self->file = JFile_new();
-	UDBIndex_setPath_(self, "default");
 	self->holes = List_new();
+	if (NULL == self->file || NULL == self->holes) {
+		JFile_free(self->file);
+		List_free(self->holes);
+		free(self);
+		return NULL;
+	}
+	UDBIndex_setPath_(self, "default");
+	if (NULL == self->file->path || NULL == self->file->logPath) {
+		JFile_free(self->file);
+		List_free(self->holes);
+		free(self);
+		return NULL;
+	}
 	return self;
 }
 
 void UDBIndex_free(UDBIndex *self)
 {
+	if (NULL == self)
+		return;
 	UDBIndex_close(self);
 	JFile_free(self->file);
 	List_free(self->holes);
@@ -56,8 +73,12 @@ char *UDBIndex_path(UDBIndex *self)
 
 void UDBIndex_open(UDBIndex *self)
 {
+	if (NULL == self || NULL == self->file)
+		return;
 	JFile_open(self->file);
-	// need to also call UDBIndex_finishOpening
+	if (NULL == self->file->file || NULL == self->file->log)
+		return;
+	/* need to also call UDBIndex_finishOpening */
 	UDBIndex_finishOpening(self);
 	self->maxPid = 0;
 }
@@ -72,7 +93,8 @@ void UDBIndex_finishOpening(UDBIndex *self)
 
 void UDBIndex_close(UDBIndex *self)
 {
-	JFile_close(self->file);
+	if (NULL != self)
+		JFile_close(self->file);
 }
 
 void UDBIndex_begin(UDBIndex *self)
@@ -94,16 +116,18 @@ void UDBIndex_commit(UDBIndex *self)
 
 void UDBIndex_findHoles(UDBIndex *self)
 {
-	PID_TYPE pid = UDBIndex_pidCount(self);
-	
+	PID_TYPE pid;
+
+	if (NULL == self || NULL == self->holes || NULL == self->file)
+		return;
+	pid = (PID_TYPE)UDBIndex_pidCount(self);
 	List_removeAll(self->holes);
-	
-	while (pid --)
-	{
-		if (!UDBIndex_posForPid_(self, pid)) 
-		{
+
+	/* PID 0 is reserved as the null/sentinel record, not a reusable hole. */
+	while (pid > 1) {
+		--pid;
+		if (!UDBIndex_posForPid_(self, pid))
 			List_push_(self->holes, (void *)pid);
-		}
 	}
 }
 
@@ -157,8 +181,9 @@ PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 	file_size = (size_t)self->file->maxPos;
 	if (pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry))
 		return 0;
-	offset = pid * sizeof(UDBIndexEntry);
-	if (offset > file_size || file_size - offset < sizeof(UDBIndexEntry))
+	offset = (size_t)pid * sizeof(UDBIndexEntry);
+	if (offset > (size_t)LONG_MAX || offset > file_size ||
+		file_size - offset < sizeof(UDBIndexEntry))
 		return 0;
 
 	entry.pos = 0;
@@ -172,15 +197,31 @@ PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 {
 	UDBIndexEntry entry;
-	entry.pos = pos;
-	//entry.size = 0;
-	
-	JFile_setPosition_(self->file, pid * sizeof(UDBIndexEntry));
-	JFile_fwrite(self->file, (unsigned char *)(&entry), sizeof(UDBIndexEntry), 1);
-	
+	PID_TYPE old_pos = 0;
+	size_t offset;
+
+	if (NULL == self || NULL == self->file ||
+		pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry) ||
+		NULL == self->holes)
+		return;
+	offset = (size_t)pid * sizeof(UDBIndexEntry);
+	if (offset > (size_t)LONG_MAX)
+		return;
+
 	if (pos == 0)
-	{
-		List_push_(self->holes, (void *)pid);
+		old_pos = UDBIndex_posForPid_(self, pid);
+	entry.pos = pos;
+	JFile_setPosition_(self->file, (long)offset);
+	if (JFile_fwrite(self->file, (unsigned char *)&entry,
+			 sizeof(UDBIndexEntry), 1) != 1)
+		return;
+
+	/* Keep the free-PID stack unique when records are removed/reused/compacted. */
+	if (pos == 0) {
+		if (old_pos != 0)
+			List_push_(self->holes, (void *)pid);
+	} else {
+		List_remove_(self->holes, (void *)pid);
 	}
 }
 
