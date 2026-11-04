@@ -64,23 +64,32 @@ void BStream_free(BStream *self)
 
 void BStream_error_(BStream *self, const char *s)
 {
-	UArray_setCString_(self->errorBa, s);
+	if (self && self->errorBa && s)
+		UArray_setCString_(self->errorBa, s);
 }
 
 char *BStream_error(BStream *self)
 {
-	return (char *)UArray_bytes(self->errorBa);
+	return self && self->errorBa
+		? (char *)UArray_bytes(self->errorBa) : NULL;
+}
+
+char *BStream_errorString(BStream *self)
+{
+	return BStream_error(self);
 }
 
 void BStream_setUArray_(BStream *self, UArray *ba)
 {
-	if (self->ownsUArray)
-	{
-		UArray_free(ba);
-		self->ownsUArray = 0;
-	}
+	if (NULL == self || NULL == ba)
+		return;
+	if (self->ownsUArray && self->ba && self->ba != ba)
+		UArray_free(self->ba);
 	self->ba = ba;
+	self->ownsUArray = 0;
 	self->index = 0;
+	if (self->errorBa)
+		UArray_setSize_(self->errorBa, 0);
 }
 
 void BStream_setData_length_(BStream *self, unsigned char *data, size_t length)
@@ -89,6 +98,8 @@ void BStream_setData_length_(BStream *self, unsigned char *data, size_t length)
 		return;
 	UArray_setData_type_size_copy_(self->ba, data, CTYPE_uint8_t, length, 1);
 	self->index = 0;
+	if (self->errorBa)
+		UArray_setSize_(self->errorBa, 0);
 }
 
 UArray *BStream_byteArray(BStream *self)
@@ -98,13 +109,17 @@ UArray *BStream_byteArray(BStream *self)
 
 void BStream_empty(BStream *self)
 {
+	if (NULL == self || NULL == self->ba)
+		return;
 	self->index = 0;
 	UArray_setSize_(self->ba, 0);
+	if (self->errorBa)
+		UArray_setSize_(self->errorBa, 0);
 }
 
 int BStream_isEmpty(BStream *self)
 {
-	return UArray_size(self->ba) == 0;
+	return self && self->ba && UArray_size(self->ba) == 0;
 }
 
 // writing --------------------------------------
@@ -408,7 +423,10 @@ void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 
 int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int a)
 {
-	unsigned char c = BStream_readUint8(self);
+	unsigned char c;
+	if (NULL == self || NULL == self->ba)
+		return -1;
+	c = BStream_readUint8(self);
 	BStreamTag readTag = BStreamTag_FromUnsignedChar(c);
 	BStreamTag expectedTag = BStreamTag_TagArray_type_byteCount_(a, t, b);
 
@@ -421,6 +439,7 @@ int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int 
 		printf("\n");
 		BStream_show(self);
 		printf("\n");
+		BStream_error_(self, "unexpected binary stream tag");
 		return -1;
 	}
 
@@ -560,6 +579,8 @@ void BStream_readTaggedUArray_(BStream *self, UArray *b)
 
 UArray *BStream_readTaggedUArray(BStream *self)
 {
+	if (NULL == self || NULL == self->tmp)
+		return NULL;
 	BStream_readTaggedUArray_(self, self->tmp);
 	return self->tmp;
 }
