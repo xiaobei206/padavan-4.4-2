@@ -734,12 +734,16 @@ eat_post_data(FILE *conn_fp, int clen)
 
 	do_cgi_clear();
 
-	if (!fgets(fake_buf, MIN(clen+1, sizeof(fake_buf)), conn_fp))
+	if (clen <= 0)
+		return;
+	if (!fgets(fake_buf, MIN(clen, (int)sizeof(fake_buf) - 1) + 1, conn_fp))
 		return;
 
-	clen -= strlen(fake_buf);
-	while (clen--)
-		fgetc(conn_fp);
+	clen -= (int)strlen(fake_buf);
+	while (clen-- > 0) {
+		if (fgetc(conn_fp) == EOF)
+			break;
+	}
 }
 
 static void
@@ -836,7 +840,9 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	char line[4096];
 	char *method, *path, *protocol, *authorization, *boundary;
 	char *cur, *end, *cp, *file, *query;
-	int len, login_state, method_id, do_logout, clen = 0;
+	int len, login_state, method_id, do_logout, clen = 0, clen_seen = 0;
+	unsigned long parsed_clen;
+	char *clen_end;
 	time_t if_modified_since = (time_t)-1;
 	struct mime_handler *handler;
 	struct stat st, *p_st = NULL;
@@ -884,14 +890,31 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			authorization = cp;
 			cur = cp + strlen(cp) + 1;
 		}
-		else if (strncasecmp( cur, "Content-Length:", 15) == 0) {
+		else if (strncasecmp(cur, "Content-Length:", 15) == 0) {
 			cp = cur + 15;
-			cp += strspn( cp, " \t" );
-			clen = strtoul( cp, NULL, 0 );
-			if ((clen < 0) || (clen > 50000000)) {
-				send_error( 400, "Bad Request", NULL, "Content length invalid.", conn_fp);
+			cp += strspn(cp, " \t");
+			if (!isdigit((unsigned char)*cp) || clen_seen) {
+				send_error(400, "Bad Request", NULL, "Content length invalid.", conn_fp);
 				return;
 			}
+			errno = 0;
+			parsed_clen = strtoul(cp, &clen_end, 10);
+			if (errno == ERANGE || parsed_clen > 50000000UL) {
+				send_error(400, "Bad Request", NULL, "Content length invalid.", conn_fp);
+				return;
+			}
+			while (*clen_end == ' ' || *clen_end == '\t')
+				clen_end++;
+			if (*clen_end == '\r')
+				clen_end++;
+			if (*clen_end == '\n')
+				clen_end++;
+			if (*clen_end != '\0') {
+				send_error(400, "Bad Request", NULL, "Content length invalid.", conn_fp);
+				return;
+			}
+			clen = (int)parsed_clen;
+			clen_seen = 1;
 		}
 		else if (strncasecmp( cur, "If-Modified-Since:", 18) == 0) {
 			cp = cur + 18;
