@@ -241,41 +241,6 @@ get_disk_dev_attrib(const char *disk_name, const char *attrib, char *buf, size_t
 }
 
 static int
-is_partition_name(const char *dev_name, int dev_type)
-{
-	size_t len;
-	int part_offs = -1;
-	int part_order = 0;
-
-	if (dev_type == DEVICE_TYPE_SCSI_DISK) {
-		// sd{a-z}{Y}
-		len = strlen(dev_name);
-		if (len < 4)
-			return 0;
-		part_offs = 3;
-	}
-#if defined (USE_MMC_SUPPORT)
-	else if (dev_type == DEVICE_TYPE_MMC) {
-		// mmcblk{X}p{Y}
-		len = strlen(dev_name);
-		if (len < 9)
-			return 0;
-		part_offs = 8;
-		if (dev_name[part_offs] == 'p')
-			part_offs++;
-	}
-#endif
-	if (part_offs < 0)
-		return 0;
-
-	part_order = strtol(dev_name+part_offs, NULL, 10);
-	if (part_order <= 0 || part_order == LONG_MIN || part_order == LONG_MAX)
-		return 0;
-
-	return 1;
-}
-
-static int
 is_device_swapon(const char *dev_name)
 {
 	FILE *fp;
