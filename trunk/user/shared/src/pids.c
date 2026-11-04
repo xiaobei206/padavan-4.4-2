@@ -80,7 +80,9 @@ static int read_to_buf(const char *filename, void *buf)
 	int ret = -1;
 	fd = open(filename, O_RDONLY);
 	if (fd >= 0) {
-		ret = read(fd, buf, PROCPS_BUFSIZE-1);
+		do {
+			ret = read(fd, buf, PROCPS_BUFSIZE - 1);
+		} while (ret < 0 && errno == EINTR);
 		close(fd);
 	}
 	((char *)buf)[ret > 0 ? ret : 0] = '\0';
@@ -239,6 +241,7 @@ procps_status_t* procps_scan(procps_status_t* sp, int flags)
 	char buf[PROCPS_BUFSIZE];
 	char filename[sizeof("/proc//cmdline") + sizeof(int)*3];
 	char *filename_tail;
+	int path_len;
 	long tasknice;
 	unsigned pid;
 	int n;
@@ -269,7 +272,10 @@ procps_status_t* procps_scan(procps_status_t* sp, int flags)
 		sp->pid = pid;
 		if (!(flags & ~PSSCAN_PID)) break;
 
-		filename_tail = filename + sprintf(filename, "/proc/%d", pid);
+		path_len = snprintf(filename, sizeof(filename), "/proc/%u", pid);
+		if (path_len < 0 || path_len >= (int)sizeof(filename))
+			break;
+		filename_tail = filename + path_len;
 
 		if (flags & PSSCAN_UIDGID) {
 			if (stat(filename, &sb))
