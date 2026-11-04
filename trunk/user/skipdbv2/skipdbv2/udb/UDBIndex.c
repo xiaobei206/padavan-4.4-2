@@ -316,8 +316,8 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	if (NULL == self || NULL == self->file ||
 		pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry) ||
 		pos > (PID_TYPE)LONG_MAX || (pid == 0 && pos != 0) ||
-		NULL == self->holes || NULL == self->file->file ||
-		NULL == self->file->log)
+		NULL == self->holes || NULL == self->reserved ||
+		NULL == self->file->file || NULL == self->file->log)
 		return 0;
 	offset = (size_t)pid * sizeof(UDBIndexEntry);
 	if (offset > (size_t)LONG_MAX)
