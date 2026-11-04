@@ -20,6 +20,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -863,6 +864,25 @@ ej_get_permissions_of_account(int eid, webs_t wp, int argc, char **argv)
 	return 0;
 }
 
+static int
+append_path_component_bounded(char *path, size_t path_size, const char *component)
+{
+	size_t used;
+	int written;
+
+	if (!path || !component || path_size == 0)
+		return -1;
+	used = strlen(path);
+	if (used >= path_size)
+		return -1;
+	written = snprintf(path + used, path_size - used, "/%s", component);
+	if (written < 0 || (size_t)written >= path_size - used) {
+		path[used] = '\0';
+		return -1;
+	}
+	return 0;
+}
+
 int
 ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 {
@@ -871,6 +891,9 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 	int layer = 0, first;
 	int disk_count, partition_count, folder_count1, folder_count2;
 	int disk_order = -1, partition_order = -1, folder_order = -1;
+	long component_value;
+	char *number_end;
+	size_t component_len;
 	disk_info_t *disks_info, *follow_disk;
 	partition_info_t *follow_partition;
 	char *pool_mount_dir;
@@ -889,23 +912,35 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 		if (*follow_info == 0)
 			break;
 		follow_info_end = follow_info;
-		while (*follow_info_end != 0 && isdigit(*follow_info_end))
+		while (*follow_info_end != 0 && isdigit((unsigned char)*follow_info_end))
 			++follow_info_end;
+		component_len = (size_t)(follow_info_end - follow_info);
 		backup = *follow_info_end;
 		*follow_info_end = 0;
 
-		if (layer == 1)
-			disk_order = atoi(follow_info);
-		else if (layer == 2)
-			partition_order = atoi(follow_info);
-		else if (layer == 3)
-			folder_order = atoi(follow_info);
-		*follow_info_end = backup;
-
-		if (layer == 3) {
-			memset(folder_code, 0, 1024);
-			strcpy(folder_code, follow_info);
+		if (component_len == 0 || component_len > 10) {
+			*follow_info_end = backup;
+			return -1;
 		}
+		errno = 0;
+		number_end = NULL;
+		component_value = strtol(follow_info, &number_end, 10);
+		if (errno == ERANGE || !number_end || *number_end != '\0' ||
+		    component_value < 0 || component_value > INT_MAX) {
+			*follow_info_end = backup;
+			return -1;
+		}
+
+		if (layer == 1)
+			disk_order = (int)component_value;
+		else if (layer == 2)
+			partition_order = (int)component_value;
+		else if (layer == 3)
+			folder_order = (int)component_value;
+		if (layer == 3) {
+			memcpy(folder_code, follow_info, component_len + 1);
+		}
+		*follow_info_end = backup;
 
 		follow_info = follow_info_end;
 	}
@@ -1007,8 +1042,12 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 					continue;
 				}
 
-				if (folder_count1 == folder_order)
-					snprintf(dir1_Path, sizeof(dir1_Path), "%s/%s", dir1_Path, dp1->d_name);
+				if (folder_count1 == folder_order &&
+				    append_path_component_bounded(dir1_Path, sizeof(dir1_Path), dp1->d_name) != 0) {
+					closedir(dir1);
+					free_disk_data(disks_info);
+					return -1;
+				}
 			}
 			closedir(dir1);
 		}
@@ -1060,8 +1099,11 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 				continue;
 			}
 
-			if (folder_count1 == folder_order)
-				snprintf(dir1_Path, sizeof(dir1_Path), "%s/%s", dir1_Path, dp1->d_name);
+			if (folder_count1 == folder_order &&
+			    append_path_component_bounded(dir1_Path, sizeof(dir1_Path), dp1->d_name) != 0) {
+				closedir(dir1);
+				return -1;
+			}
 		}
 		closedir(dir1);
 		--layer;
