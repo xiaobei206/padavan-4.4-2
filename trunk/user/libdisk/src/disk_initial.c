@@ -519,7 +519,10 @@ has_dev_mountpoint(const char *mount_path)
 {
 	FILE *fp;
 	int ret;
-	char line[256];
+	char line[512], devname[32], mpname[256];
+
+	if (!mount_path || !*mount_path)
+		return 0;
 
 	fp = fopen(PROC_MOUNTS_FILE, "r");
 	if (!fp)
@@ -527,15 +530,18 @@ has_dev_mountpoint(const char *mount_path)
 
 	ret = 0;
 	while (fgets(line, sizeof(line), fp)) {
-		if (strncmp(line, "/dev/sd", 7) == 0) {
-			if (strstr(line, mount_path)) {
+		if (sscanf(line, "%31s %255s", devname, mpname) != 2)
+			continue;
+
+		if (strncmp(devname, "/dev/sd", 7) == 0) {
+			if (strcmp(mpname, mount_path) == 0) {
 				ret = 1;
 				break;
 			}
 		}
 #if defined (USE_MMC_SUPPORT)
-		else if (strncmp(line, "/dev/mmcblk", 11) == 0) {
-			if (strstr(line, mount_path)) {
+		else if (strncmp(devname, "/dev/mmcblk", 11) == 0) {
+			if (strcmp(mpname, mount_path) == 0) {
 				ret = 1;
 				break;
 			}
@@ -592,6 +598,15 @@ get_mount_path(const char *const pool, char **mount_path)
 {
 	int len;
 	char *tmppath;
+	const unsigned char *p;
+
+	if (!pool || !*pool || !mount_path || !strcmp(pool, ".") || !strcmp(pool, ".."))
+		return -1;
+	for (p = (const unsigned char *)pool; *p; ++p) {
+		if (*p < 32 || *p == 127 || *p == '/')
+			return -1;
+	}
+	*mount_path = NULL;
 
 	len = strlen(POOL_MOUNT_ROOT)+strlen("/")+strlen(pool);
 
