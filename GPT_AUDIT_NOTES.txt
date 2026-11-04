@@ -288,3 +288,7 @@ f2a39f29  tests: add optional reserved-PID regression test covering allocation, 
 3ba90a4c  UDBIndex.c: fail closed when PID-hole tracking allocation or index validation fails.
 ee4f62b5  UDBIndex.c: abort PID-hole discovery on index read errors.
 Verification: source review and GitHub commit-diff inspection only. Firmware build and CTest were not run in this environment.
+d5f8506  dbus.c: parse command/key response envelope separately from binary-safe raw payload; validate success and arithmetic/replace errors.
+49a04dc  skipd.c: validate local time conversion and next timer delay before persisting time tasks, avoiding failed-but-persisted schedules.
+2a305bb  tests/dbus_protocol.c: add socketpair regression coverage for response envelope parsing, common replies, errors and binary values.
+86a1884  CMakeLists.txt: register dbus protocol tests under SKIPDB_BUILD_TESTS.
