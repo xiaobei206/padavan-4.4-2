@@ -846,7 +846,10 @@ static int client_run_command(EV_P_ skipd_client* client)
         static_buffer[tmpi] = '\0';
 
         p2 = strptime(static_buffer, "%H:%M:%S", &tm1);
-        if(p2 == NULL || *p2 != '\0') {
+        if(p2 == NULL || *p2 != '\0' ||
+           tm1.tm_hour < 0 || tm1.tm_hour > 23 ||
+           tm1.tm_min < 0 || tm1.tm_min > 59 ||
+           tm1.tm_sec < 0 || tm1.tm_sec > 59) {
             p1 = "time error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
@@ -1579,7 +1582,9 @@ static void server_init_delay(EV_P_ skipd_server *server) {
         p1 = strstr((char*)dvalue.data, " ");
         if(NULL != p1) {
             n1 = (p1 - (char*)dvalue.data);
-            if(n1 > STATIC_BUF_LEN || dkey.size > DELAY_KEY_LEN) {
+            if(n1 > STATIC_BUF_LEN || NULL == dkey.data ||
+               dkey.size == 0 || dkey.size > sizeof(delay_obj->key) ||
+               ((char*)dkey.data)[dkey.size - 1] != '\0') {
                 skipd_log(SKIPD_DEBUG, "delay read key error: %s\n", dkey.data);
                 record = SkipDB_list_next(server->db, skey, cursor);
                 continue;
@@ -1593,7 +1598,6 @@ static void server_init_delay(EV_P_ skipd_server *server) {
                     break;
                 }
                 memcpy(delay_obj->key, dkey.data, dkey.size);
-                delay_obj->key[dkey.size] = '\0';
                 delay_obj->tick = n1;
                 delay_obj->server = server;
 
@@ -1630,9 +1634,12 @@ static void server_init_time(EV_P_ skipd_server *server) {
         p1 = strstr((char*)dvalue.data, " ");
         if(NULL != p1) {
             n1 = (p1 - (char*)dvalue.data);
-            if(n1 > STATIC_BUF_LEN || dkey.size > DELAY_KEY_LEN) {
+            if(n1 > STATIC_BUF_LEN || NULL == dkey.data ||
+               dkey.size == 0 || dkey.size > sizeof(time_obj->key) ||
+               ((char*)dkey.data)[dkey.size - 1] != '\0') {
                 skipd_log(SKIPD_DEBUG, "read time error, key=%s\n", dkey.data);
-                break;
+                record = SkipDB_list_next(server->db, skey, cursor);
+                continue;
             }
 
             memcpy(static_buffer, dvalue.data, n1);
@@ -1641,7 +1648,10 @@ static void server_init_time(EV_P_ skipd_server *server) {
             memset(&tm1, 0, sizeof(tm1));
             tm1.tm_mday = 1;
             p1 = strptime(static_buffer, "%H:%M:%S", &tm1);
-            if(p1 != NULL && *p1 == '\0') {
+            if(p1 != NULL && *p1 == '\0' &&
+               tm1.tm_hour >= 0 && tm1.tm_hour <= 23 &&
+               tm1.tm_min >= 0 && tm1.tm_min <= 59 &&
+               tm1.tm_sec >= 0 && tm1.tm_sec <= 59) {
                 t1 = time(NULL);
                 tnow = localtime(&t1);
                 if(NULL == tnow) {
@@ -1665,7 +1675,6 @@ static void server_init_time(EV_P_ skipd_server *server) {
                     break;
                 }
                 memcpy(time_obj->key, dkey.data, dkey.size);
-                time_obj->key[dkey.size] = '\0';
                 time_obj->server = server;
 
                 if(t2 > t1)
