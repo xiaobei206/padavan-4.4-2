@@ -1510,7 +1510,7 @@ ej_initial_account(int eid, webs_t wp, int argc, char **argv)
 	disks_info = read_disk_data();
 	if (!disks_info) {
 		websWrite(wp, "<script>\n");
-		websWrite(wp, "initial_account_error(\\'%s\\');\n", get_alert_msg_from_dict("System2"));
+		websWrite(wp, "initial_account_error(\'%s\');\n", get_alert_msg_from_dict("System2"));
 		websWrite(wp, "</script>\n");
 		return -1;
 	}
@@ -1528,7 +1528,7 @@ ej_initial_account(int eid, webs_t wp, int argc, char **argv)
 
 	if (init_error) {
 		websWrite(wp, "<script>\n");
-		websWrite(wp, "initial_account_error(\\'%s\\');\n", get_alert_msg_from_dict("System1"));
+		websWrite(wp, "initial_account_error(\'%s\');\n", get_alert_msg_from_dict("System1"));
 		websWrite(wp, "</script>\n");
 		return -1;
 	}
