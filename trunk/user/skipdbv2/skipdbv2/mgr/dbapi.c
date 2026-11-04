@@ -306,6 +306,12 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
         if (memchr(key_start, '\0', key_len) != NULL)
             return -4;
 
+        /* A framed error terminates a failed or incomplete list stream. */
+        if (command_len == 9 &&
+            memcmp(client->buf, "__error__", 9) == 0)
+            return (key_len == 4 && memcmp(key_start, "list", 4) == 0)
+                ? -5 : -4;
+
         /*
          * The end marker is a dedicated command, not a magic value. A real
          * database entry may legally contain the text "__end__\n".
