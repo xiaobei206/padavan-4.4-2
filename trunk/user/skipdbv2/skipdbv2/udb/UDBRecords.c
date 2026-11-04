@@ -105,6 +105,13 @@ void UDBRecords_open(UDBRecords *self)
 	self->firstEmptyPos = UDBRecords_firstEmptyRecordPos(self);
 }
 
+int UDBRecords_isUncommitted(UDBRecords *self)
+{
+	if (NULL == self || NULL == self->file)
+		return 0;
+	return JFile_needsSync(self->file);
+}
+
 void UDBRecords_close(UDBRecords *self)
 {
 	if (NULL != self)
@@ -209,12 +216,13 @@ int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)
 	return 1;
 }
 
-/*
- void UDBRecords_moveRecord_toPos_(UDBRecords *self, UDBRecord *record, PID_TYPE emptyPos)
- {
-	 UDBRecord_moveToPos_(record, emptyPos);
- }
- */
+void UDBRecords_moveRecord_toPos_(UDBRecords *self, UDBRecord *record, PID_TYPE pos)
+{
+	if (NULL == self || NULL == self->file || NULL == record ||
+		record->file != self->file)
+		return;
+	(void)UDBRecord_moveToPos_(record, pos);
+}
 
 void UDBRecords_show(UDBRecords *self)
 {
