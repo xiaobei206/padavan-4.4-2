@@ -84,3 +84,4 @@ f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k
 9e82bb0  automount.sh: avoid force-unmounting a different disk when filesystem labels collide.
 5d8e67b  services_stor.c: pass HDD spindown device names as argv instead of shell text.
 5fb6184  flash_mtd.c: report verification-buffer OOM instead of silently claiming write success.
+29c40b8  firewall_ex.c: skip firewall/port-forward rules when a configured IP range is invalid (fail closed).
