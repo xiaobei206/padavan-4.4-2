@@ -330,6 +330,7 @@ get_partition_size(const char *dev_name, int dev_type, partition_info_t *part_in
 	char disk_name[32] = {0};
 	char target_file[64], buf[32], *ptr;
 	size_t len;
+	int path_len;
 
 	if (!part_info)
 		return 0;
@@ -339,18 +340,25 @@ get_partition_size(const char *dev_name, int dev_type, partition_info_t *part_in
 	if (!is_partition_name(dev_name, dev_type))
 		return 0;
 
-	// skip partition chars
+	/* Derive the parent disk name without reading before the string or
+	 * allowing a long sysfs device name to overflow disk_name. */
 	len = strlen(dev_name);
-	while (len > 0 && isdigit(dev_name[len-1]))
+	while (len > 0 && isdigit((unsigned char)dev_name[len-1]))
 		--len;
 #if defined (USE_MMC_SUPPORT)
-	if (dev_type == DEVICE_TYPE_MMC && dev_name[len-1] == 'p')
+	if (dev_type == DEVICE_TYPE_MMC && len > 0 && dev_name[len-1] == 'p')
 		--len;
 #endif
-	strncpy(disk_name, dev_name, len);
+	if (len == 0 || len >= sizeof(disk_name))
+		return 0;
+	memcpy(disk_name, dev_name, len);
+	disk_name[len] = '\0';
 
-	snprintf(target_file, sizeof(target_file), "%s/%s/%s/size", SYS_BLOCK, disk_name, dev_name);
-	if((fp = fopen(target_file, "r")) == NULL)
+	path_len = snprintf(target_file, sizeof(target_file), "%s/%s/%s/size",
+			    SYS_BLOCK, disk_name, dev_name);
+	if (path_len < 0 || path_len >= (int)sizeof(target_file))
+		return 0;
+	if ((fp = fopen(target_file, "r")) == NULL)
 		return 0;
 
 	memset(buf, 0, sizeof(buf));
