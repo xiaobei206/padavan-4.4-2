@@ -141,25 +141,40 @@ int UArray_isLegalUTF8(const UArray *self)
 
 UArray *UArray_asNumberArrayString(const UArray *self)
 {
-	UArray *out = UArray_new();
+	UArray *out;
+	if (NULL == self || (self->size > 0 && NULL == self->data))
+		return NULL;
+	out = UArray_new();
+	if (NULL == out)
+		return NULL;
 	UArray_setEncoding_(out, CENCODING_ASCII);
 
 	UARRAY_INTFOREACH(self, i, v,
-		char s[128];
-
-		if(UArray_isFloatType(self))
-		{
-			sprintf(s, "%f", v);
+		char s[512];
+		int n;
+		if (UArray_isFloatType(self)) {
+			n = snprintf(s, sizeof(s), "%f", (double)v);
+		} else if (UArray_isSignedType(self)) {
+			n = snprintf(s, sizeof(s), "%lld", (long long)v);
+		} else {
+			n = snprintf(s, sizeof(s), "%llu", (unsigned long long)v);
 		}
-		else
-		{
-			sprintf(s, "%i", v);
+		if (n < 0 || (size_t)n >= sizeof(s)) {
+			UArray_free(out);
+			out = NULL;
+			break;
 		}
-
-		if(i != UArray_size(self) -1 ) strcat(s, ", ");
-		UArray_appendBytes_size_(out, (unsigned char *)s, strlen(s));
+		if (i + 1 < self->size) {
+			if ((size_t)n + 2 >= sizeof(s)) {
+				UArray_free(out);
+				out = NULL;
+				break;
+			}
+			s[n++] = ',';
+			s[n++] = ' ';
+		}
+		UArray_appendBytes_size_(out, (const unsigned char *)s, (size_t)n);
 	);
-
 	return out;
 }
 
