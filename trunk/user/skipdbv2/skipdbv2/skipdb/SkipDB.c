@@ -61,9 +61,15 @@ void SkipDB_dealloc(SkipDB *self)
 		BStream_free(self->stream);
 	SkipDB_freeAllCachedRecords(self);
 
-	/* Cursors are independently reference-counted. */
+	/* Detach cursors before destruction; their deallocators remove themselves. */
 	if (self->cursors) {
-		List_do_(self->cursors, (ListDoCallback *)SkipDBCursor_release);
+		while (self->cursors->size > 0) {
+			SkipDBCursor *cursor = (SkipDBCursor *)List_removeLast(self->cursors);
+			if (cursor) {
+				cursor->sdb = NULL;
+				SkipDBCursor_dealloc(cursor);
+			}
+		}
 		List_free(self->cursors);
 	}
 	if (self->udb)
