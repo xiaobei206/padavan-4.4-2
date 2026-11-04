@@ -1491,50 +1491,77 @@ int test_if_exist_folder_in_mount_path(const char *const mount_path, const char 
 int how_many_layer(int is_chroot, const char *basedir, char **mount_path, char **share)
 {
 	char *follow_info, *follow_info_end;
-	int layer = 0, len = 0;
+	size_t root_len, path_len, prefix_len, share_len;
+	int layer = 0;
+
+	if (!basedir || !mount_path || !share)
+		return -1;
+	*mount_path = NULL;
+	*share = NULL;
+
+	root_len = strlen(POOL_MOUNT_ROOT);
+	path_len = strlen(basedir);
+	if (!is_chroot &&
+	    (path_len < root_len ||
+	     strncmp(basedir, POOL_MOUNT_ROOT, root_len) != 0 ||
+	     (basedir[root_len] != '\0' && basedir[root_len] != '/')))
+		return -1;
 
 	if (is_chroot)
 		layer = BASE_LAYER;
-
 	if (!strcmp(basedir, "/"))
 		return layer;
 
-	len = strlen(basedir);
-	if (len > 1)
+	if (path_len > 1)
 		layer++;
 
 	follow_info = (char *)basedir;
-	while (*follow_info != 0 && (follow_info = index(follow_info+1, '/')) != NULL)
+	while (*follow_info != '\0' &&
+	       (follow_info = index(follow_info + 1, '/')) != NULL)
 		++layer;
 
 	if (layer >= MOUNT_LAYER) {
 		follow_info = (char *)basedir;
 		if (!is_chroot)
-			follow_info += strlen(POOL_MOUNT_ROOT);
-		follow_info = index(follow_info+1, '/');
-		if (follow_info == NULL)
-			len = strlen(basedir);
+			follow_info += root_len;
+		/* For unchrooted paths, follow_info points at the slash after /media.
+		 * For chrooted paths it points at the leading slash. */
+		follow_info_end = index(follow_info + 1, '/');
+		if (follow_info_end)
+			prefix_len = (size_t)(follow_info_end - basedir);
 		else
-			len = strlen(basedir)-strlen(follow_info);
-		*mount_path = (char *)malloc(sizeof(char)*(len+1));
-		if (*mount_path == NULL)
+			prefix_len = path_len;
+
+		*mount_path = (char *)malloc(prefix_len + 1);
+		if (!*mount_path)
 			return -1;
-		strncpy(*mount_path, basedir, len);
-		(*mount_path)[len] = 0;
+		memcpy(*mount_path, basedir, prefix_len);
+		(*mount_path)[prefix_len] = '\0';
 	}
 
 	if (layer >= SHARE_LAYER) {
+		if (!follow_info || *follow_info != '/') {
+			free(*mount_path);
+			*mount_path = NULL;
+			return -1;
+		}
 		++follow_info;
 		follow_info_end = index(follow_info, '/');
-		if (follow_info_end == NULL)
-			len = strlen(follow_info);
-		else
-			len = strlen(follow_info)-strlen(follow_info_end);
-		*share = (char *)malloc(sizeof(char)*(len+1));
-		if (*share == NULL)
+		share_len = follow_info_end ?
+			(size_t)(follow_info_end - follow_info) : strlen(follow_info);
+		if (share_len == 0) {
+			free(*mount_path);
+			*mount_path = NULL;
 			return -1;
-		strncpy(*share, follow_info, len);
-		(*share)[len] = 0;
+		}
+		*share = (char *)malloc(share_len + 1);
+		if (!*share) {
+			free(*mount_path);
+			*mount_path = NULL;
+			return -1;
+		}
+		memcpy(*share, follow_info, share_len);
+		(*share)[share_len] = '\0';
 	}
 
 	return layer;
