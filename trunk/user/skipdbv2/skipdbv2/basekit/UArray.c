@@ -992,50 +992,87 @@ void UArray_appendByte_(UArray *self, uint8_t byte)
 
 void UArray_insert_every_(UArray *self, UArray *other, size_t itemCount)
 {
-	UArray *out = UArray_new();
-	UArray *convertedOther = other;
-	
-	if (itemCount == 0)
-	{
-		UArray_error_(self, "UArray_insert_every_: itemCount must be > 0");
+	UArray *convertedOther = NULL;
+	const UArray *insert = other;
+	size_t selfBytes, otherBytes, itemSize, chunkBytes;
+	size_t chunkCount, tailBytes, newBytes, newCount;
+	size_t inPos = 0, outPos = 0, chunkPos;
+	uint8_t *newData;
+
+	if (NULL == self || NULL == other || itemCount == 0 ||
+		self->itemSize == 0 || other->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		other->size > (size_t)-1 / other->itemSize ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data) ||
+		itemCount > (size_t)-1 / self->itemSize)
+		return;
+
+	itemSize = self->itemSize;
+	selfBytes = self->size * itemSize;
+	chunkBytes = itemCount * itemSize;
+	if (chunkBytes == 0)
+		return;
+
+	if (self->itemType != other->itemType) {
+		convertedOther = UArray_clone(other);
+		if (NULL == convertedOther)
+			return;
+		UArray_convertToItemType_(convertedOther, self->itemType);
+		if (convertedOther->itemType != self->itemType ||
+			convertedOther->itemSize != itemSize) {
+			UArray_free(convertedOther);
+			return;
+		}
+		insert = convertedOther;
+	}
+	otherBytes = insert->size * insert->itemSize;
+	if (otherBytes == 0) {
+		if (convertedOther)
+			UArray_free(convertedOther);
 		return;
 	}
-	
-	if(UArray_itemType(self) != UArray_itemType(other))
-	{
-		UArray *convertedOther = UArray_clone(other);
-		UArray_convertToItemType_(convertedOther, UArray_itemType(self));
-	}
-		
-	{
-		size_t selfSizeInBytes  = UArray_sizeInBytes(self);
-		size_t otherSize = UArray_size(convertedOther);
-		size_t chunkSize  = itemCount * UArray_itemSize(self);
-		size_t i;
-		
-		for(i = 0; i < selfSizeInBytes; i += chunkSize)
-		{
-			if (i + chunkSize > selfSizeInBytes) 
-			{ 
-				UArray_appendBytes_size_(out, self->data + i, selfSizeInBytes - i);
-			}
-			else
-			{
-				UArray_appendBytes_size_(out, self->data + i, chunkSize);
-				UArray_appendBytes_size_(out, convertedOther->data, otherSize);
-			}
-		}
-	}
-	
-	if(UArray_itemType(self) != UArray_itemType(other))
-	{
-		UArray_free(convertedOther);
-	}
-	
-	UArray_copy_(self, out);
-	UArray_free(out);
-}
 
+	chunkCount = selfBytes / chunkBytes;
+	tailBytes = selfBytes % chunkBytes;
+	if (chunkCount > ((size_t)-1 - selfBytes) / otherBytes) {
+		if (convertedOther)
+			UArray_free(convertedOther);
+		return;
+	}
+	newBytes = selfBytes + chunkCount * otherBytes;
+	if (newBytes == (size_t)-1 || newBytes % itemSize != 0) {
+		if (convertedOther)
+			UArray_free(convertedOther);
+		return;
+	}
+	newCount = newBytes / itemSize;
+	newData = (uint8_t *)io_malloc(newBytes + 1);
+	if (NULL == newData) {
+		if (convertedOther)
+			UArray_free(convertedOther);
+		return;
+	}
+
+	for (chunkPos = 0; chunkPos < chunkCount; chunkPos++) {
+		memmove(newData + outPos, self->data + inPos, chunkBytes);
+		inPos += chunkBytes;
+		outPos += chunkBytes;
+		memmove(newData + outPos, insert->data, otherBytes);
+		outPos += otherBytes;
+	}
+	if (tailBytes > 0)
+		memmove(newData + outPos, self->data + inPos, tailBytes);
+	newData[newBytes] = 0;
+
+	UArray_setData_type_size_copy_(self, newData, self->itemType, newCount, 0);
+	if (self->data == newData && self->size == newCount)
+		UArray_changed(self);
+	else
+		io_free(newData);
+	if (convertedOther)
+		UArray_free(convertedOther);
+}
 void UArray_at_putAll_(UArray *self, size_t pos, const UArray *other)
 {
 	if (other->size == 0) return;
