@@ -28,7 +28,7 @@ struct SkipDBCursor
 
 SKIPDB_API SkipDBCursor *SkipDBCursor_new(void);
 SKIPDB_API SkipDBCursor *SkipDBCursor_newWithDB_(SkipDB *sdb);
-SKIPDB_API void SkipDBCursor_sdb_(SkipDB *sdb);
+SKIPDB_API void SkipDBCursor_sdb_(SkipDBCursor *self, SkipDB *sdb);
 SKIPDB_API void SkipDBCursor_retain(SkipDBCursor *self);
 SKIPDB_API void SkipDBCursor_release(SkipDBCursor *self);
 SKIPDB_API void SkipDBCursor_mark(SkipDBCursor *self);
