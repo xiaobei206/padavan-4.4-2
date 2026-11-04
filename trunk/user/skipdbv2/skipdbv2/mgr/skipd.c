@@ -1670,8 +1670,11 @@ static void server_init_delay(EV_P_ skipd_server *server) {
             n1 = (p1 - (char*)dvalue.data);
             if(n1 > STATIC_BUF_LEN || NULL == dkey.data ||
                dkey.size == 0 || dkey.size > sizeof(delay_obj->key) ||
-               ((char*)dkey.data)[dkey.size - 1] != '\0') {
-                skipd_log(SKIPD_DEBUG, "delay read key error: %s\n", dkey.data);
+               ((char*)dkey.data)[dkey.size - 1] != '\0' ||
+               memchr(dkey.data, '\0', dkey.size - 1) != NULL) {
+                /* Persisted keys are length-delimited; never log them as %s
+                 * until their complete NUL-terminated representation is known. */
+                skipd_log(SKIPD_DEBUG, "delay read key/value error\n");
                 record = SkipDB_list_next(server->db, skey, cursor);
                 continue;
             }
@@ -1722,8 +1725,11 @@ static void server_init_time(EV_P_ skipd_server *server) {
             n1 = (p1 - (char*)dvalue.data);
             if(n1 > STATIC_BUF_LEN || NULL == dkey.data ||
                dkey.size == 0 || dkey.size > sizeof(time_obj->key) ||
-               ((char*)dkey.data)[dkey.size - 1] != '\0') {
-                skipd_log(SKIPD_DEBUG, "read time error, key=%s\n", dkey.data);
+               ((char*)dkey.data)[dkey.size - 1] != '\0' ||
+               memchr(dkey.data, '\0', dkey.size - 1) != NULL) {
+                /* Persisted keys are length-delimited; never log them as %s
+                 * until their complete NUL-terminated representation is known. */
+                skipd_log(SKIPD_DEBUG, "time read key/value error\n");
                 record = SkipDB_list_next(server->db, skey, cursor);
                 continue;
             }
