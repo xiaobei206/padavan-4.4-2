@@ -1470,12 +1470,13 @@ static void server_switch(skipd_server* server)
     marker_status = write_db_switch_marker(server->db_path, n2);
     if (marker_status != 0) {
         skipd_log(SKIPDB_DEBUG, "database switch marker write failed\n");
-        SkipDB_delete(other);
-        SkipDB_free(other);
         if (marker_status == -2) {
-            /* Marker rename may be visible; stop before accepting more writes. */
+            /* The marker was renamed: preserve both databases and stop. */
+            SkipDB_free(other);
             exit(EXIT_FAILURE);
         }
+        SkipDB_delete(other);
+        SkipDB_free(other);
         return;
     }
 
