@@ -318,17 +318,21 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
             return -4;
         }
 
-        if (command_len != 4 || memcmp(client->buf, "list", 4) != 0 ||
-            value_len == 0)
+        if (command_len != 4 || memcmp(client->buf, "list", 4) != 0)
             return -4;
 
         *key_end = '\0';
-        /* SkipDB string Datums include their final NUL; tolerate raw text. */
-        if (value[value_len - 1] == '\0' ||
-            value[value_len - 1] == '\n')
-            --value_len;
-        else
-            return -4;
+        /*
+         * SkipDB string Datums include their final NUL; tolerate raw text.
+         * A zero-length Datum is also a valid empty database value.
+         */
+        if (value_len > 0) {
+            if (value[value_len - 1] == '\0' ||
+                value[value_len - 1] == '\n')
+                --value_len;
+            else
+                return -4;
+        }
         if (memchr(value, '\0', value_len) != NULL)
             return -4;
         value[value_len] = '\0';
