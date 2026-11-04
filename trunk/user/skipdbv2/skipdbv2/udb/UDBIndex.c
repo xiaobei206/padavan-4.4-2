@@ -221,7 +221,9 @@ void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 		if (old_pos != 0)
 			List_push_(self->holes, (void *)pid);
 	} else {
-		List_remove_(self->holes, (void *)pid);
+		while (List_removeFirst_(self->holes, (void *)pid)) {
+			/* Remove any stale duplicate free-slot entries. */
+		}
 	}
 }
 
