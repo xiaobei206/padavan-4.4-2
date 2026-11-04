@@ -229,8 +229,8 @@ int main(void)
     static const char get_value_nul[] = "get alpha value\n\0";
     static const char get_named_error_key[] = "get __error__ normal\n";
     static const char get_named_error_value[] = "normal\n";
-    static const char get_error[] = "__error__ get value too big to send\n";
-    static const char get_error_output[] = "value too big to send\n";
+    static const char get_error[] = "__error__ get response too large\n";
+    static const char get_error_output[] = "response too large\n";
     static const char get_output[] = "value\n";
     static const char inc_overflow[] = "inc counter integer overflow\n";
     static const char inc_output[] = "integer overflow\n";
