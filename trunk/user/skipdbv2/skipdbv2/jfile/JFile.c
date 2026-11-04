@@ -25,7 +25,7 @@ JFile ioDoc(
 #define JFILE_END_TRANSACTION 2
 
 int JFile_clipLog(JFile *self);
-void JFile_writeLogToFile(JFile *self);
+static void JFile_writeLogToFile(JFile *self);
 void JFile_flushLog(JFile *self);
 void JFile_flushFile(JFile *self);
 
