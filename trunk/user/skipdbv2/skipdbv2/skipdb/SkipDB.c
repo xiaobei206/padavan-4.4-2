@@ -631,7 +631,7 @@ SkipDBRecord *SkipDB_recordAt_(SkipDB *self, Datum k)
 int SkipDB_replace_put_(SkipDB *self, Datum k, Datum v)
 {
 	SkipDBRecord *record;
-	if (NULL == self || NULL == self->header ||
+	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		(k.size > 0 && NULL == k.data) ||
 		(v.size > 0 && NULL == v.data))
 		return 0;
