@@ -253,9 +253,11 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 			offset = 0;
 			cnt++;
 			
-			if (func_hdr(ptr, &filelen) != 0)
+			if (func_hdr(ptr, &filelen) != 0 ||
+			    filelen < hdr_size ||
+			    filelen > (long)count + (long)clen)
 				goto err;
-			
+
 			valid_header = 1;
 		}
 		
