@@ -936,11 +936,18 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			cp += strspn( cp, " \t" );
 			if_modified_since = tdate_parse(cp);
 		}
-		else if ((cp = strstr( cur, "boundary=" ))) {
+		else if ((cp = strstr(cur, "boundary="))) {
 			boundary = cp + 9;
-			for ( cp = cp + 9; *cp && *cp != '\r' && *cp != '\n'; cp++ );
-			*cp = '\0';
-			cur = ++cp;
+			for (cp = cp + 9; *cp && *cp != '\r' && *cp != '\n'; cp++)
+				;
+			if (*cp == '\r' && cp[1] == '\n') {
+				*cp = '\0';
+				cp[1] = '\0';
+				cur = cp + 2;
+			} else {
+				*cp = '\0';
+				cur = cp + 1;
+			}
 		}
 	}
 
