@@ -164,7 +164,7 @@ void BStream_writeNumber_size_(BStream *self, unsigned char *v, size_t length)
 	}
 	memcpy(self->typeBuf, v, length);
 
-	if (self->flipEndian)
+	if (self->flipEndian && length > 1)
 	{
 		reverseBytes(self->typeBuf, length);
 	}
@@ -288,14 +288,14 @@ invalid:
 
 uint32_t BStream_readUint32(BStream *self)
 {
-	uint32_t v;
+	uint32_t v = 0;
 	BStream_readNumber_size_(self, (unsigned char *)(&v), sizeof(uint32_t));
 	return v;
 }
 
 int32_t BStream_readInt32(BStream *self)
 {
-	int32_t v;
+	int32_t v = 0;
 	BStream_readNumber_size_(self, (unsigned char *)(&v), sizeof(int32_t));
 	return v;
 }
@@ -303,7 +303,7 @@ int32_t BStream_readInt32(BStream *self)
 #if !defined(__SYMBIAN32__)
 int64_t BStream_readInt64(BStream *self)
 {
-	int64_t v;
+	int64_t v = 0;
 	BStream_readNumber_size_(self, (unsigned char *)(&v), sizeof(int64_t));
 	return v;
 }
@@ -311,7 +311,7 @@ int64_t BStream_readInt64(BStream *self)
 
 double BStream_readDouble(BStream *self)
 {
-	double v;
+	double v = 0.0;
 	BStream_readNumber_size_(self, (unsigned char *)(&v), sizeof(double));
 	return v;
 }
@@ -505,7 +505,10 @@ int BStream_readTaggedInt(BStream *self)
 
 uint8_t BStream_readTaggedUint8(BStream *self)
 {
-	int32_t value = BStream_readTaggedInt32(self);
+	int32_t value;
+	if (NULL == self || NULL == self->errorBa)
+		return 0;
+	value = BStream_readTaggedInt32(self);
 	if (UArray_size(self->errorBa) != 0 || value < 0 || value > UINT8_MAX) {
 		BStream_error_(self, "tagged byte out of range");
 		return 0;
