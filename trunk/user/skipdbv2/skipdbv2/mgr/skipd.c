@@ -1350,6 +1350,7 @@ static void server_init_delay(EV_P_ skipd_server *server) {
             n1 = (p1 - (char*)dvalue.data);
             if(n1 > STATIC_BUF_LEN || dkey.size > DELAY_KEY_LEN) {
                 skipd_log(SKIPD_DEBUG, "delay read key error: %s\n", dkey.data);
+                record = SkipDB_list_next(server->db, skey, cursor);
                 continue;
             }
             memcpy(static_buffer, dvalue.data, n1);
