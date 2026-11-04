@@ -360,6 +360,11 @@ static void delay_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
         sys_script(p1, dvalue.size - (size_t)(p1 - (char*)dvalue.data));
         if(0 == tmpi) {
             skipd_log(SKIPD_DEBUG, "delay cmd:%s, delay delete, tmpi = 0\n", dkey.data);
+            SkipDB_beginTransaction(delay_obj->server->db);
+            SkipDB_removeAt_(delay_obj->server->db, dkey);
+            server_sync(EV_A_ delay_obj->server);
+            if (!SkipDB_isOpen(delay_obj->server->db))
+                skipd_log(SKIPD_DEBUG, "delay cmd:%s, failed to remove one-shot task\n", dkey.data);
             break;
         }
 
