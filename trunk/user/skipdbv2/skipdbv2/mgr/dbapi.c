@@ -34,16 +34,23 @@ static int ignore_result(dbclient *client);
 
 static int write_util(dbclient* client, int len, unsigned int delay) {
     int n, written = 0;
-    unsigned int now, timeout;
+    unsigned long long now, timeout;
     struct timeval tv, tv2;
 
     if (NULL == client || NULL == client->buf || len < 0 ||
         client->remote_fd < 0)
         return -1;
     gettimeofday(&tv2, NULL);
-    timeout = (tv2.tv_sec * 1000) + (tv2.tv_usec / 1000) + delay;
+    timeout = (unsigned long long)tv2.tv_sec * 1000ULL +
+        (unsigned long long)tv2.tv_usec / 1000ULL + delay;
     while (written < len) {
-        n = write(client->remote_fd, client->buf + written, len - written);
+#ifdef MSG_NOSIGNAL
+        n = (int)send(client->remote_fd, client->buf + written,
+            (size_t)(len - written), MSG_NOSIGNAL);
+#else
+        n = (int)send(client->remote_fd, client->buf + written,
+            (size_t)(len - written), 0);
+#endif
         if (n > 0) {
             written += n;
             continue;
@@ -56,7 +63,8 @@ static int write_util(dbclient* client, int len, unsigned int delay) {
             return -1;
 
         gettimeofday(&tv, NULL);
-        now = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+        now = (unsigned long long)tv.tv_sec * 1000ULL +
+            (unsigned long long)tv.tv_usec / 1000ULL;
         if (now > timeout)
             break;
         usleep(50);
@@ -336,14 +344,97 @@ static int myprint(dbclient* client, void* o, char* prefix, char* key, char* val
     return 0;
 }
 
+static void print_js_quoted(const char *value) {
+    const unsigned char *p = (const unsigned char *)value;
+    putchar('"');
+    while (p && *p) {
+        switch (*p) {
+            case '"': putchar('\\'); putchar('"'); break;
+            case '\\': putchar('\\'); putchar('\\'); break;
+            case '\n': fputs("\\n", stdout); break;
+            case '\r': fputs("\\r", stdout); break;
+            case '\t': fputs("\\t", stdout); break;
+            case '\b': fputs("\\b", stdout); break;
+            case '\f': fputs("\\f", stdout); break;
+            default:
+                if (*p < 0x20)
+                    printf("\\u%04x", (unsigned int)*p);
+                else
+                    putchar(*p);
+                break;
+        }
+        ++p;
+    }
+    putchar('"');
+}
+
 static int print_json(dbclient* client, void* o, char* prefix, char* key, char* value) {
-    printf("o['%s']='%s';\n", key, value);
+    if (NULL == key || NULL == value)
+        return -1;
+    fputs("o[", stdout);
+    print_js_quoted(key);
+    fputs("]=", stdout);
+    print_js_quoted(value);
+    fputs(";\\n", stdout);
     return 0;
 }
 
 int dbclient_json(dbclient* client, char* prefix) {
-    if (NULL == client || NULL == prefix)
+    const unsigned char *p;
+    if (NULL == client || NULL == prefix || !((*prefix >= 'A' && *prefix <= 'Z') ||
+        (*prefix >= 'a' && *prefix <= 'z') || *prefix == '_' || *prefix == '
+    if (dbclient_list(client, prefix, NULL, print_json) != 0)
         return -1;
+    printf("return o;\n})();\n");
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    dbclient client;
+    dbclient_start(&client);
+    dbclient_bulk(&client, "set", "hello1", "value-new-value");
+    dbclient_bulk(&client, "set", "hello11", "value-new-value");
+    dbclient_bulk(&client, "set", "hello111", "value-new-value");
+    dbclient_bulk(&client, "set", "hello1112", "value-new-value");
+    dbclient_bulk(&client, "set", "hello13", "value-new-value");
+    dbclient_bulk(&client, "set", "hello15", "value-new-value");
+
+    //dbclient_list(&client, "hello1", NULL, myprint);
+    dbclient_json(&client, "hello1");
+    dbclient_end(&client);
+    return 0;
+}
+))
+        return -1;
+    for (p = (const unsigned char *)prefix + 1; *p; ++p) {
+        if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
+            (*p >= '0' && *p <= '9') || *p == '_' || *p == '
+    if (dbclient_list(client, prefix, NULL, print_json) != 0)
+        return -1;
+    printf("return o;\n})();\n");
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    dbclient client;
+    dbclient_start(&client);
+    dbclient_bulk(&client, "set", "hello1", "value-new-value");
+    dbclient_bulk(&client, "set", "hello11", "value-new-value");
+    dbclient_bulk(&client, "set", "hello111", "value-new-value");
+    dbclient_bulk(&client, "set", "hello1112", "value-new-value");
+    dbclient_bulk(&client, "set", "hello13", "value-new-value");
+    dbclient_bulk(&client, "set", "hello15", "value-new-value");
+
+    //dbclient_list(&client, "hello1", NULL, myprint);
+    dbclient_json(&client, "hello1");
+    dbclient_end(&client);
+    return 0;
+}
+))
+            return -1;
+    }
     printf("var %s=(function() {\nvar o={};\n", prefix);
     if (dbclient_list(client, prefix, NULL, print_json) != 0)
         return -1;
