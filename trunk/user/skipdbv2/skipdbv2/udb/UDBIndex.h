@@ -46,6 +46,7 @@ void UDBIndex_close(UDBIndex *self);
 
 void UDBIndex_begin(UDBIndex *self);
 void UDBIndex_preCommit(UDBIndex *self);
+int UDBIndex_prepareCommit(UDBIndex *self);
 void UDBIndex_commit(UDBIndex *self);
 
 // holes ------------------------------------------- 
