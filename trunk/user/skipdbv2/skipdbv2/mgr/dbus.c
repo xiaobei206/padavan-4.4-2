@@ -155,7 +155,8 @@ static int read_util(dbclient* client, int len, unsigned int delay) {
  * The value is length-delimited and may contain embedded NUL bytes.
  */
 static int read_response_payload(dbclient *client, unsigned int delay,
-    size_t *payload_offset, int *body_len)
+    size_t *payload_offset, int *body_len,
+    size_t *key_offset, size_t *key_len)
 {
     int n1, n2;
     size_t command_len, key_start;
@@ -190,9 +191,15 @@ static int read_response_payload(dbclient *client, unsigned int delay,
     key_start = command_len + 1;
     key_end = (char *)memchr(client->buf + key_start, ' ',
         (size_t)n2 - key_start);
-    if (NULL == key_end || key_end == client->buf + key_start)
+    if (NULL == key_end || key_end == client->buf + key_start ||
+        memchr(client->buf + key_start, '\0',
+            (size_t)(key_end - (client->buf + key_start))) != NULL)
         return -4;
 
+    if (NULL != key_offset)
+        *key_offset = key_start;
+    if (NULL != key_len)
+        *key_len = (size_t)(key_end - (client->buf + key_start));
     *payload_offset = (size_t)(key_end - client->buf) + 1;
     *body_len = n2;
     return 0;
@@ -204,7 +211,7 @@ int parse_common_result(dbclient *client) {
     int success;
 
     /* Script-backed commands can take longer than ordinary DB operations. */
-    n1 = read_response_payload(client, 60000, &payload_offset, &body_len);
+    n1 = read_response_payload(client, 60000, &payload_offset, &body_len, NULL, NULL);
     if (n1 < 0)
         return n1;
 
@@ -225,15 +232,25 @@ int parse_common_result(dbclient *client) {
 
 int parse_get_result(dbclient *client) {
     int n1, body_len;
-    size_t payload_offset, payload_len;
+    size_t payload_offset, payload_len, key_offset, key_len;
     const char *payload;
 
-    n1 = read_response_payload(client, 510, &payload_offset, &body_len);
+    n1 = read_response_payload(client, 510, &payload_offset, &body_len,
+        &key_offset, &key_len);
     if (n1 < 0)
         return n1;
 
     payload = client->buf + payload_offset;
     payload_len = (size_t)body_len - payload_offset;
+
+    /* The server reserves this key for a get response that could not fit. */
+    if (key_len == 9 &&
+        memcmp(client->buf + key_offset, "__error__", 9) == 0) {
+        if (payload_len > 0 &&
+            fwrite(payload, 1, payload_len, stdout) != payload_len)
+            return -5;
+        return -5;
+    }
 
     /*
      * Text Datums are stored with one trailing NUL. Preserve embedded NUL
