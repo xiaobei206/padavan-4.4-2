@@ -1,4 +1,6 @@
+#define main dbapi_cli_main
 #include "../mgr/dbapi.c"
+#undef main
 
 #include <stdio.h>
 #include <stdlib.h>
