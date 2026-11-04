@@ -1785,16 +1785,6 @@ static void server_init_time(EV_P_ skipd_server *server) {
     }
 }
 
-static void server_cmd_init(EV_P_ ev_timer *w, int revents) {
-    skipd_server *server = global_server;
-
-    //Stop first
-    ev_timer_stop(EV_A_ w);
-
-    server_init_delay(EV_A_ server);
-    server_init_time(EV_A_ server);
-}
-
 static void server_sync(EV_P_ skipd_server* server) {
     ev_timer_again(EV_A_ &server->watcher);
 
@@ -1859,7 +1849,6 @@ int main(int argc, char **argv)
     int syslog_options = LOG_PID | LOG_PERROR | LOG_DEBUG;
     skipd_server *server;
     //struct ev_periodic every_few_seconds;
-    ev_timer init_watcher = {0};
     EV_P  = ev_default_loop(0);
 
     global_server = (skipd_server*)calloc(1, sizeof(skipd_server));
@@ -1944,15 +1933,17 @@ int main(int argc, char **argv)
     if (server_init(server, max_queue) != 0)
         return EXIT_FAILURE;
 
+    /* Register persisted timers before accepting clients. Otherwise a delay/time
+     * command created during a delayed startup scan would be scheduled twice. */
+    server_init_delay(EV_A_ server);
+    server_init_time(EV_A_ server);
+
     // Get notified whenever the socket is ready to read
     ev_io_init(&server->io, server_cb, server->fd, EV_READ);
     ev_io_start(EV_A_ &server->io);
 
-    // To be sure that we aren't actually blocking
     //ev_periodic_init(&every_few_seconds, not_blocked, 0, 5, 0);
     //ev_periodic_start(EV_A_ &every_few_seconds);
-    ev_timer_init(EV_A_ &init_watcher, server_cmd_init, 5.0, 0.0);
-    ev_timer_start(EV_A_ &init_watcher);
     //update at 2s after write
     ev_timer_init(EV_A_ &server->watcher, server_sync_tick, 0.0, 2.0);
     //ev_timer_start(EV_A_ &server->watcher);
