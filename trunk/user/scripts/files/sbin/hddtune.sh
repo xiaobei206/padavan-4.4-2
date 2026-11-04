@@ -62,12 +62,12 @@ if [ "$hdd_apmoff" != "0" ] ; then
 fi
 
 if [ -z "$1" ] ; then
-	for i in a b c d e f g h i j k ; do
+	for dev_path in /sys/block/sd* ; do
+		[ -d "$dev_path" ] || continue
+		dev_name=${dev_path##*/}
 		removable=1
-		if [ -e /sys/block/sd${i} ] ; then
-			[ -r /sys/block/sd${i}/removable ] && removable=`cat /sys/block/sd${i}/removable`
-			[ "$removable" = "0" ] && /sbin/hdparm $HDPARM_S $HDPARM_B /dev/sd${i}
-		fi
+		[ -r "$dev_path/removable" ] && removable=`cat "$dev_path/removable"`
+		[ "$removable" = "0" ] && /sbin/hdparm $HDPARM_S $HDPARM_B "/dev/$dev_name"
 	done
 else
 	if [ -e "/sys/block/$1" ] ; then
