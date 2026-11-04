@@ -323,7 +323,7 @@ static int parse_list_result(dbclient *client, char* prefix, webs_t wp, fn_db_pa
         }
 
         p1 = client->buf + LIST_LEN;
-        p2 = strchr(p1, " "[0]);
+        p2 = strchr(p1, ' ');
         if (!p2)
             return -4;
         *p2 = '\0';
@@ -378,6 +378,5 @@ int dbclient_end(dbclient *client) {
         close(client->remote_fd);
     client->remote_fd = -1;
     return 0;
-}
 }
 
