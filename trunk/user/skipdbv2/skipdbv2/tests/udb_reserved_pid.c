@@ -5,6 +5,9 @@
 #include <string.h>
 #include <unistd.h>
 
+/* Internal marker helper used to simulate a power loss during commit. */
+int UDB_setCommittedFlag_(UDB *self, int flag);
+
 static int has_value(UDB *db, PID_TYPE pid, const char *expected)
 {
     Datum value;
@@ -163,9 +166,70 @@ int main(void)
     /* The rejected transaction must not damage previously committed rows. */
     UDB_open(db);
     if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
-        !has_value(db, reused_pid, "reused")) {
+        !has_value(db, reused_pid, "reused-after-expiry")) {
         fprintf(stderr, "committed data was damaged by rejected PID write\n");
         goto done;
+    }
+
+    /* Simulate a crash after applying the index file but before applying data. */
+    {
+        PID_TYPE crash_pid;
+        UDB_beginTransaction(db);
+        crash_pid = UDB_put_(db, Datum_FromCString_("crash-recovery-index"));
+        if (!UDB_isOpen(db) || crash_pid == 0) {
+            fprintf(stderr, "failed to stage the index-recovery transaction\n");
+            goto done;
+        }
+        UDBIndex_preCommit(db->index);
+        UDBRecords_preCommit(db->records);
+        if (!UDB_isOpen(db) || !UDBIndex_prepareCommit(db->index) ||
+            UDB_setCommittedFlag_(db, 1) != 0) {
+            fprintf(stderr, "failed to arm the index-recovery transaction\n");
+            goto done;
+        }
+        UDBIndex_commit(db->index);
+        if (!db->index->file->file || !db->index->file->log ||
+            !db->records->file->file || !db->records->file->log) {
+            fprintf(stderr, "index journal apply failed before crash simulation\n");
+            goto done;
+        }
+        UDB_close(db);
+        UDB_open(db);
+        if (!UDB_isOpen(db) || !has_value(db, crash_pid, "crash-recovery-index")) {
+            fprintf(stderr, "recovery failed after index-only journal application\n");
+            goto done;
+        }
+    }
+
+    /* Replaying both already-applied journals must also be idempotent. */
+    {
+        PID_TYPE crash_pid;
+        UDB_beginTransaction(db);
+        crash_pid = UDB_put_(db, Datum_FromCString_("crash-recovery-both"));
+        if (!UDB_isOpen(db) || crash_pid == 0) {
+            fprintf(stderr, "failed to stage the full-replay transaction\n");
+            goto done;
+        }
+        UDBIndex_preCommit(db->index);
+        UDBRecords_preCommit(db->records);
+        if (!UDB_isOpen(db) || !UDBIndex_prepareCommit(db->index) ||
+            UDB_setCommittedFlag_(db, 1) != 0) {
+            fprintf(stderr, "failed to arm the full-replay transaction\n");
+            goto done;
+        }
+        UDBIndex_commit(db->index);
+        UDBRecords_commit(db->records);
+        if (!db->index->file->file || !db->index->file->log ||
+            !db->records->file->file || !db->records->file->log) {
+            fprintf(stderr, "journal apply failed before full-replay simulation\n");
+            goto done;
+        }
+        UDB_close(db);
+        UDB_open(db);
+        if (!UDB_isOpen(db) || !has_value(db, crash_pid, "crash-recovery-both")) {
+            fprintf(stderr, "recovery failed after both journals were already applied\n");
+            goto done;
+        }
     }
 
     result = EXIT_SUCCESS;
