@@ -210,28 +210,36 @@ CENCODING UArray_encoding(const UArray *self)
 
 void UArray_setEncoding_(UArray *self, CENCODING encoding)
 {
-	// ensure that size matches new encoding
+	CTYPE targetType;
+	if (NULL == self)
+		return;
 
+	/* Keep encoding metadata consistent if changing the item type cannot
+	 * complete because of invalid state or allocation failure. */
 	switch(encoding)
 	{
 		case CENCODING_ASCII:
 		case CENCODING_UTF8:
-			UArray_setItemType_(self, CTYPE_uint8_t);
+			targetType = CTYPE_uint8_t;
 			break;
 		case CENCODING_UTF16:
-			UArray_setItemType_(self, CTYPE_uint16_t);
+			targetType = CTYPE_uint16_t;
 			break;
 		case CENCODING_UTF32:
-			UArray_setItemType_(self, CTYPE_uint32_t);
+			targetType = CTYPE_uint32_t;
 			break;
 		case CENCODING_NUMBER:
-			// Don't change itemType when setting raw encoding. Raw encoding
-			// used for vectors and numbers and the item type may have been set
-			// before this call.
-			break;
+			/* Raw numeric encoding preserves the preselected item type. */
+			self->encoding = encoding;
+			return;
+		default:
+			return;
 	}
 
-	self->encoding = encoding;
+	if (self->itemType != targetType)
+		UArray_setItemType_(self, targetType);
+	if (self->itemType == targetType)
+		self->encoding = encoding;
 }
 
 void UArray_convertToEncoding_(UArray *self, CENCODING encoding)
@@ -292,8 +300,18 @@ UArray *UArray_new(void)
 
 UArray *UArray_clone(const UArray *self)
 {
-	UArray *out = UArray_new();
+	UArray *out;
+	if (NULL == self)
+		return NULL;
+	out = UArray_new();
+	if (NULL == out)
+		return NULL;
 	UArray_copy_(out, self);
+	if (out->itemType != self->itemType || out->encoding != self->encoding ||
+		out->size != self->size || (self->size > 0 && NULL == out->data)) {
+		UArray_free(out);
+		return NULL;
+	}
 	return out;
 }
 
@@ -559,9 +577,23 @@ void UArray_sizeTo_(UArray *self, size_t size)
 
 void UArray_copy_(UArray *self, const UArray *other)
 {
-	UArray_setItemType_(self, UArray_itemType(other));
-	UArray_setEncoding_(self, UArray_encoding(other));
-	UArray_setSize_(self, UArray_size(other));
+	if (NULL == self || NULL == other || self == other ||
+		other->itemSize == 0 ||
+		other->size > (size_t)-1 / other->itemSize ||
+		(other->size > 0 && NULL == other->data))
+		return;
+
+	UArray_setItemType_(self, other->itemType);
+	if (self->itemType != other->itemType)
+		return;
+	UArray_setEncoding_(self, (CENCODING)other->encoding);
+	if (self->encoding != other->encoding ||
+		self->itemType != other->itemType)
+		return;
+	UArray_setSize_(self, other->size);
+	if (self->size != other->size ||
+		(other->size > 0 && NULL == self->data))
+		return;
 	UArray_copyItems_(self, other);
 }
 
@@ -592,17 +624,30 @@ void UArray_copyData_(UArray *self, const UArray *other)
 
 void UArray_convertToItemType_(UArray *self, CTYPE newItemType)
 {
-	if (self->itemType != newItemType)
-	{
-		UArray *tmp = UArray_new();
-		UArray_setItemType_(tmp, newItemType);
-		UArray_setEncoding_(tmp, UArray_encoding(self));
-		UArray_setSize_(tmp, self->size);
-		UArray_copyItems_(tmp, self);
-		UArray_copy_(self, tmp);
+	UArray *tmp;
+	if (NULL == self || self->itemType == newItemType ||
+		CTYPE_size(newItemType) == 0)
+		return;
+	tmp = UArray_new();
+	if (NULL == tmp)
+		return;
+	UArray_setItemType_(tmp, newItemType);
+	UArray_setEncoding_(tmp, (CENCODING)self->encoding);
+	if (tmp->itemType != newItemType || tmp->encoding != self->encoding) {
 		UArray_free(tmp);
-		UArray_changed(self);
+		return;
 	}
+	UArray_setSize_(tmp, self->size);
+	if (tmp->size != self->size ||
+		(self->size > 0 && NULL == tmp->data)) {
+		UArray_free(tmp);
+		return;
+	}
+	UArray_copyItems_(tmp, self);
+	if (tmp->size == self->size && tmp->itemType == newItemType) {
+		UArray_copy_(self, tmp);
+	}
+	UArray_free(tmp);
 }
 
 // slice
