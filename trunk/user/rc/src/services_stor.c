@@ -532,7 +532,6 @@ void run_samba(void)
 {
 	int sh_num, has_nmbd, has_smbd, i;
 	char tmpuser[40], tmp2[40];
-	char cmd[256];
 
 	if (nvram_match("enable_samba", "0") || nvram_match("st_samba_mode", "0"))
 		return;
@@ -555,8 +554,15 @@ void run_samba(void)
 	for (i = 0; i < sh_num; i++) {
 		snprintf(tmpuser, sizeof(tmpuser), "acc_username%d", i);
 		snprintf(tmp2, sizeof(tmp2), "acc_password%d", i);
-		snprintf(cmd, sizeof(cmd), "smbpasswd %s %s", nvram_safe_get(tmpuser), nvram_safe_get(tmp2));
-		system(cmd);
+		{
+			char *smb_args[] = {
+				"smbpasswd",
+				nvram_safe_get(tmpuser),
+				nvram_safe_get(tmp2),
+				NULL
+			};
+			_eval(smb_args, NULL, 0, NULL);
+		}
 	}
 
 	config_smb_fastpath(0);
