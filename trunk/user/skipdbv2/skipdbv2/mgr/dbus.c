@@ -218,19 +218,17 @@ int parse_get_result(dbclient *client) {
 
         client->buf[n2] = '\0';
         p1 = strstr(client->buf, " ");
-        if(NULL == p1) {
-            break;
-        }
-        p2 = strstr(p1+1, " ");
-        if(NULL == p2) {
-            break;
-        }
+        if(NULL == p1)
+            return -4;
+        p2 = strstr(p1 + 1, " ");
+        if(NULL == p2)
+            return -4;
         {
             int value_len = n2 - (int)(p2 - client->buf) - 1;
             if (value_len <= 0)
-                break;
+                return -4;
             if (value_len == 5 && memcmp(p2 + 1, "none\n", 5) == 0)
-                break;
+                return 0;
             if (p2[value_len] != '\n')
                 printf("%.*s\n", value_len, p2 + 1);
             else
@@ -608,6 +606,8 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
             n1 = parse_list_result(gclient);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("export", argv[1])) {
             if (argc < 3) {
                 err = -12;
@@ -631,6 +631,8 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
             n1 = parse_script_result(gclient);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("update", argv[1])) {
             if(argc < 3) {
                 err = -13;
@@ -668,6 +670,8 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
             n1 = parse_get_result(gclient);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("remove", argv[1])) {
             if(argc < 3) {
                 err = -14;
@@ -751,6 +755,8 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
             n1 = parse_get_result(gclient);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("desc", argv[1])) {
             if((argc < 3) || (NULL == strstr(argv[2], "="))) {
                 err = -16;
@@ -773,6 +779,8 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
             n1 = parse_get_result(gclient);
+            if (n1 < 0)
+                err = n1;
         } else if(!strcmp("ram", argv[1])) {
             if((argc < 3) || (NULL == strstr(argv[2], "="))) {
                 err = -16;
@@ -892,6 +900,7 @@ int main(int argc, char **argv, char * envp[])
     if(NULL != gclient->buf) {
         free(gclient->buf);
     }
-    return 0;
+    free(gclient);
+    return err < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
