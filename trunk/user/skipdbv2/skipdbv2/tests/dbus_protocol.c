@@ -224,6 +224,7 @@ int main(void)
     static const char common_error[] = "set alpha database error\n";
     static const char delay_ok[] = "delay timer delay_ok\n";
     static const char get_value[] = "get alpha value\n";
+    static const char get_value_nul[] = "get alpha value\n\0";
     static const char get_output[] = "value\n";
     static const char inc_overflow[] = "inc counter integer overflow\n";
     static const char inc_output[] = "integer overflow\n";
@@ -263,6 +264,8 @@ int main(void)
         run_case(1, "delay", delay_ok, sizeof(delay_ok) - 1,
             0, delay_ok, sizeof(delay_ok) - 1) != 0 ||
         run_case(0, "get", get_value, sizeof(get_value) - 1,
+            0, get_output, sizeof(get_output) - 1) != 0 ||
+        run_case(0, "get", get_value_nul, sizeof(get_value_nul) - 1,
             0, get_output, sizeof(get_output) - 1) != 0 ||
         run_case(0, "inc", inc_overflow, sizeof(inc_overflow) - 1,
             -5, inc_output, sizeof(inc_output) - 1) != 0 ||
