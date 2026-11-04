@@ -52,27 +52,30 @@ void UDBRecords_free(UDBRecords *self)
 
 JFile *UDBRecords_jfile(UDBRecords *self)
 {
-	return self->file;
+	return self ? self->file : NULL;
 }
 
 void UDBRecords_delete(UDBRecords *self)
 {
-	JFile_delete(self->file);
+	if (self)
+		JFile_delete(self->file);
 }
 
 void UDBRecords_setPath_(UDBRecords *self, const char *path)
 {
-	JFile_setPath_withExtension_(self->file, path, "udbData");
+	if (self && self->file && path)
+		JFile_setPath_withExtension_(self->file, path, "udbData");
 }
 
 void UDBRecords_setLogPath_(UDBRecords *self, const char *path)
 {
-	JFile_setLogPath_(self->file, path);
+	if (self && self->file && path)
+		JFile_setLogPath_(self->file, path);
 }
 
-char *UDBRecords_path(UDBRecords *self) 
-{ 
-	return JFile_path(self->file); 
+char *UDBRecords_path(UDBRecords *self)
+{
+	return self ? JFile_path(self->file) : NULL;
 }
 
 void UDBRecords_open(UDBRecords *self)
@@ -110,50 +113,73 @@ void UDBRecords_close(UDBRecords *self)
 
 void UDBRecords_begin(UDBRecords *self)
 {
-	JFile_begin(self->file);
+	if (self && self->file && self->file->file && self->file->log)
+		JFile_begin(self->file);
 }
 
 void UDBRecords_preCommit(UDBRecords *self)
 {
-	JFile_commitToLog(self->file);
+	if (self && self->file)
+		JFile_commitToLog(self->file);
 }
 
 void UDBRecords_commit(UDBRecords *self)
 {
-	JFile_commitToFile(self->file);	
+	if (self && self->file)
+		JFile_commitToFile(self->file);
 }
 
 // ops -------------------------------------------------- 
 
 UDBRecord *UDBRecords_firstRecord(UDBRecords *self)
 {
+	if (NULL == self || NULL == self->file || NULL == self->file->file ||
+		NULL == self->record || self->file->maxPos < (long)sizeof(PID_TYPE))
+		return NULL;
 	/* The data file begins with firstEmptyPos at offset zero. */
 	return UDBRecords_recordAtPos_(self, sizeof(PID_TYPE));
 }
 
 UDBRecord *UDBRecords_newRecord(UDBRecords *self)
 {
+	if (NULL == self || NULL == self->record || NULL == self->file ||
+		NULL == self->file->file)
+		return NULL;
 	UDBRecord_setPosToEnd(self->record);
 	return self->record;
 }
 
 UDBRecord *UDBRecords_nextRecord(UDBRecords *self)
 {
-	PID_TYPE nextPos = self->record->pos + UDBRecord_totalSize(self->record);
-	//printf("rec %i totalSize: %i\n", 
-	//	self->record->header.pid, UDBRecord_totalSize(self->record));
+	PID_TYPE size, nextPos;
+	if (NULL == self || NULL == self->record)
+		return NULL;
+	size = UDBRecord_totalSize(self->record);
+	if (size == 0 || self->record->pos > (PID_TYPE)LONG_MAX - size)
+		return NULL;
+	nextPos = self->record->pos + size;
 	return UDBRecords_recordAtPos_(self, nextPos);
 }
 
 UDBRecord *UDBRecords_recordAfter_(UDBRecords *self, UDBRecord *record)
 {
-	PID_TYPE nextPos = record->pos + UDBRecord_totalSize(record);
+	PID_TYPE size, nextPos;
+	if (NULL == self || NULL == record || NULL == self->record)
+		return NULL;
+	size = UDBRecord_totalSize(record);
+	if (size == 0 || record->pos > (PID_TYPE)LONG_MAX - size)
+		return NULL;
+	nextPos = record->pos + size;
 	return UDBRecords_recordAtPos_(self, nextPos);
 }
 
 
 UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)
 {
+	if (NULL == self || NULL == self->record || NULL == self->file ||
+		NULL == self->file->file || pos > (PID_TYPE)LONG_MAX)
+		return NULL;
+	UDBRecord_setJFile_(self->record, self->file);
 	UDBRecord_setPos_(self->record, pos);
 	
 	if (UDBRecord_readHeader(self->record))
@@ -190,7 +216,10 @@ int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)
 
 void UDBRecords_show(UDBRecords *self)
 {
-	UDBRecord *record = UDBRecords_firstRecord(self);
+	UDBRecord *record;
+	if (NULL == self)
+		return;
+	record = UDBRecords_firstRecord(self);
 	printf("UDB Records:\n");
 	if (record)
 	{	
@@ -206,7 +235,10 @@ void UDBRecords_show(UDBRecords *self)
 
 UDBRecord *UDBRecords_findFirstEmptyRecord(UDBRecords *self)
 {
-	UDBRecord *record = UDBRecords_firstRecord(self);
+	UDBRecord *record;
+	if (NULL == self)
+		return NULL;
+	record = UDBRecords_firstRecord(self);
 	
 	while (record)
 	{	
@@ -236,7 +268,7 @@ PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)
 	PID_TYPE pos = 0;
 	size_t file_size;
 
-	if (NULL == self || NULL == self->file || self->file->maxPos < 0)
+	if (NULL == self || NULL == self->file || NULL == self->file->file || self->file->maxPos < 0)
 		return 0;
 	file_size = (size_t)self->file->maxPos;
 	if (file_size < sizeof(PID_TYPE)) {
