@@ -888,7 +888,7 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 {
 	char *layer_order = websGetVar(wp, "layer_order", ""), folder_code[1024];
 	char *follow_info, *follow_info_end, backup;
-	int layer = 0, first;
+	int layer = 0, first, have_folder_code = 0;
 	int disk_count, partition_count, folder_count1, folder_count2;
 	int disk_order = -1, partition_order = -1, folder_order = -1;
 	long component_value;
@@ -903,6 +903,7 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 
 	if (strlen(layer_order) <= 0)
 		return -1;
+	folder_code[0] = '\0';
 
 	follow_info = index(layer_order, '_');
 	while (follow_info != NULL && *follow_info != 0) {
@@ -910,7 +911,7 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 
 		++follow_info;
 		if (*follow_info == 0)
-			break;
+			return -1;
 		follow_info_end = follow_info;
 		while (*follow_info_end != 0 && isdigit((unsigned char)*follow_info_end))
 			++follow_info_end;
@@ -939,11 +940,14 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 			folder_order = (int)component_value;
 		if (layer == 3) {
 			memcpy(folder_code, follow_info, component_len + 1);
+			have_folder_code = 1;
 		}
 		*follow_info_end = backup;
 
 		follow_info = follow_info_end;
 	}
+	if (layer >= 3 && !have_folder_code)
+		return -1;
 	follow_info = folder_code;
 
 	disks_info = read_disk_data();
