@@ -265,12 +265,17 @@ void UDB_beginTransaction(UDB *self)
 
 int UDB_readCommitted(UDB *self)
 {
-	int marker;
+	int marker, trailing;
 	if (NULL == self || NULL == self->committedFile ||
 		fseek(self->committedFile, 0, SEEK_SET) != 0)
 		return -2;
 	marker = fgetc(self->committedFile);
-	if (marker == EOF && ferror(self->committedFile))
+	if (marker == EOF)
+		return ferror(self->committedFile) ? -2 : -1;
+	if (marker != 0 && marker != 1)
+		return -2;
+	trailing = fgetc(self->committedFile);
+	if (trailing != EOF || ferror(self->committedFile))
 		return -2;
 	return marker;
 }
