@@ -53,7 +53,7 @@ UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos);
 int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record);
 void UDBRecords_moveRecord_toPos_(UDBRecords *self, UDBRecord *record, PID_TYPE pos);
 
-void UDBRecords_truncate_(UDBRecords *self, off_t size);
+int UDBRecords_truncate_(UDBRecords *self, off_t size);
 
 // first empty record ------------------------------------ 
 
