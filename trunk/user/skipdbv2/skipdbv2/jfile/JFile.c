@@ -13,6 +13,7 @@ JFile ioDoc(
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <errno.h>
 #include <sys/types.h>
 #include "PortableTruncate.h"
 
@@ -31,6 +32,8 @@ void JFile_flushFile(JFile *self);
 JFile *JFile_new(void)
 {
 	JFile *self = (JFile *)calloc(1, sizeof(JFile));
+	if (NULL == self)
+		return NULL;
 	//JFile_setPath_(self, "default");
 	JFile_setJournalingOn_(self, 1);
 	self->logHighWaterMark = 1024*1024*8;
@@ -45,6 +48,8 @@ void JFile_setJournalingOn_(JFile *self, int aBool)
 
 void JFile_free(JFile *self)
 {
+	if (NULL == self)
+		return;
 	JFile_close(self);
 	if (self->path) free(self->path);
 	if (self->logPath) free(self->logPath);
@@ -159,46 +164,70 @@ void JFile_remove(JFile *self)
 
 void JFile_open(JFile *self)
 {
-	self->file = fopen(self->path, "r+");
+	long file_end;
+	int created_log = 0;
 
-	if (!self->file)
-	{
-		// if it doesn't exist, create file
-		self->file = fopen(self->path, "w");
-		fclose(self->file);
-		self->file = fopen(self->path, "r+");
+	if (NULL == self || NULL == self->path || NULL == self->logPath)
+		return;
+
+	JFile_close(self);
+	self->pos = 0;
+	self->maxPos = 0;
+
+	self->file = fopen(self->path, "r+");
+	if (NULL == self->file) {
+		/* Do not truncate an existing database after an unrelated open error. */
+		if (errno != ENOENT)
+			goto fail;
+		self->file = fopen(self->path, "w+");
+		if (NULL == self->file)
+			goto fail;
 	}
 
+	if (fseek(self->file, 0, SEEK_END) != 0 ||
+		(file_end = ftell(self->file)) < 0)
+		goto fail;
+	self->maxPos = file_end;
 	self->pos = 0;
-	fseek(self->file, 0, SEEK_END);
-	self->maxPos = ftell(self->file);
 
 	self->log = fopen(self->logPath, "r+");
-
-	if (!self->log)
-	{
-		// if log doesn't exist, create it
-		self->log = fopen(self->logPath, "w");
-		fclose(self->log);
-		self->log = fopen(self->logPath, "r+");
-		#ifdef F_PREALLOCATE
-			// OSX
-			fcntl(fileno(self->log), F_PREALLOCATE, self->logHighWaterMark);
-		#else
-			// FIXME by jannson Linux
-			//posix_fallocate(fileno(self->log), -1, self->logHighWaterMark);
-		#endif
+	if (NULL == self->log) {
+		if (errno != ENOENT)
+			goto fail;
+		self->log = fopen(self->logPath, "w+");
+		if (NULL == self->log)
+			goto fail;
+		created_log = 1;
 	}
-	else
-	{
-		// if log exists, write any completed transactions to file
+
+	if (created_log) {
+#ifdef F_PREALLOCATE
+		fcntl(fileno(self->log), F_PREALLOCATE, self->logHighWaterMark);
+#else
+		/* Linux journal preallocation intentionally remains disabled. */
+#endif
+	} else {
 		JFile_clipLogToLastCompletedTransaction(self);
 		JFile_writeLogToFile(self);
+		if (fseek(self->file, 0, SEEK_END) != 0 ||
+			(file_end = ftell(self->file)) < 0)
+			goto fail;
+		self->maxPos = file_end;
 	}
+	return;
+
+fail:
+	fprintf(stderr, "JFile: unable to open database '%s' and journal '%s'\n",
+		self->path, self->logPath);
+	JFile_close(self);
+	self->pos = 0;
+	self->maxPos = 0;
 }
 
 void JFile_close(JFile *self)
 {
+	if (NULL == self)
+		return;
 	if (self->file)
 	{
 		fclose(self->file);
