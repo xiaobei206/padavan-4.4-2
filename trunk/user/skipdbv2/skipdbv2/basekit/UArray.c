@@ -144,29 +144,50 @@ void UArray_rawSetItemType_(UArray *self, CTYPE type)
 
 void UArray_setItemType_(UArray *self, CTYPE type)
 {
-	size_t itemSize;
-	div_t q;
+	size_t itemSize, oldItemSize, sizeInBytes, newCount, newBytes;
 	if (NULL == self)
 		return;
 	itemSize = CTYPE_size(type);
-	if (itemSize == 0 || self->itemSize == 0)
+	oldItemSize = self->itemSize;
+	if (itemSize == 0 || oldItemSize == 0 ||
+		self->size > (size_t)-1 / oldItemSize)
 		return;
-	q = div((int)(UArray_sizeInBytes(self) > INT_MAX ? INT_MAX : UArray_sizeInBytes(self)),
-		(int)itemSize);
 
-	if (q.rem != 0)
-	{
-		q.quot += 1;
-		UArray_setSize_(self, (q.quot * itemSize) / self->itemSize);
+	sizeInBytes = self->size * oldItemSize;
+	newCount = sizeInBytes / itemSize;
+	if (sizeInBytes % itemSize != 0) {
+		if (newCount == (size_t)-1)
+			return;
+		newCount++;
+	}
+	if (newCount > (size_t)-1 / itemSize)
+		return;
+	newBytes = newCount * itemSize;
+	if (newBytes == (size_t)-1)
+		return;
+
+	/* Grow the old-typed array enough to hold the rounded-up byte count.
+	 * Check for allocation failure before committing the new type metadata. */
+	if (newBytes > sizeInBytes) {
+		size_t resizedCount = newBytes / oldItemSize;
+		if (newBytes % oldItemSize != 0) {
+			if (resizedCount == (size_t)-1)
+				return;
+			resizedCount++;
+		}
+		if (resizedCount > (size_t)-1 / oldItemSize ||
+			resizedCount * oldItemSize == (size_t)-1)
+			return;
+		UArray_setSize_(self, resizedCount);
+		if (self->size != resizedCount)
+			return;
 	}
 
 	self->itemType = type;
-
 	self->itemSize = itemSize;
-	self->size = q.quot;
+	self->size = newCount;
 
-	// ensure encoding is sane for type
-
+	/* Ensure encoding is sane for the new type. */
 	if (UArray_isFloatType(self))
 	{
 		self->encoding = CENCODING_NUMBER;
