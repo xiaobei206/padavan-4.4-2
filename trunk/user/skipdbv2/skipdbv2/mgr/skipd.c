@@ -1808,12 +1808,11 @@ int server_init(skipd_server* server, int max_queue) {
         exit(EXIT_FAILURE);
     }
     umask(old_umask);
-    if (chmod(server->sock_path, 0600) < 0) {
-        perror("skipd socket chmod");
-        close(server->fd);
-        unlink(server->sock_path);
-        exit(EXIT_FAILURE);
-    }
+    /*
+     * bind() creates the socket with mode 0600 under the 0177 umask above.
+     * Avoid chmod(path): following the pathname after bind can race with a
+     * replacement symlink in a non-sticky or otherwise writable socket dir.
+     */
 
     if (-1 == listen(server->fd, max_queue)) {
         perror("listen");
