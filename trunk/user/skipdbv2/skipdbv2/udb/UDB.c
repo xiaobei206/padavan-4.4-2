@@ -332,28 +332,96 @@ PID_TYPE UDB_allocPid(UDB *self)
 		? UDBIndex_allocPid(self->index) : 0;
 }
 
-void UDB_append_withPid_(UDB *self, Datum d, PID_TYPE pid)
+static int UDB_rollbackJournalAppend(JFile *file, long log_start,
+                                      long old_pos, long old_max_pos)
 {
-	UDBRecord *record;
-	if (NULL == self || !self->isOpen || !self->withinTransaction ||
-		NULL == self->records || (d.size > 0 && NULL == d.data))
-		return;
-	record = UDBRecords_newRecord(self->records);
-	UDBRecord_pid_(record, pid);
-	UDBRecord_saveWithDatum_(record, d);
-	UDBIndex_setPos_forPid_(self->index, UDBRecord_pos(record), pid);
+	if (NULL == file)
+		return 0;
+	if (file->journalingOn) {
+		if (file->log && log_start >= 0 &&
+			fflush(file->log) == 0 &&
+			ftruncate(fileno(file->log), (off_t)log_start) == 0 &&
+			fseek(file->log, log_start, SEEK_SET) == 0) {
+			clearerr(file->log);
+			file->pos = old_pos;
+			file->maxPos = old_max_pos;
+			return 1;
+		}
+		if (file->log) {
+			fclose(file->log);
+			file->log = NULL;
+		}
+		return 0;
+	}
+	if (file->file && old_pos == old_max_pos &&
+		ftruncate(fileno(file->file), (off_t)old_max_pos) == 0 &&
+		fseek(file->file, old_pos, SEEK_SET) == 0) {
+		clearerr(file->file);
+		file->pos = old_pos;
+		file->maxPos = old_max_pos;
+		return 1;
+	}
+	if (file->file) {
+		fclose(file->file);
+		file->file = NULL;
+	}
+	return 0;
 }
 
-PID_TYPE UDB_put_(UDB *self, Datum d) // returns pid 
+static int UDB_append_withPid_(UDB *self, Datum d, PID_TYPE pid)
 {
-	if (UDB_isInTransaction(self))
-	{
-		PID_TYPE pid = UDBIndex_allocPid(self->index);
-		UDB_append_withPid_(self, d, pid);
-		return pid;
+	UDBRecord *record;
+	JFile *record_file;
+	long old_max_pos, log_start = -1;
+
+	if (NULL == self || !self->isOpen || !self->withinTransaction ||
+		NULL == self->records || NULL == self->index || pid == 0 ||
+		(d.size > 0 && NULL == d.data))
+		return 0;
+	record_file = self->records->file;
+	if (NULL == record_file || NULL == record_file->file ||
+		NULL == record_file->log || record_file->maxPos < 0)
+		return 0;
+	old_max_pos = record_file->maxPos;
+	if (record_file->journalingOn) {
+		if (fseek(record_file->log, 0, SEEK_END) != 0 ||
+			(log_start = ftell(record_file->log)) < 0)
+			return 0;
 	}
-	
-	return 0;
+	record = UDBRecords_newRecord(self->records);
+	if (NULL == record)
+		return 0;
+	UDBRecord_pid_(record, pid);
+	if (!UDBRecord_saveWithDatum_(record, d))
+		return 0;
+	if (!UDBIndex_setPos_forPid_(self->index, UDBRecord_pos(record), pid)) {
+		UDB_rollbackJournalAppend(record_file, log_start, old_max_pos,
+			old_max_pos);
+		return 0;
+	}
+	return 1;
+}
+
+PID_TYPE UDB_put_(UDB *self, Datum d) // returns pid
+{
+	PID_TYPE pid;
+	if (NULL == self || (d.size > 0 && NULL == d.data) ||
+		!UDB_isInTransaction(self))
+		return 0;
+
+	pid = UDBIndex_allocPid(self->index);
+	if (pid == 0)
+		return 0;
+	if (!UDB_append_withPid_(self, d, pid)) {
+		if (self->index->holes) {
+			while (List_removeFirst_(self->index->holes, (void *)pid)) {
+				/* Collapse duplicate free-slot entries before restoring this PID. */
+			}
+			List_push_(self->index->holes, (void *)pid);
+		}
+		return 0;
+	}
+	return pid;
 }
 
 void UDB_at_put_(UDB *self, PID_TYPE pid, Datum d)
