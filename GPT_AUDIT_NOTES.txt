@@ -20,3 +20,4 @@ be34849  net6.c: reject truncated IPv6 input and empty/invalid prefixes.
 ea825a5  vpn_openvpn.c: run OpenVPN peer hooks with argv, not shell interpolation.
 954996b  vpn_server.c: run VPN hooks and interface/firewall commands with argv.
 c50809d  vpn_openvpn.c: pass client certificate common name as a single safe argv.
+f1ee8e1  watchdog.c: validate weekday bits and HHMM range before scheduler actions.
