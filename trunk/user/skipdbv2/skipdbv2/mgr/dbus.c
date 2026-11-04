@@ -548,6 +548,7 @@ int main(int argc, char **argv, char * envp[])
 {
     int n1, n2, err = 0;
     struct tm tm1;
+    char *time_end;
     dbclient* client;
     int remote_fd;
 
@@ -848,7 +849,7 @@ int main(int argc, char **argv, char * envp[])
                 err = -19;
                 break;
             }
-            if(S2ISUCCESS != str2int(&n2, argv[3], 10)) {
+            if(S2ISUCCESS != str2int(&n2, argv[3], 10) || n2 < 0) {
                 err = -20;
                 break;
             }
@@ -874,7 +875,13 @@ int main(int argc, char **argv, char * envp[])
                 break;
             }
 
-            if(NULL == strptime(argv[3], "%H:%M:%S", &tm1)) {
+            memset(&tm1, 0, sizeof(tm1));
+            tm1.tm_mday = 1;
+            time_end = strptime(argv[3], "%H:%M:%S", &tm1);
+            if(NULL == time_end || *time_end != '\0' ||
+               tm1.tm_hour < 0 || tm1.tm_hour > 23 ||
+               tm1.tm_min < 0 || tm1.tm_min > 59 ||
+               tm1.tm_sec < 0 || tm1.tm_sec > 59) {
                 err = -22;
                 break;
             }
