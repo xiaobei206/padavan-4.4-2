@@ -444,9 +444,9 @@ clear_share_var_files(const char *mount_path)
 {
 	DIR *dir;
 	struct dirent *entry;
-	char path[512];
-	int path_len;
-	size_t name_len;
+	char path[512], account[32 + 1];
+	int path_len, managed;
+	size_t name_len, account_len;
 
 	dir = opendir(mount_path);
 	if (!dir)
@@ -454,8 +454,23 @@ clear_share_var_files(const char *mount_path)
 
 	while ((entry = readdir(dir)) != NULL) {
 		name_len = strlen(entry->d_name);
-		if (name_len < 6 || strncmp(entry->d_name, ".__", 3) != 0 ||
-		    strcmp(entry->d_name + name_len - 4, ".txt") != 0)
+		managed = 0;
+
+		if (strcmp(entry->d_name, ".__folder_list.txt") == 0) {
+			managed = 1;
+		} else if (name_len > 3 + 8 &&
+			   strncmp(entry->d_name, ".__", 3) == 0 &&
+			   strcmp(entry->d_name + name_len - 8, "_var.txt") == 0) {
+			account_len = name_len - 3 - 8;
+			if (account_len > 0 && account_len <= 31) {
+				memcpy(account, entry->d_name + 3, account_len);
+				account[account_len] = '\0';
+				managed = is_valid_account_name(account);
+			}
+		}
+
+		/* Only remove metadata files owned by this subsystem. */
+		if (!managed)
 			continue;
 
 		path_len = snprintf(path, sizeof(path), "%s/%s", mount_path, entry->d_name);
