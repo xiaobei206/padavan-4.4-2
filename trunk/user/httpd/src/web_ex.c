@@ -158,6 +158,9 @@ sys_script(char *name)
 	char s_addr[INET_ADDRSTRLEN];
 #endif
 
+	if (!name)
+		return;
+
 	if (strcmp(name,"syscmd.sh")==0)
 	{
 		if (SystemCmd[0] && get_login_safe()) {
@@ -336,13 +339,19 @@ write_file_dos2unix(const char* value, const char* file_path)
 static int
 write_textarea_to_file(const char* value, const char* dir_name, const char* file_name)
 {
-	int file_type, ret;
+	int file_type, ret, path_len;
+	const unsigned char *p;
 	char *extensions;
 	char temp_path[64];
 	char real_path[128];
 
-	if (!value)
+	if (!value || !dir_name || !*dir_name || !file_name || !*file_name ||
+	    !strcmp(file_name, ".") || !strcmp(file_name, ".."))
 		return 0;
+	for (p = (const unsigned char *)file_name; *p; ++p) {
+		if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.')
+			return 0;
+	}
 
 	file_type = 0;
 	extensions = strrchr(file_name, '.');
@@ -358,8 +367,12 @@ write_textarea_to_file(const char* value, const char* dir_name, const char* file
 			file_type = 3; // this is ssh authorized_keys
 	}
 
-	snprintf(temp_path, sizeof(temp_path), "%s/.%s", "/tmp", file_name);
-	snprintf(real_path, sizeof(real_path), "%s/%s", dir_name, file_name);
+	path_len = snprintf(temp_path, sizeof(temp_path), "%s/.%s", "/tmp", file_name);
+	if (path_len < 0 || path_len >= (int)sizeof(temp_path))
+		return 0;
+	path_len = snprintf(real_path, sizeof(real_path), "%s/%s", dir_name, file_name);
+	if (path_len < 0 || path_len >= (int)sizeof(real_path))
+		return 0;
 
 	if (file_type == 2) {
 		if (strlen(value) < 3) {
@@ -3566,6 +3579,7 @@ is_valid_cert_rsa_bits(const char *bits)
 {
 	return bits && (!strcmp(bits, "1024") ||
 			!strcmp(bits, "2048") ||
+			!strcmp(bits, "3072") ||
 			!strcmp(bits, "4096"));
 }
 
