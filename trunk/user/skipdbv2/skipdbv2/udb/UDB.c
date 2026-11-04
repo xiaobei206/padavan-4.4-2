@@ -441,9 +441,41 @@ PID_TYPE UDB_put_(UDB *self, Datum d) // returns pid
 
 void UDB_at_put_(UDB *self, PID_TYPE pid, Datum d)
 {
-	if (UDB_isInTransaction(self) &&
-		!UDB_append_withPid_(self, d, pid)) {
+	PID_TYPE old_pos;
+	UDBRecord *old_record;
+
+	if (!UDB_isInTransaction(self))
+		return;
+	if (pid == 0 || (d.size > 0 && NULL == d.data)) {
+		UDB_close(self);
+		return;
+	}
+
+	/* Retain the old location before UDBRecords_newRecord reuses its cursor. */
+	old_pos = UDBIndex_posForPid_(self->index, pid);
+	if (old_pos == 0) {
+		/* Updating an unmapped PID would create an orphaned duplicate row. */
+		UDB_close(self);
+		return;
+	}
+	old_record = UDBRecords_recordAtPos_(self->records, old_pos);
+	if (NULL == old_record || UDBRecord_isEmpty(old_record) ||
+		UDBRecord_pid(old_record) != pid) {
+		UDB_close(self);
+		return;
+	}
+
+	if (!UDB_append_withPid_(self, d, pid)) {
 		/* This API has no status return; abort rather than silently partial-commit. */
+		UDB_close(self);
+		return;
+	}
+
+	/* The index now points at the new row; retire the superseded row as a hole. */
+	old_record = UDBRecords_recordAtPos_(self->records, old_pos);
+	if (NULL == old_record || UDBRecord_isEmpty(old_record) ||
+		UDBRecord_pid(old_record) != pid ||
+		!UDBRecords_removeRecord_(self->records, old_record)) {
 		UDB_close(self);
 	}
 }
