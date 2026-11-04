@@ -14,6 +14,44 @@ UDB ioDoc(
 #include <errno.h>
 #include <unistd.h>
 
+static int UDB_syncParentDirectory(const char *path)
+{
+	char *directory, *slash;
+	size_t length;
+	int fd, result, saved_errno;
+
+	if (NULL == path || '\0' == *path)
+		return -1;
+	length = strlen(path);
+	directory = (char *)malloc(length + 1);
+	if (NULL == directory)
+		return -1;
+	memcpy(directory, path, length + 1);
+
+	slash = strrchr(directory, '/');
+	if (NULL == slash) {
+		directory[0] = '.';
+		directory[1] = '\0';
+	} else if (slash == directory) {
+		slash[1] = '\0';
+	} else {
+		*slash = '\0';
+	}
+
+	fd = open(directory, O_RDONLY);
+	free(directory);
+	if (fd < 0)
+		return -1;
+	result = fsync(fd);
+	saved_errno = errno;
+	if (close(fd) != 0 && result == 0) {
+		result = -1;
+		saved_errno = errno;
+	}
+	errno = saved_errno;
+	return result;
+}
+
 UDB *UDB_new(void)
 {
 	UDB *self = (UDB *)calloc(1, sizeof(UDB));
@@ -220,6 +258,11 @@ void UDB_open(UDB *self)
 
 	/* A recovered transaction must not leave the global marker armed. */
 	if (recovering && UDB_setCommittedFlag_(self, 0) != 0) {
+		UDB_close(self);
+		return;
+	}
+	/* Persist creation of the index/data/commit files before exposing the DB. */
+	if (UDB_syncParentDirectory(self->path) != 0) {
 		UDB_close(self);
 		return;
 	}
