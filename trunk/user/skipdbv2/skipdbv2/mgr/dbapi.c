@@ -30,7 +30,8 @@ typedef struct _dbclient {
 } dbclient;
 
 typedef int (*fn_db_parse)(dbclient* client, void* o, char* prefix, char* key, char* value);
-static int ignore_result(dbclient *client);
+static int ignore_result(dbclient *client,
+    const char *command, const char *key);
 
 static int write_util(dbclient* client, int len, unsigned int delay) {
     int n, written = 0;
@@ -181,7 +182,7 @@ int dbclient_bulk(dbclient* client, char* command, char* key, char* value) {
         return -1;
     if (write_util(client, written, 200) != 0)
         return -1;
-    return ignore_result(client);
+    return ignore_result(client, command, key);
 }
 
 static int read_util(dbclient* client, int len, unsigned int delay) {
@@ -235,33 +236,65 @@ static int read_util(dbclient* client, int len, unsigned int delay) {
     return -3;
 }
 
-static int ignore_result(dbclient *client) {
+static int ignore_result(dbclient *client,
+    const char *command, const char *key)
+{
     int n1, n2;
-    char* magic = MAGIC;
+    char *command_end, *key_start, *key_end;
+    size_t command_len, key_len, response_command_len, response_key_len;
+    size_t payload_len;
+    char *payload;
 
-    do {
-        n1 = read_util(client, HEADER_PREFIX, 110);
-        if(n1 < 0) {
-            return n1;
-        }
+    if (NULL == client || NULL == command || NULL == key)
+        return -1;
 
-        if(0 != memcmp(client->buf, magic, MAGIC_LEN)) {
-            //message error
-            return -3;
-        }
+    n1 = read_util(client, HEADER_PREFIX, 110);
+    if (n1 < 0)
+        return n1;
+    if (0 != memcmp(client->buf, MAGIC, MAGIC_LEN))
+        return -3;
 
-        client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
-            n2 <= 0 || n2 > READ_MAX) {
-            //message error or excessive response length
+    client->buf[HEADER_PREFIX - 1] = '\0';
+    if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
+        n2 <= 0 || n2 > READ_MAX)
+        return -4;
+
+    n1 = read_util(client, n2, 110);
+    if (n1 < 0)
+        return n1;
+    client->buf[n2] = '\0';
+
+    command_len = strlen(command);
+    key_len = strlen(key);
+    command_end = (char *)memchr(client->buf, ' ', (size_t)n2);
+    if (NULL == command_end || command_end == client->buf)
+        return -4;
+    response_command_len = (size_t)(command_end - client->buf);
+    key_start = command_end + 1;
+    key_end = (char *)memchr(key_start, ' ',
+        (size_t)(client->buf + n2 - key_start));
+    if (NULL == key_end || key_end == key_start ||
+        memchr(key_start, '\0', (size_t)(key_end - key_start)) != NULL)
+        return -4;
+    response_key_len = (size_t)(key_end - key_start);
+    payload = key_end + 1;
+    payload_len = (size_t)(client->buf + n2 - payload);
+
+    if (response_command_len == 9 &&
+        memcmp(client->buf, "__error__", 9) == 0) {
+        if (response_key_len != command_len ||
+            memcmp(key_start, command, command_len) != 0)
             return -4;
-        }
+        if (payload_len > 0)
+            fwrite(payload, 1, payload_len, stderr);
+        return -5;
+    }
 
-        n1 = read_util(client, n2, 110);
-        if(n1 < 0) {
-            return n1;
-        }
-    } while(0);
+    if (response_command_len != command_len ||
+        memcmp(client->buf, command, command_len) != 0 ||
+        response_key_len != key_len ||
+        memcmp(key_start, key, key_len) != 0)
+        return -4;
 
     return 0;
 }
