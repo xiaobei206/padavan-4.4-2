@@ -546,74 +546,63 @@ static int SkipDBRecord_compareKey_(SkipDBRecord *self, Datum key)
 
 SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 {
-	SkipDB *db = (SkipDB *)(self->sdb);
-	int level = self->level;
+	SkipDB *db;
+	SkipDBRecord *current;
+	int level;
+	size_t steps = 0;
+
+	if (NULL == self || NULL == self->key ||
+		(key.size > 0 && NULL == key.data))
+		return NULL;
+	db = (SkipDB *)self->sdb;
+	if (NULL == db)
+		return NULL;
+	current = self;
 
 #ifdef USE_SUFFIX_MATCHING
-	//Datum kDatum = UArray_asDatum(self->key);
-        Datum kDatum = Datum_FromUArray_(self->key);
-	unsigned char skMatchSize = Datum_matchingPrefixSizeWith_(&kDatum, &key);
-#endif
-
-	//printf("record: %s find: %s in ", UArray_asCString(self->key), key.data);
-	//SkipDBRecord_show(self);
-        //printf("skMatchSize %i\n", skMatchSize);
-        //printf("-------------\n\n");
-
-	while (level --)
 	{
-		SkipDBRecord *r = SkipDBRecord_recordAtLevel_(self, level);
-#ifdef USE_SUFFIX_MATCHING
-		unsigned char pkMatchSize = self->pointers[level].matchingPrefixSize;
-                printf("pkMatchSize=%d, skMatchSize=%d\n", pkMatchSize, skMatchSize);
+		Datum kDatum = Datum_FromUArray_(self->key);
+		unsigned char skMatchSize = Datum_matchingPrefixSizeWith_(&kDatum, &key);
 #endif
-
-		SkipDB_updateAt_put_(db, level, self);
-
-		//if (r && !(pkMatchSize > skMatchSize))
-		if (r)
-		{
+		level = current->level - 1;
+		while (current && level >= 0) {
+			SkipDBRecord *r;
 			int c;
 
-#ifdef USE_SUFFIX_MATCHING
-			if (pkMatchSize > skMatchSize)
-			{
-				//printf("search key: '%s' \n", key.data);
-				//printf("self key:   '%s' %i\n", UArray_asCString(self->key), skMatchSize);
-				//printf("p key:      '%s' %i\n", UArray_asCString(r->key), pkMatchSize);
-				//printf("skip compare\n");
-				return SkipDBRecord_find_quick_(r, key, quick);
+			if (++steps > 1000000 || level >= SKIPDB_MAX_LEVEL)
+				return NULL;
+			r = SkipDBRecord_recordAtLevel_(current, level);
+			SkipDB_updateAt_put_(db, level, current);
+			if (NULL == r) {
+				level--;
+				continue;
 			}
-#endif
-
-			c = SkipDBRecord_compareKey_(r, key);
-
-			//printf("key: %s at level: %i\n", UArray_asCString(r->key), level);
-
-			/*
-			 if (UArray_sizeInBytes(r->key) == 0)
-			 {
-				 printf("ERROR: key length = 0\n");
-				 exit(1);
-			 }
-			 */
-
-			if (c == 0) // record is a match
+			if (NULL == r->key)
+				return NULL;
+#ifdef USE_SUFFIX_MATCHING
 			{
-				if (level == 0 || quick)
-				{
-					return r;
+				unsigned char pkMatchSize = current->pointers[level].matchingPrefixSize;
+				if (pkMatchSize > skMatchSize) {
+					current = r;
+					level = current->level - 1;
+					continue;
 				}
 			}
-			else if (c < 0) // record key is smaller
-			{
-                //往前面节点找，遇到大的，就往下个level找
-				return SkipDBRecord_find_quick_(r, key, quick);
+#endif
+			c = SkipDBRecord_compareKey_(r, key);
+			if (c == 0) {
+				if (level == 0 || quick)
+					return r;
+			} else if (c < 0) {
+				current = r;
+				level = current->level - 1;
+				continue;
 			}
-			// otherwise record key is bigger so we keep searching
+			level--;
 		}
+#ifdef USE_SUFFIX_MATCHING
 	}
-
+#endif
 	return NULL;
 }
 
