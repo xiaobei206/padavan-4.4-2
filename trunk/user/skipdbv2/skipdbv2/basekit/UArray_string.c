@@ -415,6 +415,8 @@ BASEKIT_API int UArray_beginsWith_(UArray *self, const UArray *other)
 		(self->size > 0 && NULL == self->data) ||
 		(other->size > 0 && NULL == other->data))
 		return 0;
+	if (other->size == 0)
+		return 1;
 	tmp = UArray_stackRange(self, 0, other->size);
 	return UArray_find_(&tmp, other) == 0;
 }
@@ -427,6 +429,8 @@ BASEKIT_API int UArray_endsWith_(UArray *self, const UArray *other)
 		(self->size > 0 && NULL == self->data) ||
 		(other->size > 0 && NULL == other->data))
 		return 0;
+	if (other->size == 0)
+		return 1;
 	tmp = UArray_stackRange(self, self->size - other->size, other->size);
 	return UArray_find_(&tmp, other) == 0;
 }
