@@ -11,6 +11,7 @@ The List is not responsible for io_freeing it's elements.
 #define IO_IN_C_FILE
 #endif
 #include "Common_inline.h"
+#include <limits.h>
 #ifdef IO_DECLARE_INLINES
 
 #define LIST_FOREACH(list, index, value, code) \
@@ -55,9 +56,10 @@ The List is not responsible for io_freeing it's elements.
 	size_t index = foreachList ? List_size(foreachList) : 0; \
 	while (foreachList && index > 0) \
 	{ \
+		void *value; \
 		if (index > List_size(foreachList)) index = List_size(foreachList); \
 		if (index == 0) break; \
-		void *value = List_at_(foreachList, --index); \
+		value = List_at_(foreachList, --index); \
 		code; \
 	} \
 }
