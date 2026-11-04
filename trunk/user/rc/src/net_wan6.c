@@ -142,27 +142,52 @@ int is_wan_ipv6_if_ppp(void)
 void store_ip6rd_from_dhcp(const char *env_value, const char *prefix)
 {
 	int i;
+	long ipv4_mask_len, ipv6_prefix_len;
 	char tmp[100];
-	char ip6rd[64] = {0};
+	char ip6rd[64];
 	char addr6[INET6_ADDRSTRLEN];
-	char *value, *values[4];
+	char *value, *values[4], *end;
+	struct in6_addr prefix6;
 
 	// "32 128 FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF 255.255.255.255 "
 
-	if (nvram_match("ip6_6rd_dhcp", "0"))
+	if (nvram_match("ip6_6rd_dhcp", "0") || !env_value || !prefix)
+		return;
+	if (strlen(env_value) >= sizeof(ip6rd))
 		return;
 
-	strncpy(ip6rd, env_value, sizeof(ip6rd) - 1);
+	snprintf(ip6rd, sizeof(ip6rd), "%s", env_value);
 	value = ip6rd;
-	for (i = 0; i < 4 && value; i++)
-		values[i] = strsep(&value, " ");
-	if (i == 4)
-	{
-		snprintf(addr6, sizeof(addr6), "%s/%s", values[2], values[1]);
-		nvram_set_temp(strcat_r(prefix, "addr6", tmp), addr6);
-		nvram_set_temp(strcat_r(prefix, "6rd_size", tmp), values[0]);
-		nvram_set_temp(strcat_r(prefix, "6rd_relay", tmp), values[3]);
+	for (i = 0; i < 4; i++) {
+		values[i] = strtok_r(i == 0 ? value : NULL, " \t\r\n", &value);
+		if (!values[i])
+			return;
 	}
+	if (strtok_r(NULL, " \t\r\n", &value))
+		return;
+
+	for (end = values[0]; *end; end++)
+		if (*end < '0' || *end > '9')
+			return;
+	ipv4_mask_len = strtol(values[0], &end, 10);
+	if (*end || ipv4_mask_len < 0 || ipv4_mask_len > 32)
+		return;
+
+	for (end = values[1]; *end; end++)
+		if (*end < '0' || *end > '9')
+			return;
+	ipv6_prefix_len = strtol(values[1], &end, 10);
+	if (*end || ipv6_prefix_len < 0 || ipv6_prefix_len > 128)
+		return;
+
+	if (inet_pton(AF_INET6, values[2], &prefix6) != 1 ||
+	    !is_valid_ipv4(values[3]))
+		return;
+
+	snprintf(addr6, sizeof(addr6), "%s/%ld", values[2], ipv6_prefix_len);
+	nvram_set_temp(strcat_r(prefix, "addr6", tmp), addr6);
+	nvram_set_temp(strcat_r(prefix, "6rd_size", tmp), values[0]);
+	nvram_set_temp(strcat_r(prefix, "6rd_relay", tmp), values[3]);
 }
 
 int store_wan_dns6(char *dns6_new)
