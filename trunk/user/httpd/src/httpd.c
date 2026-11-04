@@ -853,8 +853,10 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	char *method, *path, *protocol, *authorization, *boundary;
 	char *cur, *end, *cp, *file, *query;
 	int len, login_state, method_id, do_logout, clen = 0, clen_seen = 0;
+	int headers_done = 0;
 	unsigned long parsed_clen;
 	char *clen_end;
+	struct timeval body_timeout;
 	time_t if_modified_since = (time_t)-1;
 	struct mime_handler *handler;
 	struct stat st, *p_st = NULL;
@@ -889,7 +891,8 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	end = line + sizeof(line) - 1;
 
 	while ( (cur < end) && (fgets(cur, line + sizeof(line) - cur, conn_fp)) ) {
-		if ( strcmp( cur, "\n" ) == 0 || strcmp( cur, "\r\n" ) == 0 ) {
+		if (strcmp(cur, "\n") == 0 || strcmp(cur, "\r\n") == 0) {
+			headers_done = 1;
 			break;
 		}
 		if (strncasecmp(cur, "Accept-Language:", 16) == 0) {
@@ -940,6 +943,17 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			cur = ++cp;
 		}
 	}
+
+	if (!headers_done) {
+		send_error(400, "Bad Request", NULL, "Incomplete request headers.", conn_fp);
+		return;
+	}
+
+	/* Allow slower request bodies, but bound header reads to the accept timeout. */
+	body_timeout.tv_sec = MAX_CONN_TIMEOUT;
+	body_timeout.tv_usec = 0;
+	if (item && item->fd >= 0)
+		setsockopt(item->fd, SOL_SOCKET, SO_RCVTIMEO, &body_timeout, sizeof(body_timeout));
 
 	if (strcasecmp(method, "get") == 0)
 		method_id = HTTP_METHOD_GET;
@@ -1104,7 +1118,7 @@ int
 main(int argc, char **argv)
 {
 	FILE *pid_fp;
-	struct timeval tv;
+	struct timeval tv, io_timeout;
 	fd_set active_rfds;
 	usockaddr usa[2];
 	int listen_fd[2], http_port[2];
@@ -1301,6 +1315,12 @@ main(int argc, char **argv)
 						item->ssl = (i > 0) ? 1 : 0;
 #endif
 						if (is_http_client_allowed(&item->usa)) {
+							/* Bound blocking stdio/TLS operations on the single-threaded server. */
+							io_timeout.tv_sec = 5;
+							io_timeout.tv_usec = 0;
+							setsockopt(item->fd, SOL_SOCKET, SO_RCVTIMEO, &io_timeout, sizeof(io_timeout));
+							io_timeout.tv_sec = 10;
+							setsockopt(item->fd, SOL_SOCKET, SO_SNDTIMEO, &io_timeout, sizeof(io_timeout));
 							setsockopt(item->fd, SOL_SOCKET, SO_KEEPALIVE, &int_1, sizeof(int_1));
 							FD_SET(item->fd, &active_rfds);
 							TAILQ_INSERT_TAIL(&pool.head, item, entry);
