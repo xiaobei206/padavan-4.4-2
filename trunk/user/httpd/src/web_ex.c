@@ -2016,118 +2016,96 @@ static int shadowsocks_action_hook(int eid, webs_t wp, int argc, char **argv)
 
 #if defined(APP_SHADOWSOCKS)
 static int
+validate_applydb_pairs(const char *data)
+{
+	const char *cursor, *end, *token_end, *equals;
+	size_t token_len, key_len, value_len;
+
+	if (!data)
+		return -1;
+
+	cursor = data;
+	end = data + strlen(data);
+	while (cursor < end) {
+		token_end = memchr(cursor, '&', (size_t)(end - cursor));
+		if (!token_end)
+			token_end = end;
+		token_len = (size_t)(token_end - cursor);
+		equals = memchr(cursor, '=', token_len);
+		if (equals) {
+			key_len = (size_t)(equals - cursor);
+			value_len = (size_t)(token_end - equals - 1);
+			if (key_len >= 2048 || value_len >= 9999)
+				return -1;
+		}
+		if (token_end == end)
+			break;
+		cursor = token_end + 1;
+	}
+
+	return 0;
+}
+
+static int
 applydb_cgi(webs_t wp, char *urlPrefix, char *webDir, int arg,
 		char *url, char *path, char *query)
 {
-	char *action_mode;
-	char *action_script;
-	char dbjson[100][9999];
 	char dbvar[2048];
 	char dbval[9999];
-	char notify_cmd[128];
-	char db_cmd[128];
-	int i, j;
-	char *result = NULL;
-	char *temp = NULL;
-	char *name = websGetVar(wp, "p","");
-	char scPath[128];
+	char *result, *temp, *name;
 	char *post_db_buf = post_json_buf;
-	action_mode = websGetVar(wp, "action_mode", "");
-	action_script = websGetVar(wp, "action_script", "");
-	char userm[] = "deleting";
-	char useping[] = "ping";
-	char useaping[] = "allping";
-	char usedlink[] = "dlink";
-	char useddlink[] = "ddlink";
-
+	size_t query_len, name_len, key_len, value_len;
 	dbclient client;
-	dbclient_start(&client);
-	if (strlen(name) <= 0) {
-		printf("No \"name\"!\n");
+
+	name = websGetVar(wp, "p", "");
+	name_len = name ? strlen(name) : 0;
+	if (name_len == 0)
+		return -1;
+
+	/* GET requests carry the form data in the saved query string. */
+	if (post_db_buf[0] == '\0') {
+		query_len = strlen(post_buf_backup + 1);
+		if (query_len >= sizeof(post_json_buf))
+			return -1;
+		memcpy(post_json_buf, post_buf_backup + 1, query_len + 1);
 	}
-	if ( !strcmp("", post_db_buf)){
-		//get
-		sprintf(post_db_buf, "%s", post_buf_backup+1);
-		unescape(post_db_buf);
-		//logmessage("HTTPD", "url: %s,%s", post_db_buf, name);
-		strcpy(post_json_buf, post_db_buf);
-		result = strtok( post_json_buf, "&" );
-		i =0;
-	while( result != NULL )
-	{
-		if (result!=NULL)
-		{
-		strcpy(dbjson[i], result);
-		i++;
-			result = strtok( NULL, "&" );
-		}
-	}
-	for (j =0; j < i; j++)
-	{
-		if(!strncasecmp(dbjson[j], name, strlen(name))){
-				memset(dbvar,'\0',sizeof(dbvar));
-				memset(dbval,'\0',sizeof(dbval));
-				temp=strstr(dbjson[j], "=");
-				strcpy(dbval, temp+1);
-				strncpy(dbvar, dbjson[j], strlen(dbjson[j])-strlen(temp));
-			//logmessage("HTTPD", "name: %s post: %s", dbvar, userm);
-			if(strcmp(dbval,userm) == 0)
-				doSystem("dbus remove %s", dbvar);
-			else if(strcmp(dbval,useping) == 0)
-				doSystem("/etc_ro/ss/ping.sh %s", dbvar);
-			else if(strcmp(dbval,useaping) == 0)
-				doSystem("/etc_ro/ss/allping.sh");
-			else if(strcmp(dbval,usedlink) == 0)
-				doSystem("/usr/bin/update_dlink.sh %s", "start");
-			else if(strcmp(dbval,useddlink) == 0)
-				doSystem("/usr/bin/update_dlink.sh %s", "reset");
-			else
-				doSystem("dbus set %s='%s'", dbvar, dbval);
-		}
-	}
-	} else {
-	//post
 	unescape(post_db_buf);
-	//logmessage("HTTPD", "name: %s post: %s", name, post_json_buf);
-	//logmessage("HTTPD", "name: %s post: %s", name, post_db_buf);
-	strcpy(post_json_buf, post_db_buf);
-	result = strtok( post_json_buf, "&" );
-	i =0;
-	while( result != NULL )
-	{
-		if (result!=NULL)
-		{
-		strcpy(dbjson[i], result);
-		i++;
-			result = strtok( NULL, "&" );
+
+	/* Validate all fields before running commands or updating settings. */
+	if (validate_applydb_pairs(post_db_buf) != 0)
+		return -1;
+
+	dbclient_start(&client);
+	result = strtok(post_json_buf, "&");
+	while (result != NULL) {
+		temp = strchr(result, '=');
+		if (temp) {
+			key_len = (size_t)(temp - result);
+			value_len = strlen(temp + 1);
+			if (key_len > 0 && key_len >= name_len &&
+			    strncasecmp(result, name, name_len) == 0) {
+				memcpy(dbvar, result, key_len);
+				dbvar[key_len] = '\0';
+				memcpy(dbval, temp + 1, value_len + 1);
+
+				if (strcmp(dbval, "deleting") == 0)
+					eval("dbus", "remove", dbvar);
+				else if (strcmp(dbval, "ping") == 0)
+					eval("/etc_ro/ss/ping.sh", dbvar);
+				else if (strcmp(dbval, "allping") == 0)
+					eval("/etc_ro/ss/allping.sh");
+				else if (strcmp(dbval, "dlink") == 0)
+					eval("/usr/bin/update_dlink.sh", "start");
+				else if (strcmp(dbval, "ddlink") == 0)
+					eval("/usr/bin/update_dlink.sh", "reset");
+				else
+					eval("dbus", "set", dbvar, dbval);
+			}
 		}
-	}
-	for (j =0; j < i; j++)
-	{
-		if(!strncasecmp(dbjson[j], name, strlen(name))){
-				memset(dbvar,'\0',sizeof(dbvar));
-				memset(dbval,'\0',sizeof(dbval));
-				temp=strstr(dbjson[j], "=");
-				strcpy(dbval, temp+1);
-				strncpy(dbvar, dbjson[j], strlen(dbjson[j])-strlen(temp));
-			//logmessage("HTTPD", "name: %s post: %s", dbvar, dbval);
-			if(strcmp(dbval,userm) == 0)
-				doSystem("dbus remove %s", dbvar);
-			else if(strcmp(dbval,useping) == 0)
-				doSystem("/etc_ro/ss/ping.sh %s", dbvar);
-			else if(strcmp(dbval,useaping) == 0)
-				doSystem("/etc_ro/ss/allping.sh");
-			else if(strcmp(dbval,usedlink) == 0)
-				doSystem("/usr/bin/update_dlink.sh %s", "start");
-			else if(strcmp(dbval,useddlink) == 0)
-				doSystem("/usr/bin/update_dlink.sh %s", "reset");
-			else
-				doSystem("dbus set %s='%s'", dbvar, dbval);
-		}
-	}
+		result = strtok(NULL, "&");
 	}
 	dbclient_end(&client);
-	doSystem("/sbin/mtd_storage.sh %s", "save");
+	eval("/sbin/mtd_storage.sh", "save");
 	return 0;
 }
 
