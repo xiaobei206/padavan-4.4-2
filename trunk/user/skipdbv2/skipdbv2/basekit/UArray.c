@@ -640,13 +640,20 @@ void UArray_copy_(UArray *self, const UArray *other)
 
 void UArray_copyItems_(UArray *self, const UArray *other)
 {
-	if(self->size != other->size)
+	if (NULL == self || NULL == other ||
+		self->itemSize == 0 || other->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		other->size > (size_t)-1 / other->itemSize ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return;
+	if (self->size != other->size)
 	{
 		printf("UArray_copyItems_ error - arrays not of same size\n");
 		exit(-1);
 	}
 
-	if(self->itemType == other->itemType)
+	if (self->itemType == other->itemType)
 	{
 		UArray_copyData_(self, other);
 	}
@@ -659,8 +666,57 @@ void UArray_copyItems_(UArray *self, const UArray *other)
 
 void UArray_copyData_(UArray *self, const UArray *other)
 {
-	UArray_setSize_(self, UArray_sizeRequiredToContain_(self, other));
-	memmove(self->data, other->data, UArray_sizeInBytes(other));
+	size_t sourceBytes, selfBytes, newSize;
+	uintptr_t selfStart, sourceStart;
+	const uint8_t *source;
+	void *snapshot = NULL;
+	int overlaps = 0;
+
+	if (NULL == self || NULL == other || self == other ||
+		self->itemSize == 0 || other->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		other->size > (size_t)-1 / other->itemSize ||
+		(other->size > 0 && NULL == other->data))
+		return;
+
+	sourceBytes = other->size * other->itemSize;
+	selfBytes = self->size * self->itemSize;
+	if (sourceBytes > (size_t)-1 - (self->itemSize - 1))
+		return;
+	newSize = (sourceBytes + self->itemSize - 1) / self->itemSize;
+	if (newSize > (size_t)-1 / self->itemSize ||
+		newSize * self->itemSize == (size_t)-1)
+		return;
+
+	if (selfBytes > 0 && sourceBytes > 0 && self->data && other->data) {
+		selfStart = (uintptr_t)self->data;
+		sourceStart = (uintptr_t)other->data;
+		overlaps = (sourceStart >= selfStart &&
+			sourceStart - selfStart < selfBytes) ||
+			(selfStart >= sourceStart &&
+			selfStart - sourceStart < sourceBytes);
+	}
+	if (overlaps) {
+		snapshot = io_malloc(sourceBytes);
+		if (NULL == snapshot)
+			return;
+		memmove(snapshot, other->data, sourceBytes);
+		source = (const uint8_t *)snapshot;
+	} else {
+		source = other->data;
+	}
+
+	UArray_setSize_(self, newSize);
+	if (self->size != newSize ||
+		(newSize > 0 && NULL == self->data)) {
+		if (snapshot)
+			io_free(snapshot);
+		return;
+	}
+	if (sourceBytes > 0)
+		memmove(self->data, source, sourceBytes);
+	if (snapshot)
+		io_free(snapshot);
 }
 
 void UArray_convertToItemType_(UArray *self, CTYPE newItemType)
