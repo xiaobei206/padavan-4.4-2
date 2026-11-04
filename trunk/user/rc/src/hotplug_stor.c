@@ -89,7 +89,8 @@ int
 mdev_sd_main(int argc, char **argv)
 {
 	int isLock;
-	size_t len, disk_len;
+	size_t len, disk_len, i;
+	const char *p;
 	char share_name[32], disk_name[32];
 	char *device_name, *action, *partno;
 
@@ -143,7 +144,8 @@ mdev_sd_main(int argc, char **argv)
 		partno = device_name + disk_len;
 	}
 
-	snprintf(share_name, sizeof(share_name), "AiDisk_%s%s", disk_name + 2, partno);
+	if (snprintf(share_name, sizeof(share_name), "AiDisk_%s%s", disk_name + 2, partno) >= (int)sizeof(share_name))
+		goto out_unlock;
 
 	umask(0000);
 	{
@@ -212,11 +214,11 @@ mdev_mmc_main(int argc, char **argv)
 		}
 	}
 
-	for (size_t i = 6; i < disk_len; i++) {
+	for (i = 6; i < disk_len; i++) {
 		if (device_name[i] < '0' || device_name[i] > '9')
 			goto out_unlock;
 	}
-	for (const char *p = partno; *p; p++) {
+	for (p = partno; *p; p++) {
 		if (*p < '0' || *p > '9')
 			goto out_unlock;
 	}
