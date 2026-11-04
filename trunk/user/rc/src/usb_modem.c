@@ -799,10 +799,13 @@ static const struct ums_ma_addon_t {
 int
 launch_usb_modeswitch(int vid, int pid, int inquire)
 {
-	char eject_file[64], addon[32];
-	const char *arg_inq = "";
+	char eject_file[96], addon[32], vid_arg[8], pid_arg[8];
+	char *argv[10];
 	const struct ums_ma_addon_t *ua;
-	int i;
+	int i, path_len, argc = 0;
+
+	if (vid < 0 || vid > 0xffff || pid < 0 || pid > 0xffff)
+		return 1;
 
 	addon[0] = 0;
 
@@ -828,20 +831,40 @@ launch_usb_modeswitch(int vid, int pid, int inquire)
 		}
 	}
 
-	/* first, check custom rule in /etc/storage */
-	sprintf(eject_file, "/etc/storage/%04x:%04x", vid, pid);
+	/* First, check custom rule in /etc/storage. */
+	path_len = snprintf(eject_file, sizeof(eject_file), "/etc/storage/%04x:%04x",
+			    (unsigned int)vid, (unsigned int)pid);
+	if (path_len < 0 || path_len >= (int)sizeof(eject_file))
+		return 1;
 	if (!check_if_file_exist(eject_file)) {
-		sprintf(eject_file, "%s/usb_modeswitch.d/%04x:%04x%s", MODEM_SCRIPTS_DIR, vid, pid, addon);
+		path_len = snprintf(eject_file, sizeof(eject_file),
+				   "%s/usb_modeswitch.d/%04x:%04x%s",
+				   MODEM_SCRIPTS_DIR, (unsigned int)vid,
+				   (unsigned int)pid, addon);
+		if (path_len < 0 || path_len >= (int)sizeof(eject_file))
+			return 1;
 		if (!check_if_file_exist(eject_file)) {
 			logmessage("usb_modeswitch", "no rule for device %04x:%04x", vid, pid);
 			return 1;
 		}
 	}
 
-	if (inquire)
-		arg_inq = "-D -I ";
+	snprintf(vid_arg, sizeof(vid_arg), "0x%04x", (unsigned int)vid);
+	snprintf(pid_arg, sizeof(pid_arg), "0x%04x", (unsigned int)pid);
+	argv[argc++] = "/bin/usb_modeswitch";
+	if (inquire) {
+		argv[argc++] = "-D";
+		argv[argc++] = "-I";
+	}
+	argv[argc++] = "-v";
+	argv[argc++] = vid_arg;
+	argv[argc++] = "-p";
+	argv[argc++] = pid_arg;
+	argv[argc++] = "-c";
+	argv[argc++] = eject_file;
+	argv[argc] = NULL;
 
-	return doSystem("/bin/usb_modeswitch %s-v 0x%04x -p 0x%04x -c %s", arg_inq, vid, pid, eject_file);
+	return _eval(argv, NULL, 0, NULL);
 }
 
 static int
