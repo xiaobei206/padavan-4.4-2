@@ -147,6 +147,18 @@ static char *find_terminated_value_separator(Datum value)
  * Compute the next occurrence of a local wall-clock time. A fixed 86400
  * second repeat drifts by one hour when the local timezone enters/leaves DST.
  */
+static int value_fits_list_frame(const char *key, size_t value_len)
+{
+    size_t key_len;
+
+    if (NULL == key || READ_MAX < 6)
+        return 0;
+    key_len = strlen(key);
+    if (key_len > (size_t)READ_MAX - 6)
+        return 0;
+    return value_len <= (size_t)READ_MAX - key_len - 6;
+}
+
 static int next_daily_delay(const char *time_text, time_t now, double *delay)
 {
     struct tm target, *local_now;
@@ -702,6 +714,11 @@ static int client_run_command(EV_P_ skipd_client* client)
 
         dkey = Datum_FromCString_(client->key);
         dvalue = Datum_FromData_length_((unsigned char*)p1, client->data_len - (p1 - client->origin));
+        if (!value_fits_list_frame(client->key, dvalue.size)) {
+            p1 = "value too big to list\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
 
         //OK a little hack hear
         //print_time("beginset");
@@ -727,6 +744,11 @@ static int client_run_command(EV_P_ skipd_client* client)
 
         dkey = Datum_FromCString_(client->key);
         dvalue = Datum_FromData_length_((unsigned char*)p1, client->data_len - (p1 - client->origin));
+        if (!value_fits_list_frame(client->key, dvalue.size)) {
+            p1 = "value too big to list\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         write_ok = SkipDB_at_put_(client->server->db, dkey, dvalue);
         if (!write_ok || !SkipDB_isOpen(client->server->db))
             p1 = "database error\n";
@@ -773,6 +795,11 @@ static int client_run_command(EV_P_ skipd_client* client)
             server_sync(EV_A_ client->server);
         } */
         dvalue = Datum_FromData_length_((unsigned char*)p1, client->data_len - (p1 - client->origin));
+        if (!value_fits_list_frame(client->key, dvalue.size)) {
+            p1 = "value too big to list\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         SkipDB_beginTransaction(client->server->db);
         write_ok = SkipDB_replace_put_(client->server->db, dkey, dvalue);
         server_sync(EV_A_ client->server);
@@ -799,7 +826,15 @@ static int client_run_command(EV_P_ skipd_client* client)
         while(NULL != CS->record) {
             dkey = SkipDBRecord_keyDatum(CS->record);
             dvalue = SkipDBRecord_valueDatum(CS->record);
-            client_send_key(EV_A_ client, client->command, (char*)dkey.data, (char*)dvalue.data, dvalue.size);
+            if (client_send_key(EV_A_ client, client->command,
+                    (char*)dkey.data, (char*)dvalue.data, dvalue.size) != 0) {
+                p1 = "list response error\n";
+                if (client_send_key(EV_A_ client, "__error__", "list",
+                        p1, strlen(p1)) == 0)
+                    ccrReturn(ctx, ccr_error_ok);
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
             ccrReturn(ctx, ccr_error_ok);
 
             CS->record = SkipDB_list_next(client->server->db, CS->skey, CS->cursor);
@@ -811,7 +846,11 @@ static int client_run_command(EV_P_ skipd_client* client)
          * must never be treated as a list terminator.
          */
         p1 = "__end__\n";
-        client_send_key(EV_A_ client, "__end__", "list", p1, strlen(p1));
+        if (client_send_key(EV_A_ client, "__end__", "list",
+                p1, strlen(p1)) != 0) {
+            client->break_level = ccr_break_killed;
+            ccrStop(ctx, ccr_error_err2);
+        }
         ccrReturn(ctx, ccr_error_ok);
 
         if (CS->cursor) {
@@ -1294,8 +1333,10 @@ static int client_ccr_process(EV_P_ skipd_client* client)
         for(;;) {
             CS->rt = client_run_command(EV_A_ client);
             if(CS->rt < 0) {
-                p = "run command error\n";
-                client_send(EV_A_ client, p, strlen(p));
+                if (client->break_level != ccr_break_killed) {
+                    p = "run command error\n";
+                    client_send(EV_A_ client, p, strlen(p));
+                }
                 client->break_level = ccr_break_killed;
                 ccrReturn(ctx, CS->rt);
             }
