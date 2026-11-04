@@ -508,12 +508,9 @@ PID_TYPE UDB_put_(UDB *self, Datum d) // returns pid
 	if (pid == 0)
 		return 0;
 	if (!UDB_append_withPid_(self, d, pid)) {
-		if (self->index->holes) {
-			while (List_removeFirst_(self->index->holes, (void *)pid)) {
-				/* Collapse duplicate free-slot entries before restoring this PID. */
-			}
-			List_push_(self->index->holes, (void *)pid);
-		}
+		/* The PID remains transaction-reserved; abort so it cannot be reused
+		 * while a failed append may have left partial journal state behind. */
+		UDB_close(self);
 		return 0;
 	}
 	return pid;
