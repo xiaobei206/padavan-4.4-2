@@ -1,5 +1,7 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+d036f3a  JFile.c: include limits.h and make journal-replay failure reporting safe for null context.
+9f5227a  JFile.c: bound journal replay lengths/positions, verify complete data records, and handle realloc/read/write failures.
 1cff73a  JFile.c: read JFile_fgetc into an unsigned byte and return EOF on short reads.
 6cdfe1d  skipd.c: fix partial nonblocking writes; retain total frame length, resume after EAGAIN, and close failed clients.
 6d1333d  skipd.c: reject negative persisted/dynamic delay periods and prevent signed overflow in inc/desc operations.
