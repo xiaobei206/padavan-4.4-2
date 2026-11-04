@@ -33,6 +33,46 @@
 
 #include "httpd.h"
 
+
+/* Emit data as a JavaScript/JSON string, not raw source text. */
+static void
+write_json_string(webs_t wp, const char *value)
+{
+	const unsigned char *p;
+
+	websWrite(wp, "%s", "\"");
+	for (p = (const unsigned char *)value; p && *p; ++p) {
+		switch (*p) {
+		case '"':  websWrite(wp, "%s", "\\\""); break;
+		case '\\': websWrite(wp, "%s", "\\\\"); break;
+		case '\b': websWrite(wp, "%s", "\\b"); break;
+		case '\f': websWrite(wp, "%s", "\\f"); break;
+		case '\n': websWrite(wp, "%s", "\\n"); break;
+		case '\r': websWrite(wp, "%s", "\\r"); break;
+		case '\t': websWrite(wp, "%s", "\\t"); break;
+		default:
+			if (*p < 0x20)
+				websWrite(wp, "\\u%04x", (unsigned int)*p);
+			else
+				fputc(*p, wp);
+			break;
+		}
+	}
+	websWrite(wp, "%s", "\"");
+}
+
+static void
+write_tree_entry(webs_t wp, const char *name, int first, int second)
+{
+	char entry[512];
+
+	if (snprintf(entry, sizeof(entry), "%s#%d#%d",
+		     name ? name : "", first, second) < 0)
+		entry[0] = '\0';
+	entry[sizeof(entry) - 1] = '\0';
+	write_json_string(wp, entry);
+}
+
 #if defined (USE_USB_SUPPORT)
 int
 ej_get_usb_ports_info(int eid, webs_t wp, int argc, char **argv)
@@ -112,7 +152,7 @@ ej_get_usb_ports_info(int eid, webs_t wp, int argc, char **argv)
 				first = 0;
 			else
 				websWrite(wp, ", ");
-			websWrite(wp, "\"%s\"", (follow_usb->manuf) ? follow_usb->manuf : "Unknown");
+			write_json_string(wp, (follow_usb->manuf) ? follow_usb->manuf : "Unknown");
 		}
 	}
 	websWrite(wp, "];\n}\n\n");
@@ -126,7 +166,7 @@ ej_get_usb_ports_info(int eid, webs_t wp, int argc, char **argv)
 				first = 0;
 			else
 				websWrite(wp, ", ");
-			websWrite(wp, "\"%s\"", (follow_usb->product) ? follow_usb->product : "Unknown" );
+			write_json_string(wp, (follow_usb->product) ? follow_usb->product : "Unknown");
 		}
 	}
 	websWrite(wp, "];\n}\n\n");
@@ -187,7 +227,7 @@ ej_get_usb_ports_info(int eid, webs_t wp, int argc, char **argv)
 				first = 0;
 			else
 				websWrite(wp, ", ");
-			websWrite(wp, "\"%s\"", (follow_usb->manuf) ? follow_usb->manuf : "Unknown");
+			write_json_string(wp, (follow_usb->manuf) ? follow_usb->manuf : "Unknown");
 		}
 	}
 	websWrite(wp, "];\n}\n\n");
@@ -202,7 +242,7 @@ ej_get_usb_ports_info(int eid, webs_t wp, int argc, char **argv)
 				first = 0;
 			else
 				websWrite(wp, ", ");
-			websWrite(wp, "\"%s\"", (follow_usb->product) ? follow_usb->product : "Unknown" );
+			write_json_string(wp, (follow_usb->product) ? follow_usb->product : "Unknown");
 		}
 	}
 	websWrite(wp, "];\n}\n\n");
@@ -254,7 +294,7 @@ ej_disk_pool_mapping_info(int eid, webs_t wp, int argc, char **argv)
 				continue;
 			}
 			++Ptr;
-			websWrite(wp, "\"%s\"", Ptr);
+			write_json_string(wp, Ptr);
 		}
 	}
 	websWrite(wp, "];\n");
@@ -275,7 +315,7 @@ ej_disk_pool_mapping_info(int eid, webs_t wp, int argc, char **argv)
 				continue;
 			}
 
-			websWrite(wp, "\"%s\"", follow_partition->file_system);
+			write_json_string(wp, follow_partition->file_system);
 		}
 	}
 	websWrite(wp, "];\n");
@@ -370,7 +410,7 @@ ej_available_disk_names_and_sizes(int eid, webs_t wp, int argc, char **argv)
 			first = 0;
 		else
 			websWrite(wp, ", ");
-		websWrite(wp, "\"%s\"", follow_disk->tag);
+		write_json_string(wp, follow_disk->tag);
 	}
 	websWrite(wp, "];\n}\n\n");
 
@@ -396,7 +436,7 @@ ej_available_disk_names_and_sizes(int eid, webs_t wp, int argc, char **argv)
 			first = 0;
 		else
 			websWrite(wp, ", ");
-		websWrite(wp, "\"%s\"", follow_disk->device);
+		write_json_string(wp, follow_disk->device);
 	}
 	websWrite(wp, "];\n}\n\n");
 
@@ -409,15 +449,15 @@ ej_available_disk_names_and_sizes(int eid, webs_t wp, int argc, char **argv)
 			first = 0;
 		else
 			websWrite(wp, ", ");
-		websWrite(wp, "\"");
-		if (follow_disk->vendor && strlen(follow_disk->vendor) > 0)
-			websWrite(wp, "%s", follow_disk->vendor);
-		if (follow_disk->model) {
-			if (follow_disk->vendor && strlen(follow_disk->vendor) > 0)
-				websWrite(wp, " ");
-			websWrite(wp, "%s", follow_disk->model);
+		{
+			char model_info[512];
+			snprintf(model_info, sizeof(model_info), "%s%s%s",
+				 (follow_disk->vendor && *follow_disk->vendor) ? follow_disk->vendor : "",
+				 (follow_disk->vendor && *follow_disk->vendor &&
+				  follow_disk->model && *follow_disk->model) ? " " : "",
+				 follow_disk->model ? follow_disk->model : "");
+			write_json_string(wp, model_info);
 		}
-		websWrite(wp, "\"");
 	}
 	websWrite(wp, "];\n}\n\n");
 
@@ -473,8 +513,13 @@ ej_get_storage_share_list(int eid, webs_t wp, int argc, char **argv)
 				else
 					ret += websWrite(wp, ", ");
 				
-				ret += websWrite(wp, "[\"%s\",\"%s\",\"%s\"]", 
-					follow_partition->device, follow_partition->mount_point, follow_partition->file_system);
+				ret += websWrite(wp, "[");
+				write_json_string(wp, follow_partition->device);
+				ret += websWrite(wp, ",");
+				write_json_string(wp, follow_partition->mount_point);
+				ret += websWrite(wp, ",");
+				write_json_string(wp, follow_partition->file_system);
+				ret += websWrite(wp, "]");
 			}
 		}
 	}
@@ -530,7 +575,9 @@ ej_get_AiDisk_status(int eid, webs_t wp, int argc, char **argv)
 					websWrite(wp, "else ");
 
 				follow_info = rindex(follow_partition->mount_point, '/');
-				websWrite(wp, "if (poolName == \"%s\") {\n", follow_info+1);
+				websWrite(wp, "if (poolName == ");
+				write_json_string(wp, follow_info + 1);
+				websWrite(wp, ") {\n");
 				websWrite(wp, "	return [");
 
 				result = get_all_folder_in_mount_path(follow_partition->mount_point, &sh_num, &folder_list);
@@ -547,7 +594,7 @@ ej_get_AiDisk_status(int eid, webs_t wp, int argc, char **argv)
 						first_folder = 0;
 					else
 						websWrite(wp, ", ");
-					websWrite(wp, "\"%s\"", folder_list[i]);
+					write_json_string(wp, folder_list[i]);
 				}
 
 				websWrite(wp, "];\n");
@@ -662,13 +709,13 @@ ej_get_all_accounts(int eid, webs_t wp, int argc, char **argv)
 		int st_ftp_mode = nvram_get_int("st_ftp_mode");
 		if (st_ftp_mode == 3 || st_ftp_mode == 4) {
 			first = 0;
-			websWrite(wp, "\"%s\"", FTP_ANONYMOUS_USER);
+			write_json_string(wp, FTP_ANONYMOUS_USER);
 		}
 	} else if (strcmp(acc_mode, "cifs") == 0) {
 		int st_samba_mode = nvram_get_int("st_samba_mode");
 		if (st_samba_mode == 4) {
 			first = 0;
-			websWrite(wp, "\"%s\"", SMB_GUEST_USER);
+			write_json_string(wp, SMB_GUEST_USER);
 		}
 	}
 
@@ -678,7 +725,7 @@ ej_get_all_accounts(int eid, webs_t wp, int argc, char **argv)
 			first = 0;
 		else
 			websWrite(wp, ", ");
-		websWrite(wp, "\"%s\"", account_list[i]);
+		write_json_string(wp, account_list[i]);
 	}
 	free_2_dimension_list(&acc_num, &account_list);
 
@@ -788,7 +835,9 @@ ej_get_permissions_of_account(int eid, webs_t wp, int argc, char **argv)
 		else
 			acc_value = /*strcmp(acc_mode, "ftp") ? SMB_GUEST_USER : */FTP_ANONYMOUS_USER;
 
-		websWrite(wp, "if (account == \"%s\") {\n", acc_value);
+		websWrite(wp, "if (account == ");
+		write_json_string(wp, acc_value);
+		websWrite(wp, ") {\n");
 
 		first_pool = 1;
 		for (follow_disk = disks_info; follow_disk != NULL; follow_disk = follow_disk->next) {
@@ -802,7 +851,9 @@ ej_get_permissions_of_account(int eid, webs_t wp, int argc, char **argv)
 					else
 						websWrite(wp, "else ");
 
-					websWrite(wp, "if (pool == \"%s\") {\n", rindex(follow_partition->mount_point, '/')+1);
+					websWrite(wp, "if (pool == ");
+					write_json_string(wp, rindex(follow_partition->mount_point, '/') + 1);
+					websWrite(wp, ") {\n");
 
 					websWrite(wp, "	    return [");
 
@@ -835,10 +886,14 @@ ej_get_permissions_of_account(int eid, webs_t wp, int argc, char **argv)
 
 						if (first_folder == 1) {
 							first_folder = 0;
-							websWrite(wp, "[\"%s\", %d, %d]", folder_list[j], samba_right, ftp_right);
+							websWrite(wp, "[");
+							write_json_string(wp, folder_list[j]);
+							websWrite(wp, ", %d, %d]", samba_right, ftp_right);
 						}
 						else
-							websWrite(wp, "		    [\"%s\", %d, %d]", folder_list[j], samba_right, ftp_right);
+							websWrite(wp, "		    [");
+							write_json_string(wp, folder_list[j]);
+							websWrite(wp, ", %d, %d]", samba_right, ftp_right);
 
 						if (j != sh_num-1)
 							websWrite(wp, ",\n");
@@ -967,7 +1022,7 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 			else
 				websWrite(wp, ", ");
 
-			websWrite(wp, "\"%s#%u#%u\"", follow_disk->tag, disk_count, partition_count);
+			write_tree_entry(wp, follow_disk->tag, disk_count, partition_count);
 
 			continue;
 		}
@@ -1001,7 +1056,7 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 				else
 					websWrite(wp, ", ");
 
-				websWrite(wp, "\"%s#%u#%u\"", pool_mount_dir, partition_count, folder_count2);
+				write_tree_entry(wp, pool_mount_dir, partition_count, folder_count2);
 
 				continue;
 			}
@@ -1041,7 +1096,7 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 					else
 						websWrite(wp, ", ");
 
-					websWrite(wp, "\"%s#%u#%u\"", dp1->d_name, folder_count1, folder_count2);
+					write_tree_entry(wp, dp1->d_name, folder_count1, folder_count2);
 
 					continue;
 				}
@@ -1098,7 +1153,7 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 				else
 					websWrite(wp, ", ");
 
-				websWrite(wp, "\"%s#%u#%u\"", dp1->d_name, folder_count1, folder_count2);
+				write_tree_entry(wp, dp1->d_name, folder_count1, folder_count2);
 
 				continue;
 			}
@@ -1180,7 +1235,7 @@ ej_get_share_tree(int eid, webs_t wp, int argc, char **argv)
 						else
 							websWrite(wp, ", ");
 
-						websWrite(wp, "\"%s#%u#0\"", folder_list[i], i);
+						write_tree_entry(wp, folder_list[i], i, 0);
 					}
 				}
 				else if (layer == 1 && disk_count == disk_order) {
@@ -1190,7 +1245,7 @@ ej_get_share_tree(int eid, webs_t wp, int argc, char **argv)
 						websWrite(wp, ", ");
 
 					follow_info = rindex(follow_partition->mount_point, '/');
-					websWrite(wp, "\"%s#%u#%u\"", follow_info+1, partition_count, share_count);
+					write_tree_entry(wp, follow_info + 1, partition_count, share_count);
 				}
 
 				free_2_dimension_list(&share_count, &folder_list);
@@ -1202,7 +1257,7 @@ ej_get_share_tree(int eid, webs_t wp, int argc, char **argv)
 			else
 				websWrite(wp, ", ");
 
-			websWrite(wp, "\"%s#%u#%u\"", follow_disk->tag, disk_count, partition_count);
+			write_tree_entry(wp, follow_disk->tag, disk_count, partition_count);
 		}
 
 		if (layer > 0 && disk_count == disk_order)
