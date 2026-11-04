@@ -291,20 +291,3 @@ void *SHash_firstKeyForValue_(SHash *self, void *v)
 	}
 	return NULL;
 }
-
-
-{
-	unsigned int i,j;
-
-	for (j = 0; j < 2; j ++)
-	for (i = 0; i < self->tableSize; i ++)
-	{
-		SHashRecord *record = SHASH_RECORDS_AT_(self, j, i);
-
-		if (record->key && record->value == v)
-			return record->key;
-	}
-	return NULL;
-}
-
-
