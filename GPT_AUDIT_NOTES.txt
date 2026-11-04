@@ -313,3 +313,9 @@ adc1719  skipd.c: keep the stored daily time separate from the shared script com
 b040f05  tests/dbus_protocol.c: cover get responses containing a trailing storage NUL.
 2e153f0  dbapi.c: accept zero-length stored values in list responses.
 83a8cff  tests/dbapi_protocol.c: cover empty values alongside sentinel-like list payloads.
+6d88f48  skipd.c: reject writes that cannot be represented in a list response; detect list send failures and emit an explicit error frame rather than a false successful terminator.
+94b91a2  dbus.c: recognize the dedicated __error__ list frame and report an incomplete list stream as failure.
+de6bc3f  dbapi.c: recognize the dedicated __error__ list frame and report an incomplete list stream as failure.
+c672f6d  tests/dbus_protocol.c: verify explicit list-stream error propagation.
+a12aa9e  tests/dbapi_protocol.c: verify explicit list-stream error propagation.
+Verification: GitHub source and commit metadata reviewed; no local firmware build or CTest result is claimed.
