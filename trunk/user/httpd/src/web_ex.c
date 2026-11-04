@@ -423,56 +423,100 @@ static void
 websScan(const char *query)
 {
 #define SCAN_MAX_VALUE_LEN 256
-	unsigned int i, flag, i_len;
+	unsigned int i = 0, j;
+	int flag = 0, invalid = 0;
+	size_t value_len, groupid_len;
 	const char *v1, *v2, *v3, *sp;
-	char groupid[64];
+	char groupid[64] = "";
 	char value[SCAN_MAX_VALUE_LEN];
+	char *endptr;
+	long parsed;
 
-	i = 0;
-	flag = 0;
-	groupid[0] = 0;
+	for (j = 0; j < MAX_GROUP_COUNT + 2; ++j)
+		group_del_map[j] = -1;
+	if (!query || strlen(query) <= 1)
+		return;
 
-	v1 = NULL;
-	if (strlen(query) > 1)
-		v1 = query;
-
-	while (v1!=NULL) {
-		v2 = strchr(v1+1, '=');
-		v3 = strchr(v1+1, '&');
+	v1 = query;
+	while (v1 != NULL) {
+		v2 = strchr(v1 + 1, '=');
+		v3 = strchr(v1 + 1, '&');
 		if (!v2)
 			break;
-		
-		if (v3 != NULL && v3 > v2) {
-			i_len = (unsigned int)(v3 - v2 - 1);
-			if (i_len > (SCAN_MAX_VALUE_LEN - 1))
-				i_len = SCAN_MAX_VALUE_LEN - 1;
-			memcpy(value, v2 + 1, i_len);
-			value[i_len] = 0;
-		} else if (v3 != NULL) {
-			/* Skip a malformed field with no '=' before the next '&'. */
+		if (v3 != NULL && v3 < v2) {
 			v1 = v3;
 			continue;
-		} else {
-			snprintf(value, sizeof(value), "%s", v2 + 1);
 		}
-		
-		if (v2 != NULL && ((sp = strchr(v1+1, ' ')) == NULL || (sp > v2))) {
-			if (flag && strncmp(v1+1, groupid, strlen(groupid))==0) {
-				if (i < MAX_GROUP_COUNT) {
-					group_del_map[i] = atoi(value);
-					if (group_del_map[i]==-1)
+
+		value_len = v3 ? (size_t)(v3 - v2 - 1) : strlen(v2 + 1);
+		if (value_len >= sizeof(value))
+			value_len = sizeof(value) - 1;
+		memcpy(value, v2 + 1, value_len);
+		value[value_len] = '\0';
+
+		sp = strchr(v1 + 1, ' ');
+		if ((!sp || sp > v2) && v2 > v1 + 1) {
+			size_t key_len = (size_t)(v2 - (v1 + 1));
+
+			if (flag && groupid[0]) {
+				groupid_len = strlen(groupid);
+				if (key_len >= groupid_len &&
+				    memcmp(v1 + 1, groupid, groupid_len) == 0) {
+					if (value_len == 2 && value[0] == '-' && value[1] == '1')
 						break;
-					i++;
+					errno = 0;
+					endptr = NULL;
+					parsed = strtol(value, &endptr, 10);
+					if (errno == ERANGE || endptr == value || !endptr ||
+					    *endptr != '\0' || parsed < 0 ||
+					    parsed >= MAX_GROUP_COUNT || i >= MAX_GROUP_COUNT) {
+						invalid = 1;
+						break;
+					}
+					group_del_map[i++] = (int)parsed;
 				}
-			} else if (strncmp(v1+1, "group_id", 8)==0) {
-				snprintf(groupid, sizeof(groupid), "%s_s", value);
+			} else if (key_len == strlen("group_id") &&
+				   memcmp(v1 + 1, "group_id", key_len) == 0) {
+				int n = snprintf(groupid, sizeof(groupid), "%s_s", value);
+				if (n < 0 || n >= (int)sizeof(groupid) ||
+				    value_len == 0) {
+					invalid = 1;
+					break;
+				}
 				flag = 1;
 			}
 		}
-		v1 = strchr(v1+1, '&');
+
+		v1 = v3;
 	}
 
+	if (invalid) {
+		for (j = 0; j < MAX_GROUP_COUNT + 2; ++j)
+			group_del_map[j] = -1;
+		return;
+	}
+
+	/* The delete routine expects ascending indexes; sort and deduplicate
+	 * untrusted query values before exposing the map to NVRAM list code. */
+	for (j = 1; j < i; ++j) {
+		unsigned int k = j;
+		int current = group_del_map[j];
+		while (k > 0 && group_del_map[k - 1] > current) {
+			group_del_map[k] = group_del_map[k - 1];
+			--k;
+		}
+		group_del_map[k] = current;
+	}
+	if (i > 1) {
+		unsigned int write_pos = 1;
+		for (j = 1; j < i; ++j) {
+			if (group_del_map[j] != group_del_map[write_pos - 1])
+				group_del_map[write_pos++] = group_del_map[j];
+		}
+		i = write_pos;
+	}
 	group_del_map[i] = -1;
+#undef SCAN_MAX_VALUE_LEN
 }
 
 static void
@@ -3944,9 +3988,13 @@ nvram_add_group_item(webs_t wp, struct variable *v)
 	if (v->argv[0]==NULL)
 		return;
 
+	if (!v || !v->argv || !v->argv[0] || !v->argv[3])
+		return;
 	gcount = nvram_get_int(v->argv[3]);
 	if (gcount < 0)
 		gcount = 0;
+	if (gcount >= MAX_GROUP_COUNT)
+		return;
 
 	for (gv = (struct variable *)v->argv[0]; gv->name!=NULL; gv++) {
 		snprintf(name, sizeof(name), "%s_0", gv->name);
@@ -3969,11 +4017,11 @@ nvram_remove_group_item(struct variable *v, int *delMap)
 	struct variable *gv;
 	int i, di, gcount;
 
-	if (v->argv[0]==NULL)
+	if (!v || !v->argv || !v->argv[0] || !v->argv[3] || !delMap)
 		return;
 
 	gcount = nvram_get_int(v->argv[3]);
-	if (gcount < 1)
+	if (gcount < 1 || gcount > MAX_GROUP_COUNT)
 		return;
 
 	for (gv = (struct variable *)v->argv[0]; gv->name!=NULL; gv++)
@@ -4168,6 +4216,8 @@ nvram_generate_table(webs_t wp, char *serviceId, char *groupName)
 		return 0;
 
 	groupCount = nvram_get_int(v->argv[3]);
+	if (groupCount < 0 || groupCount > MAX_GROUP_COUNT)
+		return 0;
 
 	if (groupCount == 0) {
 		ret = nvram_add_group_table(wp, serviceId, v, -1);
