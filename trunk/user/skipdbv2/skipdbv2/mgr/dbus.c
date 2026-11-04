@@ -890,6 +890,8 @@ int main(int argc, char **argv, char * envp[])
 
             //setnonblock(remote_fd);
             //n1 = parse_common_result(client);
+        } else {
+            err = -24; /* Unknown command. */
         }
     } while(0);
     if(err < 0) {
