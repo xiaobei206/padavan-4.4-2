@@ -80,3 +80,4 @@ f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k
 917cde5  automount.sh: match /proc/modules field 1 exactly to avoid substring false positives.
 6bc0069  net_wan.c: reject malformed legacy DHCP route gateways and guard null route inputs.
 3c171c6  net.c: preserve socket/ioctl errno in route_manip and reject malformed IPv4 route fields.
+64a5ceb  net.c: validate configured static-route metrics and prevent metric+1 signed overflow.
