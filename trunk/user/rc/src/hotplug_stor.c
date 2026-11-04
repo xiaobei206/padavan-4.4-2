@@ -78,7 +78,7 @@ int
 mdev_sd_main(int argc, char **argv)
 {
 	int isLock;
-	char aidisk_cmd[64];
+	char share_name[32];
 	char *device_name, *action, *partno;
 
 	if (argc != 3){
@@ -106,8 +106,10 @@ mdev_sd_main(int argc, char **argv)
 	}
 
 	if (device_name[3] == '\0') {
+		char *tune_argv[] = { "/sbin/hddtune.sh", device_name, NULL };
+
 		// sda, sdb, sdc...
-		system("/sbin/hddtune.sh $MDEV");
+		_eval(tune_argv, NULL, 0, NULL);
 		
 		if (check_root_partition(device_name, 0))
 			goto out_unlock;
@@ -117,11 +119,14 @@ mdev_sd_main(int argc, char **argv)
 		partno = device_name + 3;
 	}
 
-	snprintf(aidisk_cmd, sizeof(aidisk_cmd), "/sbin/automount.sh $MDEV AiDisk_%c%s", device_name[2], partno);
+	snprintf(share_name, sizeof(share_name), "AiDisk_%c%s", device_name[2], partno);
 
 	umask(0000);
-	if (system(aidisk_cmd) == 0)
-		notify_rc("on_hotplug_mass_storage");
+	{
+		char *mount_argv[] = { "/sbin/automount.sh", device_name, share_name, NULL };
+		if (_eval(mount_argv, NULL, 0, NULL) == 0)
+			notify_rc("on_hotplug_mass_storage");
+	}
 
 out_unlock:
 	file_unlock(isLock);
@@ -136,7 +141,7 @@ mdev_mmc_main(int argc, char **argv)
 {
 	int isLock;
 	size_t len;
-	char aidisk_cmd[64], partno;
+	char share_name[32], partno;
 	char *device_name, *action;
 
 	if (argc != 3){
@@ -176,11 +181,14 @@ mdev_mmc_main(int argc, char **argv)
 		partno = device_name[len - 1];
 	}
 
-	snprintf(aidisk_cmd, sizeof(aidisk_cmd), "/sbin/automount.sh $MDEV AiCard_%c%c", device_name[6], partno);
+	snprintf(share_name, sizeof(share_name), "AiCard_%c%c", device_name[6], partno);
 
 	umask(0000);
-	if (system(aidisk_cmd) == 0)
-		notify_rc("on_hotplug_mass_storage");
+	{
+		char *mount_argv[] = { "/sbin/automount.sh", device_name, share_name, NULL };
+		if (_eval(mount_argv, NULL, 0, NULL) == 0)
+			notify_rc("on_hotplug_mass_storage");
+	}
 
 out_unlock:
 	file_unlock(isLock);
