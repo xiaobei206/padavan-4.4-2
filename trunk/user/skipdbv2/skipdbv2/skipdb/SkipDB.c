@@ -611,6 +611,7 @@ int SkipDB_replace_put_(SkipDB *self, Datum k, Datum v)
 {
 	SkipDBRecord *record;
 	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
+		NULL == self->udb || !self->udb->withinTransaction ||
 		(k.size > 0 && NULL == k.data) ||
 		(v.size > 0 && NULL == v.data))
 		return 0;
@@ -630,6 +631,7 @@ static int SkipDB_recordAt_put_inner(SkipDB *self, Datum k, Datum v, SkipDBRecor
 	if (pp)
 		*pp = NULL;
 	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
+		NULL == self->udb || !self->udb->withinTransaction ||
 		(k.size > 0 && NULL == k.data) ||
 		(v.size > 0 && NULL == v.data))
 		return 0;
@@ -745,6 +747,7 @@ void SkipDB_removeAt_(SkipDB *self, Datum k)
 	SkipDBRecord *record, *last_update = NULL;
 	int i;
 	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
+		NULL == self->udb || !self->udb->withinTransaction ||
 		(k.size > 0 && NULL == k.data))
 		return;
 
