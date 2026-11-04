@@ -696,64 +696,74 @@ long JFile_lastCommitPosition(JFile *self)
 	long lastCommitPosition = 0;
 	long end;
 
+	/* Negative means the log could not be inspected; callers must not trim it. */
 	if (NULL == self || NULL == self->log ||
 		fseek(self->log, 0, SEEK_END) != 0)
-		return 0;
+		return -1;
 	end = ftell(self->log);
 	if (end < 0 || fseek(self->log, 0, SEEK_SET) != 0)
-		return 0;
+		return -1;
 
-	while (1)
-	{
+	while (1) {
 		long pos, data_pos;
 		size_t total;
 		int r, terminator;
 
-		r = fread(&pos, sizeof(long), 1, self->log);
+		r = fread(&pos, sizeof(pos), 1, self->log);
 		if (r != 1) {
-			if (!feof(self->log))
-				fprintf(stderr, "JFile: error reading log position\n");
+			if (ferror(self->log))
+				return -1;
 			break;
 		}
 
-		r = fread(&total, sizeof(size_t), 1, self->log);
-		if (r != 1)
+		r = fread(&total, sizeof(total), 1, self->log);
+		if (r != 1) {
+			if (ferror(self->log))
+				return -1;
 			break;
+		}
 
 		data_pos = ftell(self->log);
-		if (data_pos < 0 || data_pos >= end ||
+		if (data_pos < 0)
+			return -1;
+		if (data_pos >= end ||
 			total > (size_t)(end - data_pos - 1) ||
 			pos < 0 || total > (size_t)LONG_MAX ||
-			pos > LONG_MAX - (long)total) {
-			/* Ignore corrupt/truncated records; retain only completed prefix. */
+			pos > LONG_MAX - (long)total)
 			break;
-		}
 
 		if (fseek(self->log, (long)total, SEEK_CUR) != 0)
-			break;
+			return -1;
 		terminator = fgetc(self->log);
+		if (terminator == EOF && ferror(self->log))
+			return -1;
 		if (terminator == JFILE_END_TRANSACTION_ITEM)
 			continue;
 		if (terminator == JFILE_END_TRANSACTION) {
 			lastCommitPosition = ftell(self->log);
 			if (lastCommitPosition < 0)
-				lastCommitPosition = 0;
+				return -1;
 			continue;
 		}
 		break;
 	}
 
-	fseek(self->log, 0, SEEK_END);
+	if (fseek(self->log, 0, SEEK_END) != 0)
+		return -1;
 	return lastCommitPosition;
 }
 
 int JFile_verifyLog(JFile *self)
 {
-	long lastCommitPosition = JFile_lastCommitPosition(self);
-
-	fseek(self->log, 0, SEEK_END);
-
-	return lastCommitPosition == ftell(self->log);
+	long lastCommitPosition, log_end;
+	if (NULL == self || NULL == self->log)
+		return 0;
+	lastCommitPosition = JFile_lastCommitPosition(self);
+	if (lastCommitPosition < 0 ||
+		fseek(self->log, 0, SEEK_END) != 0 ||
+		(log_end = ftell(self->log)) < 0)
+		return 0;
+	return lastCommitPosition == log_end;
 }
 
 void JFile_clipLogToLastCompletedTransaction(JFile *self)
