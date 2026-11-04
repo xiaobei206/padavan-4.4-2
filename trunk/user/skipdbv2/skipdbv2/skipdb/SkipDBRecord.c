@@ -345,7 +345,9 @@ void SkipDBRecord_level_(SkipDBRecord *self, int level)
 
 static int SkipDBRecord_checkLevel_(SkipDBRecord *self, int level)
 {
-	return self != NULL && level >= 0 && level < self->level &&
+	return self != NULL && self->level > 0 &&
+		self->level <= SKIPDB_MAX_LEVEL &&
+		level >= 0 && level < self->level &&
 		self->pointers != NULL;
 }
 
@@ -680,8 +682,14 @@ void SkipDBRecord_copyLevel_from_(SkipDBRecord *self, int level, SkipDBRecord *o
 
 void SkipDBRecord_willRemove_(SkipDBRecord *self, SkipDBRecord *other)
 {
-	PID_TYPE otherPid = SkipDBRecord_pid(other);
-	int level = self->level;
+	PID_TYPE otherPid;
+	int level;
+
+	if (NULL == self || NULL == other || self->level <= 0 ||
+		self->level > SKIPDB_MAX_LEVEL || NULL == self->pointers)
+		return;
+	otherPid = SkipDBRecord_pid(other);
+	level = self->level;
 
 	while (level --)
 	{
@@ -705,6 +713,11 @@ void SkipDBRecord_willRemove_(SkipDBRecord *self, SkipDBRecord *other)
 int SkipDBRecord_hasRecord_(SkipDBRecord *self, SkipDBRecord *other)
 {
 	int i;
+
+	if (NULL == self || NULL == other || self->level < 0 ||
+		self->level > SKIPDB_MAX_LEVEL ||
+		(self->level > 0 && NULL == self->pointers))
+		return 0;
 
 	for (i = 0; i < self->level; i ++)
 	{
