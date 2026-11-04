@@ -1001,7 +1001,8 @@ int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)
 			!SkipDB_isOpen(self) || !SkipDB_isOpen(other))
 			return 0;
 	}
-	return 1;
+	/* A failed next-pointer read can terminate the loop by closing source. */
+	return SkipDB_isOpen(self) && SkipDB_isOpen(other);
 }
 
 
