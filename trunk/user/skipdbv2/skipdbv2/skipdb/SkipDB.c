@@ -424,7 +424,8 @@ void SkipDB_clearCache(SkipDB *self)
 void SkipDB_sync(SkipDB *self)
 {
 	if (NULL == self || NULL == self->dirtyRecords ||
-		NULL == self->pidsToRemove || !SkipDB_isOpen(self))
+		NULL == self->pidsToRemove || !SkipDB_isOpen(self) ||
+		NULL == self->udb || !self->udb->withinTransaction)
 		return;
 
 	if (!self->headerPid) {
@@ -467,7 +468,8 @@ SKIPDB_API void SkipDB_commitTransaction(SkipDB *self)
 void SkipDB_saveDirtyRecords(SkipDB *self)
 {
 	size_t i;
-	if (NULL == self || NULL == self->dirtyRecords || !SkipDB_isOpen(self))
+	if (NULL == self || NULL == self->dirtyRecords || !SkipDB_isOpen(self) ||
+		NULL == self->udb || !self->udb->withinTransaction)
 		return;
 
 	List_do_(self->dirtyRecords, (ListDoCallback *)SkipDBRecord_save);
@@ -489,7 +491,8 @@ void SkipDB_deleteRecordsToRemove(SkipDB *self)
 	size_t i;
 	UDB *udb;
 	if (NULL == self || NULL == self->pidsToRemove ||
-		!SkipDB_isOpen(self))
+		!SkipDB_isOpen(self) || NULL == self->udb ||
+		!self->udb->withinTransaction)
 		return;
 	udb = SkipDB_udb(self);
 	for (i = 0; i < self->pidsToRemove->size && SkipDB_isOpen(self); ++i)
