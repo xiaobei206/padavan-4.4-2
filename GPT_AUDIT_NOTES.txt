@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+631d694  UDBRecords.c: allocate sizeof(*self) rather than a different structure type.
 d036f3a  JFile.c: include limits.h and make journal-replay failure reporting safe for null context.
 9f5227a  JFile.c: bound journal replay lengths/positions, verify complete data records, and handle realloc/read/write failures.
 1cff73a  JFile.c: read JFile_fgetc into an unsigned byte and return EOF on short reads.
