@@ -1,5 +1,14 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+b513f26  UDBIndex.c: guard PID allocation/accessors and reject out-of-range index positions.
+435aef3  UDB.c: guard closed-state access, allocation helpers, and transaction entry.
+d7a39f1  JFile.c: refuse physical truncation when journal commit/replay setup failed.
+d3c670f  UDB.c: construct database/index/data/commit paths atomically.
+2f5a16a  UDB.c: check durable commit markers and clear recovery marker after replay.
+78402ea  JFile.c: make path/position accessors and delete helpers NULL-safe.
+1ef1f61  JFile.c: treat journal/data fsync failures as fatal I/O errors and stop replay safely.
+e504d03  UDB.c: abort opening when pre-transaction journals cannot be discarded.
+0838d22  JFile.h: expose checked journal clipping result; d37e8ea handles trim failures safely.
 811098a  JFile.c: bound logical seeks and check sync/truncate operations; track file size after successful truncation.
 31ed23c  UDBRecord.c: validate record tags and compaction copy ranges before reading/writing.
 d70ee6e  UDBRecords.h: correct UDBRecords_jfile prototype type.
