@@ -51,7 +51,7 @@ PID_TYPE UDBRecord_pid(UDBRecord *self);
 void UDBRecord_size_(UDBRecord *self, PID_TYPE size);
 PID_TYPE UDBRecord_size(UDBRecord *self);
 
-void UDBRecord_remove(UDBRecord *self);
+int UDBRecord_remove(UDBRecord *self);
 
 int UDBRecord_saveHeader(UDBRecord *self);
 int UDBRecord_saveWithDatum_(UDBRecord *self, Datum d);
@@ -61,7 +61,7 @@ Datum UDBRecord_readDatum(UDBRecord *self);
 
 int UDBRecord_isEmpty(UDBRecord *self);
 //int UDBRecord_readNextHeader(UDBRecord *self);
-void UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos);
+int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos);
 
 PID_TYPE UDBRecord_totalSize(UDBRecord *self);
 void UDBRecord_show(UDBRecord *self);
