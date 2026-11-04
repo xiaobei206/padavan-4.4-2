@@ -74,10 +74,12 @@ if(SKIPDB_BUILD_TESTS)
 
     ADD_EXECUTABLE(dbus_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbus_protocol.c)
+    TARGET_LINK_LIBRARIES(dbus_protocol_test skipdb m ${LIBEV_LIBRARIES})
     add_test(NAME dbus_protocol_test COMMAND dbus_protocol_test)
 
     ADD_EXECUTABLE(dbapi_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbapi_protocol.c)
+    TARGET_LINK_LIBRARIES(dbapi_protocol_test skipdb m ${LIBEV_LIBRARIES})
     add_test(NAME dbapi_protocol_test COMMAND dbapi_protocol_test)
 
     ADD_EXECUTABLE(skipdb_cursor_previous_test
