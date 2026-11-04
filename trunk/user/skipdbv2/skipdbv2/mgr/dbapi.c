@@ -242,8 +242,6 @@ static int ignore_result(dbclient *client,
     int n1, n2;
     char *command_end, *key_start, *key_end;
     size_t command_len, key_len, response_command_len, response_key_len;
-    size_t payload_len;
-    char *payload;
 
     if (NULL == client || NULL == command || NULL == key)
         return -1;
@@ -277,8 +275,6 @@ static int ignore_result(dbclient *client,
         memchr(key_start, '\0', (size_t)(key_end - key_start)) != NULL)
         return -4;
     response_key_len = (size_t)(key_end - key_start);
-    payload = key_end + 1;
-    payload_len = (size_t)(client->buf + n2 - payload);
 
     if (response_command_len == 9 &&
         memcmp(client->buf, "__error__", 9) == 0) {
