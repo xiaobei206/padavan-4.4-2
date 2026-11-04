@@ -44,10 +44,33 @@ void UDB_delete(UDB *self)
 
 void UDB_setPath_(UDB *self, const char *path)
 {
-	self->path = strcpy((char *)realloc(self->path, strlen(path)+1), path);
-	self->committedPath = strcpy((char *)realloc(self->committedPath, strlen(path)+20), path);
-	strcat(self->committedPath, ".committed");
-	
+	size_t path_len;
+	char *new_path, *new_committed_path;
+
+	if (NULL == self || NULL == path)
+		return;
+
+	path_len = strlen(path);
+	if (path_len > (size_t)-1 - sizeof(".committed"))
+		return;
+
+	new_path = (char *)malloc(path_len + 1);
+	new_committed_path = (char *)malloc(path_len + sizeof(".committed"));
+	if (NULL == new_path || NULL == new_committed_path) {
+		free(new_path);
+		free(new_committed_path);
+		return;
+	}
+
+	memcpy(new_path, path, path_len + 1);
+	memcpy(new_committed_path, path, path_len);
+	memcpy(new_committed_path + path_len, ".committed", sizeof(".committed"));
+
+	free(self->path);
+	free(self->committedPath);
+	self->path = new_path;
+	self->committedPath = new_committed_path;
+
 	UDBIndex_setPath_(self->index, path);
 	UDBRecords_setPath_(self->records, path);
 }
@@ -71,22 +94,27 @@ char *UDB_path(UDB *self)
 
 void UDB_open(UDB *self)
 {
-	self->committedFile = fopen(self->committedPath, "r+");
+	if (NULL == self || NULL == self->committedPath || self->isOpen)
+		return;
 
-	if (!self->committedFile) 
-	{
-		self->committedFile = fopen(self->committedPath, "w");
-		fclose(self->committedFile);
+	self->committedFile = fopen(self->committedPath, "r+");
+	if (!self->committedFile) {
+		FILE *created = fopen(self->committedPath, "w");
+		if (NULL == created)
+			return;
+		if (fclose(created) != 0)
+			return;
 		self->committedFile = fopen(self->committedPath, "r+");
+		if (NULL == self->committedFile)
+			return;
 	}
-	
-	
-	if (UDB_readCommitted(self) == 0)
-	{
+
+	/* Only an exact committed marker permits journal replay after a crash. */
+	if (UDB_readCommitted(self) != 1) {
 		JFile_clipLog(self->index->file);
 		JFile_clipLog(self->records->file);
 	}
-	
+
 	UDBIndex_open(self->index);
 	UDBRecords_open(self->records);
 	self->isOpen = 1;
