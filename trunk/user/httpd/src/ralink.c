@@ -1794,6 +1794,7 @@ ej_wl_scan_5g(int eid, webs_t wp, int argc, char **argv)
 	struct iwreq wrq;
 	char *sp, *op, *empty;
 	int len, line_len;
+	size_t data_len, data_offset;
 
 	empty = "[\"\", \"\", \"\", \"\"]";
 
@@ -1838,6 +1839,7 @@ ej_wl_scan_5g(int eid, webs_t wp, int argc, char **argv)
 	}
 	if (wrq.u.data.length > sizeof(data))
 		return websWrite(wp, "%s", empty);
+	data_len = wrq.u.data.length;
 
 #if defined (USE_WSC_WPS)
 	line_len = SSURV_LINE_LEN_WPS;
@@ -1846,13 +1848,16 @@ ej_wl_scan_5g(int eid, webs_t wp, int argc, char **argv)
 #endif
 
 	retval += websWrite(wp, "[");
-	if (wrq.u.data.length > 0)
+	if (data_len > (size_t)line_len + 2)
 	{
-		op = sp = wrq.u.data.pointer+line_len+2; // skip \n+\n
-		len = (int)strnlen(op, sizeof(data) - (size_t)(op - data));
+		op = sp = (char *)wrq.u.data.pointer + line_len + 2; // skip \n+\n
+		len = (int)strnlen(op, data_len - (size_t)(op - data));
 
-		while (*sp && ((len - (sp-op)) >= 0) &&
-		       (size_t)(sp - data) + (size_t)line_len <= sizeof(data))
+		while ((data_offset = (size_t)(sp - data)) < data_len &&
+		       (size_t)line_len <= data_len - data_offset &&
+		       (size_t)(sp - op) < (size_t)len &&
+		       (size_t)line_len <= (size_t)len - (size_t)(sp - op) &&
+		       *sp)
 		{
 			memcpy(site_line, sp, line_len);
 
@@ -1880,8 +1885,10 @@ ej_wl_scan_5g(int eid, webs_t wp, int argc, char **argv)
 
 //			dbg("%s\n", site_line);
 
-			sp+=line_len+1; // skip \n
 			apCount++;
+			if ((size_t)(sp - op) + (size_t)line_len >= (size_t)len)
+				break;
+			sp += line_len + 1; // skip \n
 		}
 	}
 
@@ -1914,6 +1921,7 @@ ej_wl_scan_2g(int eid, webs_t wp, int argc, char **argv)
 	struct iwreq wrq;
 	char *sp, *op, *empty;
 	int len, line_len;
+	size_t data_len, data_offset;
 
 	empty = "[\"\", \"\", \"\", \"\"]";
 
@@ -1958,6 +1966,7 @@ ej_wl_scan_2g(int eid, webs_t wp, int argc, char **argv)
 	}
 	if (wrq.u.data.length > sizeof(data))
 		return websWrite(wp, "%s", empty);
+	data_len = wrq.u.data.length;
 
 #if (defined (USE_WSC_WPS) || defined(USE_RT3352_MII))
 	line_len = SSURV_LINE_LEN_WPS;
@@ -1965,13 +1974,16 @@ ej_wl_scan_2g(int eid, webs_t wp, int argc, char **argv)
 	line_len = SSURV_LINE_LEN;
 #endif
 	retval += websWrite(wp, "[");
-	if (wrq.u.data.length > 0)
+	if (data_len > (size_t)line_len + 2)
 	{
-		op = sp = wrq.u.data.pointer+line_len+2; // skip \n+\n
-		len = (int)strnlen(op, sizeof(data) - (size_t)(op - data));
-		
-		while (*sp && ((len - (sp-op)) >= 0) &&
-		       (size_t)(sp - data) + (size_t)line_len <= sizeof(data))
+		op = sp = (char *)wrq.u.data.pointer + line_len + 2; // skip \n+\n
+		len = (int)strnlen(op, data_len - (size_t)(op - data));
+
+		while ((data_offset = (size_t)(sp - data)) < data_len &&
+		       (size_t)line_len <= data_len - data_offset &&
+		       (size_t)(sp - op) < (size_t)len &&
+		       (size_t)line_len <= (size_t)len - (size_t)(sp - op) &&
+		       *sp)
 		{
 			memcpy(site_line, sp, line_len);
 
@@ -1999,8 +2011,10 @@ ej_wl_scan_2g(int eid, webs_t wp, int argc, char **argv)
 			
 //			dbg("%s\n", site_line);
 			
-			sp+=line_len+1; // skip \n
 			apCount++;
+			if ((size_t)(sp - op) + (size_t)line_len >= (size_t)len)
+				break;
+			sp += line_len + 1; // skip \n
 		}
 	}
 
