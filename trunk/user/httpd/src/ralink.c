@@ -1464,7 +1464,9 @@ print_radio_status(webs_t wp, int is_aband)
 				phy_mode = wrq2.u.mode;
 		}
 	} else {
-		memcpy(&wmode, wrq2.u.data.pointer, wrq2.u.data.length);
+		/* The private ioctl may report a malformed output length. */
+		if (wrq2.u.data.length <= sizeof(wmode))
+			memcpy(&wmode, wrq2.u.data.pointer, wrq2.u.data.length);
 	}
 
 	freq = iw_freq2float(&(wrq1.u.freq));
