@@ -737,7 +737,7 @@ static int client_run_command(EV_P_ skipd_client* client)
 
         /*
          * Use a distinct command token for the terminal frame. A stored
-         * value may legitimately equal "__end__\\n", so the payload alone
+         * value may legitimately equal "__end__\n", so the payload alone
          * must never be treated as a list terminator.
          */
         p1 = "__end__\n";
