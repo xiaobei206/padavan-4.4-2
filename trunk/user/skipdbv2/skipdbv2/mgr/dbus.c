@@ -398,7 +398,7 @@ static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[])
         if (NULL == p1 || strncmp(p1, prefix, np) != 0)
             continue;
         nenv = strlen(p1);
-        if (nc > (size_t)READ_MAX - HEADER_PREFIX ||
+        if (nc > (size_t)READ_MAX - HEADER_PREFIX - 2 ||
             nenv > (size_t)READ_MAX - HEADER_PREFIX - nc - 2)
             return -1;
         body_len = nc + nenv + 2;
@@ -412,7 +412,7 @@ static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[])
         nkey = (size_t)(p2 - p1);
         n2 = snprintf(client->buf, (size_t)client->buf_max + 1,
             "%s%07lu %s ", MAGIC, (unsigned long)body_len, client->command);
-        if (n2 < 0 || (size_t)n2 != HEADER_PREFIX - 1 + nc)
+        if (n2 < 0 || (size_t)n2 != HEADER_PREFIX + nc + 1)
             return -1;
         memcpy(client->buf + n2, p1, nkey);
         n2 += (int)nkey;
