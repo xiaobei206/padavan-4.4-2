@@ -1093,8 +1093,17 @@ SkipDBRecord *SkipDB_list_first(SkipDB *self, Datum k, SkipDBCursor **pcur)
 
 int SkipDB_maxPos(SkipDB *self)
 {
+	long max_pos;
+
 	if (NULL == self || NULL == self->udb || NULL == self->udb->records ||
 		NULL == self->udb->records->file)
 		return 0;
-	return (int)self->udb->records->file->maxPos;
+	max_pos = self->udb->records->file->maxPos;
+	if (max_pos < 0)
+		return -1;
+	/* The daemon only needs a threshold comparison; never wrap large files
+	 * into a negative int and accidentally disable database rotation. */
+	if (max_pos > INT_MAX)
+		return INT_MAX;
+	return (int)max_pos;
 }
