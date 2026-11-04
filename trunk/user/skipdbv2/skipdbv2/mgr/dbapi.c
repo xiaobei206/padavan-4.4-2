@@ -269,6 +269,7 @@ static int ignore_result(dbclient *client) {
 static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_parse fn) {
     int n1, n2;
     char *p1, *p2, *magic = MAGIC;
+    size_t key_len, value_len;
 
     for(;;) {
         n1 = read_util(client, HEADER_PREFIX, 110);
@@ -299,17 +300,24 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
             break;
 
         p1 = client->buf + LIST_LEN;
-        p2 = memchr(p1, ' ', (size_t)(n2 - LIST_LEN));
-        if (NULL == p2)
+        p2 = (char *)memchr(p1, ' ', (size_t)(n2 - LIST_LEN));
+        if (NULL == p2 || p2 == p1)
             return -4;
-        *p2 = '\0';
-        p2++;
-        if(client->buf[n2-1] == '\n') {
-            client->buf[n2-1] = '\0';
-        }
-        if(0 != (*fn)(client, o, prefix, p1, p2)) {
-            break;
-        }
+        key_len = (size_t)(p2 - p1);
+        if (memchr(p1, '\0', key_len) != NULL)
+            return -4;
+        *p2++ = '\0';
+
+        value_len = (size_t)(client->buf + n2 - p2);
+        /* SkipDB string Datums include their final NUL; tolerate raw text too. */
+        if (value_len > 0 && p2[value_len - 1] == '\0')
+            --value_len;
+        if (memchr(p2, '\0', value_len) != NULL)
+            return -4;
+        p2[value_len] = '\0';
+
+        if (0 != (*fn)(client, o, prefix, p1, p2))
+            return -5;
     }
 
     return 0;
