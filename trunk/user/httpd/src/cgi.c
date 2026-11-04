@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 /*
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -23,7 +25,6 @@
 #include <signal.h>
 
 /* Use SVID search */
-#define _GNU_SOURCE
 #include <search.h>
 
 /* CGI hash table */
@@ -70,7 +71,9 @@ get_cgi(char *name)
 	if (htab == NULL) return NULL;
 
 	e.key = name;
-	hsearch_r(e, FIND, &ep, htab);
+	ep = NULL;
+	if (hsearch_r(e, FIND, &ep, htab) == 0)
+		return NULL;
 
 	return ep ? ep->data : NULL;
 }
@@ -115,8 +118,14 @@ init_cgi(char *query)
 	while (strsep(&q, "&;"))
 		nel++;
 	if (htab == NULL)
-		htab = calloc(1, sizeof(htab));
-	hcreate_r(nel, htab);
+		htab = calloc(1, sizeof(*htab));
+	if (!htab)
+		return;
+	if (hcreate_r(nel, htab) == 0) {
+		free(htab);
+		htab = NULL;
+		return;
+	}
 
 	for (q = query; q < (query + len);) {
 		/* Unescape each assignment */
