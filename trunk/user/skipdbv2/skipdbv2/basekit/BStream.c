@@ -83,7 +83,13 @@ void BStream_setUArray_(BStream *self, UArray *ba)
 {
 	if (NULL == self || NULL == ba)
 		return;
-	if (self->ownsUArray && self->ba && self->ba != ba)
+	if (self->ba == ba) {
+		self->index = 0;
+		if (self->errorBa)
+			UArray_setSize_(self->errorBa, 0);
+		return;
+	}
+	if (self->ownsUArray && self->ba)
 		UArray_free(self->ba);
 	self->ba = ba;
 	self->ownsUArray = 0;
@@ -228,12 +234,18 @@ void BStream_writeUArray_(BStream *self, UArray *ba)
 	size_t length;
 	if (NULL == self || NULL == self->ba || NULL == ba)
 		return;
+	if (self->ba == ba) {
+		BStream_error_(self, "cannot append a binary stream array to itself");
+		return;
+	}
 	length = UArray_size(ba);
-	if (length > INT32_MAX) {
+	if (length > INT32_MAX || length > (size_t)-1 - self->index) {
 		BStream_error_(self, "array too large for binary stream");
 		return;
 	}
 	BStream_writeInt32_(self, (int32_t)length);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	UArray_append_(self->ba, ba);
 	self->index += length;
 }
@@ -345,6 +357,8 @@ void BStream_readUArray_(BStream *self, UArray *b)
 	if (NULL == self || NULL == b)
 		return;
 	encoded_size = BStream_readInt32(self);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	if (encoded_size < 0) {
 		BStream_error_(self, "negative binary array length");
 		return;
@@ -467,6 +481,10 @@ void BStream_writeTaggedCString_(BStream *self, const char *s)
 
 void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 {
+	if (NULL == self || NULL == ba) {
+		BStream_error_(self, "invalid tagged array");
+		return;
+	}
 	BStream_writeTaggedData_length_(self, UArray_bytes(ba), UArray_size(ba));
 }
 
@@ -616,6 +634,8 @@ void BStream_readTaggedUArray_(BStream *self, UArray *b)
 	if (BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1) != 0)
 		return;
 	encoded_size = BStream_readTaggedInt32(self);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	if (encoded_size < 0) {
 		BStream_error_(self, "negative tagged array length");
 		return;
