@@ -62,3 +62,5 @@ ae80761  hddtune.sh: validate hotplug device and normalize NVRAM numeric options
 cd7b36e  automount.sh: quote and validate filesystem module names.
 c70ee02  check_crontab.sh: validate cron fields and script basenames before writing root crontab.
 fb596b7  spindown.sh: validate disk names and check exact mount source before spindown.
+e19ab02  raether.c: release page spinlock around Ethernet ioctl user copies.
+fca881f  raether_qdma.c: release page spinlock around QDMA readback copy.
