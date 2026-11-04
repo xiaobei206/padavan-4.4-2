@@ -595,6 +595,7 @@ static int client_run_command(EV_P_ skipd_client* client)
     time_t t1, t2;
     int tmpi, tmp2, write_ok;
     long long arithmetic_result;
+    double timer_delay;
     struct tm tm1, tm2, *tnow;
     Datum dkey, dvalue;
     delay_cmd* delay_obj;
@@ -935,16 +936,18 @@ static int client_run_command(EV_P_ skipd_client* client)
             free(time_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        SkipDB_beginTransaction(client->server->db);
-        write_ok = SkipDB_at_put_(client->server->db, dkey, dvalue);
-        server_sync(EV_A_ client->server);
-        if (!write_ok || !SkipDB_isOpen(client->server->db)) {
-            p1 = "database error\n";
+        /*
+         * Validate and calculate the next firing time before persisting the
+         * task. Otherwise a localtime/mktime failure leaves an orphaned
+         * database entry that reports failure but may run after a restart.
+         */
+        t1 = time(NULL);
+        if (t1 == (time_t)-1) {
+            p1 = "time schedule error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             free(time_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        t1 = time(NULL);
         tnow = localtime(&t1);
         if (NULL == tnow) {
             p1 = "time schedule error\n";
@@ -963,14 +966,22 @@ static int client_run_command(EV_P_ skipd_client* client)
             free(time_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        time_obj->server = client->server;
-        if(t2 <= t1) {
-            ev_timer_init(&time_obj->watcher, time_cmd_cb, (t1-t2+24*3600), 24*3600);
-            ev_timer_start(EV_A_ &time_obj->watcher);
-        } else {
-            ev_timer_init(&time_obj->watcher, time_cmd_cb, (t2-t1), 24*3600);
-            ev_timer_start(EV_A_ &time_obj->watcher);
+        timer_delay = t2 <= t1
+            ? difftime(t1, t2) + 24.0 * 3600.0
+            : difftime(t2, t1);
+
+        SkipDB_beginTransaction(client->server->db);
+        write_ok = SkipDB_at_put_(client->server->db, dkey, dvalue);
+        server_sync(EV_A_ client->server);
+        if (!write_ok || !SkipDB_isOpen(client->server->db)) {
+            p1 = "database error\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            free(time_obj);
+            ccrReturn(ctx, ccr_error_ok1);
         }
+        time_obj->server = client->server;
+        ev_timer_init(&time_obj->watcher, time_cmd_cb, timer_delay, 24*3600);
+        ev_timer_start(EV_A_ &time_obj->watcher);
         p1 = "ok\n";
         client_send(EV_A_ client, p1, strlen(p1));
         ccrReturn(ctx, ccr_error_ok1);
