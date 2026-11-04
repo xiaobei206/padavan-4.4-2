@@ -156,11 +156,12 @@ static int read_util(dbclient* client, int len, unsigned int delay) {
  */
 static int read_response_payload(dbclient *client, unsigned int delay,
     size_t *payload_offset, int *body_len,
-    size_t *key_offset, size_t *key_len)
+    size_t *key_offset, size_t *key_len, int *error_response)
 {
     int n1, n2;
-    size_t command_len, key_start;
-    char *key_end;
+    size_t command_len, key_start, response_command_len;
+    char *command_end, *key_end;
+    int is_error = 0;
     const char *magic = MAGIC;
 
     if (NULL == client || NULL == client->command ||
@@ -183,12 +184,19 @@ static int read_response_payload(dbclient *client, unsigned int delay,
         return n1;
 
     command_len = strlen(client->command);
-    if (command_len == 0 || (size_t)n2 <= command_len + 2 ||
-        memcmp(client->buf, client->command, command_len) != 0 ||
-        client->buf[command_len] != ' ')
+    command_end = (char *)memchr(client->buf, ' ', (size_t)n2);
+    if (command_len == 0 || NULL == command_end || command_end == client->buf)
         return -4;
 
-    key_start = command_len + 1;
+    response_command_len = (size_t)(command_end - client->buf);
+    if (response_command_len == 9 &&
+        memcmp(client->buf, "__error__", 9) == 0)
+        is_error = 1;
+    else if (response_command_len != command_len ||
+        memcmp(client->buf, client->command, command_len) != 0)
+        return -4;
+
+    key_start = response_command_len + 1;
     key_end = (char *)memchr(client->buf + key_start, ' ',
         (size_t)n2 - key_start);
     if (NULL == key_end || key_end == client->buf + key_start ||
@@ -196,10 +204,17 @@ static int read_response_payload(dbclient *client, unsigned int delay,
             (size_t)(key_end - (client->buf + key_start))) != NULL)
         return -4;
 
+    if (is_error &&
+        ((size_t)(key_end - (client->buf + key_start)) != command_len ||
+         memcmp(client->buf + key_start, client->command, command_len) != 0))
+        return -4;
+
     if (NULL != key_offset)
         *key_offset = key_start;
     if (NULL != key_len)
         *key_len = (size_t)(key_end - (client->buf + key_start));
+    if (NULL != error_response)
+        *error_response = is_error;
     *payload_offset = (size_t)(key_end - client->buf) + 1;
     *body_len = n2;
     return 0;
@@ -208,19 +223,18 @@ static int read_response_payload(dbclient *client, unsigned int delay,
 int parse_common_result(dbclient *client) {
     int n1, body_len;
     size_t payload_offset, payload_len, key_offset, key_len;
-    int success;
+    int success, error_response = 0;
     const char *payload;
 
     /* Script-backed commands can take longer than ordinary DB operations. */
     n1 = read_response_payload(client, 60000, &payload_offset, &body_len,
-        &key_offset, &key_len);
+        &key_offset, &key_len, &error_response);
     if (n1 < 0)
         return n1;
 
     payload = client->buf + payload_offset;
     payload_len = (size_t)body_len - payload_offset;
-    if (key_len == 9 &&
-        memcmp(client->buf + key_offset, "__error__", 9) == 0) {
+    if (error_response) {
         if (payload_len > 0 &&
             fwrite(payload, 1, payload_len, stdout) != payload_len)
             return -5;
@@ -244,19 +258,19 @@ int parse_common_result(dbclient *client) {
 int parse_get_result(dbclient *client) {
     int n1, body_len;
     size_t payload_offset, payload_len, key_offset, key_len;
+    int error_response = 0;
     const char *payload;
 
     n1 = read_response_payload(client, 510, &payload_offset, &body_len,
-        &key_offset, &key_len);
+        &key_offset, &key_len, &error_response);
     if (n1 < 0)
         return n1;
 
     payload = client->buf + payload_offset;
     payload_len = (size_t)body_len - payload_offset;
 
-    /* The server reserves this key for a get response that could not fit. */
-    if (key_len == 9 &&
-        memcmp(client->buf + key_offset, "__error__", 9) == 0) {
+    /* A dedicated response command reports a single-frame server error. */
+    if (error_response) {
         if (payload_len > 0 &&
             fwrite(payload, 1, payload_len, stdout) != payload_len)
             return -5;
