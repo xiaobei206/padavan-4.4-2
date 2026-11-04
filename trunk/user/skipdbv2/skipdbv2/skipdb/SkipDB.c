@@ -483,10 +483,11 @@ void SkipDB_readRootRecord(SkipDB *self)
 
 	record = SkipDB_recordAtPid_(self, self->headerPid);
 	if (NULL == record) {
-		/* Do not overwrite an existing but unreadable root record. */
+		/* Only a genuinely new index (reserved PID 0 only) may create a root. */
 		if (self->headerPid != 0 && self->udb && self->udb->index &&
-			UDBIndex_posForPid_(self->udb->index, self->headerPid) != 0) {
-			fprintf(stderr, "SkipDB: root record %" PID_FORMAT " exists but cannot be read\n",
+			(UDBIndex_posForPid_(self->udb->index, self->headerPid) != 0 ||
+			 UDBIndex_pidCount(self->udb->index) > 1)) {
+			fprintf(stderr, "SkipDB: root record %" PID_FORMAT " is missing or unreadable in a non-empty index\n",
 				self->headerPid);
 			return;
 		}
