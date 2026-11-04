@@ -375,7 +375,7 @@ static int print_json(dbclient* client, void* o, char* prefix, char* key, char* 
     print_js_quoted(key);
     fputs("]=", stdout);
     print_js_quoted(value);
-    fputs(";\\n", stdout);
+    fputs(";\n", stdout);
     return 0;
 }
 
