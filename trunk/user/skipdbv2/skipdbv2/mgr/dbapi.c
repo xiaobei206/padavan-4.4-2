@@ -38,9 +38,10 @@ static int write_util(dbclient* client, int len, unsigned int delay) {
     struct timeval tv, tv2;
 
     if (NULL == client || NULL == client->buf || len < 0 ||
-        client->remote_fd < 0)
+        len > client->buf_max || client->remote_fd < 0)
         return -1;
-    gettimeofday(&tv2, NULL);
+    if (gettimeofday(&tv2, NULL) != 0)
+        return -1;
     timeout = (unsigned long long)tv2.tv_sec * 1000ULL +
         (unsigned long long)tv2.tv_usec / 1000ULL + delay;
     while (written < len) {
@@ -62,7 +63,8 @@ static int write_util(dbclient* client, int len, unsigned int delay) {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
             return -1;
 
-        gettimeofday(&tv, NULL);
+        if (gettimeofday(&tv, NULL) != 0)
+            return -1;
         now = (unsigned long long)tv.tv_sec * 1000ULL +
             (unsigned long long)tv.tv_usec / 1000ULL;
         if (now > timeout)
