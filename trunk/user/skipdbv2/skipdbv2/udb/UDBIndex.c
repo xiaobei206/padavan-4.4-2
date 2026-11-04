@@ -201,6 +201,7 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 {
 	UDBIndexEntry entry;
 	PID_TYPE old_pos = 0;
+	long previous_file_pos, previous_max_pos;
 	size_t offset;
 
 	if (NULL == self || NULL == self->file ||
@@ -213,11 +214,16 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 
 	if (pos == 0)
 		old_pos = UDBIndex_posForPid_(self, pid);
+	previous_file_pos = self->file->pos;
+	previous_max_pos = self->file->maxPos;
 	entry.pos = pos;
 	JFile_setPosition_(self->file, (long)offset);
 	if (JFile_fwrite(self->file, (unsigned char *)&entry,
-			 sizeof(UDBIndexEntry), 1) != 1)
+			 sizeof(UDBIndexEntry), 1) != 1) {
+		self->file->pos = previous_file_pos;
+		self->file->maxPos = previous_max_pos;
 		return 0;
+	}
 
 	/* Keep the free-PID stack unique when records are removed/reused/compacted. */
 	if (pos == 0) {
