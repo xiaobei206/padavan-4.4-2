@@ -154,8 +154,10 @@ int mdev_sg_main(int argc, char **argv)
 		char vid[8] = {0}, pid[8] = {0};
 		char usb_port_id[64] = {0};
 		if (get_usb_port_by_device(device_name, usb_port_id, sizeof(usb_port_id))) {
-			if (get_usb_vid(usb_port_id, vid, sizeof(vid)) && get_usb_pid(usb_port_id, pid, sizeof(pid)))
-				doSystem("/sbin/zerocd %s %s", vid, pid);
+			if (get_usb_vid(usb_port_id, vid, sizeof(vid)) && get_usb_pid(usb_port_id, pid, sizeof(pid))) {
+				char *zerocd_argv[] = { "/sbin/zerocd", vid, pid, NULL };
+				_eval(zerocd_argv, NULL, 0, NULL);
+			}
 		}
 	}
 
@@ -167,7 +169,7 @@ int mdev_sg_main(int argc, char **argv)
 
 int mdev_sr_main(int argc, char **argv)
 {
-	int isLock;
+	int isLock, path_len;
 	char *device_name, *action;
 
 	if (argc != 3){
@@ -197,7 +199,16 @@ int mdev_sr_main(int argc, char **argv)
 		return 1;
 	}
 
-	doSystem("eject -s /dev/%s", device_name);
+	{
+		char dev_path[64];
+		char *eject_argv[] = { "eject", "-s", dev_path, NULL };
+		path_len = snprintf(dev_path, sizeof(dev_path), "/dev/%s", device_name);
+		if (path_len < 0 || path_len >= (int)sizeof(dev_path)) {
+			file_unlock(isLock);
+			return 1;
+		}
+		_eval(eject_argv, NULL, 0, NULL);
+	}
 	sleep(1);
 	module_smart_unload("sr_mod", 1);
 
@@ -210,7 +221,7 @@ int mdev_sr_main(int argc, char **argv)
 int mdev_wdm_main(int argc, char **argv)
 {
 	FILE *fp;
-	int isLock;
+	int isLock, path_len;
 	char node_fname[64];
 	char *device_name, *action;
 
@@ -227,7 +238,9 @@ int mdev_wdm_main(int argc, char **argv)
 	if (!isWDMNode(device_name))
 		return 1;
 
-	sprintf(node_fname, "%s/%s", MODEM_NODE_DIR, device_name);
+	path_len = snprintf(node_fname, sizeof(node_fname), "%s/%s", MODEM_NODE_DIR, device_name);
+	if (path_len < 0 || path_len >= (int)sizeof(node_fname))
+		return 1;
 
 	// Check Lock.
 	if ((isLock = file_lock(device_name)) == -1)
@@ -261,7 +274,7 @@ out_unlock:
 int mdev_net_main(int argc, char **argv)
 {
 	FILE *fp;
-	int isLock, devnum;
+	int isLock, devnum, path_len;
 	char usb_port_id[64], node_fname[64];
 	char *device_name, *action;
 
@@ -278,7 +291,9 @@ int mdev_net_main(int argc, char **argv)
 	if (!is_usbnet_interface(device_name))
 		return 1;
 
-	sprintf(node_fname, "%s/%s", MODEM_NODE_DIR, device_name);
+	path_len = snprintf(node_fname, sizeof(node_fname), "%s/%s", MODEM_NODE_DIR, device_name);
+	if (path_len < 0 || path_len >= (int)sizeof(node_fname))
+		return 1;
 
 	// Check Lock.
 	if ((isLock = file_lock(device_name)) == -1)
@@ -326,7 +341,7 @@ out_unlock:
 int mdev_tty_main(int argc, char **argv)
 {
 	FILE *fp;
-	int isLock, devnum, has_int_pipe;
+	int isLock, devnum, has_int_pipe, path_len;
 	char usb_port_id[64], usb_interface_id[64], node_fname[64];
 	char *device_name, *action;
 
@@ -342,7 +357,9 @@ int mdev_tty_main(int argc, char **argv)
 	if (!isSerialNode(device_name) && !isACMNode(device_name))
 		return 1;
 
-	sprintf(node_fname, "%s/%s", MODEM_NODE_DIR, device_name);
+	path_len = snprintf(node_fname, sizeof(node_fname), "%s/%s", MODEM_NODE_DIR, device_name);
+	if (path_len < 0 || path_len >= (int)sizeof(node_fname))
+		return 1;
 
 	// Check Lock.
 	if((isLock = file_lock(device_name)) == -1)
