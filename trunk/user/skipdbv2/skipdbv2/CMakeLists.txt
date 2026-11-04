@@ -1,5 +1,5 @@
+cmake_minimum_required(VERSION 3.5)
 PROJECT(skipdbv2)
-CMAKE_MINIMUM_REQUIRED (VERSION 2.8)
 ADD_DEFINITIONS(-Os -g -Wstrict-prototypes -Wall  -falign-loops=16 -DBUILDING_SKIPDB_DLL)
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
