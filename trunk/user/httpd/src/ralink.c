@@ -595,7 +595,16 @@ int
 wl_ioctl(const char *ifname, int cmd, struct iwreq *pwrq)
 {
 	int ret = 0;
- 	int s;
+	int s;
+	size_t ifname_len;
+
+	if (!ifname || !pwrq)
+		return -1;
+	ifname_len = strnlen(ifname, IFNAMSIZ);
+	if (ifname_len == 0 || ifname_len >= IFNAMSIZ) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	/* open socket to kernel */
 	if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -604,7 +613,8 @@ wl_ioctl(const char *ifname, int cmd, struct iwreq *pwrq)
 	}
 
 	/* do it */
-	strncpy(pwrq->ifr_name, ifname, IFNAMSIZ);
+	memset(pwrq->ifr_name, 0, sizeof(pwrq->ifr_name));
+	memcpy(pwrq->ifr_name, ifname, ifname_len);
 	if ((ret = ioctl(s, cmd, pwrq)) < 0)
 		perror(pwrq->ifr_name);
 
