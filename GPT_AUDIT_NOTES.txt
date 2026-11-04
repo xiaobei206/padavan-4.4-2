@@ -21,3 +21,6 @@ ea825a5  vpn_openvpn.c: run OpenVPN peer hooks with argv, not shell interpolatio
 954996b  vpn_server.c: run VPN hooks and interface/firewall commands with argv.
 c50809d  vpn_openvpn.c: pass client certificate common name as a single safe argv.
 f1ee8e1  watchdog.c: validate weekday bits and HHMM range before scheduler actions.
+8636c48  netutils.c: reject invalid/overlong interface names before ioctl copy.
+66c0935  netutils.c: validate helper pointers, MAC input and sysctl/bridge arguments.
+782befc  net_wan6.c: reserve suffix space for get_ifaddr6 output.
