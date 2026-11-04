@@ -784,6 +784,11 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
 
         dvalue = Datum_FromData_length_((unsigned char*)p1, client->data_len - (p1 - client->origin));
+        if (NULL == find_terminated_value_separator(dvalue)) {
+            p1 = "value param error\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         //dvalue.data[dvalue.size-1] = '\0';
         //FIXEM hard code hear
         if(strlen((char*)dvalue.data) >= 300) {
@@ -894,6 +899,11 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
 
         dvalue = Datum_FromData_length_((unsigned char*)p1, client->data_len - (p1 - client->origin));
+        if (NULL == find_terminated_value_separator(dvalue)) {
+            p1 = "value param error\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         //dvalue.data[dvalue.size-1] = '\0';
         //FIXEM hard code hear
         if(strlen((char*)dvalue.data) >= 300) {
