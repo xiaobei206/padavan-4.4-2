@@ -146,3 +146,10 @@ f753e04  ralink.c: bound wireless site-survey response scans to their buffers.
 58857c3  ralink.c: validate wireless ioctl interface names and terminate safely.
 b34f345  ralink.c: bound private ioctl PHY-mode output copy.
 7d1c739  ralink.c: skip malformed kernel route entries instead of using uninitialized fields.
+
+b8ad62e  ralink.c: return failure for wireless ioctl socket errors.
+800e366  ralink.c: bound DHCP lease formatting and malformed route rows.
+2480752  ralink.c: escape DHCP hostnames in web output.
+0b49e2e  httpd.c: bound HTTP header reads and reject incomplete requests.
+a1e2900  httpd.c: preserve following headers after multipart boundary.
+ffbc3c4  httpd.c: reject unsupported HTTP Transfer-Encoding.
