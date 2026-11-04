@@ -263,7 +263,7 @@ void BStream_writeDouble_(BStream *self, double v)
 
 void BStream_writeCString_(BStream *self, const char *s)
 {
-	size_t length, oldSize;
+	UArray source;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		UArray_size(self->errorBa) != 0)
 		return;
@@ -271,18 +271,9 @@ void BStream_writeCString_(BStream *self, const char *s)
 		BStream_error_(self, "invalid binary stream string");
 		return;
 	}
-	length = strlen(s);
-	oldSize = UArray_size(self->ba);
-	if (length > INT32_MAX || oldSize > (size_t)-1 - 4 ||
-		length > (size_t)-1 - oldSize - 4 || oldSize + 4 + length == (size_t)-1) {
-		BStream_error_(self, "string too large for binary stream");
-		return;
-	}
-	BStream_writeInt32_(self, (int32_t)length);
-	if (UArray_size(self->errorBa) == 0)
-		BStream_writeData_length_(self, (const unsigned char *)s, length);
-	if (UArray_size(self->errorBa) != 0)
-		BStream_rollbackWrite_(self, oldSize);
+	source = UArray_stackAllocedWithData_type_size_((void *)s,
+		CTYPE_uint8_t, strlen(s));
+	BStream_writeUArray_(self, &source);
 }
 
 
@@ -615,11 +606,14 @@ void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, s
 
 void BStream_writeTaggedCString_(BStream *self, const char *s)
 {
+	UArray source;
 	if (NULL == self || NULL == s) {
 		BStream_error_(self, "invalid tagged string");
 		return;
 	}
-	BStream_writeTaggedData_length_(self, (const unsigned char *)s, strlen(s));
+	source = UArray_stackAllocedWithData_type_size_((void *)s,
+		CTYPE_uint8_t, strlen(s));
+	BStream_writeTaggedUArray_(self, &source);
 }
 
 
