@@ -84,7 +84,13 @@ int UDBIndex_open(UDBIndex *self)
 		return 0;
 	if (!UDBIndex_finishOpening(self))
 		return 0;
-	self->maxPid = 0;
+	{
+		long pid_count = UDBIndex_pidCount(self);
+		if (pid_count <= 0)
+			return 0;
+		/* Existing index slots are already assigned; holes remain reusable. */
+		self->maxPid = (PID_TYPE)(pid_count - 1);
+	}
 	return 1;
 }
 
@@ -211,6 +217,22 @@ PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 		return 0;
 
 	return entry.pos;
+}
+
+/* True only for a PID reserved by allocPid and not currently free. */
+int UDBIndex_isReservedPid_(UDBIndex *self, PID_TYPE pid)
+{
+	size_t i;
+
+	if (NULL == self || NULL == self->holes || NULL == self->file ||
+		NULL == self->file->file || pid == 0 || pid > self->maxPid)
+		return 0;
+
+	for (i = 0; i < self->holes->size; ++i) {
+		if (self->holes->items[i] == (void *)pid)
+			return 0;
+	}
+	return 1;
 }
 
 int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
