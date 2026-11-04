@@ -24,7 +24,7 @@ JFile ioDoc(
 #define JFILE_END_TRANSACTION_ITEM 1
 #define JFILE_END_TRANSACTION 2
 
-void JFile_clipLog(JFile *self);
+int JFile_clipLog(JFile *self);
 void JFile_writeLogToFile(JFile *self);
 void JFile_flushLog(JFile *self);
 void JFile_flushFile(JFile *self);
@@ -208,8 +208,10 @@ void JFile_open(JFile *self)
 #endif
 	} else {
 		JFile_clipLogToLastCompletedTransaction(self);
+		if (NULL == self->log)
+			goto fail;
 		JFile_writeLogToFile(self);
-		if (fseek(self->file, 0, SEEK_END) != 0 ||
+		if (NULL == self->log || fseek(self->file, 0, SEEK_END) != 0 ||
 			(file_end = ftell(self->file)) < 0)
 			goto fail;
 		self->maxPos = file_end;
@@ -554,7 +556,8 @@ void JFile_writeLogToFile(JFile *self)
 	{
 		//printf("writing log\n");
 		JFile_syncFileWritesToDisk(self);
-		JFile_clipLog(self);
+		if (JFile_clipLog(self) != 0)
+			goto fatalError;
 	}
 
 	return;
@@ -601,23 +604,24 @@ void JFile_commitToLog(JFile *self)
 
 #include <unistd.h>
 
-void JFile_clipLog(JFile *self)
+int JFile_clipLog(JFile *self)
 {
-	if (!self->log)
-	{
-		self->log = fopen(self->logPath, "r+");
+	if (NULL == self || NULL == self->logPath)
+		return -1;
 
-		if (self->log)
-		{
-			ftruncate(fileno(self->log), 0);
-			fseek(self->log, 0, SEEK_SET);
-		}
+	if (NULL == self->log) {
+		self->log = fopen(self->logPath, "r+");
+		if (NULL == self->log)
+			return errno == ENOENT ? 0 : -1;
 	}
-	else
-	{
-		ftruncate(fileno(self->log), 0);
-		fseek(self->log, 0, SEEK_SET);
+	if (fflush(self->log) != 0 ||
+		ftruncate(fileno(self->log), 0) != 0 ||
+		fseek(self->log, 0, SEEK_SET) != 0) {
+		fclose(self->log);
+		self->log = NULL;
+		return -1;
 	}
+	return 0;
 }
 
 void JFile_truncate_(JFile *self, off_t size)
@@ -717,15 +721,28 @@ int JFile_verifyLog(JFile *self)
 
 void JFile_clipLogToLastCompletedTransaction(JFile *self)
 {
-	long lastCommitPosition = JFile_lastCommitPosition(self);
+	long lastCommitPosition, log_end;
 
-	fseek(self->log, 0, SEEK_END);
-
-	if (lastCommitPosition != ftell(self->log))
-	{
+	if (NULL == self || NULL == self->log)
+		return;
+	lastCommitPosition = JFile_lastCommitPosition(self);
+	if (fseek(self->log, 0, SEEK_END) != 0 ||
+		(log_end = ftell(self->log)) < 0)
+		goto fail;
+	if (lastCommitPosition < 0 || lastCommitPosition > log_end)
+		goto fail;
+	if (lastCommitPosition != log_end) {
 		printf("JFile: incomplete transaction found in '%s' - discarding\n", self->logPath);
-		ftruncate(fileno(self->log), lastCommitPosition);
-		fseek(self->log, 0, SEEK_END);
+		if (ftruncate(fileno(self->log), (off_t)lastCommitPosition) != 0 ||
+			fseek(self->log, 0, SEEK_END) != 0)
+			goto fail;
 	}
+	return;
+
+fail:
+	fprintf(stderr, "JFile: unable to trim journal '%s' safely\n",
+		self->logPath ? self->logPath : "(unknown)");
+	fclose(self->log);
+	self->log = NULL;
 }
 
