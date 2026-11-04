@@ -855,11 +855,21 @@ void SkipDB_freeObjectCallback_(SkipDB *self, SkipDBFreeObjectFunc *func)
 int SkipDB_count(SkipDB *self)
 {
 	int count = 0;
+	long steps = 0, max_steps;
 	SkipDBRecord *record;
-	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self))
+	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
+		NULL == self->udb || NULL == self->udb->index)
 		return 0;
+	max_steps = UDBIndex_pidCount(self->udb->index);
+	if (max_steps < 0)
+		return -1;
 	record = SkipDB_firstRecord(self);
 	while (record) {
+		/* A valid list cannot contain more rows than the PID index. */
+		if (++steps > max_steps) {
+			fprintf(stderr, "SkipDB: cycle or invalid link in record list\n");
+			return -1;
+		}
 		if (count == INT_MAX)
 			return INT_MAX;
 		count++;
@@ -928,14 +938,22 @@ void SkipDB_removeCursor_(SkipDB *self, SkipDBCursor *cursor)
 int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)
 {
 	SkipDBRecord *record;
+	long steps = 0, max_steps;
 	if (NULL == self || NULL == other || self == other ||
-		NULL == self->header || !SkipDB_isOpen(self) || !SkipDB_isOpen(other))
+		NULL == self->header || !SkipDB_isOpen(self) || !SkipDB_isOpen(other) ||
+		NULL == self->udb || NULL == self->udb->index)
+		return 0;
+	max_steps = UDBIndex_pidCount(self->udb->index);
+	if (max_steps < 0)
 		return 0;
 
 	record = self->header;
 	while ((record = SkipDBRecord_nextRecord(record)) != NULL) {
-		Datum key = SkipDBRecord_keyDatum(record);
-		Datum value = SkipDBRecord_valueDatum(record);
+		Datum key, value;
+		if (++steps > max_steps)
+			return 0;
+		key = SkipDBRecord_keyDatum(record);
+		value = SkipDBRecord_valueDatum(record);
 		if (!SkipDB_at_put_(other, key, value) ||
 			!SkipDB_isOpen(self) || !SkipDB_isOpen(other))
 			return 0;
@@ -966,15 +984,26 @@ void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,
 {
 	SkipDBCursor *cursor;
 	SkipDBRecord *record;
+	long steps = 0, max_steps;
 	if (NULL == self || NULL == callback || k.size == 0 || NULL == k.data ||
-		!SkipDB_isOpen(self))
+		!SkipDB_isOpen(self) || NULL == self->udb || NULL == self->udb->index)
 		return;
 	cursor = SkipDB_createCursor(self);
 	if (NULL == cursor)
 		return;
+	max_steps = UDBIndex_pidCount(self->udb->index);
+	if (max_steps < 0) {
+		SkipDBCursor_release(cursor);
+		return;
+	}
 	record = SkipDBCursor_goto_(cursor, k);
 	while (record) {
-		Datum key = SkipDBRecord_keyDatum(record);
+		Datum key;
+		if (++steps > max_steps) {
+			fprintf(stderr, "SkipDB: cycle or invalid link during prefix scan\\n");
+			break;
+		}
+		key = SkipDBRecord_keyDatum(record);
 		if (!SkipDB_keyHasPrefix_(key, k))
 			break;
 		callback(self, record, ctx);
