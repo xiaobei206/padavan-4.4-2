@@ -299,10 +299,15 @@ int UDB_isInTransaction(UDB *self)
 
 void UDB_beginTransaction(UDB *self)
 {
-	if (NULL == self || !self->isOpen || self->withinTransaction)
+	if (NULL == self || !self->isOpen || self->withinTransaction ||
+		!UDB_streamsOpen(self))
 		return;
 	UDBIndex_begin(self->index);
 	UDBRecords_begin(self->records);
+	if (!UDB_streamsOpen(self)) {
+		UDB_close(self);
+		return;
+	}
 	self->withinTransaction = 1;
 }
 
