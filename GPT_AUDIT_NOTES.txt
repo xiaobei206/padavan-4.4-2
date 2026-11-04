@@ -96,3 +96,6 @@ e1604be  disk_share.c: use checked dynamic folder enumeration and reset/free lis
 480cdba  disk_share.c: guard account-list allocation errors and allow password-only account edits without NULL dereference.
 8a0db15  disk_share.c: reject sparse account indexes and propagate modify-account lookup failures.
 b7cba2f  disk_share.c: unlink share metadata files via opendir/readdir, not shell-interpolated mount paths; validate persisted folder names.
+c53307f  dev_info.c: build the full /sys/block/<device> path for multi-letter SCSI drives.
+6d5381b  disk_initial.c: parse multi-letter SCSI and multi-digit MMC partitions; require an exact parent-disk suffix.
+70afd65  disk_initial.c: compare exact /proc/mounts mountpoint fields instead of substring matches.
