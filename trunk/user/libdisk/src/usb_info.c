@@ -180,8 +180,8 @@ find_usb_root_port(const char *target_string, const char *port)
 	ptr = target_string;
 	while ((ptr = strstr(ptr, port)) != NULL) {
 		if ((ptr == target_string || ptr[-1] == '/') &&
-		    (ptr[port_len] == '/' || ptr[port_len] == '.' ||
-		     ptr[port_len] == ':' || ptr[port_len] == '\0'))
+		    (ptr[port_len] == '/' || ptr[port_len] == ':' ||
+		     ptr[port_len] == '\0'))
 			return ptr;
 		ptr++;
 	}
