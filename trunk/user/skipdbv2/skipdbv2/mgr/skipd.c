@@ -1296,6 +1296,7 @@ static void server_switch(skipd_server* server) {
 
 int server_init(skipd_server* server, int max_queue) {
     int count;
+    mode_t old_umask;
 
     server->switch_mark = 8*1024*1024;//default 8M
     server_open(server);
@@ -1306,8 +1307,18 @@ int server_init(skipd_server* server, int max_queue) {
     server->fd = unix_socket_init(&server->socket, server->sock_path, max_queue);
     server->socket_len = sizeof(server->socket.sun_family) + strlen(server->socket.sun_path);
 
+    /* The socket grants access to a root-owned command/database service. */
+    old_umask = umask(0177);
     if (-1 == bind(server->fd, (struct sockaddr*) &server->socket, server->socket_len)) {
+        umask(old_umask);
         perror("echo server bind");
+        exit(EXIT_FAILURE);
+    }
+    umask(old_umask);
+    if (chmod(server->sock_path, 0600) < 0) {
+        perror("skipd socket chmod");
+        close(server->fd);
+        unlink(server->sock_path);
         exit(EXIT_FAILURE);
     }
 
