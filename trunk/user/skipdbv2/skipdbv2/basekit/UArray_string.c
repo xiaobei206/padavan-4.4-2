@@ -441,8 +441,18 @@ void UArray_swapWith_(UArray *self, UArray *other)
 
 void UArray_escape(UArray *self)
 {
-	UArray *out = UArray_new();
-	out->itemType = self->itemType;
+	UArray *out;
+	if (NULL == self || (self->size > 0 && NULL == self->data) ||
+		self->itemSize == 0)
+		return;
+	out = UArray_new();
+	if (NULL == out)
+		return;
+	UArray_setItemType_(out, self->itemType);
+	if (out->itemType != self->itemType || out->itemSize != self->itemSize) {
+		UArray_free(out);
+		return;
+	}
 
 	UARRAY_FOREACH(self, i, v,
 		switch ((int)v)
