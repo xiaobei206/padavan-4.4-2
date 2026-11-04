@@ -1,5 +1,12 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+9fbf4da  vsftpd asus_ext.c: validate chroot path components, fail closed on malformed paths, bound permission records and stored passwords.
+bb65751  disk_share.c: align account-password maximum with the FTP fixed buffer.
+e3d19e2  disk_share.c: reject control-character/oversized passwords and unsupported permission protocol names.
+86d5a65  disk_share.c: require the source to be a real directory before folder rename.
+2f7103a  disk_share.c: reject traversal/double-slash paths when deriving FTP share layers.
+63ac851  disk_share.c: keep the correct mount/share separator during path parsing.
+d8a9e86  disk_share.c: validate FTP path roots, initialize outputs, and clean up allocation failures.
 add5600  disk_share.c: reject folder renames onto any existing path; treat same-name rename as a no-op.
 cbd4135  disk_share.c: restore the process umask after creating shared folders.
 0a7a5ad  disk_io_tools.c: restore the process umask after directory creation.
