@@ -1502,8 +1502,7 @@ ej_initial_account(int eid, webs_t wp, int argc, char **argv)
 {
 	disk_info_t *disks_info, *follow_disk;
 	partition_info_t *follow_partition;
-	char *command;
-	int len, result;
+	int init_error = 0;
 
 	nvram_set_int("acc_num", 0);
 	nvram_commit_safe();
@@ -1511,33 +1510,28 @@ ej_initial_account(int eid, webs_t wp, int argc, char **argv)
 	disks_info = read_disk_data();
 	if (!disks_info) {
 		websWrite(wp, "<script>\n");
-		websWrite(wp, "initial_account_error(\'%s\');\n", get_alert_msg_from_dict("System2"));
+		websWrite(wp, "initial_account_error(\\'%s\\');\n", get_alert_msg_from_dict("System2"));
 		websWrite(wp, "</script>\n");
 		return -1;
 	}
 
-	for (follow_disk = disks_info; follow_disk != NULL; follow_disk = follow_disk->next)
-		for (follow_partition = follow_disk->partitions; follow_partition != NULL; follow_partition = follow_partition->next)
-			if (follow_partition->mount_point != NULL && strlen(follow_partition->mount_point) > 0) {
-				len = strlen("rm -f ")+strlen(follow_partition->mount_point)+strlen("/.__*");
-				command = (char *)malloc(sizeof(char)*(len+1));
-				if (command == NULL) {
-					websWrite(wp, "<script>\n");
-					websWrite(wp, "initial_account_error(\'%s\');\n", get_alert_msg_from_dict("System1"));
-					websWrite(wp, "</script>\n");
-					return -1;
-				}
-				sprintf(command, "rm -f %s/.__*", follow_partition->mount_point);
-				command[len] = 0;
-
-				result = system(command);
-				free(command);
-
-				initial_folder_list_in_mount_path(follow_partition->mount_point);
-				initial_all_var_file_in_mount_path(follow_partition->mount_point);
+	for (follow_disk = disks_info; follow_disk != NULL; follow_disk = follow_disk->next) {
+		for (follow_partition = follow_disk->partitions; follow_partition != NULL; follow_partition = follow_partition->next) {
+			if (follow_partition->mount_point != NULL && follow_partition->mount_point[0] != '\0') {
+				if (initial_all_var_file_in_mount_path(follow_partition->mount_point) != 0)
+					init_error = 1;
 			}
+		}
+	}
 
 	free_disk_data(disks_info);
+
+	if (init_error) {
+		websWrite(wp, "<script>\n");
+		websWrite(wp, "initial_account_error(\\'%s\\');\n", get_alert_msg_from_dict("System1"));
+		websWrite(wp, "</script>\n");
+		return -1;
+	}
 
 	eval("/sbin/run_ftpsamba");
 
