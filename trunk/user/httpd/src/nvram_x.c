@@ -35,8 +35,12 @@ char *nvram_get_list_x(const char *name, int index)
 
 int nvram_match_list_x(const char *name, char *match, int index)
 {
-	const char *value = nvram_get_list_x(name, index);
-	return (!strcmp(value, match));
+	const char *value;
+
+	if (!name || !match || index < 0)
+		return 0;
+	value = nvram_get_list_x(name, index);
+	return value && !strcmp(value, match);
 }
 
 void nvram_del_list_map_x(const char *name, int group_count, int *delMap)
@@ -44,7 +48,8 @@ void nvram_del_list_map_x(const char *name, int group_count, int *delMap)
 	char oname[64], nname[64], tmp[256], *oval;
 	int i, i_len, ni, di, group_count_new;
 
-	if (!(*name) || group_count < 1)
+	if (!name || !delMap || !*name ||
+	    group_count < 1 || group_count > MAX_GROUP_COUNT)
 		return;
 
 	ni = 0;
