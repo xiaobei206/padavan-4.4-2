@@ -1,5 +1,11 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+811098a  JFile.c: bound logical seeks and check sync/truncate operations; track file size after successful truncation.
+31ed23c  UDBRecord.c: validate record tags and compaction copy ranges before reading/writing.
+d70ee6e  UDBRecords.h: correct UDBRecords_jfile prototype type.
+6096636  UDBRecords.c: guard allocations/open failures and validate persisted empty-record offset.
+a7261c8  UDB.c: unwind partial constructors/opens and close resources consistently.
+c59a2eb  UDBIndex.c: remove stale duplicate free-slot entries when a PID becomes occupied.
 17482df  JFile.c: replay legacy zero-length journal records rather than abandoning journal recovery.
 b03b562  JFile.c: reject overflowing/null read-write requests; roll back partial journal appends and avoid zero-byte log records.
 e61187c  JFile.c: avoid truncating existing DBs on open errors; check open failures and refresh maxPos after journal replay.
