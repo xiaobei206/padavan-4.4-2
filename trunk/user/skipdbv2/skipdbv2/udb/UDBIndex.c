@@ -343,8 +343,12 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	if (offset > (size_t)LONG_MAX)
 		return 0;
 
-	if (pos == 0)
+	if (pos == 0) {
 		old_pos = UDBIndex_posForPid_(self, pid);
+		/* Do not mutate the index after a genuine read error. */
+		if (ferror(self->file->file))
+			return 0;
+	}
 	previous_file_pos = self->file->pos;
 	previous_max_pos = self->file->maxPos;
 	entry.pos = pos;
