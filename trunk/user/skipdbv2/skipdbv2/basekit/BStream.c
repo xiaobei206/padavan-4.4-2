@@ -147,6 +147,10 @@ void BStream_writeUint8_(BStream *self, uint8_t v)
 		BStream_error_(self, "invalid binary stream");
 		return;
 	}
+	if (self->index == (size_t)-1) {
+		BStream_error_(self, "binary stream position overflow");
+		return;
+	}
 	UArray_appendLong_(self->ba, v);
 	self->index++;
 }
@@ -172,6 +176,10 @@ void BStream_writeNumber_size_(BStream *self, unsigned char *v, size_t length)
 	if (NULL == self || NULL == self->ba || NULL == self->typeBuf ||
 		(length > 0 && NULL == v) || length > 512) {
 		BStream_error_(self, "invalid binary number write");
+		return;
+	}
+	if (length > (size_t)-1 - self->index) {
+		BStream_error_(self, "binary stream position overflow");
 		return;
 	}
 	memcpy(self->typeBuf, v, length);
@@ -423,30 +431,32 @@ void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned in
 
 void BStream_writeTaggedUint8_(BStream *self, uint8_t v)
 {
+	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 1, 0);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeUint8_(self, v);
 }
 
 void BStream_writeTaggedUint32_(BStream *self, uint32_t v)
 {
+	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 4, 0);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeUint32_(self, v);
 }
 
 void BStream_writeTaggedInt32_(BStream *self, int32_t v)
 {
-	/*
-	if (v =< MAX_INT && v -128)
-	{
-		BStream_writeTag(self, BSTREAM_SIGNED_INT, 1, 0);
-		BStream_writeInt8_(self, (int8_t)v);
-	}
-	else
-	*/
-{
+	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeTag(self, BSTREAM_SIGNED_INT, 4, 0);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeInt32_(self, v);
-}
 }
 #if !defined(__SYMBIAN32__)
 void BStream_writeTaggedInt64_(BStream *self, int64_t v)
@@ -464,20 +474,32 @@ void BStream_writeTaggedInt64_(BStream *self, int64_t v)
 
 void BStream_writeTaggedDouble_(BStream *self, double v)
 {
+	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeTag(self, BSTREAM_FLOAT, 8, 0);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeDouble_(self, v);
 }
 
 void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, size_t length)
 {
-	if (NULL == self || NULL == self->ba || (length > 0 && NULL == data))
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		(length > 0 && NULL == data))
 		return;
-	if (length > INT32_MAX || length > (size_t)-1 - self->index) {
+	if (UArray_size(self->errorBa) != 0)
+		return;
+	if (length > INT32_MAX || self->index > (size_t)-1 - 6 ||
+		length > (size_t)-1 - self->index - 6) {
 		BStream_error_(self, "tagged data length is out of range");
 		return;
 	}
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 1, 1);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeTaggedInt32_(self, (int32_t)length);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	if (length > 0) {
 		UArray_appendBytes_size_(self->ba, (unsigned char *)data, length);
 		self->index += length;
