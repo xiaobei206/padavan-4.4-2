@@ -1491,10 +1491,11 @@ int test_if_exist_folder_in_mount_path(const char *const mount_path, const char 
 int how_many_layer(int is_chroot, const char *basedir, char **mount_path, char **share)
 {
 	char *follow_info, *follow_info_end;
-	size_t root_len, path_len, prefix_len, share_len;
+	const char *component;
+	size_t root_len, path_len, prefix_len, share_len, component_len;
 	int layer = 0;
 
-	if (!basedir || !mount_path || !share)
+	if (!basedir || !mount_path || !share || basedir[0] != '/')
 		return -1;
 	*mount_path = NULL;
 	*share = NULL;
@@ -1506,6 +1507,27 @@ int how_many_layer(int is_chroot, const char *basedir, char **mount_path, char *
 	     strncmp(basedir, POOL_MOUNT_ROOT, root_len) != 0 ||
 	     (basedir[root_len] != '\0' && basedir[root_len] != '/')))
 		return -1;
+
+	/* Reject non-canonical path components before deriving mount/share names. */
+	if (path_len > 1 && basedir[path_len - 1] == '/')
+		return -1;
+	component = basedir + 1;
+	while (*component) {
+		const char *component_start = component;
+		while (*component && *component != '/')
+			++component;
+		component_len = (size_t)(component - component_start);
+		if (component_len == 0 ||
+		    (component_len == 1 && component_start[0] == '.') ||
+		    (component_len == 2 && component_start[0] == '.' &&
+		     component_start[1] == '.'))
+			return -1;
+		if (*component == '/') {
+			++component;
+			if (*component == '/')
+				return -1;
+		}
+	}
 
 	if (is_chroot)
 		layer = BASE_LAYER;
