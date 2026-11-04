@@ -160,8 +160,8 @@ int UDBIndex_prepareCommit(UDBIndex *self)
 			/* Keep the free-PID stack unique. */
 		}
 		old_size = self->holes->size;
-		if (NULL == List_push_(self->holes, (void *)pid) ||
-			self->holes->size != old_size + 1)
+		List_push_(self->holes, (void *)pid);
+		if (self->holes->size != old_size + 1)
 			return 0;
 	}
 
