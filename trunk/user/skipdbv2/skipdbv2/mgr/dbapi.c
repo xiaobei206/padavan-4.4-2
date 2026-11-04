@@ -285,8 +285,6 @@ static int ignore_result(dbclient *client,
         if (response_key_len != command_len ||
             memcmp(key_start, command, command_len) != 0)
             return -4;
-        if (payload_len > 0)
-            fwrite(payload, 1, payload_len, stderr);
         return -5;
     }
 
