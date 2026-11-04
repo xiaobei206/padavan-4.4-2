@@ -112,8 +112,18 @@ char *get_usb_path_by_device(const char *device_name, char *buf, const int buf_s
 char *get_usb_port_by_interface_string(const char *target_string, char *buf, const int buf_size)
 {
 	char *ptr;
+	int len;
 
-	snprintf(buf, buf_size, "%s", target_string);
+	if (!target_string || !buf || buf_size < 2)
+		return NULL;
+	buf[0] = '\0';
+
+	len = snprintf(buf, (size_t)buf_size, "%s", target_string);
+	if (len < 0 || len >= buf_size) {
+		buf[0] = '\0';
+		return NULL;
+	}
+
 	ptr = strchr(buf, ':');
 	if (ptr) {
 		*ptr = '\0';
@@ -160,58 +170,81 @@ char *get_usb_port_by_device(const char *device_name, char *buf, const int buf_s
 	return buf;
 }
 
+static const char *
+find_usb_root_port(const char *target_string, const char *port)
+{
+	const char *ptr;
+	size_t port_len;
+
+	port_len = strlen(port);
+	ptr = target_string;
+	while ((ptr = strstr(ptr, port)) != NULL) {
+		if ((ptr == target_string || ptr[-1] == '/') &&
+		    (ptr[port_len] == '/' || ptr[port_len] == '.' ||
+		     ptr[port_len] == ':' || ptr[port_len] == '\0'))
+			return ptr;
+		ptr++;
+	}
+
+	return NULL;
+}
+
 char *get_usb_interface_by_string(const char *target_string, char *buf, const int buf_size)
 {
-	char *ptr, *ptr2, *ptr_start, *ptr_end;
+	char *ptr, *ptr2, *ptr_start = NULL, *ptr_end;
+	const char *port;
 	int len;
 
-	// example 1: device in root port
-	// ../usb1/1-1/1-1:1.0/net/usb0
+	if (!target_string || !buf || buf_size < 2)
+		return NULL;
+	buf[0] = '\0';
 
-	// example 2: device in external hub port
-	// ../usb1/1-2/1-2.4/1-2.4:1.0/net/usb0
-	
-	// example 3: device in second external hub port
-	// ../usb1/1-2/1-2.3/1-2.3.1/1-2.3.1:1.2/net/usb0
-
-	if((ptr = strstr(target_string, USB_EHCI_PORT_1)) != NULL)
-		ptr += strlen(USB_EHCI_PORT_1);
-	else if((ptr = strstr(target_string, USB_EHCI_PORT_2)) != NULL)
-		ptr += strlen(USB_EHCI_PORT_2);
-	else if((ptr = strstr(target_string, USB_OHCI_PORT_1)) != NULL)
-		ptr += strlen(USB_OHCI_PORT_1);
-	else if((ptr = strstr(target_string, USB_OHCI_PORT_2)) != NULL)
-		ptr += strlen(USB_OHCI_PORT_2);
-	else
+	port = find_usb_root_port(target_string, USB_EHCI_PORT_1);
+	if (!port)
+		port = find_usb_root_port(target_string, USB_EHCI_PORT_2);
+	if (!port)
+		port = find_usb_root_port(target_string, USB_OHCI_PORT_1);
+	if (!port)
+		port = find_usb_root_port(target_string, USB_OHCI_PORT_2);
+	if (!port)
 		return NULL;
 
+	ptr = (char *)port;
+	if (port == find_usb_root_port(target_string, USB_EHCI_PORT_1))
+		ptr += strlen(USB_EHCI_PORT_1);
+	else if (port == find_usb_root_port(target_string, USB_EHCI_PORT_2))
+		ptr += strlen(USB_EHCI_PORT_2);
+	else if (port == find_usb_root_port(target_string, USB_OHCI_PORT_1))
+		ptr += strlen(USB_OHCI_PORT_1);
+	else
+		ptr += strlen(USB_OHCI_PORT_2);
+
+	if (*ptr != '/')
+		return NULL;
 	ptr++;
 	ptr2 = ptr;
 
 	while (*ptr && *ptr != ':')
 		ptr++;
-
 	if (*ptr != ':')
 		return NULL;
 
-	while ((ptr_start = strchr(ptr2, '/')) && ((ptr_start+1) < ptr)) {
+	while ((ptr_start = strchr(ptr2, '/')) && ((ptr_start + 1) < ptr)) {
 		ptr_start++;
 		ptr2 = ptr_start;
 	}
-
-	if (!ptr_start || (ptr_start+1) >= ptr)
+	if (!ptr_start || (ptr_start + 1) >= ptr)
 		ptr_start = ptr2;
 
-	if((ptr_end = strchr(ptr, '/')) == NULL)
-		ptr_end = ptr+strlen(ptr);
+	if ((ptr_end = strchr(ptr, '/')) == NULL)
+		ptr_end = ptr + strlen(ptr);
 
-	len = ptr_end-ptr_start;
-	if (len < 2)
+	len = (int)(ptr_end - ptr_start);
+	if (len < 2 || len >= buf_size)
 		return NULL;
 
-	memset(buf, 0, buf_size);
-	strncpy(buf, ptr_start, len); // ex: 1-1:1.0/~
-
+	memcpy(buf, ptr_start, (size_t)len);
+	buf[len] = '\0';
 	return buf;
 }
 
@@ -230,27 +263,58 @@ char *get_usb_interface_by_device(const char *device_name, char *buf, const int 
 	return buf;
 }
 
+static int
+is_valid_sysfs_component(const char *value)
+{
+	const unsigned char *p;
+
+	if (!value || !*value || !strcmp(value, ".") || !strcmp(value, ".."))
+		return 0;
+	for (p = (const unsigned char *)value; *p; ++p) {
+		if (*p < 32 || *p == 127 || *p == '/' || *p == '\\')
+			return 0;
+	}
+	return 1;
+}
+
 char *get_usb_param(const char *usb_string, const char *param, char *buf, const int buf_size)
 {
 	FILE *fp;
 	char target_file[128], *ptr;
-	int len;
+	size_t len;
+	int ch, path_len;
 
-	if (!usb_string)
+	if (!is_valid_sysfs_component(usb_string) ||
+	    !is_valid_sysfs_component(param) || !buf || buf_size < 2)
+		return NULL;
+	buf[0] = '\0';
+
+	path_len = snprintf(target_file, sizeof(target_file), "%s/%s/%s", USB_DEVICE_PATH, usb_string, param);
+	if (path_len < 0 || path_len >= (int)sizeof(target_file))
+		return NULL;
+	if ((fp = fopen(target_file, "r")) == NULL)
 		return NULL;
 
-	snprintf(target_file, sizeof(target_file), "%s/%s/%s", USB_DEVICE_PATH, usb_string, param);
-	if((fp = fopen(target_file, "r")) == NULL)
-		return NULL;
-
-	memset(buf, 0, buf_size);
 	ptr = fgets(buf, buf_size, fp);
-	fclose(fp);
-	if(ptr == NULL)
+	if (ptr == NULL) {
+		fclose(fp);
+		buf[0] = '\0';
 		return NULL;
+	}
 
 	len = strlen(buf);
-	buf[len-1] = 0;
+	if (!strchr(buf, '\n')) {
+		ch = fgetc(fp);
+		if (ch != EOF) {
+			fclose(fp);
+			buf[0] = '\0';
+			return NULL;
+		}
+	}
+	fclose(fp);
+
+	while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+		buf[--len] = '\0';
 
 	return buf;
 }
