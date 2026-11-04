@@ -731,7 +731,7 @@ static int SkipDB_recordAt_put_inner(SkipDB *self, Datum k, Datum v, SkipDBRecor
 	SkipDBRecord_markAsDirty(record);
 	if (pp)
 		*pp = record;
-	return 0;
+	return 1;
 }
 SkipDBRecord *SkipDB_recordAt_put_(SkipDB *self, Datum k, Datum v) {
     SkipDBRecord *p = NULL;
