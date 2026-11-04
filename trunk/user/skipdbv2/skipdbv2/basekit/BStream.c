@@ -595,6 +595,7 @@ void BStream_writeTaggedDouble_(BStream *self, double v)
 void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, size_t length)
 {
 	size_t oldSize;
+	void *snapshot = NULL;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		(self->ba->itemSize != 1) || (length > 0 && NULL == data) ||
 		UArray_size(self->errorBa) != 0)
@@ -610,6 +611,22 @@ void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, s
 		BStream_error_(self, "tagged data length is out of range");
 		return;
 	}
+	if (length > 0 && oldSize > 0 && self->ba->data) {
+		uintptr_t sourceStart = (uintptr_t)data;
+		uintptr_t streamStart = (uintptr_t)self->ba->data;
+		int overlaps = (sourceStart >= streamStart ?
+			sourceStart - streamStart < oldSize :
+			streamStart - sourceStart < length);
+		if (overlaps) {
+			snapshot = io_malloc(length);
+			if (NULL == snapshot) {
+				BStream_error_(self, "unable to snapshot tagged data");
+				return;
+			}
+			memmove(snapshot, data, length);
+			data = (const unsigned char *)snapshot;
+		}
+	}
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 1, 1);
 	if (UArray_size(self->errorBa) == 0)
 		BStream_writeTaggedInt32_(self, (int32_t)length);
@@ -617,6 +634,8 @@ void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, s
 		BStream_writeData_length_(self, data, length);
 	if (UArray_size(self->errorBa) != 0)
 		BStream_rollbackWrite_(self, oldSize);
+	if (snapshot)
+		io_free(snapshot);
 }
 
 
