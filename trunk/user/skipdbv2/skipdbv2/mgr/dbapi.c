@@ -308,12 +308,12 @@ static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_pars
 
         /*
          * The end marker is a dedicated command, not a magic value. A real
-         * database entry may legally contain the text "__end__\\n".
+         * database entry may legally contain the text "__end__\n".
          */
         if (command_len == 6 &&
             memcmp(client->buf, "__end__", 6) == 0) {
             if (key_len == 4 && memcmp(key_start, "list", 4) == 0 &&
-                value_len == 7 && memcmp(value, "__end__\\n", 7) == 0)
+                value_len == 7 && memcmp(value, "__end__\n", 7) == 0)
                 break;
             return -4;
         }
