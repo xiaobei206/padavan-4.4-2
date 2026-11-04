@@ -391,17 +391,26 @@ void SkipDB_clearCache(SkipDB *self)
 
 void SkipDB_sync(SkipDB *self)
 {
-	if (SkipDB_isOpen(self))
-	{
-		if (!self->headerPid)
-		{
-			self->headerPid = SkipDBRecord_pidAllocIfNeeded(self->header);
-		}
+	if (NULL == self || NULL == self->dirtyRecords ||
+		NULL == self->pidsToRemove || !SkipDB_isOpen(self))
+		return;
 
-		//SkipDB_removeDirtyRecordsFromSavedRecords(self);
-		SkipDB_saveDirtyRecords(self);
-		SkipDB_deleteRecordsToRemove(self);
+	if (!self->headerPid) {
+		if (NULL == self->header)
+			return;
+		self->headerPid = SkipDBRecord_pidAllocIfNeeded(self->header);
+		if (self->headerPid == 0)
+			return;
 	}
+
+	SkipDB_saveDirtyRecords(self);
+	/* A low-level write failure closes UDB to force rollback/recovery. */
+	if (!SkipDB_isOpen(self))
+		return;
+
+	SkipDB_deleteRecordsToRemove(self);
+	if (!SkipDB_isOpen(self))
+		return;
 
 	List_removeAll(self->dirtyRecords);
 	List_removeAll(self->pidsToRemove);
@@ -410,27 +419,36 @@ void SkipDB_sync(SkipDB *self)
 
 SKIPDB_API void SkipDB_beginTransaction(SkipDB *self)
 {
-	UDB_beginTransaction(self->udb);
+	if (self && SkipDB_isOpen(self))
+		UDB_beginTransaction(self->udb);
 }
 
 SKIPDB_API void SkipDB_commitTransaction(SkipDB *self)
 {
+	if (NULL == self || !SkipDB_isOpen(self))
+		return;
 	SkipDB_sync(self);
-	UDB_commitTransaction(self->udb);
+	if (SkipDB_isOpen(self))
+		UDB_commitTransaction(self->udb);
 }
 
 void SkipDB_saveDirtyRecords(SkipDB *self)
 {
-	List_do_(self->dirtyRecords, (ListDoCallback *)SkipDBRecord_save);
+	if (self && self->dirtyRecords && SkipDB_isOpen(self))
+		List_do_(self->dirtyRecords, (ListDoCallback *)SkipDBRecord_save);
 }
 
 void SkipDB_deleteRecordsToRemove(SkipDB *self)
 {
-	UDB *udb = SkipDB_udb(self);
-	LIST_FOREACH(self->pidsToRemove, i, pid, UDB_removeAt_(udb, (PID_TYPE)pid));
+	size_t i;
+	UDB *udb;
+	if (NULL == self || NULL == self->pidsToRemove ||
+		!SkipDB_isOpen(self))
+		return;
+	udb = SkipDB_udb(self);
+	for (i = 0; i < self->pidsToRemove->size && SkipDB_isOpen(self); ++i)
+		UDB_removeAt_(udb, (PID_TYPE)self->pidsToRemove->items[i]);
 }
-
-// ops --------------------------------------------------
 
 void SkipDB_readRootRecord(SkipDB *self)
 {
