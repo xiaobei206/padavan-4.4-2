@@ -307,9 +307,9 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 
 	/* Slurp anything remaining in the request */
 	while (clen-- > 0) {
-		if((ch = fgetc(stream)) == EOF)
-			break;
-		
+		if ((ch = fgetc(stream)) == EOF)
+			goto err;
+
 		if (filelen > 0) {
 			if (fwrite(&ch, 1, 1, fp) != 1)
 				goto err;
