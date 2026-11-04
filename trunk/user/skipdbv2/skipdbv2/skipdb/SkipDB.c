@@ -11,6 +11,7 @@ SkipDB ioDoc(
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <limits.h>
 
 // lookups
 
@@ -514,33 +515,41 @@ void SkipDB_readRootRecord(SkipDB *self)
 
 int SkipDB_level(SkipDB *self)
 {
-	return SkipDBRecord_level(self->header);
+	return self && self->header ? SkipDBRecord_level(self->header) : 0;
 }
+
 
 void SkipDB_level_(SkipDB *self, int level)
 {
+	if (NULL == self || NULL == self->header ||
+		level < 0 || level > SKIPDB_MAX_LEVEL)
+		return;
 	SkipDBRecord_level_(self->header, level);
-	SkipDBRecord_markAsDirty(self->header);
+	if (SkipDBRecord_level(self->header) == level)
+		SkipDBRecord_markAsDirty(self->header);
 }
+
 
 int SkipDB_pickRandomRecordLevel(SkipDB *self)
 {
-	float r = (float)RandomGen_randomDouble(self->randomGen);
+	double random_value;
 	int level = 1;
-
-	while (r < self->p && level < SKIPDB_MAX_LEVEL)
-	{
-		level ++;
-		r = (float)RandomGen_randomDouble(self->randomGen);
+	int current_level;
+	if (NULL == self || NULL == self->randomGen || NULL == self->header)
+		return 0;
+	random_value = RandomGen_randomDouble(self->randomGen);
+	while (random_value < self->p && level < SKIPDB_MAX_LEVEL) {
+		level++;
+		random_value = RandomGen_randomDouble(self->randomGen);
 	}
-
-	if (level > SkipDB_level(self))
-	{
-		level = SkipDB_level(self) + 1;
-	}
-
+	current_level = SkipDB_level(self);
+	if (level > current_level)
+		level = current_level + 1;
+	if (level < 1)
+		level = 1;
 	return level;
 }
+
 
 SkipDBRecord *SkipDB_recordAtPid_(SkipDB *self, PID_TYPE pid)
 {
@@ -824,51 +833,60 @@ void SkipDB_freeObjectCallback_(SkipDB *self, SkipDBFreeObjectFunc *func)
 int SkipDB_count(SkipDB *self)
 {
 	int count = 0;
-	SkipDBRecord *r = SkipDB_firstRecord(self);
-
-	if (!r)
-	{
+	SkipDBRecord *record;
+	if (NULL == self || NULL == self->header)
 		return 0;
-	}
-
-	count = 1;
-
-	while ((r = SkipDBRecord_nextRecord(r)))
-	{
-		count ++;
+	record = SkipDB_firstRecord(self);
+	while (record) {
+		if (count == INT_MAX)
+			return INT_MAX;
+		count++;
+		record = SkipDBRecord_nextRecord(record);
 	}
 	return count;
 }
 
+
 SkipDBRecord *SkipDB_firstRecord(SkipDB *self)
 {
-	if (SkipDBRecord_level(self->header) == 0) return NULL;
+	if (NULL == self || NULL == self->header ||
+		SkipDBRecord_level(self->header) == 0)
+		return NULL;
 	return SkipDBRecord_nextRecord(self->header);
 }
 
+
 SkipDBRecord *SkipDB_lastRecord(SkipDB *self)
 {
-	return SkipDBRecord_findLastRecord(self->header);
+	return self && self->header ? SkipDBRecord_findLastRecord(self->header) : NULL;
 }
+
 
 SkipDBRecord *SkipDB_goto_(SkipDB *self, Datum key)
 {
-	SkipDBRecord *r = SkipDB_recordAt_(self, key);
-
-	if (!r)
-	{
-		r = self->update[0];
-	}
-
-	return r;
+	SkipDBRecord *record;
+	if (NULL == self || NULL == self->header ||
+		(key.size > 0 && NULL == key.data))
+		return NULL;
+	record = SkipDB_recordAt_(self, key);
+	if (record)
+		return record;
+	return self->update[0];
 }
+
 
 SkipDBCursor *SkipDB_createCursor(SkipDB *self)
 {
-	SkipDBCursor *cursor = SkipDBCursor_newWithDB_(self);
+	SkipDBCursor *cursor;
+	if (NULL == self || NULL == self->cursors || !SkipDB_isOpen(self))
+		return NULL;
+	cursor = SkipDBCursor_newWithDB_(self);
+	if (NULL == cursor)
+		return NULL;
 	List_append_(self->cursors, cursor);
 	return cursor;
 }
+
 
 void SkipDB_removeCursor_(SkipDB *self, SkipDBCursor *cursor)
 {
@@ -880,24 +898,26 @@ void SkipDB_removeCursor_(SkipDB *self, SkipDBCursor *cursor)
 
 void SkipDB_mergeInto_(SkipDB *self, SkipDB *other)
 {
-	SkipDBRecord *r = self->header;
-
-	while ((r = SkipDBRecord_nextRecord(r)))
-	{
-		Datum k = SkipDBRecord_keyDatum(r);
-		Datum v = SkipDBRecord_valueDatum(r);
-		SkipDB_at_put_(other, k, v);
+	SkipDBRecord *record;
+	if (NULL == self || NULL == other || NULL == self->header ||
+		!SkipDB_isOpen(self) || !SkipDB_isOpen(other))
+		return;
+	record = self->header;
+	while ((record = SkipDBRecord_nextRecord(record)) != NULL) {
+		Datum key = SkipDBRecord_keyDatum(record);
+		Datum value = SkipDBRecord_valueDatum(record);
+		(void)SkipDB_at_put_(other, key, value);
+		if (!SkipDB_isOpen(other))
+			return;
 	}
 }
 
-int SkipDB_exists(SkipDB *self, Datum key) {
-    Datum dvalue = SkipDB_at_(self, key);
-    if(NULL == dvalue.data) {
-        return 0;
-    } else {
-        return 1;
-    }
+
+int SkipDB_exists(SkipDB *self, Datum key)
+{
+	return SkipDB_recordAt_(self, key) != NULL;
 }
+
 
 static int SkipDB_keyHasPrefix_(Datum key, Datum prefix)
 {
@@ -971,6 +991,14 @@ SkipDBRecord *SkipDB_list_first(SkipDB *self, Datum k, SkipDBCursor **pcur)
 	return SkipDB_list_next(self, k, cursor);
 }
 
-int SkipDB_maxPos(SkipDB* self) {
+int SkipDB_maxPos(SkipDB *self)
+{
+	if (NULL == self || NULL == self->udb || NULL == self->udb->records ||
+		NULL == self->udb->records->file)
+		return 0;
+	return self->udb->records->file->maxPos;
+}
+
+
     return self->udb->records->file->maxPos;
 }
