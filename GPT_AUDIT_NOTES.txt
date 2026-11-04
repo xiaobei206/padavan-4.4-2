@@ -1,5 +1,11 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+b4d01ee  UDB.c: abort open when index initialization returns failure.
+e148d06  UDBIndex.h: expose checked index-open/finish-opening APIs.
+a319db8  UDBIndex.c: propagate sentinel initialization and journal failures.
+9d59dc7  UDBRecords.c: guard oversized record lengths before position arithmetic.
+3bd9b4c  UDBRecords.c: harden record traversal and accessors against invalid state.
+09485c1  UDBIndex.c: normalize free-PID entries before reusing released slots.
 68abba9  UDBRecords.h: expose checked truncation result.
 da2a2f2  UDBRecords.c: verify tail truncation succeeded before returning.
 76824a5  UDB.c: fix compaction re-indexing of empty extents; prevent deleted-PID resurrection.
