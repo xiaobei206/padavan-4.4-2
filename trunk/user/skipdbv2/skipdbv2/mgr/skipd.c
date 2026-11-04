@@ -580,7 +580,7 @@ static int client_send(EV_P_ skipd_client* client, char* buf, int len) {
     char *error = "response too large\n";
 
     if (!response_frame_fits(command, key, len))
-        return client_send_key(EV_A_ client, command, "__error__",
+        return client_send_key(EV_A_ client, "__error__", command,
             error, (int)strlen(error));
     return client_send_key(EV_A_ client, command, key, buf, len);
 }
@@ -794,8 +794,8 @@ static int client_run_command(EV_P_ skipd_client* client)
             }
         } else if (!value_fits_list_frame(client->key, dvalue.size)) {
             p1 = "value too big to send\n";
-            if (client_send_key(EV_A_ client, client->command,
-                    "__error__", p1, strlen(p1)) != 0) {
+            if (client_send_key(EV_A_ client, "__error__",
+                    client->command, p1, strlen(p1)) != 0) {
                 client->break_level = ccr_break_killed;
                 ccrStop(ctx, ccr_error_err2);
             }
