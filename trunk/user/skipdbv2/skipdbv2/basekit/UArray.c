@@ -1452,20 +1452,18 @@ long UArray_rFindAnyCase_(const UArray *self, const UArray *other)
 
 #define UARRAY_RFINDANYVALUE_TYPES(OP2, TYPE1, self, TYPE2, other)\
 {\
-	long i, j;\
-		if(self->size < other->size) return -1;\
-			for(i = self->size - 1; i > -1; i --)\
-			{\
-				TYPE1 v1 = ((TYPE1 *)self->data)[i];\
-				for(j = 0; j < other->size; j ++)\
-				{\
-					TYPE2 v2 = ((TYPE2 *)other->data)[j];\
-					if (v1 == v2) { return i; }\
-				}\
-			}\
-			return -1;\
+	size_t i, j;\
+	if (self->size == 0 || self->size < other->size ||\
+		self->size > (size_t)LONG_MAX) return -1;\
+	for (i = self->size; i > 0; i--) {\
+		TYPE1 v1 = ((TYPE1 *)self->data)[i - 1];\
+		for (j = 0; j < other->size; j++) {\
+			TYPE2 v2 = ((TYPE2 *)other->data)[j];\
+			if (v1 == v2) return (long)(i - 1);\
+		}\
+	}\
+	return -1;\
 }
-
 long UArray_rFindAnyValue_(const UArray *self, const UArray *other)
 {
 	if (NULL == self || NULL == other ||
