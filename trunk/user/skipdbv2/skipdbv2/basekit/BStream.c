@@ -178,6 +178,8 @@ void BStream_writeNumber_size_(BStream *self, unsigned char *v, size_t length)
 		BStream_error_(self, "invalid binary number write");
 		return;
 	}
+	if (NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+		return;
 	if (length > (size_t)-1 - self->index) {
 		BStream_error_(self, "binary stream position overflow");
 		return;
@@ -199,6 +201,8 @@ void BStream_writeData_length_(BStream *self, const unsigned char *data, size_t 
 		BStream_error_(self, "invalid binary stream data write");
 		return;
 	}
+	if (NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+		return;
 	if (length > (size_t)-1 - self->index) {
 		BStream_error_(self, "binary stream length overflow");
 		return;
@@ -232,28 +236,41 @@ void BStream_writeDouble_(BStream *self, double v)
 void BStream_writeCString_(BStream *self, const char *s)
 {
 	size_t length;
-	if (NULL == self || NULL == s)
+	if (NULL == self || NULL == self->errorBa)
 		return;
+	if (UArray_size(self->errorBa) != 0)
+		return;
+	if (NULL == s) {
+		BStream_error_(self, "invalid binary stream string");
+		return;
+	}
 	length = strlen(s);
-	if (length > INT32_MAX) {
+	if (length > INT32_MAX || self->index > (size_t)-1 - 4 ||
+		length > (size_t)-1 - self->index - 4) {
 		BStream_error_(self, "string too large for binary stream");
 		return;
 	}
 	BStream_writeInt32_(self, (int32_t)length);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeData_length_(self, (const unsigned char *)s, length);
 }
 
 void BStream_writeUArray_(BStream *self, UArray *ba)
 {
 	size_t length;
-	if (NULL == self || NULL == self->ba || NULL == ba)
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		NULL == ba)
+		return;
+	if (UArray_size(self->errorBa) != 0)
 		return;
 	if (self->ba == ba) {
 		BStream_error_(self, "cannot append a binary stream array to itself");
 		return;
 	}
 	length = UArray_size(ba);
-	if (length > INT32_MAX || length > (size_t)-1 - self->index) {
+	if (length > INT32_MAX || self->index > (size_t)-1 - 4 ||
+		length > (size_t)-1 - self->index - 4) {
 		BStream_error_(self, "array too large for binary stream");
 		return;
 	}
@@ -461,7 +478,11 @@ void BStream_writeTaggedInt32_(BStream *self, int32_t v)
 #if !defined(__SYMBIAN32__)
 void BStream_writeTaggedInt64_(BStream *self, int64_t v)
 {
+	if (NULL == self || NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeTag(self, BSTREAM_SIGNED_INT, 8, 0);
+	if (UArray_size(self->errorBa) != 0)
+		return;
 	BStream_writeInt64_(self, v);
 }
 #endif
