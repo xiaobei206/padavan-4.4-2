@@ -73,3 +73,7 @@ b6d065f  common_ex.c: restore single newline trimming and reject truncated modul
 cc3d09d  net_wan6.c: validate/canonicalize IPv4 tunnel endpoints and IPv6 gateways before shell commands; reject malformed static IPv6.
 07094bc  hddtune.sh: include sdj in the all-disk tuning scan.
 3e3c0a9  automount.sh: detect swap activation per device so one active swap does not block all others.
+9c18bcc  hotplug_stor.c: detect numbered SCSI/MMC partitions without fixed partition-count limits; parse multi-digit suffixes.
+2e99426  hotplug_stor.c: identify whole-disk removal independently of device-name length.
+61c3505  hotplug_stor.c: keep new MMC parsing declarations compatible with the firmware's GNU89-era toolchains.
+f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k list.
