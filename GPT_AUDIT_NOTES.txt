@@ -1,5 +1,7 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+ba939a6  web_ex.c: validate numeric table-delete indexes, sort/deduplicate them, and cap group row counts.
+d2aad59  nvram_x.c: revalidate delete indexes inside the NVRAM list compactor.
 b9dc4d0  ralink.c: bound 2.4/5 GHz survey parsing to the driver's returned buffer length.
 c96e41f  usb_info.c: correct inactive USB configuration skip condition and close endpoint directory on error.
 fed23be  disk_io_tools.c: cast high-bit input safely for isprint.
