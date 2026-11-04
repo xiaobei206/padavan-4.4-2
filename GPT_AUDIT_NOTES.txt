@@ -1,5 +1,10 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+add5600  disk_share.c: reject folder renames onto any existing path; treat same-name rename as a no-op.
+cbd4135  disk_share.c: restore the process umask after creating shared folders.
+0a7a5ad  disk_io_tools.c: restore the process umask after directory creation.
+16b193b  httpd.c: handle interrupted/failed response writes and return the full write length.
+15eeff0  ralink.c: use bounded conntrack endpoint formatting instead of strcat.
 ba939a6  web_ex.c: validate numeric table-delete indexes, sort/deduplicate them, and cap group row counts.
 d2aad59  nvram_x.c: revalidate delete indexes inside the NVRAM list compactor.
 b9dc4d0  ralink.c: bound 2.4/5 GHz survey parsing to the driver's returned buffer length.
