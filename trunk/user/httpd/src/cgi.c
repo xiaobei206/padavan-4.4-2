@@ -86,13 +86,15 @@ set_cgi(char *name, char *value)
 	if (htab == NULL) return;
 
 	e.key = name;
-	hsearch_r(e, FIND, &ep, htab);
-	if (ep)
+	ep = NULL;
+	if (hsearch_r(e, FIND, &ep, htab) != 0 && ep) {
 		ep->data = value;
-	else {
-		e.data = value;
-		hsearch_r(e, ENTER, &ep, htab);
+		return;
 	}
+
+	e.data = value;
+	ep = NULL;
+	(void)hsearch_r(e, ENTER, &ep, htab);
 }
 
 void
