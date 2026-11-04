@@ -204,9 +204,10 @@ int parse_get_result(dbclient *client) {
     if (n2 == 0 || client->buf[n2 - 1] != '\n')
         putchar('\n');
 
-    if ((n2 == 6 && memcmp(client->buf, "error\n", 6) == 0) ||
-        (n2 == 15 && memcmp(client->buf, "database error\n", 15) == 0) ||
-        (n2 == 17 && memcmp(client->buf, "integer overflow\n", 17) == 0))
+    if ((!strcmp(client->command, "inc") || !strcmp(client->command, "desc")) &&
+        ((n2 == 6 && memcmp(client->buf, "error\n", 6) == 0) ||
+         (n2 == 15 && memcmp(client->buf, "database error\n", 15) == 0) ||
+         (n2 == 17 && memcmp(client->buf, "integer overflow\n", 17) == 0)))
         return -5;
     return 0;
 }
