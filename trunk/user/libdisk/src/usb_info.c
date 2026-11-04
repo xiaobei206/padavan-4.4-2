@@ -419,8 +419,10 @@ int get_usb_interface_Int_endpoint(const char *usb_interface_id)
 		memset(buf, 0, sizeof(buf));
 		ptr = fgets(buf, sizeof(buf), fp);
 		fclose(fp);
-		if(ptr == NULL)
+		if(ptr == NULL) {
+			closedir(interface_dir);
 			return 0;
+		}
 
 		if(!strncmp(buf, "03", 2)){
 			got_Int = 1;
@@ -556,7 +558,7 @@ usb_info_t *get_usb_info(void)
 		if ((ptr = strchr(line, '\n')))
 			*ptr = 0;
 
-		if (skip && (line[0] != 'I' || line[0] != 'E'))
+		if (skip && line[0] != 'I' && line[0] != 'E')
 			continue;
 		else
 			skip = 0;
@@ -634,6 +636,8 @@ usb_info_t *get_usb_info(void)
 			    new_dev->dev_type != DEVICE_TYPE_SCSI_DISK)
 				continue;
 			ptr = get_param_str(line, "Driver=", 0);
+			if (!ptr)
+				break;
 			if (strcmp(ptr, "usb-storage") == 0) {
 				/* for combined devices (modem+storage) use modem as primary */
 				if (new_dev->dev_type != DEVICE_TYPE_MODEM_TTY)
