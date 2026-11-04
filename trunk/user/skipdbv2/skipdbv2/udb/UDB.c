@@ -11,6 +11,8 @@ UDB ioDoc(
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
 
 UDB *UDB_new(void)
 {
@@ -115,14 +117,30 @@ char *UDB_path(UDB *self)
 	return self->path; 
 }
 
+static int UDB_streamsOpen(UDB *self)
+{
+	return self != NULL && self->index != NULL && self->records != NULL &&
+		self->index->file != NULL && self->records->file != NULL &&
+		self->index->file->file != NULL && self->index->file->log != NULL &&
+		self->records->file->file != NULL && self->records->file->log != NULL;
+}
+
 void UDB_open(UDB *self)
 {
-	if (NULL == self || NULL == self->committedPath || self->isOpen)
+	int marker, recovering;
+
+	if (NULL == self || NULL == self->committedPath || self->isOpen ||
+		NULL == self->index || NULL == self->records ||
+		NULL == self->index->file || NULL == self->records->file)
 		return;
 
+	errno = 0;
 	self->committedFile = fopen(self->committedPath, "r+");
-	if (!self->committedFile) {
-		FILE *created = fopen(self->committedPath, "w");
+	if (NULL == self->committedFile) {
+		FILE *created;
+		if (errno != ENOENT)
+			return;
+		created = fopen(self->committedPath, "w+");
 		if (NULL == created)
 			return;
 		if (fclose(created) != 0)
@@ -132,8 +150,15 @@ void UDB_open(UDB *self)
 			return;
 	}
 
-	/* Only an exact committed marker permits journal replay after a crash. */
-	if (UDB_readCommitted(self) != 1) {
+	marker = UDB_readCommitted(self);
+	if (marker == -2) {
+		UDB_close(self);
+		return;
+	}
+	recovering = (marker == 1);
+
+	/* With no durable transaction marker, discard both journals before open. */
+	if (!recovering) {
 		if (JFile_clipLog(self->index->file) != 0 ||
 			JFile_clipLog(self->records->file) != 0) {
 			UDB_close(self);
@@ -143,14 +168,14 @@ void UDB_open(UDB *self)
 
 	UDBIndex_open(self->index);
 	UDBRecords_open(self->records);
-	if (NULL == self->index->file->file || NULL == self->index->file->log ||
-		NULL == self->records->file->file || NULL == self->records->file->log) {
-		UDBIndex_close(self->index);
-		UDBRecords_close(self->records);
-		if (self->committedFile) {
-			fclose(self->committedFile);
-			self->committedFile = NULL;
-		}
+	if (!UDB_streamsOpen(self)) {
+		UDB_close(self);
+		return;
+	}
+
+	/* A recovered transaction must not leave the global marker armed. */
+	if (recovering && UDB_setCommittedFlag_(self, 0) != 0) {
+		UDB_close(self);
 		return;
 	}
 	self->isOpen = 1;
@@ -197,34 +222,66 @@ void UDB_beginTransaction(UDB *self)
 
 int UDB_readCommitted(UDB *self)
 {
-	fseek(self->committedFile, 0, SEEK_SET);
-	return fgetc(self->committedFile);
+	int marker;
+	if (NULL == self || NULL == self->committedFile ||
+		fseek(self->committedFile, 0, SEEK_SET) != 0)
+		return -2;
+	marker = fgetc(self->committedFile);
+	if (marker == EOF && ferror(self->committedFile))
+		return -2;
+	return marker;
 }
 
-void UDB_setCommittedFlag_(UDB *self, int flag)
+int UDB_setCommittedFlag_(UDB *self, int flag)
 {
-	fseek(self->committedFile, 0, SEEK_SET);
-	fputc(flag, self->committedFile);
-	#ifdef F_FULLFSYNC
-		fcntl(fileno(self->committedFile), F_FULLFSYNC, NULL);
-	#else
-		#warning Linux doesn't support syncing to physical media
-		fsync(fileno(self->committedFile));
-	#endif
+	int fd;
+	if (NULL == self || NULL == self->committedFile ||
+		(flag != 0 && flag != 1) ||
+		fseek(self->committedFile, 0, SEEK_SET) != 0 ||
+		fputc(flag, self->committedFile) == EOF ||
+		fflush(self->committedFile) != 0)
+		return -1;
+
+	fd = fileno(self->committedFile);
+	if (fd < 0)
+		return -1;
+#ifdef F_FULLFSYNC
+	if (fcntl(fd, F_FULLFSYNC, 0) != 0)
+		return -1;
+#else
+	if (fsync(fd) != 0)
+		return -1;
+#endif
+	return 0;
 }
 
 void UDB_commitTransaction(UDB *self)
 {
+	if (NULL == self || !self->isOpen || !self->withinTransaction)
+		return;
+
 	UDBIndex_preCommit(self->index);
 	UDBRecords_preCommit(self->records);
-	
-	UDB_setCommittedFlag_(self, 1);
-	
+	if (!UDB_streamsOpen(self) || UDB_setCommittedFlag_(self, 1) != 0) {
+		/* Leave journals untouched; the old marker decides recovery on reopen. */
+		UDB_close(self);
+		return;
+	}
+
 	UDBIndex_commit(self->index);
 	UDBRecords_commit(self->records);
-	
-	UDB_setCommittedFlag_(self, 0);
-	
+	if (!UDB_streamsOpen(self)) {
+		/* Marker 1 lets a later open replay the durable transaction again. */
+		UDB_close(self);
+		return;
+	}
+
+	if (UDB_setCommittedFlag_(self, 0) != 0) {
+		/* Do not permit another transaction while the marker may still be 1. */
+		UDB_close(self);
+		return;
+	}
+
 	self->withinTransaction = 0;
 }
 
