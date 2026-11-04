@@ -1238,33 +1238,33 @@ int setnonblock(int fd) {
 
 int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_queue) {
     int fd;
-    //int opt = 0;
+    size_t path_len;
+
+    if (NULL == socket_un || NULL == sock_path) {
+        errno = EINVAL;
+        return -1;
+    }
+    path_len = strnlen(sock_path, sizeof(socket_un->sun_path));
+    if (path_len == 0 || path_len >= sizeof(socket_un->sun_path)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
 
     unlink(sock_path);
-
-    // Setup a unix socket listener.
     fd = socket(PF_UNIX, SOCK_STREAM, 0);
-    //fd = socketpair(AF_UNIX, SOCK_STREAM, 0);
-    if (-1 == fd) {
+    if (fd < 0) {
         perror("echo server socket");
         exit(EXIT_FAILURE);
     }
-
-    //SOL_TCP
-    //setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-    //opt = 1;
-    //setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, (void *)&opt, sizeof(int));
-
-    // Set it non-blocking
-    if (-1 == setnonblock(fd)) {
+    if (setnonblock(fd) < 0) {
         perror("echo server socket nonblock");
+        close(fd);
         exit(EXIT_FAILURE);
     }
 
-    // Set it as unix socket
+    memset(socket_un, 0, sizeof(*socket_un));
     socket_un->sun_family = AF_UNIX;
-    strcpy(socket_un->sun_path, sock_path);
-
+    memcpy(socket_un->sun_path, sock_path, path_len + 1);
     return fd;
 }
 
@@ -1299,30 +1299,64 @@ static void server_open(skipd_server* server) {
     skipd_log(SKIPD_DEBUG, "use path:%s db:%d",server->db_path,server->curr_db);
 #endif
 	server->curr_db = 0;
-    sprintf(real_path, "%s/%d", server->db_path, server->curr_db);
+    n = snprintf(real_path, sizeof(real_path), "%s/%d",
+        server->db_path, server->curr_db);
+    if (n < 0 || (size_t)n >= sizeof(real_path)) {
+        skipd_log(SKIPD_DEBUG, "database path too long\n");
+        exit(EXIT_FAILURE);
+    }
     server->db = SkipDB_new();
+    if (NULL == server->db) {
+        skipd_log(SKIPD_DEBUG, "database allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
     SkipDB_setPath_(server->db, real_path);
-    //syslog(LOG_PERROR, "LOG HEAR:%s\n", server->db_path);
-    SkipDB_open(server->db);
+    if (SkipDB_open(server->db) != 0 || !SkipDB_isOpen(server->db)) {
+        skipd_log(SKIPD_DEBUG, "database open failed: %s\n", real_path);
+        SkipDB_free(server->db);
+        server->db = NULL;
+        exit(EXIT_FAILURE);
+    }
 }
 
 static void server_switch(skipd_server* server) {
     char real_path[SK_PATH_MAX];
     char nbuf[10];
     int n1, n2, sf;
-    SkipDB *tmp, *other = SkipDB_new();
+    SkipDB *tmp, *other;
+    if (NULL == server || NULL == server->db)
+        return;
+    other = SkipDB_new();
+    if (NULL == other) {
+        skipd_log(SKIPDB_DEBUG, "database switch allocation failed\n");
+        return;
+    }
     n2 = 1 - server->curr_db;
-    sprintf(real_path, "%s/%d", server->db_path, n2);
+    n1 = snprintf(real_path, sizeof(real_path), "%s/%d", server->db_path, n2);
+    if (n1 < 0 || (size_t)n1 >= sizeof(real_path)) {
+        SkipDB_free(other);
+        skipd_log(SKIPDB_DEBUG, "database switch path too long\n");
+        return;
+    }
     SkipDB_setPath_(other, real_path);
     SkipDB_delete(other);
-    SkipDB_open(other);
+    if (SkipDB_open(other) != 0 || !SkipDB_isOpen(other)) {
+        skipd_log(SKIPDB_DEBUG, "unable to open replacement database: %s\n", real_path);
+        SkipDB_free(other);
+        return;
+    }
 
     SkipDB_mergeInto_(server->db, other);
     SkipDB_beginTransaction(other);
     SkipDB_commitTransaction(other);
 
     tmp = server->db;
-    sprintf(real_path, "%s/switch", server->db_path);
+    n1 = snprintf(real_path, sizeof(real_path), "%s/switch", server->db_path);
+    if (n1 < 0 || (size_t)n1 >= sizeof(real_path)) {
+        SkipDB_free(other);
+        skipd_log(SKIPDB_DEBUG, "database switch marker path too long\n");
+        return;
+    }
     sf = open(real_path, O_TRUNC | O_RDWR | O_CREAT, 0640);
     if (sf < 0) {
         skipd_log(SKIPD_DEBUG, "cannot write swich file");
@@ -1349,7 +1383,12 @@ int server_init(skipd_server* server, int max_queue) {
     skipd_log(SKIPD_DEBUG, "Load count=%d maxPos=%d\n", count, SkipDB_maxPos(server->db));
 
     server->fd = unix_socket_init(&server->socket, server->sock_path, max_queue);
-    server->socket_len = sizeof(server->socket.sun_family) + strlen(server->socket.sun_path);
+    if (server->fd < 0) {
+        perror("invalid server socket path");
+        return -1;
+    }
+    server->socket_len = (int)(sizeof(server->socket.sun_family) +
+        strlen(server->socket.sun_path) + 1);
 
     /* The socket grants access to a root-owned command/database service. */
     old_umask = umask(0177);
@@ -1664,7 +1703,8 @@ int main(int argc, char **argv)
     ev_signal_start (EV_A_ &signal_watcher2);
 
     // Create unix socket in non-blocking fashion
-    server_init(server, max_queue);
+    if (server_init(server, max_queue) != 0)
+        return EXIT_FAILURE;
 
     // Get notified whenever the socket is ready to read
     ev_io_init(&server->io, server_cb, server->fd, EV_READ);
