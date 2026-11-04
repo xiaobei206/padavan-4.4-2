@@ -876,68 +876,76 @@ int SkipDB_exists(SkipDB *self, Datum key) {
     }
 }
 
-void SkipDB_list_prefix(SkipDB* self, Datum k, void* ctx, skipdb_list_callback callback)
+static int SkipDB_keyHasPrefix_(Datum key, Datum prefix)
 {
-    Datum t;
-    SkipDBCursor* cursor = SkipDB_createCursor(self);
-    SkipDBRecord* rc = SkipDBCursor_goto_(cursor, k);
-    if(NULL == rc) {
-        goto list_finish;
-    }
+	size_t prefix_len;
+	if (prefix.size == 0 || NULL == prefix.data ||
+		NULL == key.data || key.size < prefix.size)
+		return 0;
+	/* Datums from the string API include the terminating NUL in size. */
+	prefix_len = prefix.size - 1;
+	return prefix_len == 0 || memcmp(key.data, prefix.data, prefix_len) == 0;
+}
 
-    t = SkipDBRecord_keyDatum(rc);
-    //printf("k.size=%d t.size=%d k=%s t=%s\n", k.size, t.size, k.data, t.data);
-    if((k.size <= t.size) && (0 == strncmp((char*)t.data, (char*)k.data, k.size-1))) {
-        (*callback)(self, rc, ctx);
-    }
-
-    rc = SkipDBCursor_next(cursor);
-    while(NULL != rc) {
-        t = SkipDBRecord_keyDatum(rc);
-        if((k.size <= t.size) && (0 == strncmp((char*)t.data, (char*)k.data, k.size-1))) {
-            (*callback)(self, rc, ctx);
-            rc = SkipDBCursor_next(cursor);
-        } else {
-            break;
-        }
-    }
-
-list_finish:
-    if(NULL != cursor) {
-        SkipDBCursor_release(cursor);
-    }
+void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,
+                        skipdb_list_callback callback)
+{
+	SkipDBCursor *cursor;
+	SkipDBRecord *record;
+	if (NULL == self || NULL == callback || k.size == 0 || NULL == k.data ||
+		!SkipDB_isOpen(self))
+		return;
+	cursor = SkipDB_createCursor(self);
+	if (NULL == cursor)
+		return;
+	record = SkipDBCursor_goto_(cursor, k);
+	while (record) {
+		Datum key = SkipDBRecord_keyDatum(record);
+		if (!SkipDB_keyHasPrefix_(key, k))
+			break;
+		callback(self, record, ctx);
+		record = SkipDBCursor_next(cursor);
+	}
+	SkipDBCursor_release(cursor);
 }
 
 /* TODO howto make better */
-SkipDBRecord* SkipDB_list_next(SkipDB* self, Datum k, SkipDBCursor* cursor) {
-    Datum t;
-    SkipDBRecord* rc = SkipDBCursor_next(cursor);
-    if(NULL != rc) {
-        t = SkipDBRecord_keyDatum(rc);
-        if(!((k.size <= t.size) && (0 == strncmp((char*)t.data, (char*)k.data, k.size-1)))) {
-            rc = NULL;
-        }
-    }
-    return rc;
+SkipDBRecord *SkipDB_list_next(SkipDB *self, Datum k, SkipDBCursor *cursor)
+{
+	SkipDBRecord *record;
+	Datum key;
+	if (NULL == self || NULL == cursor || k.size == 0 || NULL == k.data)
+		return NULL;
+	record = SkipDBCursor_next(cursor);
+	if (record) {
+		key = SkipDBRecord_keyDatum(record);
+		if (!SkipDB_keyHasPrefix_(key, k))
+			return NULL;
+	}
+	return record;
 }
 
-SkipDBRecord* SkipDB_list_first(SkipDB* self, Datum k, SkipDBCursor** pcur) {
-    Datum t;
-    SkipDBCursor* cursor = SkipDB_createCursor(self);
-    SkipDBRecord* rc = SkipDBCursor_goto_(cursor, k);
-
-    *pcur = cursor;
-    if(NULL == rc) {
-        return NULL;
-    }
-
-    t = SkipDBRecord_keyDatum(rc);
-    //printf("k.size=%d t.size=%d k=%s t=%s\n", k.size, t.size, k.data, t.data);
-    if((k.size <= t.size) && (0 == strncmp((char*)t.data, (char*)k.data, k.size-1))) {
-        return rc;
-    } else {
-        return SkipDB_list_next(self, k, cursor);
-    }
+SkipDBRecord *SkipDB_list_first(SkipDB *self, Datum k, SkipDBCursor **pcur)
+{
+	SkipDBCursor *cursor;
+	SkipDBRecord *record;
+	Datum key;
+	if (pcur)
+		*pcur = NULL;
+	if (NULL == self || NULL == pcur || k.size == 0 || NULL == k.data ||
+		!SkipDB_isOpen(self))
+		return NULL;
+	cursor = SkipDB_createCursor(self);
+	if (NULL == cursor)
+		return NULL;
+	*pcur = cursor;
+	record = SkipDBCursor_goto_(cursor, k);
+	if (NULL == record)
+		return NULL;
+	key = SkipDBRecord_keyDatum(record);
+	if (SkipDB_keyHasPrefix_(key, k))
+		return record;
+	return SkipDB_list_next(self, k, cursor);
 }
 
 int SkipDB_maxPos(SkipDB* self) {
