@@ -222,12 +222,14 @@ int main(void)
 {
     static const char common_ok[] = "set alpha ok\n";
     static const char common_error[] = "set alpha database error\n";
-    static const char common_error_key[] = "set __error__ response too large\n";
+    static const char common_error_key[] = "__error__ set response too large\n";
     static const char common_error_output[] = "response too large\n";
     static const char delay_ok[] = "delay timer delay_ok\n";
     static const char get_value[] = "get alpha value\n";
     static const char get_value_nul[] = "get alpha value\n\0";
-    static const char get_error[] = "get __error__ value too big to send\n";
+    static const char get_named_error_key[] = "get __error__ normal\n";
+    static const char get_named_error_value[] = "normal\n";
+    static const char get_error[] = "__error__ get value too big to send\n";
     static const char get_error_output[] = "value too big to send\n";
     static const char get_output[] = "value\n";
     static const char inc_overflow[] = "inc counter integer overflow\n";
@@ -282,6 +284,9 @@ int main(void)
             0, get_output, sizeof(get_output) - 1) != 0 ||
         run_case(0, "get", get_error, sizeof(get_error) - 1,
             -5, get_error_output, sizeof(get_error_output) - 1) != 0 ||
+        run_case(0, "get", get_named_error_key,
+            sizeof(get_named_error_key) - 1, 0,
+            get_named_error_value, sizeof(get_named_error_value) - 1) != 0 ||
         run_case(0, "inc", inc_overflow, sizeof(inc_overflow) - 1,
             -5, inc_output, sizeof(inc_output) - 1) != 0 ||
         run_case(0, "desc", desc_error, sizeof(desc_error) - 1,
