@@ -39,8 +39,8 @@ void UDBIndex_setLogPath_(UDBIndex *self, const char *s);
 char *UDBIndex_path(UDBIndex *self);
 
 void UDBIndex_delete(UDBIndex *self);
-void UDBIndex_open(UDBIndex *self);
-void UDBIndex_finishOpening(UDBIndex *self);
+int UDBIndex_open(UDBIndex *self);
+int UDBIndex_finishOpening(UDBIndex *self);
 void UDBIndex_close(UDBIndex *self);
 
 void UDBIndex_begin(UDBIndex *self);
