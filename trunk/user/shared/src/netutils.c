@@ -46,6 +46,20 @@
 #include "netutils.h"
 #include "shutils.h"
 
+static int
+copy_ifname(char *dest, size_t dest_size, const char *ifname)
+{
+	size_t len;
+
+	if (!dest || !ifname)
+		return -1;
+	len = strnlen(ifname, IFNAMSIZ);
+	if (len == 0 || len >= IFNAMSIZ || len >= dest_size)
+		return -1;
+	memcpy(dest, ifname, len + 1);
+	return 0;
+}
+
 static const struct ifname_desc_t {
 	const char *ifname;
 	const char *ifdesc;
@@ -320,7 +334,10 @@ ifconfig(const char *ifname, int flags, const char *addr, const char *mask)
 
 	/* Set interface name */
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 
 	/* Get interface flags */
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0) {
@@ -410,7 +427,10 @@ get_interface_flags(const char *ifname)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) < 0)
 		iflags = -1;
 	else
@@ -431,7 +451,10 @@ get_interface_index(const char *ifname)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	if (ioctl(sockfd, SIOCGIFINDEX, &ifr) < 0)
 		ifindex = -1;
 	else
@@ -452,7 +475,10 @@ get_interface_irq(const char *ifname)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	if (ioctl(sockfd, SIOCGIFMAP, &ifr) < 0)
 		irq = -1;
 	else
@@ -474,7 +500,10 @@ get_interface_mtu(const char *ifname)
 		return INADDR_ANY;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return INADDR_ANY;
+	}
 
 	/* Get MTU */
 	if (ioctl(sockfd, SIOCGIFMTU, &ifr) == 0)
@@ -495,7 +524,10 @@ set_interface_mtu(const char *ifname, int mtu)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	ifr.ifr_mtu = mtu;
 
 	ret = ioctl(sockfd, SIOCSIFMTU, &ifr);
@@ -515,7 +547,10 @@ get_interface_hwaddr(const char *ifname, unsigned char mac[6])
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	if (ioctl(sockfd, SIOCGIFHWADDR, &ifr) < 0)
 		result = -1;
 	else
@@ -536,7 +571,10 @@ set_interface_hwaddr(const char *ifname, const char *mac_str)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
 	ether_atoe(mac_str, ifr.ifr_hwaddr.sa_data);
 
@@ -558,7 +596,10 @@ get_interface_addr4(const char *ifname)
 		return INADDR_ANY;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return INADDR_ANY;
+	}
 
 	/* Get IPv4 address */
 	if (ioctl(sockfd, SIOCGIFADDR, &ifr) == 0) {
@@ -595,7 +636,10 @@ vconfig_add_if(const char *ifname, unsigned int vid)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.device1, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.device1, sizeof(ifr.device1), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	ifr.cmd = ADD_VLAN_CMD;
 	ifr.u.VID = vid;
 
@@ -616,7 +660,10 @@ vconfig_egress_map(const char *vifname, int skb_prio, int qos_prio)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.device1, vifname, sizeof(ifr.device1));
+	if (copy_ifname(ifr.device1, sizeof(ifr.device1), vifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	ifr.cmd = SET_VLAN_EGRESS_PRIORITY_CMD;
 	ifr.u.skb_priority = skb_prio;
 	ifr.vlan_qos = qos_prio;
@@ -638,7 +685,10 @@ vconfig_del_if(const char *vifname)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.device1, vifname, sizeof(ifr.device1));
+	if (copy_ifname(ifr.device1, sizeof(ifr.device1), vifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	ifr.cmd = DEL_VLAN_CMD;
 
 	ret = ioctl(sockfd, SIOCSIFVLAN, &ifr);
@@ -673,13 +723,19 @@ br_add_del_if(const char *brname, const char *ifname, int is_add)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), ifname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	if (ioctl(sockfd, SIOCGIFINDEX, &ifr) < 0) {
 		close(sockfd);
 		return -ENODEV;
 	}
 
-	strncpy(ifr.ifr_name, brname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), brname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	ret = ioctl(sockfd, (is_add) ? SIOCBRADDIF : SIOCBRDELIF, &ifr);
 
 	close(sockfd);
@@ -700,7 +756,10 @@ br_del_all_ifs(const char *brname, int do_if_down, int do_if_rem)
 		return -1;
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, brname, IFNAMSIZ);
+	if (copy_ifname(ifr.ifr_name, sizeof(ifr.ifr_name), brname) < 0) {
+		close(sockfd);
+		return -1;
+	}
 	ifr.ifr_data = (char *)&args;
 	if (ioctl(sockfd, SIOCDEVPRIVATE, &ifr) < 0) {
 		close(sockfd);
