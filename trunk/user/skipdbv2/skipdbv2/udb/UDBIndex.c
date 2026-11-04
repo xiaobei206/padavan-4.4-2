@@ -109,7 +109,8 @@ int UDBIndex_finishOpening(UDBIndex *self)
 	UDBIndex_preCommit(self);
 	if (NULL == self->file->file || NULL == self->file->log)
 		return 0;
-	UDBIndex_findHoles(self);
+	if (!UDBIndex_findHoles(self))
+		return 0;
 	return 1;
 }
 
@@ -139,22 +140,28 @@ void UDBIndex_commit(UDBIndex *self)
 
 // holes ------------------------------------------- 
 
-void UDBIndex_findHoles(UDBIndex *self)
+int UDBIndex_findHoles(UDBIndex *self)
 {
 	PID_TYPE pid;
 
 	if (NULL == self || NULL == self->holes || NULL == self->file ||
 		NULL == self->file->file)
-		return;
+		return 0;
 	pid = (PID_TYPE)UDBIndex_pidCount(self);
 	List_removeAll(self->holes);
 
 	/* PID 0 is reserved as the null/sentinel record, not a reusable hole. */
 	while (pid > 1) {
+		size_t old_size;
 		--pid;
-		if (!UDBIndex_posForPid_(self, pid))
+		if (!UDBIndex_posForPid_(self, pid)) {
+			old_size = self->holes->size;
 			List_push_(self->holes, (void *)pid);
+			if (self->holes->size != old_size + 1)
+				return 0;
+		}
 	}
+	return 1;
 }
 
 // pid ops ------------------------------------------- 
@@ -231,7 +238,7 @@ int UDBIndex_isReservedPid_(UDBIndex *self, PID_TYPE pid)
 
 	if (NULL == self || NULL == self->holes || NULL == self->file ||
 		NULL == self->file->file || pid == 0 || pid > self->maxPid ||
-		UDBIndex_posForPid_(self, pid) != 0)
+		UDBIndex_posForPid_(self, pid) != 0 || ferror(self->file->file))
 		return 0;
 
 	for (i = 0; i < self->holes->size; ++i) {
@@ -274,10 +281,14 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	/* Keep the free-PID stack unique when records are removed/reused/compacted. */
 	if (pos == 0) {
 		if (pid != 0 && old_pos != 0) {
+			size_t old_hole_count;
 			while (List_removeFirst_(self->holes, (void *)pid)) {
 				/* Normalize stale duplicates before adding the freed PID. */
 			}
+			old_hole_count = self->holes->size;
 			List_push_(self->holes, (void *)pid);
+			if (self->holes->size != old_hole_count + 1)
+				return 0;
 		}
 	} else {
 		while (List_removeFirst_(self->holes, (void *)pid)) {
