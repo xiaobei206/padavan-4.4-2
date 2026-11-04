@@ -109,171 +109,123 @@ size_t strlcpy(char *d, const char *s, size_t bufsize)
  * @param hex
  * @return int
  */
-static int hex_char_to_int(const uint8_t *hex)
+static int
+hex_nibble(uint8_t c)
 {
-	int val;
-	if(*hex >= '0' && *hex <='9') {
-		val = (*hex - '0') * 16;
-	} else {
-		val = (*hex - 'A' + 10) * 16;
-	}
-
-	if(*(hex+1) >= '0' && *(hex+1) <='9') {
-		val += (*(hex+1) - '0');
-	} else {
-		val += (*(hex+1) - 'A' +10);
-	}
-
-	return val;
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	if (c >= 'A' && c <= 'F')
+		return c - 'A' + 10;
+	if (c >= 'a' && c <= 'f')
+		return c - 'a' + 10;
+	return -1;
 }
 
-
-/**
- * @author 荒野无灯
- * @date 2016-08-01 12:30
- * @param str the str to detect
- * @param sz string total bytes
- * @return
- */
-static int can_be_chinese_utf8(const uint8_t *str, int sz)
+static int
+hex_byte_at(const uint8_t *hex)
 {
-	int len = strlen (str);
-	if (sz < 6) {
+	int hi, lo;
+
+	if (!hex)
+		return -1;
+	hi = hex_nibble(hex[0]);
+	lo = hex_nibble(hex[1]);
+	if (hi < 0 || lo < 0)
+		return -1;
+	return (hi << 4) | lo;
+}
+
+static int
+is_ssid_plain_char(uint8_t c)
+{
+	return (c >= '0' && c <= '9') ||
+	       (c >= 'A' && c <= 'Z') ||
+	       (c >= 'a' && c <= 'z') ||
+	       c == '!' || c == '*' || c == '(' || c == ')' ||
+	       c == '_' || c == '-' || c == '\'' || c == '.';
+}
+
+static int
+is_valid_hex_string(const uint8_t *input)
+{
+	size_t input_len, payload_len, i;
+	int c, c2, c3;
+
+	if (!input)
+		return 0;
+	input_len = strlen((const char *)input);
+	if (input_len <= 4 || (input_len & 1) ||
+	    input[0] != '0' || input[1] != 'x')
+		return 0;
+
+	payload_len = (input_len - 2) / 2;
+	for (i = 0; i < payload_len;) {
+		c = hex_byte_at(input + 2 + i * 2);
+		if (c < 0)
+			return 0;
+		if (is_ssid_plain_char((uint8_t)c)) {
+			i++;
+			continue;
+		}
+		if (c >= 0xe4 && c <= 0xe9 && i + 2 < payload_len) {
+			c2 = hex_byte_at(input + 2 + (i + 1) * 2);
+			c3 = hex_byte_at(input + 2 + (i + 2) * 2);
+			if (c2 >= 0x80 && c2 <= 0xbf &&
+			    c3 >= 0x80 && c3 <= 0xbf) {
+				i += 3;
+				continue;
+			}
+		}
 		return 0;
 	}
-
-	if ((len >= 6) &&
-		(hex_char_to_int(str) >= 0xe4 && hex_char_to_int(str) <= 0xe9)
-		&& (hex_char_to_int(str+2) >= 0x80 && hex_char_to_int(str+2) <= 0xbf)
-		&& (hex_char_to_int(str+4) >= 0x80 && hex_char_to_int(str+4) <= 0xbf)
-	) {
-		return 1;
-	}
-
-	if (((sz - len >= 2) && (len >=4)) &&
-		(hex_char_to_int(str-2) >= 0xe4 && hex_char_to_int(str-2) <= 0xe9)
-		&& (hex_char_to_int(str) >= 0x80 && hex_char_to_int(str) <= 0xbf)
-		&& (hex_char_to_int(str+2) >= 0x80 && hex_char_to_int(str+2) <= 0xbf)
-	) {
-		return 1;
-	}
-
-	if (((sz - len >= 4) && (len >= 2)) &&
-		(hex_char_to_int(str-4) >= 0xe4 && hex_char_to_int(str-4) <= 0xe9)
-		&& ((hex_char_to_int(str-2) >= 0x80 && hex_char_to_int(str-2) <= 0xbf)
-		|| (hex_char_to_int(str) >= 0x80 && hex_char_to_int(str) <= 0xbf))
-	) {
-		return 1;
-	}
-
-	return 0;
+	return 1;
 }
 
-
-/**
- * @author 荒野无灯
- * @date 2016-08-01 12:30
- * @param str the str to detect
- * @param sz string total bytes
- * @return int
- */
-static int can_be_ascii_utf8(const uint8_t *str, int sz)
-
+void
+char_to_ascii(char *output, size_t output_size, const uint8_t *input)
 {
-	int len = strlen (str);
-	uint8_t the_char = hex_char_to_int(str);
-	if (( len >= 2) &&
-		(the_char >= '0' && the_char <= '9')
-		|| (the_char >= 'A' && the_char <= 'Z')
-		|| (the_char >= 'a' && the_char <= 'z')
-		|| the_char == '!' || the_char == '*'
-		|| the_char == '(' || the_char == ')'
-		|| the_char == '_' || the_char == '-'
-		|| the_char == '\'' || the_char == '.') 
-	{
-		return 1;
-	}
-	return 0;
-}
+	static const char hex_digits[] = "0123456789ABCDEF";
+	size_t input_len, required = 0, i, out = 0;
+	int use_hex;
 
+	if (!output || output_size == 0)
+		return;
+	output[0] = '\0';
+	if (!input)
+		return;
 
-/**
- * @param input the string to validate
- * @author 荒野无灯
- * @date 2016-08-01 12:30
- * @return int
- */
-static int is_valid_hex_string(uint8_t *input)
-{
-	int i;
-	int input_len, input_hex_len;
-	char *input_ptr;
-
-	//detect from index 2, skip char "0x"
-	input_ptr = input+2;
-	input_len = strlen(input);
-	input_hex_len = input_len -2;
-
-	int is_valid_ascii_or_Chinese = 1;
-
-	//0xAA
-	if(input_len >4 && input_len % 2 == 0 && input[0] == '0' && input[1] == 'x') {
-		for ( i=2; i < input_len; i += 2) {
-			if (!( ((*input_ptr>='0' && *input_ptr <='9') || ( *input_ptr >='A' && *input_ptr <='F')) && ((*(input_ptr+1) >='0' && *(input_ptr+1) <='9') || ( *(input_ptr+1) >='A' && *(input_ptr+1) <='F')))) {
-				is_valid_ascii_or_Chinese = 0;
-				break;
-			}
-			if (!can_be_chinese_utf8(input_ptr, input_hex_len) && !can_be_ascii_utf8(input_ptr, input_hex_len)) {
-				is_valid_ascii_or_Chinese = 0;
-				break;
-			}
+	input_len = strlen((const char *)input);
+	use_hex = is_valid_hex_string(input);
+	if (use_hex) {
+		size_t payload_len = (input_len - 2) / 2;
+		if (payload_len > (output_size - 1) / 3)
+			return;
+		for (i = 2; i < input_len; i += 2) {
+			output[out++] = '%';
+			output[out++] = (char)input[i];
+			output[out++] = (char)input[i + 1];
 		}
-	} else {
-		is_valid_ascii_or_Chinese = 0;
-	}
-	return is_valid_ascii_or_Chinese;
-}
-
-void char_to_ascii(char *output, uint8_t *input)
-{
-	int i;
-	char tmp[10];
-	char *ptr;
-	int input_len;
-
-	ptr = output;
-	input_len = strlen(input);
-
-	if (is_valid_hex_string(input)) {
-		for ( i=2; i<input_len; i+=2) {
-			sprintf(tmp, "%%%c%c", input[i], input[i+1]);
-			strcpy(ptr, tmp);
-			ptr+=3;
-		}
-	} else {
-		for ( i=0; i<input_len; i++ )
-		{
-			if ((input[i]>='0' && input[i] <='9')
-			   ||(input[i]>='A' && input[i]<='Z')
-			   ||(input[i] >='a' && input[i]<='z')
-			   || input[i] == '!' || input[i] == '*'
-			   || input[i] == '(' || input[i] == ')'
-			   || input[i] == '_' || input[i] == '-'
-			   || input[i] == '\'' || input[i] == '.')
-			{
-				*ptr = input[i];
-				ptr++;
-			}
-			else
-			{
-				sprintf(tmp, "%%%.02X", input[i]);
-				strcpy(ptr, tmp);
-				ptr+=3;
-			}
-		}
+		output[out] = '\0';
+		return;
 	}
 
-	*ptr = '\0';
+	for (i = 0; i < input_len; i++) {
+		size_t add = is_ssid_plain_char(input[i]) ? 1 : 3;
+		if (add > output_size - 1 || required > output_size - 1 - add)
+			return;
+		required += add;
+	}
+	for (i = 0; i < input_len; i++) {
+		uint8_t c = input[i];
+		if (is_ssid_plain_char(c)) {
+			output[out++] = (char)c;
+		} else {
+			output[out++] = '%';
+			output[out++] = hex_digits[c >> 4];
+			output[out++] = hex_digits[c & 0x0f];
+		}
+	}
+	output[out] = '\0';
 }
 
 int do_f(const char *path, webs_t wp)
