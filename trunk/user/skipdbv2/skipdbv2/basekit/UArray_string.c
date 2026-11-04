@@ -210,15 +210,24 @@ BASEKIT_API void UArray_strip_(UArray *self, const UArray *other)
 
 BASEKIT_API void UArray_swapIndex_withIndex_(UArray *self, size_t i, size_t j)
 {
-	int itemSize = self->itemSize;
-	uint8_t *data = self->data;
-	void *ip = data + i * itemSize;
-	void *jp = data + j * itemSize;
+	size_t itemSize;
+	uint8_t *data;
+	void *ip, *jp;
 	UArrayValueUnion b;
 
-	memcpy(&b, ip, sizeof(UArray));
-	memcpy(ip, jp, sizeof(UArray));
-	memcpy(jp, &b, sizeof(UArray));
+	if (NULL == self || i >= self->size || j >= self->size ||
+		NULL == self->data || self->itemSize == 0 ||
+		self->itemSize > sizeof(b) ||
+		self->size > (size_t)-1 / self->itemSize || i == j)
+		return;
+	itemSize = self->itemSize;
+	data = self->data;
+	ip = data + i * itemSize;
+	jp = data + j * itemSize;
+
+	memcpy(&b, ip, itemSize);
+	memmove(ip, jp, itemSize);
+	memcpy(jp, &b, itemSize);
 	UArray_changed(self);
 }
 
@@ -226,25 +235,27 @@ BASEKIT_API void UArray_swapIndex_withIndex_(UArray *self, size_t i, size_t j)
 
 BASEKIT_API void UArray_reverse(UArray *self)
 {
-	long i = 0;
-	long j = self->size - 1;
+	size_t i = 0, j, itemSize;
 	UArrayValueUnion b;
-	int itemSize = self->itemSize;
-	uint8_t *data = self->data;
+	uint8_t *data;
+	if (NULL == self || self->size < 2 || NULL == self->data ||
+		self->itemSize == 0 || self->itemSize > sizeof(b) ||
+		self->size > (size_t)-1 / self->itemSize)
+		return;
+	itemSize = self->itemSize;
+	data = self->data;
+	j = self->size - 1;
 
-	while (j > i)
+	while (i < j)
 	{
 		void *ip = data + i * itemSize;
 		void *jp = data + j * itemSize;
-
 		memcpy(&b, ip, itemSize);
-		memcpy(ip, jp, itemSize);
+		memmove(ip, jp, itemSize);
 		memcpy(jp, &b, itemSize);
-
-		j --;
-		i ++;
+		i++;
+		j--;
 	}
-
 	UArray_changed(self);
 }
 
