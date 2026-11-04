@@ -40,7 +40,7 @@ static int write_util(dbclient *client, int len, unsigned int delay) {
     gettimeofday(&tv2, NULL);
     timeout = (tv2.tv_sec * 1000) + (tv2.tv_usec / 1000) + delay;
     while (written < len) {
-        n = write(client->remote_fd, client->buf + written, len - written);
+        n = send(client->remote_fd, client->buf + written, (size_t)(len - written), MSG_NOSIGNAL);
         if (n < 0) {
             if (errno == EINTR)
                 continue;
