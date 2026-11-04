@@ -207,19 +207,30 @@ static int read_response_payload(dbclient *client, unsigned int delay,
 
 int parse_common_result(dbclient *client) {
     int n1, body_len;
-    size_t payload_offset, payload_len;
+    size_t payload_offset, payload_len, key_offset, key_len;
     int success;
+    const char *payload;
 
     /* Script-backed commands can take longer than ordinary DB operations. */
-    n1 = read_response_payload(client, 60000, &payload_offset, &body_len, NULL, NULL);
+    n1 = read_response_payload(client, 60000, &payload_offset, &body_len,
+        &key_offset, &key_len);
     if (n1 < 0)
         return n1;
 
+    payload = client->buf + payload_offset;
     payload_len = (size_t)body_len - payload_offset;
+    if (key_len == 9 &&
+        memcmp(client->buf + key_offset, "__error__", 9) == 0) {
+        if (payload_len > 0 &&
+            fwrite(payload, 1, payload_len, stdout) != payload_len)
+            return -5;
+        return -5;
+    }
+
     success = (payload_len == 3 &&
-        memcmp(client->buf + payload_offset, "ok\n", 3) == 0) ||
+        memcmp(payload, "ok\n", 3) == 0) ||
         (payload_len == 9 &&
-        memcmp(client->buf + payload_offset, "delay_ok\n", 9) == 0);
+        memcmp(payload, "delay_ok\n", 9) == 0);
 
     /* Preserve the historical full command/key/response output. */
     if (body_len > 0 &&
