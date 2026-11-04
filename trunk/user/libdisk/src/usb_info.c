@@ -15,6 +15,8 @@
 #include "usb_info.h"
 #include "disk_io_tools.h"
 
+static int is_valid_sysfs_component(const char *value);
+
 int get_usb_root_port_by_sd_device(const char *device_name)
 {
 	char usb_path[PATH_MAX] = {0};
@@ -39,10 +41,13 @@ char *get_usb_path_by_device(const char *device_name, char *buf, const int buf_s
 	char device_path[128];
 	char resolved_path[PATH_MAX];
 	size_t resolved_len;
+	int path_len;
 
 	if (!buf || buf_size < 2)
 		return NULL;
 	buf[0] = '\0';
+	if (!is_valid_sysfs_component(device_name))
+		return NULL;
 
 	device_type = get_device_type_by_device(device_name);
 	if(device_type == DEVICE_TYPE_UNKNOWN ||
@@ -55,7 +60,9 @@ char *get_usb_path_by_device(const char *device_name, char *buf, const int buf_s
 	}
 	else
 	if(device_type == DEVICE_TYPE_PRINTER){
-		snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_PRINTER, device_name);
+		path_len = snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_PRINTER, device_name);
+		if (path_len < 0 || path_len >= (int)sizeof(device_path))
+			return NULL;
 		if(realpath(device_path, resolved_path) == NULL){
 			usb_dbg("(%s): Fail to get link: %s.\n", device_name, device_path);
 			return NULL;
@@ -63,7 +70,9 @@ char *get_usb_path_by_device(const char *device_name, char *buf, const int buf_s
 	}
 	else
 	if(device_type == DEVICE_TYPE_SG){
-		snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_SG, device_name);
+		path_len = snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_SG, device_name);
+		if (path_len < 0 || path_len >= (int)sizeof(device_path))
+			return NULL;
 		if(realpath(device_path, resolved_path) == NULL){
 			usb_dbg("(%s): Fail to get link: %s.\n", device_name, device_path);
 			return NULL;
@@ -71,7 +80,9 @@ char *get_usb_path_by_device(const char *device_name, char *buf, const int buf_s
 	}
 	else
 	if(device_type == DEVICE_TYPE_CD){
-		snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_BLOCK, device_name);
+		path_len = snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_BLOCK, device_name);
+		if (path_len < 0 || path_len >= (int)sizeof(device_path))
+			return NULL;
 		if(realpath(device_path, resolved_path) == NULL){
 			usb_dbg("(%s): Fail to get link: %s.\n", device_name, device_path);
 			return NULL;
@@ -79,7 +90,9 @@ char *get_usb_path_by_device(const char *device_name, char *buf, const int buf_s
 	}
 	else
 	if(device_type == DEVICE_TYPE_MODEM_TTY){
-		snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_TTY, device_name);
+		path_len = snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_TTY, device_name);
+		if (path_len < 0 || path_len >= (int)sizeof(device_path))
+			return NULL;
 		if(realpath(device_path, resolved_path) == NULL){
 			sleep(1); // Sometimes link would be built slowly, so try again.
 			if(realpath(device_path, resolved_path) == NULL){
@@ -90,7 +103,9 @@ char *get_usb_path_by_device(const char *device_name, char *buf, const int buf_s
 	}
 	else
 	if(device_type == DEVICE_TYPE_MODEM_ETH){
-		snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_NET, device_name);
+		path_len = snprintf(device_path, sizeof(device_path), "%s/%s/device", SYS_NET, device_name);
+		if (path_len < 0 || path_len >= (int)sizeof(device_path))
+			return NULL;
 		if(realpath(device_path, resolved_path) == NULL){
 			sleep(1); // Sometimes link would be built slowly, so try again.
 			if(realpath(device_path, resolved_path) == NULL){
