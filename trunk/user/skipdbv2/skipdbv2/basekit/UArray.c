@@ -477,8 +477,11 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 			size_t oldSizeInBytes = self->size * self->itemSize;
 			uintptr_t base = (uintptr_t)self->data;
 			uintptr_t src = (uintptr_t)data;
-			int overlaps = src >= base ? src - base < oldSizeInBytes :
-				base - src < sizeInBytes;
+			int startsInside = src >= base && src - base < oldSizeInBytes;
+			int overlaps = startsInside || (src < base &&
+				base - src < sizeInBytes);
+			if (startsInside && sizeInBytes > oldSizeInBytes - (size_t)(src - base))
+				return;
 			if (overlaps)
 			{
 				sourceCopy = io_malloc(sizeInBytes);
