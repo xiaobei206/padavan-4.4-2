@@ -12,6 +12,7 @@ JFile ioDoc(
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <sys/types.h>
 #include "PortableTruncate.h"
 
@@ -402,7 +403,8 @@ void JFile_writeLogToFile(JFile *self)
 	return;
 
 	fatalError:
-		printf("JFile: FATAL ERROR: invalid log file '%s' - may result in inconsistency\n", self->logPath);
+		fprintf(stderr, "JFile: FATAL ERROR: invalid log file '%s' - may result in inconsistency\n",
+			(self && self->logPath) ? self->logPath : "(unknown)");
 
 }
 
