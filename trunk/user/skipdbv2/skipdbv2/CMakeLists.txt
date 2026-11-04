@@ -63,3 +63,12 @@ TARGET_LINK_LIBRARIES(dbapi ${LIBEV_LIBRARIES})
 
 ADD_EXECUTABLE(skbus ${CLIENT_SRC})
 TARGET_LINK_LIBRARIES(skbus m ${LIBEV_LIBRARIES})
+
+option(SKIPDB_BUILD_TESTS "Build SkipDB regression tests" OFF)
+if(SKIPDB_BUILD_TESTS)
+    enable_testing()
+    ADD_EXECUTABLE(udb_reserved_pid_test
+        ${PROJECT_SOURCE_DIR}/tests/udb_reserved_pid.c)
+    TARGET_LINK_LIBRARIES(udb_reserved_pid_test skipdb m)
+    add_test(NAME udb_reserved_pid_test COMMAND udb_reserved_pid_test)
+endif()
