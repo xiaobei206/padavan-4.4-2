@@ -245,24 +245,42 @@ void UArray_setEncoding_(UArray *self, CENCODING encoding)
 
 void UArray_convertToEncoding_(UArray *self, CENCODING encoding)
 {
-	switch(encoding)
+	UArray *converted = NULL;
+	if (NULL == self)
+		return;
+
+	switch (encoding)
 	{
 		case CENCODING_ASCII:
 		case CENCODING_UTF8:
-			UArray_convertToUTF8(self);
+			converted = UArray_asUTF8(self);
 			break;
 		case CENCODING_UTF16:
-			UArray_convertToUTF16(self);
+			converted = UArray_asUTF16(self);
 			break;
 		case CENCODING_UTF32:
-			UArray_convertToUTF32(self);
+			converted = UArray_asUTF32(self);
 			break;
 		case CENCODING_NUMBER:
 			UArray_setItemType_(self, CTYPE_uint8_t);
-			break;
+			if (self->itemType != CTYPE_uint8_t ||
+				self->itemSize != sizeof(uint8_t))
+				return;
+			self->encoding = encoding;
+			UArray_changed(self);
+			return;
+		default:
+			return;
 	}
 
-	self->encoding = encoding;
+	/* Conversion routines return NULL on invalid input or allocation failure.
+	 * Keep the original bytes and encoding unchanged in that case. */
+	if (NULL == converted)
+		return;
+	UArray_swapWith_(self, converted);
+	UArray_free(converted);
+	if (encoding == CENCODING_ASCII)
+		self->encoding = CENCODING_ASCII;
 	UArray_changed(self);
 }
 
