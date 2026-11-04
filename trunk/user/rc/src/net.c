@@ -41,52 +41,53 @@
 static int
 route_manip(int cmd, char *ifname, int metric, char *dst, char *gateway, char *genmask)
 {
-	int s;
+	int s, saved_errno;
 	struct rtentry rt;
 
-	/* Open a raw socket to the kernel */
-	if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+	/* Open a raw socket to the kernel. */
+	s = socket(AF_INET, SOCK_DGRAM, 0);
+	if (s < 0)
+		return errno;
+
+	/* Fill in rtentry. */
+	memset(&rt, 0, sizeof(rt));
+	if (dst && inet_aton(dst, &sin_addr(&rt.rt_dst)) == 0) {
+		saved_errno = EINVAL;
 		goto err;
 	}
-
-	/* Fill in rtentry */
-	memset(&rt, 0, sizeof(rt));
-	if (dst) {
-		inet_aton(dst, &sin_addr(&rt.rt_dst));
+	if (gateway && inet_aton(gateway, &sin_addr(&rt.rt_gateway)) == 0) {
+		saved_errno = EINVAL;
+		goto err;
 	}
-	if (gateway) {
-		inet_aton(gateway, &sin_addr(&rt.rt_gateway));
-	}
-	if (genmask) {
-		inet_aton(genmask, &sin_addr(&rt.rt_genmask));
+	if (genmask && inet_aton(genmask, &sin_addr(&rt.rt_genmask)) == 0) {
+		saved_errno = EINVAL;
+		goto err;
 	}
 	rt.rt_metric = metric;
 	rt.rt_flags = RTF_UP;
-	if (sin_addr(&rt.rt_gateway).s_addr) {
+	if (sin_addr(&rt.rt_gateway).s_addr)
 		rt.rt_flags |= RTF_GATEWAY;
-	}
-	if (sin_addr(&rt.rt_genmask).s_addr == INADDR_BROADCAST) {
+	if (sin_addr(&rt.rt_genmask).s_addr == INADDR_BROADCAST)
 		rt.rt_flags |= RTF_HOST;
-	}
 	rt.rt_dev = ifname;
 
-	/* Force address family to AF_INET */
+	/* Force address family to AF_INET. */
 	rt.rt_dst.sa_family = AF_INET;
 	rt.rt_gateway.sa_family = AF_INET;
 	rt.rt_genmask.sa_family = AF_INET;
 
 	if (ioctl(s, cmd, &rt) < 0) {
+		saved_errno = errno;
 		goto err;
 	}
 
 	close(s);
 	return 0;
 
- err:
+err:
 	close(s);
-	return errno;
+	return saved_errno;
 }
-
 int
 route_add(char *ifname, int metric, char *dst, char *gateway, char *genmask)
 {
