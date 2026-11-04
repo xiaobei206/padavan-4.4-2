@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <time.h>
 #include <unistd.h>
