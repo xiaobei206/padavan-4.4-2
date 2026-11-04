@@ -13,6 +13,8 @@ UArray *UArray_newWithFormat_(const char *format, ...)
 {
 	UArray *self;
 	va_list ap;
+	if (NULL == format)
+		return NULL;
 	va_start(ap, format);
 	self = UArray_newWithVargs_(format, ap);
 	va_end(ap);
@@ -21,14 +23,21 @@ UArray *UArray_newWithFormat_(const char *format, ...)
 
 UArray *UArray_newWithVargs_(const char *format, va_list ap)
 {
-	UArray *self = UArray_new();
-	UArray_fromVargs_(self, format,ap);
+	UArray *self;
+	if (NULL == format)
+		return NULL;
+	self = UArray_new();
+	if (NULL == self)
+		return NULL;
+	UArray_fromVargs_(self, format, ap);
 	return self;
 }
 
 UArray *UArray_fromFormat_(UArray *self, const char *format, ...)
 {
 	va_list ap;
+	if (NULL == self || NULL == format)
+		return self;
 	va_start(ap, format);
 	UArray_fromVargs_(self, format, ap);
 	va_end(ap);
@@ -37,6 +46,8 @@ UArray *UArray_fromFormat_(UArray *self, const char *format, ...)
 
 void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 {
+	if (NULL == self || NULL == format)
+		return;
 	while (*format)
 	{
 		if (*format == '%')
@@ -99,24 +110,27 @@ void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 
 UArray *UArray_asNewHexStringUArray(UArray *self)
 {
-	size_t i, newSize = self->size * 2;
-	UArray *ba = UArray_new();
-	UArray_setSize_(ba, newSize);
-
-	for(i = 0; i < self->size; i ++)
-	{
-		int v = UArray_longAt_(self, i);
-		char *s = (char *)(ba->data + i * 2);
-
-		if (v < 16)
-		{
-			snprintf(s, newSize, "0%x", (int)v);
-		}
-		else
-		{
-			snprintf(s, newSize, "%x", (int)v);
-		}
+	static const char digits[] = "0123456789abcdef";
+	UArray *out;
+	size_t i, newSize;
+	if (NULL == self || self->itemSize != 1 ||
+		self->size > (size_t)-1 / 2 ||
+		(self->size > 0 && NULL == self->data))
+		return NULL;
+	newSize = self->size * 2;
+	out = UArray_new();
+	if (NULL == out)
+		return NULL;
+	UArray_setEncoding_(out, CENCODING_ASCII);
+	UArray_setSize_(out, newSize);
+	if (out->size != newSize || (newSize > 0 && NULL == out->data)) {
+		UArray_free(out);
+		return NULL;
 	}
-
-	return ba;
+	for (i = 0; i < self->size; ++i) {
+		unsigned char value = (unsigned char)UArray_longAt_(self, i);
+		out->data[i * 2] = (uint8_t)digits[value >> 4];
+		out->data[i * 2 + 1] = (uint8_t)digits[value & 0x0f];
+	}
+	return out;
 }
