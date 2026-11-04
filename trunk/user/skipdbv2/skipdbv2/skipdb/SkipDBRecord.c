@@ -49,41 +49,41 @@ SkipDBRecord *SkipDBRecord_newWithDB_(void *db)
 
 void SkipDBRecord_setOlderRecord_(SkipDBRecord *self, SkipDBRecord *r)
 {
-	if (r == self)
-	{
-		printf("error: r == self\n");
-	}
-
+	if (NULL == self || r == self)
+		return;
 	self->olderRecord = r;
 }
 
 SkipDBRecord *SkipDBRecord_olderRecord(SkipDBRecord *self)
 {
-	return self->olderRecord;
+	return self ? self->olderRecord : NULL;
 }
 
 void SkipDBRecord_setYoungerRecord_(SkipDBRecord *self, SkipDBRecord *r)
 {
-	if (r == self)
-	{
-		printf("error: r == self\n");
-	}
-
+	if (NULL == self || r == self)
+		return;
 	self->youngerRecord = r;
 }
 
 SkipDBRecord *SkipDBRecord_youngerRecord(SkipDBRecord *self)
 {
-	return self->youngerRecord;
+	return self ? self->youngerRecord : NULL;
 }
 
 void SkipDBRecord_removeFromAgeList(SkipDBRecord *self)
 {
-	SkipDBRecord *or = self->olderRecord;
-	SkipDBRecord *yr = self->youngerRecord;
-
-	if (or) SkipDBRecord_setYoungerRecord_(or, yr);
-	if (yr) SkipDBRecord_setOlderRecord_(yr, or);
+	SkipDBRecord *older, *younger;
+	if (NULL == self)
+		return;
+	older = self->olderRecord;
+	younger = self->youngerRecord;
+	if (older)
+		SkipDBRecord_setYoungerRecord_(older, younger);
+	if (younger)
+		SkipDBRecord_setOlderRecord_(younger, older);
+	self->olderRecord = NULL;
+	self->youngerRecord = NULL;
 }
 
 void SkipDBRecord_showAgeList(SkipDBRecord *self)
@@ -104,7 +104,10 @@ void SkipDBRecord_showAgeList(SkipDBRecord *self)
 
 int SkipDBRecord_pointersAreEmpty(SkipDBRecord *self)
 {
-	SkipDBPointer *pointers = self->pointers;
+	SkipDBPointer *pointers;
+	if (NULL == self)
+		return 1;
+	pointers = self->pointers;
 
 	if (pointers)
 	{
@@ -125,7 +128,10 @@ int SkipDBRecord_pointersAreEmpty(SkipDBRecord *self)
 
 void SkipDBRecord_removeReferencesToUnmarked(SkipDBRecord *self)
 {
-	SkipDBPointer *pointers = self->pointers;
+	SkipDBPointer *pointers;
+	if (NULL == self)
+		return;
+	pointers = self->pointers;
 
 	if (pointers)
 	{
@@ -269,12 +275,12 @@ void SkipDBRecord_keyDatum_(SkipDBRecord *self, Datum k)
 
 Datum SkipDBRecord_keyDatum(SkipDBRecord *self)
 {
-	return Datum_FromUArray_(self->key);
+	return self && self->key ? Datum_FromUArray_(self->key) : Datum_Empty();
 }
 
 UArray *SkipDBRecord_key(SkipDBRecord *self)
 {
-	return self->key;
+	return self ? self->key : NULL;
 }
 
 // value ------------------------------------
@@ -287,19 +293,19 @@ void SkipDBRecord_valueDatum_(SkipDBRecord *self, Datum v)
 
 Datum SkipDBRecord_valueDatum(SkipDBRecord *self)
 {
-	return Datum_FromUArray_(self->value);
+	return self && self->value ? Datum_FromUArray_(self->value) : Datum_Empty();
 }
 
 UArray *SkipDBRecord_value(SkipDBRecord *self)
 {
-	return self->value;
+	return self ? self->value : NULL;
 }
 
 // pointers ------------------------------------
 
 int SkipDBRecord_level(SkipDBRecord *self)
 {
-	return self->level;
+	return self ? self->level : 0;
 }
 
 void SkipDBRecord_level_(SkipDBRecord *self, int level)
