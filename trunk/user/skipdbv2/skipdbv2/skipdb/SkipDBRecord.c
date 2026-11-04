@@ -132,7 +132,9 @@ int SkipDBRecord_pointersAreEmpty(SkipDBRecord *self)
 void SkipDBRecord_removeReferencesToUnmarked(SkipDBRecord *self)
 {
 	SkipDBPointer *pointers;
-	if (NULL == self)
+	if (NULL == self || self->level < 0 ||
+		self->level > SKIPDB_MAX_LEVEL ||
+		(self->level > 0 && NULL == self->pointers))
 		return;
 	pointers = self->pointers;
 
