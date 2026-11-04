@@ -288,7 +288,7 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 				ret = -1;
 				goto out_err;
 			}
-			if (flash_mtd_read(mtd_part, offset, tmp_ubi, count) < 0) {
+			if (flash_mtd_read(mtd_part, offset, tmp_ubi, count) != 0) {
 				ret = -4;
 				goto out_err;
 			}
