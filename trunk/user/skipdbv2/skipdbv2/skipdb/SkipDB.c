@@ -958,7 +958,11 @@ SkipDBCursor *SkipDB_createCursor(SkipDB *self)
 	cursor = SkipDBCursor_newWithDB_(self);
 	if (NULL == cursor)
 		return NULL;
-	List_append_(self->cursors, cursor);
+	if (NULL == List_append_(self->cursors, cursor)) {
+		/* An untracked cursor cannot protect its record from cache eviction. */
+		SkipDBCursor_release(cursor);
+		return NULL;
+	}
 	return cursor;
 }
 
