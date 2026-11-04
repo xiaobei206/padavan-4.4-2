@@ -548,7 +548,7 @@ static int client_ccr_read_util(skipd_client* client, int step_len) {
 static int client_run_command(EV_P_ skipd_client* client)
 {
     char *p1, *p2;
-    time_t t1, t2, epoch;
+    time_t t1, t2;
     int tmpi, tmp2;
     struct tm tm1, tm2, *tnow;
     Datum dkey, dvalue;
@@ -749,6 +749,11 @@ static int client_run_command(EV_P_ skipd_client* client)
 
         //All ok, we create a delay object
         delay_obj = calloc(1, sizeof(delay_cmd));
+        if(NULL == delay_obj) {
+            p1 = "memory error\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         sprintf(delay_obj->key, "__delay__%s", client->key);
         client->key = delay_obj->key;
         delay_obj->tick = tmpi;
@@ -771,8 +776,9 @@ static int client_run_command(EV_P_ skipd_client* client)
         SkipDB_beginTransaction(client->server->db);
         if(SkipDB_at_put_(client->server->db, dkey, dvalue)) {
             p1 = "exists\n";
-            free(delay_obj);
+            /* client_send_key still reads client->key; do not free it first. */
             client_send(EV_A_ client, p1, strlen(p1));
+            free(delay_obj);
 
             server_sync(EV_A_ client->server);
             ccrReturn(ctx, ccr_error_ok1);
@@ -810,12 +816,16 @@ static int client_run_command(EV_P_ skipd_client* client)
             ccrReturn(ctx, ccr_error_ok1);
         }
         tmpi = (int)(p2 - p1);
-        memcpy(static_buffer, p1, tmpi);
+        if(tmpi <= 0 || (size_t)tmpi >= sizeof(static_buffer)) {
+            p1 = "time value too long\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
+        memcpy(static_buffer, p1, (size_t)tmpi);
         static_buffer[tmpi] = '\0';
 
-        if (strptime(static_buffer, "%H:%M:%S", &tm1) != NULL) {
-            epoch = mktime(&tm1);
-        } else {
+        p2 = strptime(static_buffer, "%H:%M:%S", &tm1);
+        if(p2 == NULL || *p2 != '\0') {
             p1 = "time error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
@@ -831,8 +841,12 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
 
         time_obj = calloc(1, sizeof(time_cmd));
+        if(NULL == time_obj) {
+            p1 = "memory error\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         sprintf(time_obj->key, "__time__%s", client->key);
-        //TODO time_obj will be free?
         client->key = time_obj->key;
         dkey = Datum_FromCString_(client->key);
         /*if(SkipDB_exists(client->server->db, dkey)) {
