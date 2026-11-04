@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <limits.h>
+#include <stddef.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <time.h>
@@ -527,7 +528,12 @@ ralink_get_range_info(iwrange *	range, char* buffer, int length)
 {
   union iw_range_raw *	range_raw;
 
-  /* Point to the buffer */
+  if (!range || !buffer ||
+      length < (int)(offsetof(struct iw_range, we_version_compiled) +
+		     sizeof(range_raw->range.we_version_compiled)))
+    return -1;
+
+  /* Point to the buffer only after its version field is known to be present. */
   range_raw = (union iw_range_raw *) buffer;
 
   /* For new versions, we can check the version directly, for old versions
@@ -541,12 +547,16 @@ ralink_get_range_info(iwrange *	range, char* buffer, int length)
   /* Check how it needs to be processed */
   if (range_raw->range.we_version_compiled > 15)
     {
+      if (length < (int)sizeof(iwrange))
+        return -1;
       /* This is our native format, that's easy... */
       /* Copy stuff at the right place, ignore extra */
       memcpy((char *) range, buffer, sizeof(iwrange));
     }
   else
     {
+      if (length < iwr15_off(avg_qual) + (int)sizeof(struct iw_quality))
+        return -1;
       /* Zero unknown fields */
       bzero((char *) range, sizeof(struct iw_range));
 
@@ -1482,7 +1492,8 @@ print_radio_status(webs_t wp, int is_aband)
 	if (wl_ioctl(wif_ap[0], SIOCGIWRANGE, &wrq2) < 0)
 		return ret;
 
-	if (ralink_get_range_info(&range, buffer, wrq2.u.data.length) < 0)
+	if (wrq2.u.data.length > sizeof(buffer) ||
+	    ralink_get_range_info(&range, buffer, wrq2.u.data.length) < 0)
 		return ret;
 
 	wmode = 0;
