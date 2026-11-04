@@ -113,35 +113,52 @@ static void nlmsg_handle(const char *msg, int len, btn_event *ev)
 {
 	int i = 0;
 	int btn_id = 0;
-	char btn_event = 0;
+	char parsed_event = 0;
 
-	while (i < len)
-	{
-		int l = strlen(msg+i) + 1;
-		char *e = strstr(&msg[i], "=");
+	if (NULL == msg || NULL == ev || len <= 0)
+		return;
 
-		if (e) {
-			*e = '\0';
-			//btn_dbg("nlmsg: %s = %s\n", &msg[i], &e[1]);
-			if (!strcmp(&msg[i], "ACTION")) {
-				if (!strcmp(&e[1], "pressed")) {
-					btn_event = BTN_PRESSED;
-				} else if (!strcmp(&e[1], "released")) {
-					btn_event = BTN_RELEASED;
-				} else {
+	/* Uevents are NUL-delimited; validate the complete datagram before
+	 * interpreting any field so truncated messages cannot read past len. */
+	while (i < len) {
+		const char *end = memchr(msg + i, '\0', (size_t)(len - i));
+		if (NULL == end)
+			return;
+		i = (int)(end - msg) + 1;
+	}
+
+	i = 0;
+	while (i < len) {
+		const char *field = msg + i;
+		const char *end = memchr(field, '\0', (size_t)(len - i));
+		size_t field_len = (size_t)(end - field);
+		const char *eq = memchr(field, '=', field_len);
+
+		if (eq) {
+			size_t name_len = (size_t)(eq - field);
+			const char *value = eq + 1;
+
+			if (name_len == sizeof("ACTION") - 1 &&
+			    memcmp(field, "ACTION", sizeof("ACTION") - 1) == 0) {
+				if (!strcmp(value, "pressed"))
+					parsed_event = BTN_PRESSED;
+				else if (!strcmp(value, "released"))
+					parsed_event = BTN_RELEASED;
+				else
 					return;
-				}
 			}
-			if (btn_event && !strcmp(&msg[i], "BUTTON")) {
-				btn_id = btn_name_to_id(&e[1]);
+			if (parsed_event &&
+			    name_len == sizeof("BUTTON") - 1 &&
+			    memcmp(field, "BUTTON", sizeof("BUTTON") - 1) == 0) {
+				btn_id = btn_name_to_id(value);
 				if (btn_id) {
-					ev->event = btn_event;
+					ev->event = parsed_event;
 					ev->btn_id = btn_id;
 				}
 				return;
 			}
 		}
-		i += l;
+		i = (int)(end - msg) + 1;
 	}
 }
 
