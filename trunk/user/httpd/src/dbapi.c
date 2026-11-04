@@ -299,7 +299,11 @@ static int ignore_result(dbclient *client) {
 
 static int parse_list_result(dbclient *client, char* prefix, webs_t wp, fn_db_parse fn) {
     int n1, n2;
+    size_t prefix_len;
+    static const char end_marker[] = "__end__\n";
     char *p1, *p2, *magic = MAGIC;
+
+    prefix_len = strlen(prefix);
 
     for(;;) {
         n1 = read_util(client, HEADER_PREFIX, 110);
@@ -326,7 +330,15 @@ static int parse_list_result(dbclient *client, char* prefix, webs_t wp, fn_db_pa
 
         client->buf[n2] = '\0';
 
-        if(NULL != strstr(client->buf, "__end__")) {
+        /* The server's end frame is "list <requested-prefix> __end__\\n".
+         * Do not terminate when an ordinary key/value merely contains the
+         * marker text; stored data may legitimately contain that substring. */
+        if ((size_t)n2 == LIST_LEN + prefix_len + 1 + sizeof(end_marker) - 1 &&
+            memcmp(client->buf, "list ", LIST_LEN) == 0 &&
+            memcmp(client->buf + LIST_LEN, prefix, prefix_len) == 0 &&
+            client->buf[LIST_LEN + prefix_len] == ' ' &&
+            memcmp(client->buf + LIST_LEN + prefix_len + 1,
+                   end_marker, sizeof(end_marker) - 1) == 0) {
             break;
         }
 
