@@ -217,14 +217,16 @@ int parse_get_result(dbclient *client) {
         if(NULL == p2) {
             break;
         }
-        n2 -= (p2-client->buf);
-        if(!strcmp(p2+1, "none\n")) {
-            break;
-        }
-        if(p2[n2-1] != '\n') {
-            printf("%s\n", p2+1);
-        } else {
-            printf("%s", p2+1);
+        {
+            int value_len = n2 - (int)(p2 - client->buf) - 1;
+            if (value_len <= 0)
+                break;
+            if (value_len == 5 && memcmp(p2 + 1, "none\n", 5) == 0)
+                break;
+            if (p2[value_len] != '\n')
+                printf("%.*s\n", value_len, p2 + 1);
+            else
+                printf("%.*s", value_len, p2 + 1);
         }
         return 0;
     } while(0);
@@ -268,8 +270,12 @@ int parse_list_result(dbclient *client) {
 
         p2 = client->buf;
         p1 = strstr(p2, " ");
-        p2 = p1+1;
+        if (NULL == p1)
+            return -4;
+        p2 = p1 + 1;
         p1 = strstr(p2, " ");
+        if (NULL == p1)
+            return -4;
         *p1 = '=';
 
         if(p2[n2-1] != '\n') {
@@ -315,8 +321,12 @@ int parse_script_result(dbclient *client) {
             break;
         }
 
+        if (n2 <= LIST_LEN)
+            return -4;
         p1 = client->buf + LIST_LEN;
         p2 = strstr(p1, " ");
+        if (NULL == p2)
+            return -4;
         *p2 = '\0';
         p2++;
         if(client->buf[n2-1] == '\n') {
@@ -416,30 +426,48 @@ static void help(void) {
 
 static int prefix_set_command(dbclient* client, int argc, char **argv)
 {
-    int i, n1, n2;
-    char* p;
-    n1 = strlen(client->command) + argc - 1;
-    for(i = 2; i < argc; i++) {
-        n1 += strlen(argv[i]);
-    }
-    //n1 = strlen(client->command) + strlen(argv[2]) + strlen(argv[3]) + 3;
-    check_buf(client, n1 + HEADER_PREFIX);
-    //n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3]);
-    n2 = snprintf(client->buf, client->buf_max, "%s%07d %s ", MAGIC, n1, client->command);
-    for(i = 2; i < argc; i++) {
-        strcpy(client->buf+n2, argv[i]);
-        n2 += strlen(argv[i]);
-        if(i == (argc-1)) {
-            client->buf[n2] = '\n';
-        } else {
-            client->buf[n2] = ' ';
-        }
-        n2++;
-    }
-    p = strstr(client->buf, "=");
-    //assert(NULL != p);
-    *p = ' ';
+    int i, n2;
+    char *equals;
+    size_t body_len, arg_len;
 
+    if (NULL == client || NULL == client->command || NULL == argv || argc < 3)
+        return -1;
+    body_len = strlen(client->command) + 1;
+    for (i = 2; i < argc; ++i) {
+        if (NULL == argv[i])
+            return -1;
+        arg_len = strlen(argv[i]);
+        if (arg_len > (size_t)READ_MAX - HEADER_PREFIX - body_len)
+            return -1;
+        body_len += arg_len;
+        if (i != argc - 1) {
+            if (body_len >= (size_t)READ_MAX - HEADER_PREFIX)
+                return -1;
+            body_len++;
+        }
+    }
+    if (body_len >= (size_t)READ_MAX - HEADER_PREFIX)
+        return -1;
+    body_len++; /* trailing newline */
+    if (body_len > 9999999 ||
+        check_buf(client, (int)body_len + HEADER_PREFIX) != 0)
+        return -1;
+
+    n2 = snprintf(client->buf, (size_t)client->buf_max + 1,
+        "%s%07lu %s ", MAGIC, (unsigned long)body_len, client->command);
+    if (n2 < 0 || n2 >= client->buf_max)
+        return -1;
+    for (i = 2; i < argc; ++i) {
+        arg_len = strlen(argv[i]);
+        memcpy(client->buf + n2, argv[i], arg_len);
+        n2 += (int)arg_len;
+        client->buf[n2++] = (i == argc - 1) ? '\n' : ' ';
+    }
+    client->buf[n2] = '\0';
+    equals = strstr(client->buf, "=");
+    if (NULL == equals)
+        return -1;
+    *equals = ' ';
     return n2;
 }
 
@@ -470,6 +498,10 @@ int main(int argc, char **argv, char * envp[])
 #endif
     }
     gclient = (dbclient*)calloc(1, sizeof(dbclient));
+    if (NULL == gclient) {
+        close(remote_fd);
+        return EXIT_FAILURE;
+    }
     gclient->remote_fd = remote_fd;
     client = gclient;
 
@@ -495,6 +527,10 @@ int main(int argc, char **argv, char * envp[])
             setnonblock(remote_fd);
             n1 = parse_list_result(gclient);
         } else if(!strcmp("export", argv[1])) {
+            if (argc < 3) {
+                err = -12;
+                break;
+            }
             strcpy(client->command, "list");
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
             if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
@@ -573,6 +609,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n2 = prefix_set_command(client, argc, argv);
+            if (n2 < 0) {
+                err = -23;
+                break;
+            }
             //print_time("started");
             write(remote_fd, client->buf, n2);
             //print_time("end");
@@ -586,6 +626,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n2 = prefix_set_command(client, argc, argv);
+            if (n2 < 0) {
+                err = -23;
+                break;
+            }
             write(remote_fd, client->buf, n2);
 
             setnonblock(remote_fd);
@@ -597,6 +641,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n2 = prefix_set_command(client, argc, argv);
+            if (n2 < 0) {
+                err = -23;
+                break;
+            }
             write(remote_fd, client->buf, n2);
 
             setnonblock(remote_fd);
@@ -608,6 +656,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n2 = prefix_set_command(client, argc, argv);
+            if (n2 < 0) {
+                err = -23;
+                break;
+            }
             write(remote_fd, client->buf, n2);
 
             //setnonblock(remote_fd);
@@ -619,6 +671,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n2 = prefix_set_command(client, argc, argv);
+            if (n2 < 0) {
+                err = -23;
+                break;
+            }
             write(remote_fd, client->buf, n2);
 
             //setnonblock(remote_fd);
