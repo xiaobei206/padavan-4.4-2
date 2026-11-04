@@ -1,5 +1,9 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+5cd9c6d  ej.c: validate dictionary filenames, check file bounds, and handle index-allocation failures.
+6a35776  web_ex.c: handle malformed language dictionary lines and missing final newlines.
+a5fef54  web_ex.c: validate DNS status values and bound JavaScript output construction.
+e6d30e8  web_ex.c: bound grouped-table formatting, remove overlapping snprintf, and escape HTML text.
 d01173c  https.c: enforce a 10-second absolute TLS handshake deadline; avoid single-threaded HTTP daemon stalls.
 
 957d39d  Makefile: define prepare-headers for alternate toolchains.
