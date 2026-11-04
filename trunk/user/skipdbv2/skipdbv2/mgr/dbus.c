@@ -426,11 +426,13 @@ int parse_script_result(dbclient *client) {
         if (parsed == 1)
             break;
 
-        if (value_len == 0 ||
-            (value[value_len - 1] != '\0' &&
-             value[value_len - 1] != '\n'))
-            return -4;
-        --value_len;
+        /* Empty Datums are valid; non-empty text carries one terminator. */
+        if (value_len > 0) {
+            if (value[value_len - 1] != '\0' &&
+                value[value_len - 1] != '\n')
+                return -4;
+            --value_len;
+        }
         if (memchr(value, '\0', value_len) != NULL ||
             !valid_shell_identifier(key))
             return -4;
