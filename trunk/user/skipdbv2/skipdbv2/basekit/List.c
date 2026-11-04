@@ -284,24 +284,42 @@ void List_mapInPlace_(List *self, ListCollectCallback *callback)
 List *List_map_(List *self, ListCollectCallback *callback)
 {
 	List *r;
-	if (NULL == callback)
+	size_t i;
+	if (NULL == callback || (self && self->size > 0 && NULL == self->items))
 		return NULL;
 	r = List_new();
 	if (NULL == r)
 		return NULL;
-	LIST_FOREACH(self, i, v, List_append_(r, (*callback)(v)););
+	for (i = 0; self && i < self->size; ++i) {
+		size_t oldSize = r->size;
+		List_append_(r, (*callback)(self->items[i]));
+		if (oldSize == (size_t)-1 || r->size != oldSize + 1) {
+			List_free(r);
+			return NULL;
+		}
+	}
 	return r;
 }
 
 List *List_select_(List *self, ListSelectCallback *callback)
 {
 	List *r;
-	if (NULL == callback)
+	size_t i;
+	if (NULL == callback || (self && self->size > 0 && NULL == self->items))
 		return NULL;
 	r = List_new();
 	if (NULL == r)
 		return NULL;
-	LIST_FOREACH(self, i, v, if ((*callback)(v)) List_append_(r, v));
+	for (i = 0; self && i < self->size; ++i) {
+		if ((*callback)(self->items[i])) {
+			size_t oldSize = r->size;
+			List_append_(r, self->items[i]);
+			if (oldSize == (size_t)-1 || r->size != oldSize + 1) {
+				List_free(r);
+				return NULL;
+			}
+		}
+	}
 	return r;
 }
 
