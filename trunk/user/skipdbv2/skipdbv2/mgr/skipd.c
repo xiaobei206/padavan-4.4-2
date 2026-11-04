@@ -543,6 +543,8 @@ static int client_ccr_read_util(skipd_client* client, int step_len) {
             //client closed
             ccrReturn(ctx, ccr_error_err1);
         } else if(CS->n < 0) {
+            if (errno == EINTR)
+                continue;
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 client->break_level = ccr_break_all;
                 ccrReturn(ctx, ccr_error_ok);
@@ -1210,9 +1212,12 @@ static void server_cb(EV_P_ ev_io *w, int revents) {
 
     while (1) {
         client_fd = accept(server->fd, NULL, NULL);
-        if( client_fd == -1 ) {
-            if( errno != EAGAIN && errno != EWOULDBLOCK ) {
-                skipd_log(SKIPD_DEBUG, "accept() failed errno=%i (%s)",  errno, strerror(errno));
+        if (client_fd == -1) {
+            if (errno == EINTR || errno == ECONNABORTED)
+                continue;
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                skipd_log(SKIPD_DEBUG, "accept() failed errno=%i (%s)",
+                    errno, strerror(errno));
                 exit(EXIT_FAILURE);
             }
             break;
@@ -1231,9 +1236,12 @@ static void server_cb(EV_P_ ev_io *w, int revents) {
 int setnonblock(int fd) {
     int flags;
 
+    if (fd < 0)
+        return -1;
     flags = fcntl(fd, F_GETFL);
-    flags |= O_NONBLOCK;
-    return fcntl(fd, F_SETFL, flags);
+    if (flags < 0)
+        return -1;
+    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
 int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_queue) {
