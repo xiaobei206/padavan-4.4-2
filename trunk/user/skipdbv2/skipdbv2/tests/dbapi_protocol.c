@@ -73,6 +73,48 @@ static int capture_pair(dbclient *client, void *opaque, char *prefix,
     return 0;
 }
 
+static int run_error_frame_case(void)
+{
+    static const char error_frame[] =
+        "__error__ list list response error\n";
+    int sockets[2] = {-1, -1};
+    int parse_result;
+    dbclient client;
+    capture_state state;
+
+    memset(&client, 0, sizeof(client));
+    memset(&state, 0, sizeof(state));
+    client.remote_fd = -1;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0)
+        return -1;
+    client.remote_fd = sockets[0];
+    if (setnonblock(client.remote_fd) != 0 ||
+        write_frame(sockets[1], error_frame, sizeof(error_frame) - 1) != 0)
+        goto fail;
+
+    parse_result = parse_list_result(&client, "alpha", &state, capture_pair);
+    if (parse_result != -5 || state.failed || state.calls != 0) {
+        fprintf(stderr,
+            "dbapi error-frame test failed: result=%d, failed=%d, calls=%d\n",
+            parse_result, state.failed, state.calls);
+        goto fail;
+    }
+
+    free(client.buf);
+    close(client.remote_fd);
+    close(sockets[1]);
+    return 0;
+
+fail:
+    free(client.buf);
+    if (client.remote_fd >= 0)
+        close(client.remote_fd);
+    if (sockets[1] >= 0)
+        close(sockets[1]);
+    return -1;
+}
+
 int main(void)
 {
     static const char list_value_is_end[] = "list alpha __end__\n\0";
@@ -107,6 +149,9 @@ int main(void)
         result = -1;
         goto done;
     }
+
+    if (run_error_frame_case() != 0)
+        goto done;
 
     puts("dbapi protocol tests passed");
     result = 0;
