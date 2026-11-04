@@ -829,11 +829,34 @@ void textValid(void *record)
 
 SkipDBRecord *SkipDBRecord_previousRecord(SkipDBRecord *self)
 {
+	SkipDB *db;
+
 	if (NULL == self)
 		return NULL;
-	if (!self->previousRecord && self->previousPid && self->sdb)
-	{
-		self->previousRecord = SkipDB_recordAtPid_((SkipDB *)(self->sdb), self->previousPid);
+
+	db = (SkipDB *)self->sdb;
+	if (!self->previousRecord && self->previousPid && db)
+		self->previousRecord = SkipDB_recordAtPid_(db, self->previousPid);
+
+	/*
+	 * Reverse links are intentionally not serialized; the forward skip-list
+	 * links are the authoritative on-disk structure. After reopening a DB a
+	 * record therefore has neither a cached predecessor nor a predecessor PID.
+	 * Re-run the ordered lookup to recover the immediate level-0 predecessor.
+	 * Keep this as a cache-only update: marking the record dirty here would
+	 * cause a read operation to schedule an unnecessary disk write.
+	 */
+	if (NULL == self->previousRecord && db && self->key &&
+		SkipDB_isOpen(db)) {
+		SkipDBRecord *found;
+		SkipDBRecord *previous;
+
+		found = SkipDB_recordAt_(db, SkipDBRecord_keyDatum(self));
+		previous = db->update[0];
+		if (found == self && previous && previous != self) {
+			self->previousRecord = previous;
+			self->previousPid = SkipDBRecord_pid(previous);
+		}
 	}
 
 #ifdef SKIPDB_DEBUG
