@@ -428,6 +428,7 @@ static void delay_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
 
 static void time_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
     char *p1;
+    char time_text[16];
     int time_len;
     double timer_delay;
     time_t now;
@@ -451,20 +452,20 @@ static void time_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
     }
 
     time_len = (int)(p1 - (char*)dvalue.data);
-    if (time_len <= 0 || (size_t)time_len >= sizeof(static_buffer)) {
-        skipd_log(SKIPD_DEBUG, "time %s schedule value error\n", dkey.data);
+    if (time_len <= 0 || (size_t)time_len >= sizeof(time_text)) {
+        skipd_log(SKIPDB_DEBUG, "time %s schedule value error\n", dkey.data);
         ev_timer_stop(EV_A_ watcher);
         free(time_obj);
         return;
     }
-    memcpy(static_buffer, dvalue.data, (size_t)time_len);
-    static_buffer[time_len] = '\0';
+    memcpy(time_text, dvalue.data, (size_t)time_len);
+    time_text[time_len] = '\0';
 
     sys_script(p1 + 1,
         dvalue.size - (size_t)(p1 + 1 - (char*)dvalue.data));
 
     now = time(NULL);
-    if (!next_daily_delay(static_buffer, now, &timer_delay)) {
+    if (!next_daily_delay(time_text, now, &timer_delay)) {
         skipd_log(SKIPD_DEBUG, "time %s next schedule calculation failed\n",
             dkey.data);
         ev_timer_stop(EV_A_ watcher);
