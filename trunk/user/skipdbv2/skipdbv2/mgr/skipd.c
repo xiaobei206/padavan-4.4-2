@@ -1970,31 +1970,35 @@ static int check_dbpath(skipd_server* server)
 {
     struct stat s;
     size_t n;
-    int err;
 
-    if(NULL == server)
+    if (NULL == server)
         return -1;
     n = strnlen(server->db_path, sizeof(server->db_path));
-    if(n == 0 || n >= sizeof(server->db_path))
+    if (n == 0 || n >= sizeof(server->db_path))
         return -1;
-    if(n > 1 && server->db_path[n - 1] == '/') {
+    if (n > 1 && server->db_path[n - 1] == '/') {
         server->db_path[--n] = '\0';
     }
-    /* Both "<path>/0" and "<path>/switch" must fit real_path. */
-    if(n > SK_PATH_MAX - 8)
+
+    /* The longest generated name is "<path>/switch.tmp", including NUL. */
+    if (n > sizeof(server->db_path) - sizeof("/switch.tmp"))
         return -1;
-    err = stat(server->db_path, &s);
-    if(-1 == err) {
-        if(ENOENT != errno)
+
+    if (lstat(server->db_path, &s) != 0) {
+        if (errno != ENOENT)
             return -1;
         if (mkdir(server->db_path, 0700) != 0 && errno != EEXIST)
             return -1;
-        /* Re-stat after mkdir (including EEXIST races) before using the path. */
-        if (stat(server->db_path, &s) != 0 || !S_ISDIR(s.st_mode))
+        /* Re-check after mkdir (including EEXIST races) before using it. */
+        if (lstat(server->db_path, &s) != 0)
             return -1;
-    } else if(!S_ISDIR(s.st_mode)) {
-        return -1;
     }
+
+    /* skipd may write the active-database marker as root. Do not follow a
+     * directory symlink or accept a directory another user can modify. */
+    if (!S_ISDIR(s.st_mode) || s.st_uid != geteuid() ||
+        (s.st_mode & (S_IWGRP | S_IWOTH)) != 0)
+        return -1;
 
     return 0;
 }
