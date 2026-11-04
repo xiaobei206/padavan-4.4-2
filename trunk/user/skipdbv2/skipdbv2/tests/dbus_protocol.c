@@ -37,7 +37,7 @@ static int run_case(int common, const char *command,
     char header[HEADER_PREFIX + 1];
     unsigned char actual_output[READ_MAX + 1];
     FILE *capture = NULL;
-    size_t actual_output_len;
+    size_t actual_output_len = 0;
     int header_len;
     dbclient client;
 
