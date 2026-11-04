@@ -13,6 +13,7 @@ license: See _BSDLicense.txt.
 #include <ctype.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <math.h>
 
 size_t CTYPE_size(CTYPE type)
 {
