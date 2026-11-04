@@ -247,6 +247,11 @@ UArray *UArray_asUTF8(const UArray *self)
 		case CENCODING_ASCII:
 		case CENCODING_UTF8:
 			UArray_copy_(out, self);
+			if (out->size != self->size ||
+				(self->size > 0 && NULL == out->data)) {
+				UArray_free(out);
+				return NULL;
+			}
 			break;
 		case CENCODING_UTF16:
 			r = ConvertUTF16toUTF8((const UTF16 **)&sourceStart,
@@ -330,6 +335,11 @@ UArray *UArray_asUTF16(const UArray *self)
 			break;
 		case CENCODING_UTF16:
 			UArray_copy_(out, self);
+			if (out->size != self->size ||
+				(self->size > 0 && NULL == out->data)) {
+				UArray_free(out);
+				return NULL;
+			}
 			break;
 		case CENCODING_UTF32:
 			r = ConvertUTF32toUTF16((const UTF32 **)&sourceStart,
@@ -401,6 +411,11 @@ UArray *UArray_asUTF32(const UArray *self)
 			break;
 		case CENCODING_UTF32:
 			UArray_copy_(out, self);
+			if (out->size != self->size ||
+				(self->size > 0 && NULL == out->data)) {
+				UArray_free(out);
+				return NULL;
+			}
 			break;
 		default:
 			UArray_free(out);
