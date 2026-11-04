@@ -312,10 +312,8 @@ ej_route_table(int eid, webs_t wp, int argc, char **argv)
 				ifl++;
 			buff[ifl]=0;    /* interface */
 			if (sscanf(buff+ifl+1, "%lx%lx%d%d%d%d%lx",
-			   &d, &g, &flgs, &ref, &use, &metric, &m)!=7) {
-				//error_msg_and_die( "Unsuported kernel route format\n");
-				//continue;
-			}
+			   &d, &g, &flgs, &ref, &use, &metric, &m) != 7)
+				continue;
 
 			ifl = 0;	/* parse flags */
 			if (flgs&1)
