@@ -332,3 +332,5 @@ Verification: source-level review only. No local firmware build or CTest executi
 9e0ca3ea  skbus.c: return failure status on transport, stdout, input and protocol errors instead of reporting success.
 cbebf5d5  skipd.c: handle -h as success and reject unknown command-line options.
 Verification: source inspection and GitHub commit-diff inspection only; no firmware build or runtime tests were run.
+1285e942  skipd.c: reject unexpected positional arguments after option parsing.
+f5d24b85  skipd.c: replace unsafe /tmp/skipd.log shell redirection with a checked no-follow log descriptor; fall back to /dev/null if unavailable.
