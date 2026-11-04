@@ -87,10 +87,11 @@ char *BStream_errorString(BStream *self)
 
 void BStream_setUArray_(BStream *self, UArray *ba)
 {
-	if (NULL == self || NULL == ba)
+	if (NULL == self || NULL == ba || ba->itemSize != 1 ||
+		(ba->size > 0 && NULL == ba->data))
 		return;
 	if (self->ba == ba) {
-		self->index = 0;
+		self->index = UArray_size(ba);
 		if (self->errorBa)
 			UArray_setSize_(self->errorBa, 0);
 		return;
@@ -104,15 +105,23 @@ void BStream_setUArray_(BStream *self, UArray *ba)
 		UArray_setSize_(self->errorBa, 0);
 }
 
+
 void BStream_setData_length_(BStream *self, unsigned char *data, size_t length)
 {
-	if (NULL == self || NULL == self->ba || (length > 0 && NULL == data))
+	if (NULL == self || NULL == self->ba || (length > 0 && NULL == data) ||
+		length == (size_t)-1)
 		return;
 	UArray_setData_type_size_copy_(self->ba, data, CTYPE_uint8_t, length, 1);
+	if (self->ba->itemSize != 1 || self->ba->size != length ||
+		(length > 0 && NULL == self->ba->data)) {
+		BStream_error_(self, "unable to set binary stream data");
+		return;
+	}
 	self->index = 0;
 	if (self->errorBa)
 		UArray_setSize_(self->errorBa, 0);
 }
+
 
 UArray *BStream_byteArray(BStream *self)
 {
@@ -141,19 +150,52 @@ void BStream_writeByte_(BStream *self, unsigned char v)
 	BStream_writeUint8_(self, v);
 }
 
+static int BStream_appendBytes_(BStream *self, const unsigned char *bytes, size_t length)
+{
+	size_t oldSize;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		self->ba->itemSize != 1 || UArray_size(self->errorBa) != 0 ||
+		(length > 0 && NULL == bytes)) {
+		BStream_error_(self, "invalid binary stream write");
+		return 0;
+	}
+	oldSize = UArray_size(self->ba);
+	if (length > (size_t)-1 - oldSize || oldSize + length == (size_t)-1) {
+		BStream_error_(self, "binary stream size overflow");
+		return 0;
+	}
+	UArray_appendBytes_size_(self->ba, (unsigned char *)bytes, length);
+	if (UArray_size(self->ba) != oldSize + length) {
+		BStream_error_(self, "unable to grow binary stream");
+		return 0;
+	}
+	self->index = oldSize + length;
+	return 1;
+}
+
+static void BStream_rollbackWrite_(BStream *self, size_t oldSize)
+{
+	if (NULL == self || NULL == self->ba || self->ba->itemSize != 1)
+		return;
+	if (UArray_size(self->ba) > oldSize) {
+		UArray_setSize_(self->ba, oldSize);
+		if (UArray_size(self->ba) != oldSize) {
+			self->ba->size = oldSize;
+			if (self->ba->data)
+				self->ba->data[oldSize] = 0;
+			UArray_changed(self->ba);
+		}
+	}
+	self->index = oldSize;
+}
+
 void BStream_writeUint8_(BStream *self, uint8_t v)
 {
-	if (NULL == self || NULL == self->ba) {
-		BStream_error_(self, "invalid binary stream");
+	if (NULL == self || NULL == self->errorBa)
 		return;
-	}
-	if (self->index == (size_t)-1) {
-		BStream_error_(self, "binary stream position overflow");
-		return;
-	}
-	UArray_appendLong_(self->ba, v);
-	self->index++;
+	BStream_appendBytes_(self, &v, 1);
 }
+
 
 static void reverseBytes(unsigned char *d, size_t length)
 {
@@ -174,42 +216,28 @@ static void reverseBytes(unsigned char *d, size_t length)
 void BStream_writeNumber_size_(BStream *self, unsigned char *v, size_t length)
 {
 	if (NULL == self || NULL == self->ba || NULL == self->typeBuf ||
-		(length > 0 && NULL == v) || length > 512) {
+		NULL == self->errorBa || (length > 0 && NULL == v) || length > 512) {
 		BStream_error_(self, "invalid binary number write");
 		return;
 	}
-	if (NULL == self->errorBa || UArray_size(self->errorBa) != 0)
+	if (UArray_size(self->errorBa) != 0)
 		return;
-	if (length > (size_t)-1 - self->index) {
-		BStream_error_(self, "binary stream position overflow");
+	if (length == 0)
 		return;
-	}
 	memcpy(self->typeBuf, v, length);
-
 	if (self->flipEndian && length > 1)
-	{
 		reverseBytes(self->typeBuf, length);
-	}
-
-	UArray_appendBytes_size_(self->ba, (unsigned char *)self->typeBuf, length);
-	self->index += length;
+	BStream_appendBytes_(self, self->typeBuf, length);
 }
+
 
 void BStream_writeData_length_(BStream *self, const unsigned char *data, size_t length)
 {
-	if (NULL == self || NULL == self->ba || (length > 0 && NULL == data)) {
-		BStream_error_(self, "invalid binary stream data write");
+	if (NULL == self || NULL == self->errorBa)
 		return;
-	}
-	if (NULL == self->errorBa || UArray_size(self->errorBa) != 0)
-		return;
-	if (length > (size_t)-1 - self->index) {
-		BStream_error_(self, "binary stream length overflow");
-		return;
-	}
-	UArray_appendBytes_size_(self->ba, (unsigned char *)data, length);
-	self->index += length;
+	BStream_appendBytes_(self, data, length);
 }
+
 
 void BStream_writeInt32_(BStream *self, int32_t v)
 {
@@ -235,51 +263,59 @@ void BStream_writeDouble_(BStream *self, double v)
 
 void BStream_writeCString_(BStream *self, const char *s)
 {
-	size_t length;
-	if (NULL == self || NULL == self->errorBa)
-		return;
-	if (UArray_size(self->errorBa) != 0)
+	size_t length, oldSize;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		UArray_size(self->errorBa) != 0)
 		return;
 	if (NULL == s) {
 		BStream_error_(self, "invalid binary stream string");
 		return;
 	}
 	length = strlen(s);
-	if (length > INT32_MAX || self->index > (size_t)-1 - 4 ||
-		length > (size_t)-1 - self->index - 4) {
+	oldSize = UArray_size(self->ba);
+	if (length > INT32_MAX || oldSize > (size_t)-1 - 4 ||
+		length > (size_t)-1 - oldSize - 4 || oldSize + 4 + length == (size_t)-1) {
 		BStream_error_(self, "string too large for binary stream");
 		return;
 	}
 	BStream_writeInt32_(self, (int32_t)length);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeData_length_(self, (const unsigned char *)s, length);
 	if (UArray_size(self->errorBa) != 0)
-		return;
-	BStream_writeData_length_(self, (const unsigned char *)s, length);
+		BStream_rollbackWrite_(self, oldSize);
 }
+
 
 void BStream_writeUArray_(BStream *self, UArray *ba)
 {
-	size_t length;
+	size_t length, oldSize;
+	const unsigned char *bytes;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
-		NULL == ba)
+		NULL == ba || UArray_size(self->errorBa) != 0)
 		return;
-	if (UArray_size(self->errorBa) != 0)
-		return;
-	if (self->ba == ba) {
-		BStream_error_(self, "cannot append a binary stream array to itself");
+	if (self->ba == ba || ba->itemSize == 0 ||
+		ba->size > (size_t)-1 / ba->itemSize ||
+		(ba->size > 0 && NULL == ba->data)) {
+		BStream_error_(self, "invalid binary stream array");
 		return;
 	}
-	length = UArray_size(ba);
-	if (length > INT32_MAX || self->index > (size_t)-1 - 4 ||
-		length > (size_t)-1 - self->index - 4) {
+	length = UArray_sizeInBytes(ba);
+	oldSize = UArray_size(self->ba);
+	if (self->ba->itemSize != 1 || length > INT32_MAX ||
+		oldSize > (size_t)-1 - 4 ||
+		length > (size_t)-1 - oldSize - 4 ||
+		oldSize + 4 + length == (size_t)-1) {
 		BStream_error_(self, "array too large for binary stream");
 		return;
 	}
+	bytes = UArray_bytes(ba);
 	BStream_writeInt32_(self, (int32_t)length);
+	if (UArray_size(self->errorBa) == 0)
+		BStream_writeData_length_(self, bytes, length);
 	if (UArray_size(self->errorBa) != 0)
-		return;
-	UArray_append_(self->ba, ba);
-	self->index += length;
+		BStream_rollbackWrite_(self, oldSize);
 }
+
 
 // reading --------------------------------------
 
