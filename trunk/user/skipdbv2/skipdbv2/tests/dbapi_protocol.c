@@ -55,10 +55,18 @@ static int capture_pair(dbclient *client, void *opaque, char *prefix,
     (void)client;
 
     if (NULL == state || NULL == prefix || strcmp(prefix, "alpha") != 0 ||
-        NULL == key || strcmp(key, "alpha") != 0 ||
-        NULL == value || strcmp(value, "__end__\n") != 0) {
+        NULL == key || NULL == value) {
         if (state)
             state->failed = 1;
+        return -1;
+    }
+
+    if ((state->calls == 0 &&
+         (strcmp(key, "alpha") != 0 || strcmp(value, "__end__\n") != 0)) ||
+        (state->calls == 1 &&
+         (strcmp(key, "alpha-empty") != 0 || strcmp(value, "") != 0)) ||
+        state->calls > 1) {
+        state->failed = 1;
         return -1;
     }
     ++state->calls;
@@ -68,6 +76,7 @@ static int capture_pair(dbclient *client, void *opaque, char *prefix,
 int main(void)
 {
     static const char list_value_is_end[] = "list alpha __end__\n\0";
+    static const char list_empty_value[] = "list alpha-empty ";
     static const char list_end_frame[] = "__end__ list __end__\n";
     int sockets[2] = {-1, -1};
     int result = -1;
@@ -84,12 +93,14 @@ int main(void)
     if (setnonblock(client.remote_fd) != 0 ||
         write_frame(sockets[1], list_value_is_end,
             sizeof(list_value_is_end) - 1) != 0 ||
+        write_frame(sockets[1], list_empty_value,
+            sizeof(list_empty_value) - 1) != 0 ||
         write_frame(sockets[1], list_end_frame,
             sizeof(list_end_frame) - 1) != 0)
         goto done;
 
     result = parse_list_result(&client, "alpha", &state, capture_pair);
-    if (result != 0 || state.failed || state.calls != 1) {
+    if (result != 0 || state.failed || state.calls != 2) {
         fprintf(stderr,
             "dbapi list parser failed: result=%d, failed=%d, calls=%d\n",
             result, state.failed, state.calls);
