@@ -10,6 +10,7 @@ docDescription("")
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 UDBRecord *UDBRecord_new(void)
 {
@@ -25,13 +26,18 @@ UDBRecord *UDBRecord_clone(UDBRecord *self)
 
 void UDBRecord_free(UDBRecord *self)
 {
+    if (NULL == self)
+        return;
     if (self->data) UArray_free(self->data);
     free(self);
 }
 
 UArray *UDBRecord_data(UDBRecord *self)
 {
-    if (!self->data) self->data = UArray_new();
+    if (NULL == self)
+        return NULL;
+    if (!self->data)
+        self->data = UArray_new();
     return self->data;
 }
 
@@ -77,6 +83,8 @@ PID_TYPE UDBRecord_size(UDBRecord *self)
 
 void UDBRecord_remove(UDBRecord *self)
 {
+    if (NULL == self)
+        return;
     self->header.tag = RECORD_TAG_EMPTY;
     UDBRecord_saveHeader(self);
 }
@@ -89,17 +97,27 @@ int UDBRecord_isEmpty(UDBRecord *self)
 
 // save ----------------------------------------- 
 
-void UDBRecord_saveHeader(UDBRecord *self) 
-{ 
-    if (self->pos) JFile_setPosition_(self->file, self->pos);
-    JFile_fwrite(self->file, (unsigned char *)(&(self->header)), sizeof(UDBRecordHeader), 1);
+void UDBRecord_saveHeader(UDBRecord *self)
+{
+    if (NULL == self || NULL == self->file ||
+        self->pos > (PID_TYPE)LONG_MAX)
+        return;
+    if (self->pos)
+        JFile_setPosition_(self->file, (long)self->pos);
+    JFile_fwrite(self->file, (unsigned char *)&self->header,
+                 sizeof(UDBRecordHeader), 1);
 }
 
 void UDBRecord_saveWithDatum_(UDBRecord *self, Datum d)
 {
+    if (NULL == self || NULL == self->file ||
+        (d.size > 0 && NULL == d.data))
+        return;
+    self->header.tag = RECORD_TAG_NORMAL;
     self->header.size = d.size;
     UDBRecord_saveHeader(self);
-    JFile_fwrite(self->file, d.data, d.size, 1);
+    if (d.size > 0)
+        JFile_fwrite(self->file, d.data, d.size, 1);
 }
 
 // read ----------------------------------------- 
@@ -127,6 +145,8 @@ int UDBRecord_readHeader(UDBRecord *self)
                               sizeof(UDBRecordHeader), 1);
 
     if (objectsRead != 1 ||
+        (self->header.tag != RECORD_TAG_NORMAL &&
+         self->header.tag != RECORD_TAG_EMPTY) ||
         self->header.size > file_size - self->pos - sizeof(UDBRecordHeader)) {
         self->header.tag = RECORD_TAG_EMPTY;
         self->header.pid = 0;
@@ -159,7 +179,8 @@ Datum UDBRecord_readDatum(UDBRecord *self)
         return d;
     JFile_fseek(self->file, (long)(self->pos + sizeof(UDBRecordHeader)), SEEK_SET);
     UArray_setSize_(ba, size);
-    if (size > 0 && JFile_fread(self->file, UArray_bytes(ba), size, 1) != 1) {
+    if (size > 0 && (NULL == UArray_bytes(ba) ||
+        JFile_fread(self->file, (unsigned char *)UArray_bytes(ba), size, 1) != 1)) {
         UArray_setSize_(ba, 0);
         return d;
     }
@@ -172,16 +193,38 @@ Datum UDBRecord_readDatum(UDBRecord *self)
 
 void UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)
 {
-    PID_TYPE totalSize = UDBRecord_totalSize(self);
+    PID_TYPE totalSize;
+    size_t file_size;
     unsigned char *data;
-    UArray *ba = UDBRecord_data(self);
+    UArray *ba;
+
+    if (NULL == self || NULL == self->file || self->file->maxPos < 0 ||
+        self->pos > (PID_TYPE)LONG_MAX || newPos > (PID_TYPE)LONG_MAX)
+        return;
+
+    file_size = (size_t)self->file->maxPos;
+    totalSize = UDBRecord_totalSize(self);
+    if (totalSize == 0 || (size_t)self->pos > file_size ||
+        (size_t)totalSize > file_size - (size_t)self->pos ||
+        (size_t)newPos > file_size ||
+        (size_t)totalSize > file_size - (size_t)newPos)
+        return;
+
+    ba = UDBRecord_data(self);
+    if (NULL == ba)
+        return;
     UArray_setSize_(ba, totalSize);
-    data = UArray_bytes(ba); 
-       
-    JFile_fseek(self->file, self->pos, SEEK_SET);
-    JFile_fread(self->file, data, totalSize, 1);
-    
-    JFile_fseek(self->file, newPos, SEEK_SET);
+    data = (unsigned char *)UArray_bytes(ba);
+    if (NULL == data)
+        return;
+
+    JFile_setPosition_(self->file, (long)self->pos);
+    if (JFile_fread(self->file, data, totalSize, 1) != 1) {
+        UArray_setSize_(ba, 0);
+        return;
+    }
+
+    JFile_setPosition_(self->file, (long)newPos);
     JFile_fwrite(self->file, data, totalSize, 1);
 }
 
