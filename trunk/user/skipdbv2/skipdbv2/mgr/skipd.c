@@ -1491,11 +1491,20 @@ static void server_sync_tick(EV_P_ ev_timer *w, int revents) {
 static int check_dbpath(skipd_server* server)
 {
     struct stat s;
-    int err, n = strlen(server->db_path);
+    size_t n;
+    int err;
 
-    if('/' == server->db_path[n]) {
-        server->db_path[n] = '\0';
+    if(NULL == server)
+        return -1;
+    n = strnlen(server->db_path, sizeof(server->db_path));
+    if(n == 0 || n >= sizeof(server->db_path))
+        return -1;
+    if(n > 1 && server->db_path[n - 1] == '/') {
+        server->db_path[--n] = '\0';
     }
+    /* Both "<path>/0" and "<path>/switch" must fit real_path. */
+    if(n > SK_PATH_MAX - 8)
+        return -1;
     err = stat(server->db_path, &s);
     if(-1 == err) {
         if(ENOENT == errno) {
@@ -1522,6 +1531,10 @@ int main(int argc, char **argv)
     EV_P  = ev_default_loop(0);
 
     global_server = (skipd_server*)calloc(1, sizeof(skipd_server));
+    if(NULL == global_server) {
+        perror("skipd: calloc");
+        return EXIT_FAILURE;
+    }
     server = global_server;
 
     strcpy(server->sock_path, "/tmp/.skipd_server_sock");
@@ -1542,12 +1555,27 @@ int main(int argc, char **argv)
                 //strcpy(server->pid_path, optarg);
                 daemon = 0;
                 break;
-            case 'd':
-                strcpy(server->db_path, optarg);
+            case 'd': {
+                size_t path_len;
+                if(NULL == optarg ||
+                   (path_len = strlen(optarg)) >= sizeof(server->db_path)) {
+                    fprintf(stderr, "Database path too long\n");
+                    return EXIT_FAILURE;
+                }
+                memcpy(server->db_path, optarg, path_len + 1);
                 break;
-            case 's':
-                strcpy(server->sock_path, optarg);
+            }
+            case 's': {
+                size_t path_len;
+                if(NULL == optarg ||
+                   (path_len = strlen(optarg)) >= sizeof(server->sock_path) ||
+                   path_len >= sizeof(server->socket.sun_path)) {
+                    fprintf(stderr, "Socket path too long\n");
+                    return EXIT_FAILURE;
+                }
+                memcpy(server->sock_path, optarg, path_len + 1);
                 break;
+            }
             case 'h':
                 fprintf(stderr, "Usage: skipd xxx todo\n");
                 exit(1);
