@@ -120,3 +120,22 @@ fe1a3a1  web_ex.c: validate certificate inputs and storage filenames; check path
 0bad5e2  web_ex.c: remove shell interpolation from SQM status probe.
 
 0b6eb74  disk_share.c: validate permission-record length before indexed reads.
+
+e7e7805  upload.c: bound multipart payload reads/writes and reject incomplete uploads.
+ef59177  upload.c: validate storage restore MIME boundary.
+8cee3f0  upload.c: validate encoded upload file lengths.
+057147d  upload.c: reject truncated request bodies.
+3cc8586  httpd.c: block protected CGI requests from a different active login IP.
+14eae02  httpd.c: correct single-IP login ownership state.
+1ca3ad8  httpd.c: strictly parse Content-Length and reject duplicates.
+715ca53  cgi.c: safely decode percent escapes without reading past NUL.
+65fbb83  cgi.c: fix hash-table allocation size and handle allocation/lookup failures.
+1fff7e3  cgi.c: handle hash-table insertion lookup failures.
+0924984  httpd.c: fail closed when configured Basic credentials would truncate.
+9c5bed8  httpd.c: drain rejected request bodies as bounded binary data.
+8dcbcdc  httpd.c: bound IP string copy and ARP field parsing.
+0ebcc1c  dbapi.c: bound IPC buffers, fix partial-write handling and validate response lengths.
+0682f24  dbapi.c: repair file terminator after IPC hardening.
+8f72316  base64.c: use unsigned bytes for lookup-table indexing and validate arguments.
+afb4ed9  httpd.c: reject failed Basic authorization decoding.
+39c6c92  upload.c: validate upload size against the original request payload.
