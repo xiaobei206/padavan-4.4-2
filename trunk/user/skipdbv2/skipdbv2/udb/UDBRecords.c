@@ -13,7 +13,7 @@ UDBRecords ioDoc(
 
 UDBRecords *UDBRecords_new(void)
 {
-	UDBRecords *self = (UDBRecords *)calloc(1, sizeof(UDB));
+	UDBRecords *self = (UDBRecords *)calloc(1, sizeof(*self));
 	self->file = JFile_new();
 	self->record = UDBRecord_new();
 	self->firstEmptyRecord = UDBRecord_new();
