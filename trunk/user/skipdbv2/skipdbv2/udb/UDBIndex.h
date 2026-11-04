@@ -49,7 +49,7 @@ void UDBIndex_commit(UDBIndex *self);
 
 // holes ------------------------------------------- 
 
-void UDBIndex_findHoles(UDBIndex *self);
+int UDBIndex_findHoles(UDBIndex *self);
 
 // pid ops ------------------------------------------- 
 
