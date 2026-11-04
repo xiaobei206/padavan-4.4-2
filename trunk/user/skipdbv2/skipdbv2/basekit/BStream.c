@@ -625,15 +625,39 @@ void BStream_writeTaggedCString_(BStream *self, const char *s)
 
 void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 {
-	size_t length;
-	if (NULL == self || NULL == ba || ba == self->ba || ba->itemSize == 0 ||
+	UArray *snapshot = NULL;
+	const uint8_t *bytes;
+	size_t length, streamBytes;
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		NULL == ba || ba->itemSize == 0 ||
 		ba->size > (size_t)-1 / ba->itemSize ||
-		(ba->size > 0 && NULL == ba->data)) {
+		(ba->size > 0 && NULL == ba->data) ||
+		self->ba->itemSize != 1 ||
+		self->ba->size > (size_t)-1 / self->ba->itemSize ||
+		(self->ba->size > 0 && NULL == self->ba->data)) {
 		BStream_error_(self, "invalid tagged array");
 		return;
 	}
 	length = UArray_sizeInBytes(ba);
-	BStream_writeTaggedData_length_(self, UArray_bytes(ba), length);
+	streamBytes = UArray_sizeInBytes(self->ba);
+	if (length > 0 && streamBytes > 0) {
+		uintptr_t sourceStart = (uintptr_t)ba->data;
+		uintptr_t streamStart = (uintptr_t)self->ba->data;
+		int overlaps = (sourceStart >= streamStart ?
+			sourceStart - streamStart < streamBytes :
+			streamStart - sourceStart < length);
+		if (overlaps) {
+			snapshot = UArray_clone(ba);
+			if (NULL == snapshot) {
+				BStream_error_(self, "unable to snapshot tagged array");
+				return;
+			}
+			ba = snapshot;
+		}
+	}
+	bytes = UArray_bytes(ba);
+	BStream_writeTaggedData_length_(self, bytes, length);
+	UArray_free(snapshot);
 }
 
 
