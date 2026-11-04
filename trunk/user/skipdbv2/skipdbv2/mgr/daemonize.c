@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <time.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -31,15 +32,60 @@ void skipd_daemonize(char * path)
     /* If we got a good PID, then
        we can exit the parent process. */
     if (pid > 0) {
-        FILE *file;
-        int failed;
-        if (NULL == path || NULL == (file = fopen(path, "w"))) {
-            fprintf(stderr, "Unable to create pid file\n");
+        int fd = -1;
+        int failed = 0;
+        struct stat st;
+        char pid_text[32];
+        int pid_len;
+        size_t written = 0;
+
+        if (NULL != path) {
+#ifdef O_NOFOLLOW
+            fd = open(path, O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK,
+                0600);
+#else
+            errno = ENOTSUP;
+#endif
+        } else {
+            errno = EINVAL;
+        }
+        if (fd < 0) {
+            fprintf(stderr, "Unable to create pid file: %s\n",
+                strerror(errno));
             kill(pid, SIGTERM);
             exit(EXIT_FAILURE);
         }
-        failed = fprintf(file, "%ld\n", (long)pid) < 0;
-        if (fclose(file) != 0)
+
+        /* Never truncate a non-regular, foreign-owned, or symlinked path. */
+        if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
+            st.st_uid != geteuid() || fchmod(fd, 0600) != 0 ||
+            ftruncate(fd, 0) != 0) {
+            if (errno == 0)
+                errno = EPERM;
+            fprintf(stderr, "Unsafe pid file: %s\n", strerror(errno));
+            close(fd);
+            kill(pid, SIGTERM);
+            exit(EXIT_FAILURE);
+        }
+
+        pid_len = snprintf(pid_text, sizeof(pid_text), "%ld\n", (long)pid);
+        if (pid_len < 0 || (size_t)pid_len >= sizeof(pid_text)) {
+            failed = 1;
+        } else {
+            while (written < (size_t)pid_len) {
+                ssize_t n = write(fd, pid_text + written,
+                    (size_t)pid_len - written);
+                if (n < 0 && errno == EINTR)
+                    continue;
+                if (n <= 0) {
+                    failed = 1;
+                    break;
+                }
+                written += (size_t)n;
+            }
+        }
+
+        if (close(fd) != 0)
             failed = 1;
         if (failed) {
             fprintf(stderr, "Unable to write pid file\n");
