@@ -92,3 +92,4 @@ f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k
 2b9b0f7  services_stor.c: match full SCSI/MMC root-disk names and numeric partition suffixes before unmount.
 dcf22fc  services_stor.c: guard Samba config cleanup when append-open fails.
 94977eb  disk_share.c: compact account arrays safely; validate folder counts and clean partial allocations.
+e1604be  disk_share.c: use checked dynamic folder enumeration and reset/free list outputs consistently.
