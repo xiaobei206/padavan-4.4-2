@@ -735,9 +735,13 @@ static int client_run_command(EV_P_ skipd_client* client)
             CS->record = SkipDB_list_next(client->server->db, CS->skey, CS->cursor);
         }
 
-        //send end
+        /*
+         * Use a distinct command token for the terminal frame. A stored
+         * value may legitimately equal "__end__\\n", so the payload alone
+         * must never be treated as a list terminator.
+         */
         p1 = "__end__\n";
-        client_send(EV_A_ client, p1, strlen(p1));
+        client_send_key(EV_A_ client, "__end__", "list", p1, strlen(p1));
         ccrReturn(ctx, ccr_error_ok);
 
         if (CS->cursor) {
