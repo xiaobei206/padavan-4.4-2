@@ -270,3 +270,21 @@ c04fb89  dbus.c: set client socket nonblocking before first request; handle F_GE
 2d4340b  skipd/SkipDB: load persisted active DB marker; validate merge/commit before switching; atomically fsync+rename marker.
 68557b1  skipd.c: preserve both DBs and stop if marker rename succeeded but directory fsync failed.
 Verification: source review only; firmware build/hardware run not performed in this session.
+2026-11-04 autonomous audit follow-up:
+ef6a122c  skipd.c: reject embedded NULs in persisted timer keys and avoid unsafe error logging.
+f363d4ac  dbus.c: propagate malformed/read failures through process exit status and free client state.
+82cdd9ef  dbus.c: fail unsupported CLI commands instead of reporting success.
+28c49f76  skbus.c: handle nonblocking partial writes, bounded reads, connect errors and cleanup.
+896ffe8d  dbus.c: preserve empty values returned by get.
+08d5d582  skipd.c: restore persisted delay/time jobs before accepting clients; remove startup double-registration window.
+e098617a  UDBIndex.h: declare allocator-reserved PID validation helper.
+85b07351  UDBIndex.c: restore the existing PID high-water mark when opening an index and identify reserved unmapped PIDs.
+e5d30749  UDB.c: allow first writes to allocator-reserved PIDs while rejecting arbitrary unmapped IDs.
+d1004aaa  UDBIndex.c: normalize duplicate free-PID entries and validate reserved slots against the index.
+f2a39f29  tests: add optional reserved-PID regression test covering allocation, update, reuse, and rejection.
+0a9fd3d6  CMakeLists.txt: expose the reserved-PID regression through optional CTest configuration.
+91c74170  tests: validate the generated regression database path.
+92e1a675  UDBIndex.h: report failure from PID-hole discovery.
+3ba90a4c  UDBIndex.c: fail closed when PID-hole tracking allocation or index validation fails.
+ee4f62b5  UDBIndex.c: abort PID-hole discovery on index read errors.
+Verification: source review and GitHub commit-diff inspection only. Firmware build and CTest were not run in this environment.
