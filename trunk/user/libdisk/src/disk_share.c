@@ -40,6 +40,49 @@ static void nvram_commit_safe()
 	nvram_commit();
 }
 
+static int
+is_valid_account_name(const char *name)
+{
+	const unsigned char *p;
+	size_t len;
+
+	if (!name || !*name)
+		return 0;
+
+	len = strlen(name);
+	if (len > 31 || !strcmp(name, ".") || !strcmp(name, ".."))
+		return 0;
+
+	for (p = (const unsigned char *)name; *p; ++p) {
+		if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.')
+			return 0;
+	}
+
+	return 1;
+}
+
+static int
+is_valid_folder_name(const char *name)
+{
+	const unsigned char *p;
+	size_t len;
+
+	if (!name || !*name)
+		return 0;
+
+	len = strlen(name);
+	if (len > 255 || !strcmp(name, ".") || !strcmp(name, ".."))
+		return 0;
+
+	for (p = (const unsigned char *)name; *p; ++p) {
+		if (*p < 32 || *p == 127 || *p == '/' || *p == '\\' ||
+		    *p == '[' || *p == ']' || *p == '\r' || *p == '\n')
+			return 0;
+	}
+
+	return 1;
+}
+
 int get_account_list(int *acc_num, char ***account_list)
 {
 	char nvram_name[24], *nvram_value, **tmp_account_list;
@@ -72,7 +115,8 @@ int get_account_list(int *acc_num, char ***account_list)
 			continue;
 		}
 		/* Account management uses the count as the next NVRAM index. */
-		if (seen_empty) {
+		if (!is_valid_account_name(nvram_value) ||
+		    !strcmp(nvram_value, FTP_ANONYMOUS_USER) || seen_empty) {
 			for (j = 0; j < count; ++j)
 				free(tmp_account_list[j]);
 			free(tmp_account_list);
@@ -227,6 +271,8 @@ int get_all_folder_in_mount_path(const char *const mount_path, int *sh_num, char
 			continue;
 
 		name_len = strlen(dp->d_name);
+		if (!is_valid_folder_name(dp->d_name))
+			continue;
 		if (mount_len > (size_t)-1 - name_len - 2)
 			goto failed;
 
@@ -350,7 +396,7 @@ int initial_one_var_file_in_mount_path(const char *const account, const char *co
 	char **folder_list = NULL;
 	int samba_right, ftp_right;
 
-	if (account == NULL || strlen(account) <= 0)
+	if (!is_valid_account_name(account))
 		return -1;
 	if (mount_path == NULL || strlen(mount_path) <= 0)
 		return -1;
@@ -460,6 +506,9 @@ int modify_if_exist_new_folder(const char *const account, const char *const moun
 	FILE *fp;
 	int samba_right, ftp_right;
 
+	if (!is_valid_account_name(account) || !mount_path || !*mount_path)
+		return -1;
+
 	// 1. get all folder in mount_path
 	result = get_all_folder_in_mount_path(mount_path, &sh_num, &folder_list);
 	if (result != 0) {
@@ -521,7 +570,8 @@ int get_permission(const char *account,
 	char *target, *follow_info, *var_info;
 	int len, result;
 
-	if (!mount_path || !folder)
+	if (!mount_path || !*mount_path || !is_valid_account_name(account) ||
+	    !is_valid_folder_name(folder) || !protocol)
 		return -1;
 
 	// 2. get the content of the var_file of the account
@@ -584,6 +634,9 @@ int set_permission(const char *account,
 	int len, result;
 
 	if (flag < 0 || flag > 3)
+		return -1;
+	if (!mount_path || !*mount_path || !is_valid_account_name(account) ||
+	    !is_valid_folder_name(folder) || !protocol)
 		return -1;
 
 	// 2. get the content of the var_file of the account
@@ -704,7 +757,7 @@ int add_account(const char *const account, const char *const password)
 	char **account_list = NULL;
 	char nvram_name[32];
 
-	if (account == NULL || strlen(account) <= 0)
+	if (!is_valid_account_name(account) || !strcmp(account, FTP_ANONYMOUS_USER))
 		return -1;
 	if (password == NULL || strlen(password) <= 0)
 		return -1;
@@ -773,7 +826,7 @@ int del_account(const char *const account)
 	char nvram_name[16], nvram_value[128];
 	char var_file[256];
 
-	if (account == NULL || strlen(account) <= 0)
+	if (!is_valid_account_name(account) || !strcmp(account, FTP_ANONYMOUS_USER))
 		return -1;
 
 	// 1. check if can create the account
@@ -860,7 +913,10 @@ int mod_account(const char *const account, const char *const new_account, const 
 	int account_order = -1;
 	char var_file[256], new_var_file[256];
 
-	if (account == NULL || strlen(account) <= 0)
+	if (!is_valid_account_name(account) || !strcmp(account, FTP_ANONYMOUS_USER))
+		return -1;
+	if (new_account && *new_account &&
+	    (!is_valid_account_name(new_account) || !strcmp(new_account, FTP_ANONYMOUS_USER)))
 		return -1;
 	if ((new_account == NULL || strlen(new_account) <= 0) && (new_password == NULL || strlen(new_password) <= 0))
 		return -1;
@@ -949,7 +1005,7 @@ int add_folder(const char *const mount_path, const char *const folder)
 
 	if (mount_path == NULL || strlen(mount_path) <= 0)
 		return -1;
-	if (folder == NULL || strlen(folder) <= 0)
+	if (!is_valid_folder_name(folder))
 		return -1;
 
 	// test if creatting the folder
@@ -1039,7 +1095,7 @@ int del_folder(const char *const mount_path, const char *const folder)
 
 	if (mount_path == NULL || strlen(mount_path) <= 0)
 		return -1;
-	if (folder == NULL || strlen(folder) <= 0)
+	if (!is_valid_folder_name(folder))
 		return -1;
 
 	// 1. test if deleting the folder
@@ -1174,9 +1230,7 @@ int mod_folder(const char *const mount_path, const char *const folder, const cha
 
 	if (mount_path == NULL || strlen(mount_path) <= 0)
 		return -1;
-	if (folder == NULL || strlen(folder) <= 0)
-		return -1;
-	if (new_folder == NULL || strlen(new_folder) <= 0)
+	if (!is_valid_folder_name(folder) || !is_valid_folder_name(new_folder))
 		return -1;
 
 	// 1. test if modifying the folder
@@ -1314,10 +1368,13 @@ int test_if_exist_account(const char *const account)
 	char **account_list = NULL;
 	int result, i;
 
+	if (!is_valid_account_name(account))
+		return -1;
 	if (!strcmp(account, FTP_ANONYMOUS_USER))
 		return 1;
 
-	get_account_list(&acc_num, &account_list);
+	if (get_account_list(&acc_num, &account_list) != 0)
+		return -1;
 
 	result = 0;
 	for (i = 0; i < acc_num; ++i)
@@ -1335,6 +1392,9 @@ int test_if_exist_folder_in_mount_path(const char *const mount_path, const char 
 	int sh_num = 0;
 	char **folder_list = NULL;
 	int result, i;
+
+	if (!mount_path || !*mount_path || !is_valid_folder_name(folder))
+		return -1;
 
 	result = get_folder_list_in_mount_path(mount_path, &sh_num, &folder_list);
 	if (result != 0) {
