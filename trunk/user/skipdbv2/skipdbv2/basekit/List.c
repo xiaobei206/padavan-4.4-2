@@ -60,6 +60,10 @@ void List_sliceInPlace(List* self, long startIndex, long endIndex)
 	if (NULL == tmp)
 		return;
 	oldSize = self->size;
+	if (oldSize > 0 && NULL == self->items) {
+		List_free(tmp);
+		return;
+	}
 	start = indexWrap(startIndex, oldSize);
 	end = indexWrap(endIndex, oldSize);
 	if (start <= end) {
