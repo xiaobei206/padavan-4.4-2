@@ -550,6 +550,7 @@ static int client_run_command(EV_P_ skipd_client* client)
     char *p1, *p2;
     time_t t1, t2;
     int tmpi, tmp2;
+    long long arithmetic_result;
     struct tm tm1, tm2, *tnow;
     Datum dkey, dvalue;
     delay_cmd* delay_obj;
@@ -741,7 +742,7 @@ static int client_run_command(EV_P_ skipd_client* client)
         tmpi = (int)(p2 - p1);
         memcpy(static_buffer, p1, tmpi);
         static_buffer[tmpi] = '\0';
-        if(S2ISUCCESS != str2int(&tmpi, static_buffer, 10)) {
+        if(S2ISUCCESS != str2int(&tmpi, static_buffer, 10) || tmpi < 0) {
             p1 = "delay tick error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
@@ -998,12 +999,16 @@ static int client_run_command(EV_P_ skipd_client* client)
             }
         }
 
-        //TODO remote \n from data?
-        if(!strcmp(client->command, "inc")) {
-            sprintf(static_buffer, "%d", tmp2+tmpi);
-        } else {
-            sprintf(static_buffer, "%d", tmp2-tmpi);
+        if(!strcmp(client->command, "inc"))
+            arithmetic_result = (long long)tmp2 + (long long)tmpi;
+        else
+            arithmetic_result = (long long)tmp2 - (long long)tmpi;
+        if(arithmetic_result > INT_MAX || arithmetic_result < INT_MIN) {
+            p1 = "integer overflow\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
         }
+        snprintf(static_buffer, sizeof(static_buffer), "%lld", arithmetic_result);
         dvalue = Datum_FromCString_(static_buffer);
         SkipDB_at_put_(client->server->db, dkey, dvalue);
         client_send(EV_A_ client, (char*)dvalue.data, dvalue.size);;
@@ -1366,7 +1371,7 @@ static void server_init_delay(EV_P_ skipd_server *server) {
             }
             memcpy(static_buffer, dvalue.data, n1);
             static_buffer[n1] = '\0';
-            if(S2ISUCCESS == str2int(&n1, static_buffer, 10)) {
+            if(S2ISUCCESS == str2int(&n1, static_buffer, 10) && n1 >= 0) {
                 delay_obj = (delay_cmd*)malloc(sizeof(delay_cmd));
                 if(NULL == delay_obj) {
                     skipd_log(SKIPD_DEBUG, "delay out of memory\n");
