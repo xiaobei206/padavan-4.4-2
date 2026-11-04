@@ -1436,13 +1436,24 @@ gen_ralink_config(int is_soc_ap, int is_aband, int disable_autoscan)
 	if (i_val != 0)
 	{
 		char wlan_param[32], macbuf[24];
-		
-		sprintf(wlan_param, "%s_%s", prefix, "maclist_x");
+		size_t list_len = 0;
+
+		snprintf(wlan_param, sizeof(wlan_param), "%s_%s", prefix, "maclist_x");
 		i_num = nvram_wlan_get_int(is_aband, "macnum_x");
-		for (i = 0; i < i_num; i++)
-			sprintf(list+strlen(list), "%s;", mac_conv(wlan_param, i, macbuf));
-		if (i_num > 0)
-			list[strlen(list) - 1] = '\0';
+		for (i = 0; i < i_num; i++) {
+			const char *mac = mac_conv(wlan_param, i, macbuf);
+			int item_len;
+
+			if (!mac || !*mac)
+				continue;
+			item_len = snprintf(list + list_len, sizeof(list) - list_len,
+					    "%s%s", (list_len > 0) ? ";" : "", mac);
+			if (item_len < 0 || (size_t)item_len >= sizeof(list) - list_len) {
+				list[list_len] = '\0';
+				break;
+			}
+			list_len += (size_t)item_len;
+		}
 	}
 
 	//AccessControlList0
@@ -1512,13 +1523,24 @@ gen_ralink_config(int is_soc_ap, int is_aband, int disable_autoscan)
 	list[0] = 0;
 	if (i_wds == 2 || i_wds == 3) {
 		char wlan_param[32], macbuf[24];
-		
-		sprintf(wlan_param, "%s_%s", prefix, "wdslist_x");
+		size_t list_len = 0;
+
+		snprintf(wlan_param, sizeof(wlan_param), "%s_%s", prefix, "wdslist_x");
 		i_num = nvram_wlan_get_int(is_aband, "wdsnum_x");
-		for (i = 0; i < i_num; i++)
-			sprintf(list+strlen(list), "%s;", mac_conv(wlan_param, i, macbuf));
-		if (i_num > 0)
-			list[strlen(list) - 1] = '\0';
+		for (i = 0; i < i_num; i++) {
+			const char *mac = mac_conv(wlan_param, i, macbuf);
+			int item_len;
+
+			if (!mac || !*mac)
+				continue;
+			item_len = snprintf(list + list_len, sizeof(list) - list_len,
+					    "%s%s", (list_len > 0) ? ";" : "", mac);
+			if (item_len < 0 || (size_t)item_len >= sizeof(list) - list_len) {
+				list[list_len] = '\0';
+				break;
+			}
+			list_len += (size_t)item_len;
+		}
 	}
 	fprintf(fp, "WdsList=%s\n", list);
 
@@ -1691,6 +1713,13 @@ wl_ioctl(const char *ifname, int cmd, struct iwreq *pwrq)
 {
 	int ret = 0;
 	int s;
+	size_t ifname_len;
+
+	if (!ifname || !pwrq)
+		return -1;
+	ifname_len = strnlen(ifname, IFNAMSIZ);
+	if (ifname_len == 0 || ifname_len >= IFNAMSIZ)
+		return -1;
 
 	/* open socket to kernel */
 	if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -1699,7 +1728,8 @@ wl_ioctl(const char *ifname, int cmd, struct iwreq *pwrq)
 	}
 
 	/* do it */
-	strncpy(pwrq->ifr_name, ifname, IFNAMSIZ);
+	memset(pwrq->ifr_name, 0, sizeof(pwrq->ifr_name));
+	memcpy(pwrq->ifr_name, ifname, ifname_len);
 	if ((ret = ioctl(s, cmd, pwrq)) < 0)
 		perror(pwrq->ifr_name);
 
