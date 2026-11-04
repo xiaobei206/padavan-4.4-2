@@ -52,6 +52,26 @@ static int UDB_syncParentDirectory(const char *path)
 	return result;
 }
 
+static int UDB_verifyCommittedJournal(const char *path)
+{
+	FILE *log;
+	JFile journal;
+	int valid;
+
+	if (NULL == path || '\0' == *path)
+		return 0;
+	log = fopen(path, "rb");
+	if (NULL == log)
+		return 0;
+
+	memset(&journal, 0, sizeof(journal));
+	journal.log = log;
+	valid = JFile_verifyLog(&journal);
+	if (fclose(log) != 0)
+		valid = 0;
+	return valid;
+}
+
 UDB *UDB_new(void)
 {
 	UDB *self = (UDB *)calloc(1, sizeof(UDB));
@@ -236,6 +256,15 @@ void UDB_open(UDB *self)
 		return;
 	}
 	recovering = (marker == 1);
+
+	/* Never clear a durable commit marker if either committed journal is damaged. */
+	if (recovering &&
+		(!UDB_verifyCommittedJournal(self->index->file->logPath) ||
+		 !UDB_verifyCommittedJournal(self->records->file->logPath))) {
+		fprintf(stderr, "UDB: committed transaction journal is incomplete or corrupt\\n");
+		UDB_close(self);
+		return;
+	}
 
 	/* With no durable transaction marker, discard both journals before open. */
 	if (!recovering) {
