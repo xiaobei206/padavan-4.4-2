@@ -107,6 +107,9 @@ int SkipDBRecord_pointersAreEmpty(SkipDBRecord *self)
 	SkipDBPointer *pointers;
 	if (NULL == self)
 		return 1;
+	if (self->level < 0 || self->level > SKIPDB_MAX_LEVEL ||
+		(self->level > 0 && NULL == self->pointers))
+		return 0;
 	pointers = self->pointers;
 
 	if (pointers)
@@ -177,6 +180,10 @@ void SkipDBRecord_dealloc(SkipDBRecord *self)
 
 	if (self->pointers)
 	{
+		if (self->level < 0 || self->level > SKIPDB_MAX_LEVEL) {
+			/* A corrupt level must not be used to index this allocation. */
+			self->level = 0;
+		}
 
 // Commented out since we should not touch records linked
 //  from here, because they may have already been freed.
@@ -220,7 +227,7 @@ void SkipDBRecord_pid_(SkipDBRecord *self, PID_TYPE pid)
 
 PID_TYPE SkipDBRecord_pid(SkipDBRecord *self)
 {
-	return self->pid;
+	return self ? self->pid : 0;
 }
 
 PID_TYPE SkipDBRecord_pidAllocIfNeeded(SkipDBRecord *self)
@@ -389,8 +396,11 @@ PID_TYPE SkipDBRecord_pidAtLevel_(SkipDBRecord *self, int level)
 
 unsigned char SkipDBRecord_matchingPrefixSizeWith_(SkipDBRecord *self, SkipDBRecord *r)
 {
-	Datum k1 = Datum_FromUArray_(self->key);
-	Datum k2 = Datum_FromUArray_(r->key);
+	Datum k1, k2;
+	if (NULL == self || NULL == r || NULL == self->key || NULL == r->key)
+		return 0;
+	k1 = Datum_FromUArray_(self->key);
+	k2 = Datum_FromUArray_(r->key);
 	return Datum_matchingPrefixSizeWith_(&k1, &k2);
 	//return UArray_matchingPrefixSizeWith_(self->key, r->key);
 }
@@ -711,50 +721,46 @@ void SkipDBRecord_show(SkipDBRecord *self)
 
 void SkipDBRecord_object_(SkipDBRecord *self, void *object)
 {
-	self->object = object;
+	if (self)
+		self->object = object;
 }
 
 void *SkipDBRecord_object(SkipDBRecord *self)
 {
-	return self->object;
+	return self ? self->object : NULL;
 }
 
 // next ------------------------------------
 
 SkipDBRecord *SkipDBRecord_nextRecord(SkipDBRecord *self)
 {
-	return SkipDBRecord_recordAtLevel_(self, 0);
+	return self ? SkipDBRecord_recordAtLevel_(self, 0) : NULL;
 }
 
 // previous ------------------------------------
 
 void SkipDBRecord_previousPid_(SkipDBRecord *self, PID_TYPE pid)
 {
+	if (NULL == self)
+		return;
 	self->previousPid = pid;
 	self->previousRecord = NULL;
 }
 
 PID_TYPE SkipDBRecord_previousPid(SkipDBRecord *self)
 {
-	return self->previousPid;
+	return self ? self->previousPid : 0;
 }
 
 void SkipDBRecord_previousRecord_(SkipDBRecord *self, SkipDBRecord *r)
 {
+	if (NULL == self || r == self)
+		return;
 	if (r != self->previousRecord)
 	{
-		if (r == self)
-		{
-			printf("SkipDB error: attempt to set previousRecord to self\n");
-		}
-
 		self->previousRecord = r;
-
 		if (r)
-		{
 			self->previousPid = SkipDBRecord_pid(r);
-		}
-
 		SkipDBRecord_markAsDirty(self);
 	}
 }
@@ -773,7 +779,9 @@ void textValid(void *record)
 
 SkipDBRecord *SkipDBRecord_previousRecord(SkipDBRecord *self)
 {
-	if (!self->previousRecord && self->previousPid)
+	if (NULL == self)
+		return NULL;
+	if (!self->previousRecord && self->previousPid && self->sdb)
 	{
 		self->previousRecord = SkipDB_recordAtPid_((SkipDB *)(self->sdb), self->previousPid);
 	}
