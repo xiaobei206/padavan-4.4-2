@@ -512,6 +512,10 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 	}
 	else
 	{
+		if (self->data == data && self->data && self->itemSize > 0 &&
+			self->size <= (size_t)-1 / self->itemSize &&
+			sizeInBytes > self->size * self->itemSize)
+			return;
 		if (self->data != data) {
 			/* A pointer into the current allocation cannot become an owner. */
 			if (self->data && data) {
