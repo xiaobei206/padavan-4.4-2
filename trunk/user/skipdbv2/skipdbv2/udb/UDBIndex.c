@@ -197,7 +197,7 @@ PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 	return entry.pos;
 }
 
-void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
+int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 {
 	UDBIndexEntry entry;
 	PID_TYPE old_pos = 0;
@@ -206,10 +206,10 @@ void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	if (NULL == self || NULL == self->file ||
 		pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry) ||
 		pos > (PID_TYPE)LONG_MAX || NULL == self->holes)
-		return;
+		return 0;
 	offset = (size_t)pid * sizeof(UDBIndexEntry);
 	if (offset > (size_t)LONG_MAX)
-		return;
+		return 0;
 
 	if (pos == 0)
 		old_pos = UDBIndex_posForPid_(self, pid);
@@ -217,7 +217,7 @@ void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	JFile_setPosition_(self->file, (long)offset);
 	if (JFile_fwrite(self->file, (unsigned char *)&entry,
 			 sizeof(UDBIndexEntry), 1) != 1)
-		return;
+		return 0;
 
 	/* Keep the free-PID stack unique when records are removed/reused/compacted. */
 	if (pos == 0) {
@@ -228,6 +228,7 @@ void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 			/* Remove any stale duplicate free-slot entries. */
 		}
 	}
+	return 1;
 }
 
 long UDBIndex_pidCount(UDBIndex *self)
