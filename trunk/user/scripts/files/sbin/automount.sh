@@ -60,15 +60,34 @@ else
 	dev_mount="/media/$dev_label"
 fi
 
-# if mounted, try to umount
+# Never unmount a different disk that happens to use the same filesystem label.
+mount_from_device()
+{
+	awk -v mount="$1" -v device="$dev_full" '
+		$2 == mount {
+			if ($1 == device)
+				found = 1
+			else
+				conflict = 1
+		}
+		END { exit !(found && !conflict) }
+	' /proc/mounts
+}
+
+# If the label mountpoint belongs to another disk, use this device's unique
+# legacy mountpoint instead. Only unmount mounts created from this device.
 if mountpoint -q "$dev_mount" ; then
-	if ! umount -f "$dev_mount" ; then
+	if ! mount_from_device "$dev_mount" ; then
 		dev_mount="$mnt_legacy"
-		if mountpoint -q "$dev_mount" ; then
-			if ! umount -f "$dev_mount" ; then
-				logger -t "automount" "Unable to prepare mountpoint $dev_mount!"
-				exit 1
-			fi
+	fi
+	if mountpoint -q "$dev_mount" ; then
+		if ! mount_from_device "$dev_mount" ; then
+			logger -t "automount" "Mountpoint $dev_mount is already used by another device!"
+			exit 1
+		fi
+		if ! umount -f "$dev_mount" ; then
+			logger -t "automount" "Unable to prepare mountpoint $dev_mount!"
+			exit 1
 		fi
 	fi
 fi
