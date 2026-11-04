@@ -244,6 +244,7 @@ Datum UDBRecord_readDatum(UDBRecord *self)
     UArray *ba;
     Datum d;
     PID_TYPE size;
+    long old_pos, old_max;
 
     d.size = 0;
     d.data = NULL;
@@ -259,15 +260,30 @@ Datum UDBRecord_readDatum(UDBRecord *self)
     ba = UDBRecord_data(self);
     if (NULL == ba)
         return d;
+    old_pos = self->file->pos;
+    old_max = self->file->maxPos;
+    if (UArray_size(ba) != size)
+        UArray_setSize_(ba, (size_t)size);
+    if (UArray_size(ba) != size ||
+        (size > 0 && NULL == UArray_bytes(ba)) ||
+        self->pos > (PID_TYPE)LONG_MAX - sizeof(UDBRecordHeader)) {
+        self->file->pos = old_pos;
+        self->file->maxPos = old_max;
+        return d;
+    }
     JFile_fseek(self->file, (long)(self->pos + sizeof(UDBRecordHeader)), SEEK_SET);
-    UArray_setSize_(ba, size);
-    if (size > 0 && (NULL == UArray_bytes(ba) ||
-        JFile_fread(self->file, (unsigned char *)UArray_bytes(ba), size, 1) != 1)) {
+    if (self->file->pos != (long)(self->pos + sizeof(UDBRecordHeader)) ||
+        (size > 0 && JFile_fread(self->file,
+            (unsigned char *)UArray_bytes(ba), (size_t)size, 1) != 1)) {
         UArray_setSize_(ba, 0);
+        self->file->pos = old_pos;
+        self->file->maxPos = old_max;
         return d;
     }
     d.size = size;
     d.data = UArray_bytes(ba);
+    self->file->pos = old_pos;
+    self->file->maxPos = old_max;
     return d;
 }
 
@@ -299,10 +315,13 @@ int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)
     ba = UDBRecord_data(self);
     if (NULL == ba)
         return 0;
-    UArray_setSize_(ba, totalSize);
+    UArray_setSize_(ba, (size_t)totalSize);
     data = (unsigned char *)UArray_bytes(ba);
-    if (NULL == data)
+    if (UArray_size(ba) != (size_t)totalSize || NULL == data) {
+        self->file->pos = old_pos;
+        self->file->maxPos = old_max;
         return 0;
+    }
 
     JFile_setPosition_(self->file, (long)self->pos);
     if (JFile_fread(self->file, data, totalSize, 1) != 1) {
