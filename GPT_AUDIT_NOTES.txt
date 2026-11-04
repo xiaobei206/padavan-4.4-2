@@ -328,3 +328,7 @@ dc568c1/afa2e1d  skipd.c/dbus_protocol.c: return and test a framed error for leg
 901f92a  tests/dbus_protocol.c: cover error-command handling for common responses.
 c96249e/3634b08/6869aa3  dbus.c/skipd.c/tests: use an unambiguous error command and verify a real key named __error__ remains readable.
 Verification: source-level review only. No local firmware build or CTest execution was performed.
+2026-11-05 autonomous audit follow-up:
+9e0ca3ea  skbus.c: return failure status on transport, stdout, input and protocol errors instead of reporting success.
+cbebf5d5  skipd.c: handle -h as success and reject unknown command-line options.
+Verification: source inspection and GitHub commit-diff inspection only; no firmware build or runtime tests were run.
