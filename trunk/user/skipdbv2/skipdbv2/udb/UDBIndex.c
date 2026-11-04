@@ -227,8 +227,12 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 
 	/* Keep the free-PID stack unique when records are removed/reused/compacted. */
 	if (pos == 0) {
-		if (old_pos != 0)
+		if (old_pos != 0) {
+			while (List_removeFirst_(self->holes, (void *)pid)) {
+				/* Normalize stale duplicates before adding the freed PID. */
+			}
 			List_push_(self->holes, (void *)pid);
+		}
 	} else {
 		while (List_removeFirst_(self->holes, (void *)pid)) {
 			/* Remove any stale duplicate free-slot entries. */
