@@ -493,7 +493,6 @@ void JFile_writeLogToFileIfNeeded(JFile *self)
 
 void JFile_writeLogToFile(JFile *self)
 {
-	size_t writeCount = 0;
 	int logNotEmpty = 0;
 	int lastTerminator = 0;
 	long log_end;
@@ -506,20 +505,25 @@ void JFile_writeLogToFile(JFile *self)
 
 	while (1)
 	{
-		long pos, data_pos;
+		long pos, data_pos, record_start, read_pos;
 		size_t total;
 		unsigned char *new_buf;
 
-		if (fread(&pos, sizeof(long), 1, self->log) != 1)
-		{
-			if (feof(self->log)) break;
-			printf("JFile: error reading pos\n");
+		record_start = ftell(self->log);
+		if (record_start < 0)
+			goto fatalError;
+		if (fread(&pos, sizeof(pos), 1, self->log) != 1) {
+			read_pos = ftell(self->log);
+			/* Only a zero-byte read exactly at EOF is a clean end. */
+			if (!ferror(self->log) && read_pos == record_start &&
+				record_start == log_end)
+				break;
+			printf("JFile: incomplete/error reading log position\n");
 			goto fatalError;
 		}
 
-		if (fread(&total, sizeof(size_t), 1, self->log) != 1)
-		{
-			printf("JFile: error reading total\n");
+		if (fread(&total, sizeof(total), 1, self->log) != 1) {
+			printf("JFile: incomplete/error reading log length\n");
 			goto fatalError;
 		}
 
@@ -574,13 +578,15 @@ void JFile_writeLogToFile(JFile *self)
 			printf("JFile: error applying log record\n");
 			goto fatalError;
 		}
-		writeCount ++;
 		logNotEmpty = 1;
 	}
 
+	if (ftell(self->log) != log_end ||
+		(logNotEmpty && lastTerminator != JFILE_END_TRANSACTION))
+		goto fatalError;
+
 	if (logNotEmpty)
 	{
-		//printf("writing log\n");
 		JFile_syncFileWritesToDisk(self);
 		if (NULL == self->file || JFile_clipLog(self) != 0)
 			goto fatalError;
