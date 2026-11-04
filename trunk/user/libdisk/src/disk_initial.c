@@ -38,28 +38,108 @@
 #define MMC_DISK_MAJOR		179
 
 static int
+is_positive_partition_number(const char *value)
+{
+	char *endptr;
+	long part_order;
+
+	if (!value || !isdigit((unsigned char)*value))
+		return 0;
+
+	part_order = strtol(value, &endptr, 10);
+	if (endptr == value || *endptr != '\0' || part_order <= 0 || part_order == LONG_MAX)
+		return 0;
+
+	return 1;
+}
+
+static int
 is_disk_name(const char *dev_name, int dev_type)
 {
-	size_t len;
+	const char *p;
+
+	if (!dev_name || !*dev_name)
+		return 0;
 
 	if (dev_type == DEVICE_TYPE_SCSI_DISK) {
-		// sd{a-z}{Y}
-		len = strlen(dev_name);
-		if (!isdigit(dev_name[len-1]))
-			return 1;
+		if (strncmp(dev_name, "sd", 2) != 0 || !dev_name[2])
+			return 0;
+		for (p = dev_name + 2; *p; ++p) {
+			if (*p < 'a' || *p > 'z')
+				return 0;
+		}
+		return 1;
 	}
 #if defined (USE_MMC_SUPPORT)
 	else if (dev_type == DEVICE_TYPE_MMC) {
-		// mmcblk{X}p{Y}
-		len = strlen(dev_name);
-		if (len < 9)
-			return 1;
+		if (strncmp(dev_name, "mmcblk", 6) != 0 || !isdigit((unsigned char)dev_name[6]))
+			return 0;
+		for (p = dev_name + 6; *p; ++p) {
+			if (!isdigit((unsigned char)*p))
+				return 0;
+		}
+		return 1;
 	}
 #endif
 
 	return 0;
 }
 
+static int
+is_partition_name(const char *dev_name, int dev_type)
+{
+	const char *p;
+
+	if (!dev_name || !*dev_name)
+		return 0;
+
+	if (dev_type == DEVICE_TYPE_SCSI_DISK) {
+		if (strncmp(dev_name, "sd", 2) != 0 || !dev_name[2])
+			return 0;
+		p = dev_name + 2;
+		while (*p >= 'a' && *p <= 'z')
+			++p;
+		return (p > dev_name + 2 && is_positive_partition_number(p));
+	}
+#if defined (USE_MMC_SUPPORT)
+	else if (dev_type == DEVICE_TYPE_MMC) {
+		if (strncmp(dev_name, "mmcblk", 6) != 0 || !isdigit((unsigned char)dev_name[6]))
+			return 0;
+		p = dev_name + 6;
+		while (isdigit((unsigned char)*p))
+			++p;
+		if (*p != 'p')
+			return 0;
+		return is_positive_partition_number(p + 1);
+	}
+#endif
+
+	return 0;
+}
+
+static int
+is_partition_of_disk(const char *dev_name, const char *disk_name, int dev_type)
+{
+	const char *suffix;
+	size_t disk_len;
+
+	if (!dev_name || !disk_name || !*disk_name)
+		return 0;
+
+	disk_len = strlen(disk_name);
+	if (strncmp(dev_name, disk_name, disk_len) != 0)
+		return 0;
+
+	suffix = dev_name + disk_len;
+	if (dev_type == DEVICE_TYPE_SCSI_DISK)
+		return is_positive_partition_number(suffix);
+#if defined (USE_MMC_SUPPORT)
+	if (dev_type == DEVICE_TYPE_MMC)
+		return (*suffix == 'p' && is_positive_partition_number(suffix + 1));
+#endif
+
+	return 0;
+}
 #if defined (USE_MMC_SUPPORT)
 static const char *
 get_mmc_vendor(const char *manfid)
@@ -154,8 +234,8 @@ get_disk_dev_attrib(const char *disk_name, const char *attrib, char *buf, size_t
 		return NULL;
 
 	len = strlen(buf);
-	if (len > 0)
-		buf[len-1] = 0;
+	while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r'))
+		buf[--len] = 0;
 
 	return buf;
 }
@@ -236,7 +316,7 @@ get_partition_mount_data(partition_info_t *part_info)
 {
 	FILE *fp;
 	int ret, dev_len;
-	char line[512], mpname[256], fstype[32], fsmode[4], dev_dst[32];
+	char line[512], mpname[256], fstype[32], fsmode[4], dev_dst[48];
 
 	if (!part_info || !part_info->device)
 		return 0;
@@ -261,7 +341,15 @@ get_partition_mount_data(partition_info_t *part_info)
 			part_info->read_only = 1;
 		part_info->mount_point = strdup(mpname);
 		part_info->file_system = strdup(fstype);
-		ret = 1;
+		if (!part_info->mount_point || !part_info->file_system) {
+			free(part_info->mount_point);
+			free(part_info->file_system);
+			part_info->mount_point = NULL;
+			part_info->file_system = NULL;
+			ret = -1;
+		} else {
+			ret = 1;
+		}
 		break;
 	}
 
@@ -365,6 +453,7 @@ static partition_info_t *
 create_partition(const char *dev_name, int dev_type, disk_info_t *disk_info, partition_info_t **new_part_info)
 {
 	partition_info_t *part_info;
+	int mount_status;
 
 	if (!disk_info || !new_part_info)
 		return NULL;
@@ -385,7 +474,12 @@ create_partition(const char *dev_name, int dev_type, disk_info_t *disk_info, par
 		return NULL;
 	}
 
-	if (get_partition_mount_data(part_info)) {
+	mount_status = get_partition_mount_data(part_info);
+	if (mount_status < 0) {
+		free_partition_data(&part_info);
+		return NULL;
+	}
+	if (mount_status > 0) {
 		get_partition_mount_size(part_info);
 		disk_info->mounted_number++;
 	} else {
@@ -398,10 +492,18 @@ create_partition(const char *dev_name, int dev_type, disk_info_t *disk_info, par
 		
 		if (is_device_swapon(dev_name)) {
 			part_info->file_system = strdup("swap");
+			if (!part_info->file_system) {
+				free_partition_data(&part_info);
+				return NULL;
+			}
 			part_info->swapon = 1;
 			disk_info->swapon_number++;
 		} else {
 			part_info->file_system = strdup(PARTITION_TYPE_UNKNOWN);
+			if (!part_info->file_system) {
+				free_partition_data(&part_info);
+				return NULL;
+			}
 		}
 	}
 
@@ -640,6 +742,10 @@ create_disk(const char *dev_name, int dev_type, u32 major, u32 minor, disk_info_
 			sanity_name(buf);
 		}
 		follow_disk_info->vendor = strdup(buf);
+		if (!follow_disk_info->vendor) {
+			free_disk_data(follow_disk_info);
+			return NULL;
+		}
 		
 		// get model
 		if(!get_disk_dev_attrib(dev_name, "model", buf, sizeof(buf)))
@@ -655,6 +761,10 @@ create_disk(const char *dev_name, int dev_type, u32 major, u32 minor, disk_info_
 			buf[0] = 0;
 		
 		follow_disk_info->vendor = strdup(get_mmc_vendor(buf));
+		if (!follow_disk_info->vendor) {
+			free_disk_data(follow_disk_info);
+			return NULL;
+		}
 		
 		// get name
 		if(!get_disk_dev_attrib(dev_name, "name", buf, sizeof(buf)))
@@ -672,6 +782,10 @@ create_disk(const char *dev_name, int dev_type, u32 major, u32 minor, disk_info_
 		sanity_name(buf);
 	}
 	follow_disk_info->model = strdup(buf);
+	if (!follow_disk_info->model) {
+		free_disk_data(follow_disk_info);
+		return NULL;
+	}
 
 	// create tag
 	if (follow_disk_info->vendor && strlen(follow_disk_info->vendor) > 0 && follow_disk_info->model && strlen(follow_disk_info->model) > 0)
@@ -681,6 +795,10 @@ create_disk(const char *dev_name, int dev_type, u32 major, u32 minor, disk_info_
 	else
 		strcpy(buf, "Unknown storage");
 	follow_disk_info->tag = strdup(buf);
+	if (!follow_disk_info->tag) {
+		free_disk_data(follow_disk_info);
+		return NULL;
+	}
 
 	follow_partition_list = &(follow_disk_info->partitions);
 	create_partition(dev_name, dev_type, follow_disk_info, follow_partition_list);
@@ -739,9 +857,9 @@ read_disk_data(void)
 			parent_disk_info = disk_info_list;
 			
 			while (parent_disk_info) {
-				if (!strncmp(dev_name, parent_disk_info->device, strlen(parent_disk_info->device)))
+				if (is_partition_of_disk(dev_name, parent_disk_info->device, dev_type))
 					break;
-				
+
 				parent_disk_info = parent_disk_info->next;
 			}
 			
