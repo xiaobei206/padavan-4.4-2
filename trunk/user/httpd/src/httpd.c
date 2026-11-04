@@ -114,6 +114,7 @@ static time_t login_timestamp = 0;	// the timestamp of the logined ip
 static uaddr login_ip;			// the logined ip
 static char login_mac[18] = {0};	// the logined mac
 static char auth_basic_data[MAX_AUTH_LEN];
+static int auth_basic_valid = 0;
 
 #if defined (USE_IPV6)
 static const struct in6_addr in6in4addr_loopback = {{{0x00, 0x00, 0x00, 0x00,
@@ -472,18 +473,16 @@ http_login(const uaddr *ip_now)
 static void
 load_nvram_auth(void)
 {
-	char *pw_str;
-	size_t pw_len, bs_len;
+	const char *username = nvram_safe_get("http_username");
+	const char *password = nvram_safe_get("http_passwd");
+	int length;
 
 	memset(auth_basic_data, 0, sizeof(auth_basic_data));
-	snprintf(auth_basic_data, sizeof(auth_basic_data)-1, "%s:", nvram_safe_get("http_username"));
-
-	bs_len = strlen(auth_basic_data);
-
-	pw_str = nvram_safe_get("http_passwd");
-	pw_len = MIN(sizeof(auth_basic_data)-bs_len-1, strlen(pw_str));
-	strncpy(&auth_basic_data[bs_len], pw_str, pw_len);
-	auth_basic_data[bs_len+pw_len] = '\0';
+	length = snprintf(auth_basic_data, sizeof(auth_basic_data), "%s:%s",
+			  username, password);
+	auth_basic_valid = (length >= 0 && (size_t)length < sizeof(auth_basic_data));
+	if (!auth_basic_valid)
+		memset(auth_basic_data, 0, sizeof(auth_basic_data));
 }
 
 static void
@@ -658,8 +657,9 @@ auth_check( const char *authorization )
 	char authinfo[256];
 	int auth_len;
 
-	/* Basic authorization info? */
-	if (!authorization || strncmp(authorization, "Basic ", 6) != 0)
+	/* Basic authorization info? Fail closed if configured credentials do not fit. */
+	if (!auth_basic_valid || !authorization ||
+	    strncmp(authorization, "Basic ", 6) != 0)
 		return 0;
 
 	/* Decode it. */
