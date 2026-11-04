@@ -93,3 +93,4 @@ f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k
 dcf22fc  services_stor.c: guard Samba config cleanup when append-open fails.
 94977eb  disk_share.c: compact account arrays safely; validate folder counts and clean partial allocations.
 e1604be  disk_share.c: use checked dynamic folder enumeration and reset/free list outputs consistently.
+480cdba  disk_share.c: guard account-list allocation errors and allow password-only account edits without NULL dereference.
