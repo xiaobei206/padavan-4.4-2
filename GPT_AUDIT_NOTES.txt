@@ -10,3 +10,5 @@ a4521aa  net_wan.c: accept DHCP classless default routes (/0), validate route fi
 Note: source-level edits only; full firmware build and hardware tests not yet run.
 be34849  net6.c: reject truncated IPv6 input and empty/invalid prefixes.
 7f45277  net6.c: correct IPv6 prefix terminator.
+60ff33f  net_wan6.c: enlarge IPv6 address buffers and append prefixes without overlap.
+4e87bfe  net6.c: validate IPv6 bit-operation bounds; fix /128 host masking and shift edge cases.
