@@ -134,6 +134,73 @@ openvpn_create_client_secret(const char *secret_name)
 }
 
 static int
+openvpn_safe_remote_host(const char *host)
+{
+	size_t i, len, label_len = 0;
+
+	if (!host || !*host)
+		return 0;
+	if (is_valid_ipv4(host))
+		return 1;
+#if defined (USE_IPV6)
+	if (is_valid_ipv6(host))
+		return 1;
+#endif
+
+	len = strlen(host);
+	if (len > 253)
+		return 0;
+	if (host[len - 1] == '.')
+		len--;
+	if (len == 0)
+		return 0;
+
+	for (i = 0; i < len; i++) {
+		unsigned char c = (unsigned char)host[i];
+
+		if (c == '.') {
+			if (label_len == 0 || label_len > 63 || host[i - 1] == '-')
+				return 0;
+			label_len = 0;
+		} else if ((c >= 'a' && c <= 'z') ||
+			   (c >= 'A' && c <= 'Z') ||
+			   (c >= '0' && c <= '9') || c == '-') {
+			if (label_len == 0 && c == '-')
+				return 0;
+			if (++label_len > 63)
+				return 0;
+		} else {
+			return 0;
+		}
+	}
+
+	return (label_len > 0 && host[len - 1] != '-') ? 1 : 0;
+}
+
+static int
+openvpn_safe_cipher_list(const char *value)
+{
+	const unsigned char *p = (const unsigned char *)value;
+	size_t len;
+
+	if (!p || !*p)
+		return 0;
+	len = strlen(value);
+	if (len > 255)
+		return 0;
+
+	for (; *p; p++) {
+		if (!((*p >= 'a' && *p <= 'z') ||
+		      (*p >= 'A' && *p <= 'Z') ||
+		      (*p >= '0' && *p <= '9') ||
+		      *p == '-' || *p == '_' || *p == ':' || *p == ','))
+			return 0;
+	}
+
+	return 1;
+}
+
+static int
 openvpn_safe_path_component(const char *name)
 {
 	const unsigned char *p = (const unsigned char *)name;
@@ -296,7 +363,7 @@ openvpn_add_cipher(FILE *fp, int cipher_idx, char *ncp_clist)
 	}
 
 	fprintf(fp, "cipher %s\n", cipher_str);
-	if (ncp_clist && strlen(ncp_clist) > 2)
+	if (openvpn_safe_cipher_list(ncp_clist))
 		fprintf(fp, "data-ciphers %s\n", ncp_clist);
 }
 
@@ -560,6 +627,10 @@ openvpn_create_client_conf(const char *conf_file, int is_tun)
 		i_prot &= 1;
 
 	p_peer = nvram_safe_get("vpnc_peer");
+	if (!openvpn_safe_remote_host(p_peer)) {
+		logmessage(CLIENT_LOG_NAME, "Invalid VPN server address.");
+		return 1;
+	}
 
 	/* note: upcoming openvpn 2.4 will need direct set udp4/tcp4-client for ipv4 only */
 #if defined (USE_IPV6)
