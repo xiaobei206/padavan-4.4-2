@@ -795,7 +795,7 @@ static int client_run_command(EV_P_ skipd_client* client)
             "__delay__%s", client->key);
         if (tmp2 < 0 || (size_t)tmp2 >= sizeof(delay_obj->key)) {
             free(delay_obj);
-            p1 = "key too big\\n";
+            p1 = "key too big\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
@@ -1489,7 +1489,7 @@ static void server_switch(skipd_server* server)
 
     source_count = SkipDB_count(server->db);
     if (source_count < 0) {
-        skipd_log(SKIPDB_DEBUG, "active database record chain is corrupt; switch aborted\\n");
+        skipd_log(SKIPDB_DEBUG, "active database record chain is corrupt; switch aborted\n");
         return;
     }
     other = SkipDB_new();
