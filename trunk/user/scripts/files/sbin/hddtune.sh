@@ -62,7 +62,7 @@ if [ "$hdd_apmoff" != "0" ] ; then
 fi
 
 if [ -z "$1" ] ; then
-	for i in a b c d e f g h i k ; do
+	for i in a b c d e f g h i j k ; do
 		removable=1
 		if [ -e /sys/block/sd${i} ] ; then
 			[ -r /sys/block/sd${i}/removable ] && removable=`cat /sys/block/sd${i}/removable`
