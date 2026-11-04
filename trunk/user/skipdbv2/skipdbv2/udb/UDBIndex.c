@@ -47,28 +47,32 @@ void UDBIndex_free(UDBIndex *self)
 
 JFile *UDBIndex_jfile(UDBIndex *self)
 {
-	return self->file;
+	return self ? self->file : NULL;
 }
 
 void UDBIndex_delete(UDBIndex *self)
 {
+	if (NULL == self)
+		return;
 	JFile_close(self->file);
 	JFile_delete(self->file);
 }
 
 void UDBIndex_setPath_(UDBIndex *self, const char *path)
 {
-	JFile_setPath_withExtension_(self->file, path, "udbIndex");
+	if (self && self->file && path)
+		JFile_setPath_withExtension_(self->file, path, "udbIndex");
 }
 
 void UDBIndex_setLogPath_(UDBIndex *self, const char *s)
 {
-	JFile_setLogPath_(self->file, s);
+	if (self && self->file && s)
+		JFile_setLogPath_(self->file, s);
 }
 
-char *UDBIndex_path(UDBIndex *self) 
-{ 
-	return JFile_path(self->file); 
+char *UDBIndex_path(UDBIndex *self)
+{
+	return self ? JFile_path(self->file) : NULL;
 }
 
 void UDBIndex_open(UDBIndex *self)
@@ -135,39 +139,38 @@ void UDBIndex_findHoles(UDBIndex *self)
 
 PID_TYPE UDBIndex_nextPid(UDBIndex *self)
 {
-	PID_TYPE hole = (PID_TYPE)List_top(self->holes);
-	
-	if (hole) 
-	{
+	PID_TYPE hole;
+	if (NULL == self || NULL == self->holes || NULL == self->file ||
+		NULL == self->file->file)
+		return 0;
+	hole = (PID_TYPE)List_top(self->holes);
+	if (hole)
 		return hole;
-	}
-	
-	return JFile_setPositionToEnd(self->file) / sizeof(UDBIndexEntry);
+	return (PID_TYPE)JFile_setPositionToEnd(self->file) /
+		sizeof(UDBIndexEntry);
 }
 
 PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 {
-	PID_TYPE hole = (PID_TYPE)List_pop(self->holes);
-	
-	if (hole) 
-	{
+	PID_TYPE hole;
+	PID_TYPE max;
+	if (NULL == self || NULL == self->holes || NULL == self->file ||
+		NULL == self->file->file)
+		return 0;
+	hole = (PID_TYPE)List_pop(self->holes);
+	if (hole)
 		return hole;
+
+	max = (PID_TYPE)JFile_setPositionToEnd(self->file) /
+		sizeof(UDBIndexEntry);
+	if (max > self->maxPid)
+		self->maxPid = max;
+	else {
+		if (self->maxPid == (PID_TYPE)-1)
+			return 0;
+		self->maxPid++;
 	}
-	else
-	{
-		PID_TYPE max = JFile_setPositionToEnd(self->file) / sizeof(UDBIndexEntry);
-		
-		if (max > self->maxPid)
-		{
-			self->maxPid = max;
-		}
-		else
-		{
-			self->maxPid ++;
-		}
-		
-		return self->maxPid;
-	}
+	return self->maxPid;
 }
 
 PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
@@ -202,7 +205,7 @@ void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 
 	if (NULL == self || NULL == self->file ||
 		pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry) ||
-		NULL == self->holes)
+		pos > (PID_TYPE)LONG_MAX || NULL == self->holes)
 		return;
 	offset = (size_t)pid * sizeof(UDBIndexEntry);
 	if (offset > (size_t)LONG_MAX)
@@ -229,6 +232,8 @@ void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 
 long UDBIndex_pidCount(UDBIndex *self)
 {
+	if (NULL == self || NULL == self->file || NULL == self->file->file)
+		return 0;
 	return JFile_setPositionToEnd(self->file) / sizeof(UDBIndexEntry);
 }
 
