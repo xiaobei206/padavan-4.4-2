@@ -1075,53 +1075,94 @@ void UArray_insert_every_(UArray *self, UArray *other, size_t itemCount)
 }
 void UArray_at_putAll_(UArray *self, size_t pos, const UArray *other)
 {
-	if (other->size == 0) return;
+	UArray *snapshot = NULL;
+	const UArray *source = other;
+	size_t originalSize, effectiveSize, itemSize, sourceBytes;
+	size_t selfBytes, newSize, tailCount, tailBytes, newBytes;
+	uintptr_t selfStart, sourceStart;
+	int overlaps = 0;
+	UArray insertChunk;
 
-	if (pos > self->size)
-	{
-		UArray_setSize_(self, pos);
+	if (NULL == self || NULL == other || other->size == 0 ||
+		self->itemSize == 0 || other->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		other->size > (size_t)-1 / other->itemSize ||
+		(self->size > 0 && NULL == self->data) ||
+		(other->size > 0 && NULL == other->data))
+		return;
+
+	itemSize = self->itemSize;
+	originalSize = self->size;
+	selfBytes = originalSize * itemSize;
+	sourceBytes = other->size * other->itemSize;
+	if (self == other)
+		overlaps = 1;
+	else if (selfBytes > 0 && sourceBytes > 0) {
+		selfStart = (uintptr_t)self->data;
+		sourceStart = (uintptr_t)other->data;
+		overlaps = (sourceStart >= selfStart &&
+			sourceStart - selfStart < selfBytes) ||
+			(selfStart >= sourceStart &&
+			selfStart - sourceStart < sourceBytes);
+	}
+	if (overlaps) {
+		snapshot = UArray_clone(other);
+		if (NULL == snapshot)
+			return;
+		source = snapshot;
 	}
 
-	{
-		size_t chunkSize = self->size - pos;
-		size_t originalSelfSize = self->size;
-
-		UArray_setSize_(self, self->size + other->size);
-
-		{
-			UArray oldChunk = UArray_stackRange(self, pos, chunkSize);
-			UArray newChunk = UArray_stackRange(self, pos + other->size, chunkSize);
-			UArray insertChunk = UArray_stackRange(self, pos, other->size);
-
-			if (
-				//(&newChunk)->data == 0x0 ||
-				(&insertChunk)->data == 0x0)
-			{
-				printf("oldChunk.data     %p size %i\n", (void *)(&oldChunk)->data, oldChunk.size);
-				printf("newChunk.data     %p size %i\n", (void *)(&newChunk)->data, newChunk.size);
-				printf("insertChunk.data  %p size %i\n", (void *)(&insertChunk)->data, insertChunk.size);
-				printf("originalSelfSize = %i\n", originalSelfSize);
-				printf("self->size  = %i\n", self->size);
-				printf("other->size = %i\n", other->size);
-				printf("pos = %i\n", pos);
-				//exit(-1);
-
-				oldChunk = UArray_stackRange(self, pos, chunkSize);
-				newChunk = UArray_stackRange(self, pos + other->size, chunkSize);
-				insertChunk = UArray_stackRange(self, pos, other->size);
-				return;
-			}
-
-			if (newChunk.size) //UArray_copy_(&newChunk, &oldChunk); // copy chunk to end
-			UArray_copyItems_(&newChunk, &oldChunk);
-			//UArray_copy_(&insertChunk, other); // insert other
-			UArray_copyItems_(&insertChunk, other);
-		}
-
-		UArray_changed(self);
+	effectiveSize = pos > originalSize ? pos : originalSize;
+	if (source->size > (size_t)-1 - effectiveSize) {
+		if (snapshot)
+			UArray_free(snapshot);
+		return;
 	}
+	newSize = effectiveSize + source->size;
+	if (newSize > (size_t)-1 / itemSize) {
+		if (snapshot)
+			UArray_free(snapshot);
+		return;
+	}
+	newBytes = newSize * itemSize;
+	if (newBytes == (size_t)-1) {
+		if (snapshot)
+			UArray_free(snapshot);
+		return;
+	}
+
+	/* Grow once so failure leaves all existing contents untouched. */
+	UArray_setSize_(self, newSize);
+	if (self->size != newSize || (newSize > 0 && NULL == self->data)) {
+		if (snapshot)
+			UArray_free(snapshot);
+		return;
+	}
+
+	tailCount = pos < originalSize ? originalSize - pos : 0;
+	if (tailCount > (size_t)-1 / itemSize) {
+		if (snapshot)
+			UArray_free(snapshot);
+		return;
+	}
+	tailBytes = tailCount * itemSize;
+	if (tailBytes > 0) {
+		memmove(self->data + (pos + source->size) * itemSize,
+			self->data + pos * itemSize, tailBytes);
+	}
+
+	insertChunk = UArray_stackRange(self, pos, source->size);
+	if (insertChunk.size != source->size ||
+		(source->size > 0 && NULL == insertChunk.data)) {
+		if (snapshot)
+			UArray_free(snapshot);
+		return;
+	}
+	UArray_copyItems_(&insertChunk, source);
+	UArray_changed(self);
+	if (snapshot)
+		UArray_free(snapshot);
 }
-
 // compare
 
 #define UARRAY_COMPARE_TYPES(OP2, TYPE1, self, TYPE2, other)\
