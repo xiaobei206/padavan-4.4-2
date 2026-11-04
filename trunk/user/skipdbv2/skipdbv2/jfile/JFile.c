@@ -212,9 +212,11 @@ int JFile_fputc(JFile *self, int i)
 
 int JFile_fgetc(JFile *self)
 {
-	char *v;
-	JFile_fread(self, &v, 1, 1);
-	return (int)v;
+	unsigned char value;
+
+	if (JFile_fread(self, &value, 1, 1) != 1)
+		return EOF;
+	return (int)value;
 }
 
 void JFile_writeInt_(JFile *self, int v)
