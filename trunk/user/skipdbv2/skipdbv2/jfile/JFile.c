@@ -43,7 +43,8 @@ JFile *JFile_new(void)
 
 void JFile_setJournalingOn_(JFile *self, int aBool)
 {
-	self->journalingOn = aBool;
+	if (NULL != self)
+		self->journalingOn = aBool;
 }
 
 void JFile_free(JFile *self)
@@ -152,14 +153,18 @@ void JFile_setPath_withExtension_(JFile *self, const char *path, const char *ext
 
 char *JFile_path(JFile *self)
 {
-	return self->path;
+	return self ? self->path : NULL;
 }
 
 void JFile_remove(JFile *self)
 {
+	if (NULL == self)
+		return;
 	JFile_close(self);
-	remove(self->path);
-	remove(self->logPath);
+	if (self->path)
+		remove(self->path);
+	if (self->logPath)
+		remove(self->logPath);
 }
 
 void JFile_open(JFile *self)
@@ -245,9 +250,13 @@ void JFile_close(JFile *self)
 
 void JFile_delete(JFile *self)
 {
+	if (NULL == self)
+		return;
 	JFile_close(self);
-	remove(self->path);
-	remove(self->logPath);
+	if (self->path)
+		remove(self->path);
+	if (self->logPath)
+		remove(self->logPath);
 }
 
 size_t JFile_fwrite(JFile *self, void *buf, size_t size, size_t nobjs)
@@ -401,7 +410,7 @@ void JFile_fseek(JFile *self, long offset, int whence)
 
 long JFile_position(JFile *self)
 {
-	return self->pos;
+	return self ? self->pos : 0;
 }
 
 long JFile_setPositionToEnd(JFile *self)
