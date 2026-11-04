@@ -343,9 +343,13 @@ UArray *UArray_clone(const UArray *self)
 
 void UArray_show(const UArray *self)
 {
-	printf("UArray_%p %s\t", (void *)self, CTYPE_name(self->itemType));
-	printf("size: %i ", self->size);
-	printf("itemSize: %i ", self->itemSize);
+	if (NULL == self) {
+		printf("UArray <null>\n");
+		return;
+	}
+	printf("UArray_%p %s\t", (const void *)self, CTYPE_name(self->itemType));
+	printf("size: %zu ", self->size);
+	printf("itemSize: %zu ", self->itemSize);
 	printf("data: ");
 	UArray_print(self);
 	printf("\n");
@@ -353,11 +357,20 @@ void UArray_show(const UArray *self)
 
 void UArray_print(const UArray *self)
 {
-	if(self->encoding == CENCODING_ASCII || self->encoding == CENCODING_UTF8)
-	{
-		printf("%s", (char *)self->data);
+	if (NULL == self) {
+		printf("<null>");
+		return;
 	}
-	else if(self->encoding != CENCODING_NUMBER)
+	if (self->size > 0 && (self->data == NULL || self->itemSize == 0)) {
+		printf("<invalid>");
+		return;
+	}
+	if (self->encoding == CENCODING_ASCII || self->encoding == CENCODING_UTF8)
+	{
+		if (self->size > 0)
+			fwrite(self->data, 1, self->size * self->itemSize, stdout);
+	}
+	else if (self->encoding != CENCODING_NUMBER)
 	{
 		UARRAY_FOREACH(self, i, v, printf("%c", (int)v); );
 	}
@@ -365,7 +378,7 @@ void UArray_print(const UArray *self)
 	{
 		printf("[");
 		UARRAY_FOREACH(self, i, v,
-					printf("%f", (float)v);
+					printf("%f", (double)v);
 					if(i != self->size - 1) printf(", ");
 					);
 		printf("]");
@@ -374,7 +387,7 @@ void UArray_print(const UArray *self)
 	{
 		printf("[");
 		UARRAY_FOREACH(self, i, v,
-					printf("%i", (int)v);
+					printf("%ld", (long)v);
 					if(i != self->size - 1) printf(", ");
 					);
 		printf("]");
