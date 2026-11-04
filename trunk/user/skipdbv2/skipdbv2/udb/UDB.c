@@ -71,33 +71,61 @@ void UDB_setPath_(UDB *self, const char *path)
 {
 	size_t path_len;
 	char *new_path, *new_committed_path;
+	char *index_path, *index_log_path, *records_path, *records_log_path;
 
-	if (NULL == self || NULL == path)
+	if (NULL == self || NULL == path || NULL == self->index ||
+		NULL == self->records || NULL == self->index->file ||
+		NULL == self->records->file)
 		return;
 
 	path_len = strlen(path);
-	if (path_len > (size_t)-1 - sizeof(".committed"))
+	if (path_len > (size_t)-1 - sizeof(".udbIndex.log") ||
+		path_len > (size_t)-1 - sizeof(".udbData.log") ||
+		path_len > (size_t)-1 - sizeof(".committed"))
 		return;
 
 	new_path = (char *)malloc(path_len + 1);
 	new_committed_path = (char *)malloc(path_len + sizeof(".committed"));
-	if (NULL == new_path || NULL == new_committed_path) {
+	index_path = (char *)malloc(path_len + sizeof(".udbIndex"));
+	index_log_path = (char *)malloc(path_len + sizeof(".udbIndex.log"));
+	records_path = (char *)malloc(path_len + sizeof(".udbData"));
+	records_log_path = (char *)malloc(path_len + sizeof(".udbData.log"));
+	if (NULL == new_path || NULL == new_committed_path ||
+		NULL == index_path || NULL == index_log_path ||
+		NULL == records_path || NULL == records_log_path) {
 		free(new_path);
 		free(new_committed_path);
+		free(index_path);
+		free(index_log_path);
+		free(records_path);
+		free(records_log_path);
 		return;
 	}
 
 	memcpy(new_path, path, path_len + 1);
 	memcpy(new_committed_path, path, path_len);
 	memcpy(new_committed_path + path_len, ".committed", sizeof(".committed"));
+	memcpy(index_path, path, path_len);
+	memcpy(index_path + path_len, ".udbIndex", sizeof(".udbIndex"));
+	memcpy(index_log_path, path, path_len);
+	memcpy(index_log_path + path_len, ".udbIndex.log", sizeof(".udbIndex.log"));
+	memcpy(records_path, path, path_len);
+	memcpy(records_path + path_len, ".udbData", sizeof(".udbData"));
+	memcpy(records_log_path, path, path_len);
+	memcpy(records_log_path + path_len, ".udbData.log", sizeof(".udbData.log"));
 
 	free(self->path);
 	free(self->committedPath);
+	free(self->index->file->path);
+	free(self->index->file->logPath);
+	free(self->records->file->path);
+	free(self->records->file->logPath);
 	self->path = new_path;
 	self->committedPath = new_committed_path;
-
-	UDBIndex_setPath_(self->index, path);
-	UDBRecords_setPath_(self->records, path);
+	self->index->file->path = index_path;
+	self->index->file->logPath = index_log_path;
+	self->records->file->path = records_path;
+	self->records->file->logPath = records_log_path;
 }
 
 /*
@@ -116,6 +144,9 @@ char *UDB_path(UDB *self)
 { 
 	return self->path; 
 }
+
+int UDB_readCommitted(UDB *self);
+int UDB_setCommittedFlag_(UDB *self, int flag);
 
 static int UDB_streamsOpen(UDB *self)
 {
