@@ -39,3 +39,5 @@ fd32038  flash_mtd.c: guard erase/write geometry and UBI-aligned int lengths.
 fd32038  flash_mtd.c: guard erase/write geometry and UBI-aligned int lengths.
 8e227a1  flash_mtd.c: reject short UBI alignment reads before programming.
 1ace63a  common_ex.c: create directories directly, removing shell path interpolation.
+82c24e2  hotplug_stor.c: pass disk names to automount/hddtune through argv.
+ab86478  hotplug_usb.c: bound modem node paths and use argv for zerocd/eject.
