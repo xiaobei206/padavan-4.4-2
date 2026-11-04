@@ -1,5 +1,18 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+68abba9  UDBRecords.h: expose checked truncation result.
+da2a2f2  UDBRecords.c: verify tail truncation succeeded before returning.
+76824a5  UDB.c: fix compaction re-indexing of empty extents; prevent deleted-PID resurrection.
+c2c4aa8  UDBRecords.h: return status for empty-record metadata/deletion writes.
+9dab222  UDBRecords.c: recover stale empty-record metadata and check deletion metadata writes.
+d9c6a5b  UDBRecord.h: expose checked remove/move methods.
+729e7d0  UDBRecord.c: report failed delete/compaction writes and restore state on failure.
+49a5647  UDB.c: reject closed database mutations without terminating caller.
+f1a21fc  UDB.c: roll back appended record journal data when index update fails.
+6dd2638  UDBIndex.h: return status from PID index updates.
+a27bdcf  UDBIndex.c: return index-write status and restore logical cursor on failure.
+2adda11  UDBRecord.h: record-save operations now return status.
+7461b29  UDBRecord.c: rollback partial header/payload writes as one record append.
 b513f26  UDBIndex.c: guard PID allocation/accessors and reject out-of-range index positions.
 435aef3  UDB.c: guard closed-state access, allocation helpers, and transaction entry.
 d7a39f1  JFile.c: refuse physical truncation when journal commit/replay setup failed.
