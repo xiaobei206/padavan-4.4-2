@@ -176,7 +176,7 @@ flash_mtd_read(const char *mtd_part, int offset, unsigned char *buf, size_t coun
 	ssize_t r_len;
 	struct mtd_info mi;
 
-	if (!mtd_part || !buf || offset < 0 || count < 1)
+	if (!mtd_part || !buf || offset < 0 || count < 1 || count > INT_MAX)
 		return -1;
 
 	memset(&mi, 0, sizeof(mi));
@@ -231,7 +231,8 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 	struct mtd_info mi;
 	struct erase_info_user ei;
 
-	if (!mtd_part || !buf || offset < 0 || count < 1)
+	if (!mtd_part || !buf || offset < 0 || count < 1 || count > INT_MAX ||
+	    count > (size_t)INT_MAX - (size_t)offset)
 		return -1;
 
 	memset(&mi, 0, sizeof(mi));
@@ -268,7 +269,8 @@ flash_mtd_write(const char *mtd_part, int offset, unsigned char *buf, size_t cou
 		tmp_count = ROUNDUP((size_t)offset + count, mi.writesize);
 		offset = ROUNDDOWN(offset, (int)mi.writesize);
 		count = tmp_count - offset;
-		if (count > INT_MAX) {
+		if (count > INT_MAX ||
+		    count > (size_t)INT_MAX - (size_t)offset) {
 			ret = -3;
 			goto out_err;
 		}
