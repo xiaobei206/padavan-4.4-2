@@ -425,7 +425,8 @@ int create_if_no_var_files(const char *const mount_path)
 		modify_if_exist_new_folder(FTP_ANONYMOUS_USER, mount_path);
 
 	// get the account number and account_list
-	get_account_list(&acc_num, &account_list);
+	if (get_account_list(&acc_num, &account_list) != 0)
+		return -1;
 
 	for (i = 0; i < acc_num; ++i) {
 		snprintf(var_file, sizeof(var_file), "%s/.__%s_var.txt", mount_path, account_list[i]);
@@ -699,7 +700,8 @@ int add_account(const char *const account, const char *const password)
 		return -1;
 
 	// 1. check if can create the account
-	get_account_list(&acc_num, &account_list);
+	if (get_account_list(&acc_num, &account_list) != 0)
+		return -1;
 	if (acc_num >= MAX_ACCOUNT_NUM) {
 		free_2_dimension_list(&acc_num, &account_list);
 		return -1;
@@ -765,7 +767,8 @@ int del_account(const char *const account)
 		return -1;
 
 	// 1. check if can create the account
-	get_account_list(&acc_num, &account_list);
+	if (get_account_list(&acc_num, &account_list) != 0)
+		return -1;
 	if (acc_num <= 0)
 		return -1;
 
@@ -872,7 +875,7 @@ int mod_account(const char *const account, const char *const new_account, const 
 	if (account_order == -1)
 		return -1;
 
-	if (!strcmp(new_account, FTP_ANONYMOUS_USER))
+	if (new_account && *new_account && !strcmp(new_account, FTP_ANONYMOUS_USER))
 		return -1;
 
 	// 2. modify nvram value about the new account
