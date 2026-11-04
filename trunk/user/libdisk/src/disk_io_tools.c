@@ -29,6 +29,8 @@
 void sanity_name(char *name)
 {
 	int len, i;
+	if (!name)
+		return;
 	len = strlen(name);
 
 	for (i = 0; i < len; i++)
@@ -45,40 +47,75 @@ void sanity_name(char *name)
 	}
 }
 
-char *read_whole_file(const char *target) {
-	FILE *fp = fopen(target, "r");
-	char *buffer, *new_str;
-	int i;
-	unsigned int read_bytes = 0;
-	unsigned int each_size = 1024;
-	
-	if (fp == NULL)
+char *read_whole_file(const char *target)
+{
+	FILE *fp;
+	char *buffer = NULL, *new_buffer;
+	size_t used = 0, capacity = 0, next_capacity, n;
+	int ch;
+
+	/* These are small metadata/configuration files, not arbitrary payloads.
+	 * Cap reads to avoid a malformed removable-drive file exhausting RAM. */
+#define READ_WHOLE_FILE_MAX (1024U * 1024U)
+	if (!target || !*target)
 		return NULL;
-	
-	buffer = (char *)malloc(sizeof(char)*each_size+read_bytes);
-	if (buffer == NULL) {
-		fclose(fp);
+	fp = fopen(target, "r");
+	if (!fp)
 		return NULL;
-	}
-	memset(buffer, 0, sizeof(char)*each_size+read_bytes);
-	
-	while ((i = fread(buffer+read_bytes, sizeof(char), each_size, fp)) == each_size) {
-		read_bytes += each_size;
-		new_str = (char *)malloc(sizeof(char)*each_size+read_bytes);
-		if (new_str == NULL) {
+
+	for (;;) {
+		if (capacity - used < 2) {
+			if (capacity >= (size_t)READ_WHOLE_FILE_MAX + 1) {
+				ch = fgetc(fp);
+				if (ch != EOF) {
+					free(buffer);
+					fclose(fp);
+					return NULL;
+				}
+				if (ferror(fp)) {
+					free(buffer);
+					fclose(fp);
+					return NULL;
+				}
+				break;
+			}
+
+			next_capacity = capacity ? capacity * 2 : 1024;
+			if (next_capacity > (size_t)READ_WHOLE_FILE_MAX + 1)
+				next_capacity = (size_t)READ_WHOLE_FILE_MAX + 1;
+			new_buffer = realloc(buffer, next_capacity);
+			if (!new_buffer) {
+				free(buffer);
+				fclose(fp);
+				return NULL;
+			}
+			buffer = new_buffer;
+			capacity = next_capacity;
+		}
+
+		n = fread(buffer + used, 1, capacity - used - 1, fp);
+		used += n;
+		if (n > 0)
+			continue;
+		if (ferror(fp)) {
 			free(buffer);
 			fclose(fp);
 			return NULL;
 		}
-		memset(new_str, 0, sizeof(char)*each_size+read_bytes);
-		memcpy(new_str, buffer, read_bytes);
-		
-		free(buffer);
-		buffer = new_str;
+		break;
 	}
-	
+
+	if (!buffer) {
+		buffer = malloc(1);
+		if (!buffer) {
+			fclose(fp);
+			return NULL;
+		}
+	}
+	buffer[used] = '\0';
 	fclose(fp);
 	return buffer;
+#undef READ_WHOLE_FILE_MAX
 }
 
 int mkdir_if_none(char *dir) {
@@ -169,7 +206,7 @@ char *get_upper_str(const char *const str) {
 	if (target == NULL)
 		return NULL;
 	for (i = 0; i < len; ++i)
-		target[i] = toupper(str[i]);
+		target[i] = (char)toupper((unsigned char)str[i]);
 	target[len] = 0;
 	
 	return target;
@@ -188,90 +225,89 @@ int upper_strcmp(const char *const str1, const char *const str2) {
 		return len1-len2;
 	
 	for (i = 0; i < len1; ++i) {
-		if (toupper(str1[i]) != toupper(str2[i]))
+		if (toupper((unsigned char)str1[i]) != toupper((unsigned char)str2[i]))
 			return i+1;
 	}
 	
 	return 0;
 }
 
-int upper_strncmp(const char *const str1, const char *const str2, int max_len) {
+int upper_strncmp(const char *const str1, const char *const str2, int max_len)
+{
 	int i;
 
-	if(str1 == NULL || strlen(str1) <= 0
-			|| str2 == NULL || strlen(str2) <= 0
-			|| max_len <= 0)
+	if (!str1 || !str2 || max_len <= 0)
 		return -1;
 
 	for (i = 0; i < max_len; ++i) {
-		if (toupper(str1[i]) != toupper(str2[i]))
-			return i+1;
+		unsigned char c1 = (unsigned char)str1[i];
+		unsigned char c2 = (unsigned char)str2[i];
+
+		if (c1 == '\0' || c2 == '\0')
+			return c1 == c2 ? 0 : i + 1;
+		if (toupper(c1) != toupper(c2))
+			return i + 1;
 	}
-	
+
 	return 0;
 }
 
-char *upper_strstr(const char *const str1, const char *const str2) {
+char *upper_strstr(const char *const str1, const char *const str2)
+{
 	char *line, *line_end, *line_str;
-	int len, ret;
+	int len, ret, search_len;
 
-	if(str1 == NULL || strlen(str1) <= 0
-			|| str2 == NULL || strlen(str2) <= 0)
+	if (!str1 || !*str1 || !str2 || !*str2)
 		return NULL;
 
+	search_len = strlen(str2);
 	line = (char *)str1;
-	while (line != NULL) {
+	while (line) {
 		line_end = strchr(line, '\n');
-		if (line_end != NULL)
-			len = line_end-line;
-		else
-			len = strlen(line);
-		
-		line_str = (char *)malloc(sizeof(char)*(len+1));
-		if (line_str == NULL)
+		len = line_end ? (int)(line_end - line) : (int)strlen(line);
+
+		line_str = malloc((size_t)len + 1);
+		if (!line_str)
 			return NULL;
-		strncpy(line_str, line, len);
-		line_str[len] = 0;
-		
-		len = strlen(str2);
-		ret = upper_strncmp(line_str, str2, len);
+		memcpy(line_str, line, (size_t)len);
+		line_str[len] = '\0';
+
+		ret = upper_strncmp(line_str, str2, search_len);
 		free(line_str);
 		if (ret == 0)
 			return line;
-		
-		line = strchr(line_end, '*');
+
+		/* A final line need not end in newline. */
+		if (!line_end)
+			break;
+		line = strchr(line_end + 1, '*');
 	}
-	
+
 	return NULL;
 }
 
-void strntrim(char *str){
-	register char *start, *end;
-	int len;
+void strntrim(char *str)
+{
+	size_t begin = 0, end;
 
-	if(str == NULL)
+	if (!str)
 		return;
-
-	len = strlen(str);
-	start = str;
-	end = start+len-1;
-
-	while(start < end && isspace(*start))
-		++start;
-	while(start <= end && isspace(*end))
+	end = strlen(str);
+	while (begin < end && isspace((unsigned char)str[begin]))
+		++begin;
+	while (end > begin && isspace((unsigned char)str[end - 1]))
 		--end;
 
-	end++;
-
-	if((int)(end-start) < len){
-		memcpy(str, start, (end-start));
-		str[end-start] = 0;
-	}
+	if (begin > 0 && end > begin)
+		memmove(str, str + begin, end - begin);
+	str[end - begin] = '\0';
 }
 
 void write_escaped_value(FILE *fp, const char *value) {
 	const char *follow_value;
 
+	if (!fp || !value)
+		return;
 	follow_value = value;
 	while (*follow_value != 0) {
 		if (*follow_value == '\'') {
@@ -312,16 +348,16 @@ void write_escaped_value(FILE *fp, const char *value) {
 		}
 		else if (*follow_value == '\t') {
 			fputc('\\', fp);
-			fputc('\t', fp);
+			fputc('t', fp);
 		}
 		else if (*follow_value == '\v') {
 			fputc('\\', fp);
-			fputc('\v', fp);
+			fputc('v', fp);
 		}
 		else if (isprint(*follow_value)) {
 			fputc(*follow_value, fp);
 		}
-		else if (((unsigned char)(*follow_value) && 0x80) != 0) {
+		else if (((unsigned char)(*follow_value) & 0x80) != 0) {
 			fputc(*follow_value, fp);
 		}
 		else{
