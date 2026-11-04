@@ -56,7 +56,7 @@ void UDBIndex_findHoles(UDBIndex *self);
 PID_TYPE UDBIndex_nextPid(UDBIndex *self);
 PID_TYPE UDBIndex_allocPid(UDBIndex *self);
 PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid);
-void UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid);
+int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid);
 long UDBIndex_pidCount(UDBIndex *self);
 void UDBIndex_show(UDBIndex *self);
 
