@@ -298,16 +298,29 @@ int ipv6_to_ipv4_map(struct in6_addr *addr6, int size6, struct in_addr *addr4, i
 int ipv6_compact(const char *str6, char *p_comp6, int allow_prefix)
 {
 	int prefix_len;
+	size_t addr_len;
 	struct in6_addr addr6;
+	char compact[INET6_ADDRSTRLEN + 5];
+
+	if (!str6 || !p_comp6)
+		return -1;
 
 	memset(&addr6, 0, sizeof(addr6));
 	prefix_len = ipv6_from_string(str6, &addr6);
 	if (prefix_len < 0)
 		return -1;
 
-	inet_ntop(AF_INET6, &addr6, p_comp6, INET6_ADDRSTRLEN);
-	if (allow_prefix && prefix_len > 0 && prefix_len < 128)
-		sprintf(p_comp6, "%s/%d", p_comp6, prefix_len);
+	if (!inet_ntop(AF_INET6, &addr6, compact, sizeof(compact)))
+		return -1;
+
+	if (allow_prefix && prefix_len > 0 && prefix_len < 128) {
+		addr_len = strlen(compact);
+		snprintf(compact + addr_len, sizeof(compact) - addr_len,
+			 "/%d", prefix_len);
+	}
+
+	/* INET6_ADDRSTRLEN also accommodates the longest address plus /128. */
+	memcpy(p_comp6, compact, strlen(compact) + 1);
 
 	return 0;
 }
