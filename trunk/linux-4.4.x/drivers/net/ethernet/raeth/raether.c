@@ -2712,64 +2712,91 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
 	switch (cmd) {
 	case RAETH_MII_READ:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		mii_mgr_read(mii.phy_id, mii.reg_num, &mii.val_out);
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_to_user(ifr->ifr_data, &mii, sizeof(mii))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		break;
 
 	case RAETH_MII_WRITE:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		mii_mgr_write(mii.phy_id, mii.reg_num, mii.val_in);
 		break;
 	case RAETH_MII_READ_CL45:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		mii_mgr_read_cl45(mii.port_num, mii.dev_addr, mii.reg_addr,
 				  &mii.val_out);
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_to_user(ifr->ifr_data, &mii, sizeof(mii))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		break;
 	case RAETH_MII_WRITE_CL45:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		mii_mgr_write_cl45(mii.port_num, mii.dev_addr, mii.reg_addr,
 				   mii.val_in);
 		break;
 	case RAETH_ESW_REG_READ:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&reg, ifr->ifr_data, sizeof(reg))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		if (reg.off > REG_ESW_MAX) {
 			ret = -EINVAL;
 			break;
 		}
 		reg.val = sys_reg_read(RALINK_ETH_SW_BASE + reg.off);
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_to_user(ifr->ifr_data, &reg, sizeof(reg))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		break;
 	case RAETH_ESW_REG_WRITE:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&reg, ifr->ifr_data, sizeof(reg))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		if (reg.off > REG_ESW_MAX) {
 			ret = -EINVAL;
 			break;
@@ -2777,10 +2804,13 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		sys_reg_write(RALINK_ETH_SW_BASE + reg.off, reg.val);
 		break;
 	case RAETH_ESW_PHY_DUMP:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&reg, ifr->ifr_data, sizeof(reg))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		if (reg.val > 4 && reg.val != 32) {
 			ret = -EINVAL;
 			break;
@@ -2845,10 +2875,13 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case RAETH_ESW_INGRESS_RATE:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&ratelimit, ifr->ifr_data, sizeof(ratelimit))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		offset = 0x1800 + (0x100 * ratelimit.port);
 		value = sys_reg_read(RALINK_ETH_SW_BASE + offset);
 
@@ -2877,10 +2910,13 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case RAETH_ESW_EGRESS_RATE:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&ratelimit, ifr->ifr_data, sizeof(ratelimit))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		offset = 0x1040 + (0x100 * ratelimit.port);
 		value = sys_reg_read(RALINK_ETH_SW_BASE + offset);
 
@@ -2909,10 +2945,13 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case RAETH_SET_LAN_IP:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(ip_tmp, ifr->ifr_data, IP4_ADDR_LEN)) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		strncpy(ei_local->lan_ip4_addr, ip_tmp, IP4_ADDR_LEN);
 		pr_info("RAETH_SET_LAN_IP: %s\n", ei_local->lan_ip4_addr);
 
@@ -2924,29 +2963,38 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case RAETH_SW_IOCTL:
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&ioctl_data, ifr->ifr_data, sizeof(ioctl_data))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		sw_ioctl(&ioctl_data);
 		break;
 
 	case RAETH_QDMA_IOCTL:
 
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&qdma_data, ifr->ifr_data, sizeof(qdma_data))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		ei_qdma_ioctl(dev, ifr, &qdma_data);
 
 		break;
 
 	case RAETH_EPHY_IOCTL:
 
+		spin_unlock_irq(&ei_local->page_lock);
 		if (copy_from_user(&ephy_data, ifr->ifr_data, sizeof(ephy_data))) {
+			spin_lock_irq(&ei_local->page_lock);
 			ret = -EFAULT;
 			break;
 		}
+		spin_lock_irq(&ei_local->page_lock);
 		ephy_ioctl(dev, ifr, &ephy_data);
 
 		break;
