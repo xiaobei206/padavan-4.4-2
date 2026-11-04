@@ -440,8 +440,13 @@ UDBRecord *UDB_recordAtPid_(UDB *self, PID_TYPE pid)
 		NULL == self->records)
 		return NULL;
 	pos = UDBIndex_posForPid_(self->index, pid);
-	if (!pos) return NULL;
-	return UDBRecords_recordAtPos_(self->records, pos);
+	UDBRecord *record;
+	if (!pos)
+		return NULL;
+	record = UDBRecords_recordAtPos_(self->records, pos);
+	if (NULL == record || UDBRecord_isEmpty(record))
+		return NULL;
+	return record;
 }
 
 Datum UDB_at_(UDB *self, PID_TYPE pid)
@@ -462,20 +467,16 @@ Datum UDB_at_(UDB *self, PID_TYPE pid)
 
 void UDB_removeAt_(UDB *self, PID_TYPE pid)
 {
-	if (UDB_isInTransaction(self))
-	{
-		UDBRecord *record = UDB_recordAtPid_(self, pid);
-		
-		if (!record)
-		{
-                        //TODO jannson
-			//printf("UDB error: missing record with pid %" PID_FORMAT " for remove\n", pid);
-			record = UDB_recordAtPid_(self, pid);
-			return;
-		}
-		
-		UDBRecords_removeRecord_(self->records, record);
-		UDBIndex_setPos_forPid_(self->index, 0, pid);
+	UDBRecord *record;
+	if (!UDB_isInTransaction(self))
+		return;
+	record = UDB_recordAtPid_(self, pid);
+	if (NULL == record)
+		return;
+	if (!UDBRecords_removeRecord_(self->records, record) ||
+		!UDBIndex_setPos_forPid_(self->index, 0, pid)) {
+		/* Leave the global marker uncommitted; reopening will discard this tx. */
+		UDB_close(self);
 	}
 }
 
@@ -515,85 +516,75 @@ int UDB_compactStep(UDB *self)
 }
 
 int UDB_compactStepFor_(UDB *self, double maxSeconds)
-{   
-	UDBRecord *firstEmptyRecord = UDBRecords_firstEmptyRecord(self->records);
-	
-	if (!firstEmptyRecord)
-	{
+{
+	UDBRecord *firstEmptyRecord, *record;
+	PID_TYPE oldEmptyPos, newEmptyPos, newSize;
+
+	(void)maxSeconds;
+	if (NULL == self || !self->isOpen || self->withinTransaction ||
+		NULL == self->records || NULL == self->index)
 		return 0;
-	}
-	
-	if (!UDBRecord_isEmpty(firstEmptyRecord))
-	{
-		printf("firstEmptyRecord not empty!\n");
-		firstEmptyRecord = UDBRecords_firstEmptyRecord(self->records);
-		UDBRecord_isEmpty(firstEmptyRecord);
-		exit(1);
-	}
-	
-#ifdef DEBUG
-	printf("empty record pid: %i pos: %i size: %i isEmpty: %i\n", 
-		  UDBRecord_pid(firstEmptyRecord), 
-		  UDBRecord_pos(firstEmptyRecord), 
-		  UDBRecord_totalSize(firstEmptyRecord), 
-		  UDBRecord_isEmpty(firstEmptyRecord));
-#endif
-	    
-	if (firstEmptyRecord)
-	{
-		UDBRecord *record = UDBRecords_recordAfter_(self->records, firstEmptyRecord);
-		
-		if (!record)
-		{
-			// reached end of file 
-			PID_TYPE size = UDBRecord_pos(firstEmptyRecord);
-			UDBRecords_truncate_(self->records, size);
+
+	firstEmptyRecord = UDBRecords_firstEmptyRecord(self->records);
+	if (NULL == firstEmptyRecord || !UDBRecord_isEmpty(firstEmptyRecord))
+		return 0;
+
+	record = UDBRecords_recordAfter_(self->records, firstEmptyRecord);
+	if (NULL == record) {
+		/* Remove a trailing free block; no live records follow it. */
+		if (!UDBRecords_truncate_(self->records,
+				(off_t)UDBRecord_pos(firstEmptyRecord)) ||
+			self->records->file->file == NULL ||
+			self->records->file->log == NULL) {
+			UDB_close(self);
 			return 0;
 		}
-		
-#ifdef DEBUG
-		printf("next  record pid: %i pos: %i size: %i isEmpty: %i\n\n", 
-			  UDBRecord_pid(record), 
-			  UDBRecord_pos(record), 
-			  UDBRecord_totalSize(record), 
-			  UDBRecord_isEmpty(record));
-#endif
-		
-		UDB_beginTransaction(self);
-		
-		if (UDBRecord_isEmpty(record))
-		{
-			// coalese this empty record into the first empty record 
-			PID_TYPE newSize = UDBRecord_totalSize(firstEmptyRecord) 
-			- sizeof(UDBRecordHeader) + UDBRecord_totalSize(record);
-			UDBRecord_size_(firstEmptyRecord, newSize);
-			UDBRecord_saveHeader(firstEmptyRecord);
-#ifdef DEBUG
-			printf("merge\n");
-#endif
-			UDBIndex_setPos_forPid_(self->index, 0, UDBRecord_pid(record));
-		}
-		else
-		{
-			// swap places with the first empty record 
-			PID_TYPE oldEmptyPos = UDBRecord_pos(firstEmptyRecord);
-			PID_TYPE newEmptyPos = oldEmptyPos + UDBRecord_totalSize(record);
-			UDBRecords_firstEmptyRecordPos_(self->records, newEmptyPos);
-			UDBRecord_moveToPos_(record, UDBRecord_pos(firstEmptyRecord));
-			UDBRecord_setPos_(firstEmptyRecord, newEmptyPos);
-			UDBRecord_saveHeader(firstEmptyRecord);
-#ifdef DEBUG
-			printf("move\n");
-#endif
-			UDBIndex_setPos_forPid_(self->index, newEmptyPos, UDBRecord_pid(firstEmptyRecord));
-			UDBIndex_setPos_forPid_(self->index, oldEmptyPos, UDBRecord_pid(record));
-		}
-		
-		UDB_commitTransaction(self);
-		
-		return 1;
+		return 0;
 	}
-	return 0;
+
+	UDB_beginTransaction(self);
+	if (!self->withinTransaction ||
+		!UDBRecords_firstEmptyRecordPos_(self->records,
+			UDBRecord_pos(firstEmptyRecord))) {
+		UDB_close(self);
+		return 0;
+	}
+
+	if (UDBRecord_isEmpty(record)) {
+		/* Merge adjacent empty extents. */
+		newSize = UDBRecord_totalSize(firstEmptyRecord) -
+			sizeof(UDBRecordHeader) + UDBRecord_totalSize(record);
+		UDBRecord_size_(firstEmptyRecord, newSize);
+		if (!UDBRecord_saveHeader(firstEmptyRecord) ||
+			!UDBIndex_setPos_forPid_(self->index, 0,
+				UDBRecord_pid(record))) {
+			UDB_close(self);
+			return 0;
+		}
+	} else {
+		oldEmptyPos = UDBRecord_pos(firstEmptyRecord);
+		if (UDBRecord_totalSize(record) > (PID_TYPE)-1 - oldEmptyPos) {
+			UDB_close(self);
+			return 0;
+		}
+		newEmptyPos = oldEmptyPos + UDBRecord_totalSize(record);
+		if (!UDBRecords_firstEmptyRecordPos_(self->records, newEmptyPos) ||
+			!UDBRecord_moveToPos_(record, oldEmptyPos)) {
+			UDB_close(self);
+			return 0;
+		}
+		UDBRecord_setPos_(firstEmptyRecord, newEmptyPos);
+		if (!UDBRecord_saveHeader(firstEmptyRecord) ||
+			!UDBIndex_setPos_forPid_(self->index, oldEmptyPos,
+				UDBRecord_pid(record))) {
+			UDB_close(self);
+			return 0;
+		}
+		/* The empty extent's former PID stays free; never map it to a row. */
+	}
+
+	UDB_commitTransaction(self);
+	return self->isOpen ? 1 : 0;
 }
 
 void UDB_show(UDB *self)
