@@ -140,43 +140,47 @@ void UDBIndex_preCommit(UDBIndex *self)
 		JFile_commitToLog(self->file);
 }
 
-void UDBIndex_commit(UDBIndex *self)
+int UDBIndex_prepareCommit(UDBIndex *self)
 {
 	size_t i;
 
-	if (NULL == self || NULL == self->file)
-		return;
-	JFile_commitToFile(self->file);
-	if (NULL == self->file->file || NULL == self->file->log ||
-		NULL == self->holes || NULL == self->reserved)
-		return;
+	if (NULL == self || NULL == self->file || NULL == self->file->file ||
+		NULL == self->file->log || NULL == self->holes || NULL == self->reserved)
+		return 0;
 
-	/* Unused reservations become ordinary holes at the transaction boundary. */
+	/* Do every fallible allocation before UDB writes its durable commit marker. */
 	for (i = 0; i < self->reserved->size; ++i) {
 		PID_TYPE pid = (PID_TYPE)self->reserved->items[i];
 		size_t old_size;
+
 		if (pid == 0)
 			continue;
-		if (UDBIndex_posForPid_(self, pid) != 0) {
-			/* A mapped PID should have been removed from reserved on write. */
-			continue;
-		}
-		if (ferror(self->file->file)) {
-			JFile_close(self->file);
-			return;
-		}
 		while (List_removeFirst_(self->holes, (void *)pid)) {
 			/* Keep the free-PID stack unique. */
 		}
 		old_size = self->holes->size;
-		List_push_(self->holes, (void *)pid);
-		if (self->holes->size != old_size + 1) {
-			/* Marker 1 remains armed; reopening rebuilds holes from disk. */
-			JFile_close(self->file);
-			return;
-		}
+		if (NULL == List_push_(self->holes, (void *)pid) ||
+			self->holes->size != old_size + 1)
+			return 0;
 	}
+
 	List_removeAll(self->reserved);
+	return 1;
+}
+
+void UDBIndex_commit(UDBIndex *self)
+{
+	if (NULL == self || NULL == self->file ||
+		NULL == self->holes || NULL == self->reserved)
+		return;
+
+	/* Reservations must be finalized before the global UDB commit marker. */
+	if (self->reserved->size != 0) {
+		fprintf(stderr, "UDBIndex: PID reservations were not finalized before commit\n");
+		JFile_close(self->file);
+		return;
+	}
+	JFile_commitToFile(self->file);
 }
 
 // holes ------------------------------------------- 
