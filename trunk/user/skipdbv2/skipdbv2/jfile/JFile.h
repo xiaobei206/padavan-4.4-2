@@ -52,6 +52,7 @@ typedef struct
     unsigned char *buf;
 	int journalingOn;
 	int fullSync;
+	int deferLogReplay;
 	size_t logHighWaterMark;
 } JFile;
 
@@ -86,6 +87,7 @@ long JFile_position(JFile *self);
 void JFile_begin(JFile *self);
 void JFile_commitToLog(JFile *self); // makes sure log is on disk
 void JFile_commitToFile(JFile *self);   // writes log to file and makes sure changes are on disk
+int JFile_applyLogToFile(JFile *self);  // applies a committed log without clearing it
 void JFile_remove(JFile *self);
 
 void JFile_truncate_(JFile *self, off_t size);
