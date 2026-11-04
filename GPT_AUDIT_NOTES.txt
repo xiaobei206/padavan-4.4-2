@@ -27,3 +27,10 @@ f1ee8e1  watchdog.c: validate weekday bits and HHMM range before scheduler actio
 576dc1d  pids.c: handle /proc scan and allocation failures without null dereferences.
 09c3597  flash_mtd.c: validate partition ranges and stop on bad-block ioctl errors.
 8acfba0  flash_mtd.c: handle partial MTD I/O and fail incomplete write verification.
+fd4f255  apply_customization.py: validate and safely escape custom firmware defaults.
+10239da  custom.yml: keep JSON inputs out of shell source; whitelist plugin/customization fields.
+c3871a7  apply_customization.py: correct C macro matcher whitespace pattern.
+620063a  custom.yml: fix customization helper arguments and GITHUB_ENV newline.
+2d21823  setip.sh: route LAN IP edits through validated helper.
+bfba14d  setaccount.sh: route account edits through validated helper.
+e213d85  setwifi.sh: route Wi-Fi edits through validated helper.
