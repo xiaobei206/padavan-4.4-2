@@ -390,11 +390,15 @@ BASEKIT_API UArray UArray_stackAllocedEmptyUArray(void)
 
 UArray *UArray_newWithCString_copy_(char *s, int copy)
 {
+	if (NULL == s)
+		return NULL;
 	return UArray_newWithData_type_size_copy_(s, CTYPE_uint8_t, strlen(s), copy);
 }
 
 UArray *UArray_newWithCString_(const char *s)
 {
+	if (NULL == s)
+		return NULL;
 	return UArray_newWithData_type_size_copy_((uint8_t *)s, CTYPE_uint8_t, strlen(s), 1);
 }
 
@@ -405,9 +409,12 @@ void UArray_empty(UArray *self)
 
 void UArray_setCString_(UArray *self, const char *s)
 {
+	if (NULL == self || NULL == s)
+		return;
 	UArray_empty(self);
 	UArray_setItemType_(self, CTYPE_uint8_t);
-	UArray_appendCString_(self, s);
+	if (self->itemType == CTYPE_uint8_t)
+		UArray_appendCString_(self, s);
 }
 
 #ifdef UARRAY_DEBUG
@@ -489,37 +496,44 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 
 UArray UArray_stackAllocedWithCString_(char *s)
 {
+	if (NULL == s)
+		return UArray_stackAllocedWithData_type_size_(NULL, CTYPE_uint8_t, 0);
 	return UArray_stackAllocedWithData_type_size_(s, CTYPE_uint8_t, strlen(s));
 }
 
 const void *UArray_data(const UArray *self)
 {
-	return self->data;
+	return self ? self->data : NULL;
 }
 
 const uint8_t *UArray_bytes(const UArray *self)
 {
-	return self->data;
+	return self ? self->data : NULL;
 }
 
 uint8_t *UArray_mutableBytes(UArray *self)
 {
+	if (NULL == self)
+		return NULL;
 	UArray_changed(self);
 	return self->data;
 }
 
 const char *UArray_asCString(const UArray *self)
 {
-	return (const char *)(self->data);
+	return self ? (const char *)(self->data) : NULL;
 }
 
 void UArray_stackFree(UArray *self)
 {
-	if(self->data) io_free(self->data);
+	if (self && self->data)
+		io_free(self->data);
 }
 
 void UArray_free(UArray *self)
 {
+	if (NULL == self)
+		return;
 	if(self->data) io_free(self->data);
 	io_free(self);
 }
