@@ -9,51 +9,41 @@
 #include <string.h>
 #include <stdio.h>
 
-void PHash_print(PHash* self)
+void PHash_print(PHash *self)
 {
-	printf("self->log2tableSize = %d\n", self->log2tableSize);
-	printf("self->tableSize = %d\n", self->tableSize);
-	printf("self->numKeys = %d\n", self->numKeys);
-
-	printf("self->mask = %d\n", self->mask);
-	printf("self->balance = %d\n", self->balance);
-	printf("self->maxLoops = %d\n", PHash_maxLoops(self));
-	printf("self->maxKeys = %d\n", PHash_maxKeys(self));
-
-	printf("self->nullRecord.key = %d\n", self->nullRecord.key);
-	printf("self->nullRecord.value = %d\n", self->nullRecord.value);
-
-	printf("\nmemory usage : %d bytes\n", PHash_memorySize(self));
-	printf("\ndensity : %f \n", (self->numKeys*sizeof(PHashRecord))/(double)PHash_memorySize(self));
-
-	{
-		unsigned int i,j;
-		int count[2] = {0,0};
-
-		for (j = 0; j < 2; j ++)
-		{
-			for (i = 0; i < self->tableSize; i ++)
-			{
-				PHashRecord *record = PHASH_RECORDS_AT_(self, j, i);
-				if (NULL == record->key)
-				{
-					if (NULL == record->value)
-						printf("_");
-					else
-						printf("!");
-				}
-				else
-				{
-					printf("x");
-					count[j]++;
-				}
-			}
-			printf("\n");
-		}
-		printf("balance : %d / %d [%1.3f]\n", count[0], count[1], (count[0]-count[1])/(double)(count[0]+count[1]) );
+	unsigned int i, j, count[2] = {0, 0};
+	size_t memory;
+	if (NULL == self) {
+		printf("PHash <null>\n");
+		return;
 	}
+	memory = PHash_memorySize(self);
+	printf("log2tableSize = %u\n", self->log2tableSize);
+	printf("tableSize = %u\n", self->tableSize);
+	printf("numKeys = %u\n", self->numKeys);
+	printf("mask = %u\n", self->mask);
+	printf("balance = %u\n", self->balance);
+	printf("nullRecord.key = %p\n", self->nullRecord.key);
+	printf("nullRecord.value = %p\n", self->nullRecord.value);
+	printf("\nmemory usage : %lu bytes\n", (unsigned long)memory);
+	printf("\ndensity : %f\n", memory ? (self->numKeys * sizeof(PHashRecord)) / (double)memory : 0.0);
+	if (NULL == self->records || self->tableSize == 0) {
+		printf("<uninitialized table>\n");
+		return;
+	}
+	for (j = 0; j < 2; ++j) {
+		for (i = 0; i < self->tableSize; ++i) {
+			PHashRecord *record = PHASH_RECORDS_AT_(self, j, i);
+			if (record->key) { putchar('x'); count[j]++; }
+			else if (record->value) putchar('!');
+			else putchar('_');
+		}
+		putchar('\n');
+	}
+	printf("balance : %u / %u [%1.3f]\n", count[0], count[1],
+		(count[0] + count[1]) ? ((double)count[0] - (double)count[1]) /
+		((double)count[0] + (double)count[1]) : 0.0);
 }
-
 void PHash_tableInit_(PHash* self, int log2tableSize)
 {
 	PHashRecord *records;
