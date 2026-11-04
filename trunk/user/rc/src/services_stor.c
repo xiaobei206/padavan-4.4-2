@@ -463,7 +463,8 @@ write_smb_conf(void)
 	}
 
 confpage:
-	fclose(fp);
+	if (fp)
+		fclose(fp);
 	free_disk_data(disks_info);
 	return 0;
 }
