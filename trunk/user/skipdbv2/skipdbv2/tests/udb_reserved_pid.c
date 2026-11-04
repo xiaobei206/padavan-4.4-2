@@ -22,6 +22,7 @@ int main(void)
     PID_TYPE first_pid, second_pid, reused_pid;
     char path[128];
     int result = EXIT_FAILURE;
+    int path_len;
 
     db = UDB_new();
     if (NULL == db) {
@@ -29,8 +30,9 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    if (snprintf(path, sizeof(path), "udb_reserved_pid_test_%ld",
-            (long)getpid()) < 0) {
+    path_len = snprintf(path, sizeof(path), "udb_reserved_pid_test_%ld",
+        (long)getpid());
+    if (path_len < 0 || (size_t)path_len >= sizeof(path)) {
         fprintf(stderr, "unable to construct test database path\n");
         goto done;
     }
