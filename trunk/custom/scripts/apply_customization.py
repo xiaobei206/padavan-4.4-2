@@ -31,7 +31,7 @@ def validate_text(key, value):
 
 
 def replace_define(text, name, value):
-    pattern = re.compile(r"(?m)^(#define\\s+" + re.escape(name) + r"\\s+).*$")
+    pattern = re.compile(r"(?m)^(#define\s+" + re.escape(name) + r"\s+).*$")
     updated, count = pattern.subn(lambda m: m.group(1) + c_string(value), text, count=1)
     if count != 1:
         fail(f"could not locate exactly one #define {name}")
