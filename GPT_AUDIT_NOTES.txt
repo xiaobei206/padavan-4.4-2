@@ -59,3 +59,4 @@ ae5d00c  raether.c: check Ethernet ioctl user copies and validate PHY dump port.
 8b8b3e8  pids.c: bound /proc PID path formatting and retry interrupted reads.
 c6efccb  automount.sh: remove eval of filesystem metadata; validate mount/device components.
 ae80761  hddtune.sh: validate hotplug device and normalize NVRAM numeric options.
+cd7b36e  automount.sh: quote and validate filesystem module names.
