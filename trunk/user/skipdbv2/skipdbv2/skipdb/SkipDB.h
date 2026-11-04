@@ -160,7 +160,7 @@ SKIPDB_API void SkipDB_removeCursor_(SkipDB *self, SkipDBCursor *cursor);
 
 // moving from in-memory to on-disk
 
-SKIPDB_API void SkipDB_mergeInto_(SkipDB *self, SkipDB *other);
+SKIPDB_API int SkipDB_mergeInto_(SkipDB *self, SkipDB *other);
 
 SKIPDB_API int SkipDB_exists(SkipDB *self, Datum key);
 typedef void (*skipdb_list_callback)(SkipDB* self, SkipDBRecord* rc, void* ctx);

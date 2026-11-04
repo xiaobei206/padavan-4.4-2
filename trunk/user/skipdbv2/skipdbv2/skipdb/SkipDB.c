@@ -925,20 +925,22 @@ void SkipDB_removeCursor_(SkipDB *self, SkipDBCursor *cursor)
 
 // moving from in-memory to on-disk ---------------------------------
 
-void SkipDB_mergeInto_(SkipDB *self, SkipDB *other)
+int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)
 {
 	SkipDBRecord *record;
-	if (NULL == self || NULL == other || NULL == self->header ||
-		!SkipDB_isOpen(self) || !SkipDB_isOpen(other))
-		return;
+	if (NULL == self || NULL == other || self == other ||
+		NULL == self->header || !SkipDB_isOpen(self) || !SkipDB_isOpen(other))
+		return 0;
+
 	record = self->header;
 	while ((record = SkipDBRecord_nextRecord(record)) != NULL) {
 		Datum key = SkipDBRecord_keyDatum(record);
 		Datum value = SkipDBRecord_valueDatum(record);
-		(void)SkipDB_at_put_(other, key, value);
-		if (!SkipDB_isOpen(other))
-			return;
+		if (!SkipDB_at_put_(other, key, value) ||
+			!SkipDB_isOpen(self) || !SkipDB_isOpen(other))
+			return 0;
 	}
+	return 1;
 }
 
 

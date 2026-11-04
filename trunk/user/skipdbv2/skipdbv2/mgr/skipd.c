@@ -1268,104 +1268,218 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_que
     return fd;
 }
 
-static void server_open(skipd_server* server) {
-    char real_path[SK_PATH_MAX];
-    char nbuf[10];
-    int n, sf;
-#if 0
-    sprintf(real_path, "%s/switch", server->db_path);
-    sf = open(real_path, O_RDONLY);
-    if(sf > 0) {
-        n = read(sf, nbuf, sizeof(nbuf));
-        close(sf);
-        if (n) {
-            n = atoi(nbuf);
+static int read_db_switch_marker(const char *path, int *db_id)
+{
+    char buf[4];
+    ssize_t n;
+    int fd;
+
+    if (NULL == path || NULL == db_id)
+        return -1;
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        if (errno == ENOENT) {
+            *db_id = 0;
+            return 0;
         }
-        server->curr_db = n;
-		skipd_log(SKIPD_DEBUG, "debug:read db:%s",nbuf);
+        return -1;
     }
-	if((server->curr_db != 0) && (server->curr_db != 1)){
-		skipd_log(SKIPD_DEBUG, "db:%d is wrong,reset to 0",server->curr_db);
-		server->curr_db = 0;
-	}
-    sf = open(real_path, O_TRUNC | O_RDWR | O_CREAT, 0640);
-    if (sf < 0) {
-        skipd_log(SKIPD_DEBUG, "cannot write swich file");
-        exit(1);
+
+    do {
+        n = read(fd, buf, sizeof(buf));
+    } while (n < 0 && errno == EINTR);
+    if (close(fd) != 0)
+        return -1;
+
+    if (n == 1 && (buf[0] == '0' || buf[0] == '1')) {
+        *db_id = buf[0] - '0';
+        return 0;
     }
-    n = sprintf(nbuf, "%d", server->curr_db);
-    write(sf, nbuf, n);
-    close(sf);
-    skipd_log(SKIPD_DEBUG, "use path:%s db:%d",server->db_path,server->curr_db);
-#endif
-	server->curr_db = 0;
+    if (n == 2 && (buf[0] == '0' || buf[0] == '1') &&
+        buf[1] == '\n') {
+        *db_id = buf[0] - '0';
+        return 0;
+    }
+    errno = EINVAL;
+    return -1;
+}
+
+/* Return -2 only when rename succeeded but directory fsync failed. */
+static int write_db_switch_marker(const char *db_path, int db_id)
+{
+    char marker_path[SK_PATH_MAX];
+    char temp_path[SK_PATH_MAX];
+    char value;
+    int fd = -1, dir_fd = -1, renamed = 0;
+    int n;
+    ssize_t written;
+
+    if (NULL == db_path || (db_id != 0 && db_id != 1)) {
+        errno = EINVAL;
+        return -1;
+    }
+    n = snprintf(marker_path, sizeof(marker_path), "%s/switch", db_path);
+    if (n < 0 || (size_t)n >= sizeof(marker_path)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    n = snprintf(temp_path, sizeof(temp_path), "%s/switch.tmp", db_path);
+    if (n < 0 || (size_t)n >= sizeof(temp_path)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+
+    fd = open(temp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0)
+        return -1;
+    value = (char)('0' + db_id);
+    do {
+        written = write(fd, &value, 1);
+    } while (written < 0 && errno == EINTR);
+    if (written != 1 || fsync(fd) != 0)
+        goto fail;
+    if (close(fd) != 0) {
+        fd = -1;
+        goto fail;
+    }
+    fd = -1;
+
+    if (rename(temp_path, marker_path) != 0)
+        goto fail;
+    renamed = 1;
+
+    dir_fd = open(db_path, O_RDONLY);
+    if (dir_fd < 0 || fsync(dir_fd) != 0) {
+        if (dir_fd >= 0)
+            close(dir_fd);
+        return -2;
+    }
+    if (close(dir_fd) != 0)
+        return -2;
+    return 0;
+
+fail:
+    if (fd >= 0)
+        close(fd);
+    if (!renamed)
+        unlink(temp_path);
+    return -1;
+}
+
+static void server_open(skipd_server* server)
+{
+    char real_path[SK_PATH_MAX];
+    char marker_path[SK_PATH_MAX];
+    int n;
+
+    if (NULL == server) {
+        errno = EINVAL;
+        exit(EXIT_FAILURE);
+    }
+    n = snprintf(marker_path, sizeof(marker_path), "%s/switch",
+        server->db_path);
+    if (n < 0 || (size_t)n >= sizeof(marker_path)) {
+        skipd_log(SKIPDB_DEBUG, "database switch marker path too long\n");
+        exit(EXIT_FAILURE);
+    }
+    if (read_db_switch_marker(marker_path, &server->curr_db) != 0) {
+        skipd_log(SKIPDB_DEBUG, "invalid database switch marker: %s\n",
+            marker_path);
+        exit(EXIT_FAILURE);
+    }
+
     n = snprintf(real_path, sizeof(real_path), "%s/%d",
         server->db_path, server->curr_db);
     if (n < 0 || (size_t)n >= sizeof(real_path)) {
-        skipd_log(SKIPD_DEBUG, "database path too long\n");
+        skipd_log(SKIPDB_DEBUG, "database path too long\n");
         exit(EXIT_FAILURE);
     }
     server->db = SkipDB_new();
     if (NULL == server->db) {
-        skipd_log(SKIPD_DEBUG, "database allocation failed\n");
+        skipd_log(SKIPDB_DEBUG, "database allocation failed\n");
         exit(EXIT_FAILURE);
     }
     SkipDB_setPath_(server->db, real_path);
     if (SkipDB_open(server->db) <= 0 || !SkipDB_isOpen(server->db)) {
-        skipd_log(SKIPD_DEBUG, "database open failed: %s\n", real_path);
+        skipd_log(SKIPDB_DEBUG, "database open failed: %s\n", real_path);
         SkipDB_free(server->db);
         server->db = NULL;
         exit(EXIT_FAILURE);
     }
 }
 
-static void server_switch(skipd_server* server) {
+static void server_switch(skipd_server* server)
+{
     char real_path[SK_PATH_MAX];
-    char nbuf[10];
-    int n1, n2, sf;
+    int n1, n2, marker_status, source_count;
     SkipDB *tmp, *other;
-    if (NULL == server || NULL == server->db)
+
+    if (NULL == server || NULL == server->db ||
+        (server->curr_db != 0 && server->curr_db != 1) ||
+        !SkipDB_isOpen(server->db))
         return;
+
+    source_count = SkipDB_count(server->db);
     other = SkipDB_new();
     if (NULL == other) {
         skipd_log(SKIPDB_DEBUG, "database switch allocation failed\n");
         return;
     }
     n2 = 1 - server->curr_db;
-    n1 = snprintf(real_path, sizeof(real_path), "%s/%d", server->db_path, n2);
+    n1 = snprintf(real_path, sizeof(real_path), "%s/%d",
+        server->db_path, n2);
     if (n1 < 0 || (size_t)n1 >= sizeof(real_path)) {
         SkipDB_free(other);
         skipd_log(SKIPDB_DEBUG, "database switch path too long\n");
         return;
     }
+
     SkipDB_setPath_(other, real_path);
     SkipDB_delete(other);
     if (SkipDB_open(other) <= 0 || !SkipDB_isOpen(other)) {
-        skipd_log(SKIPDB_DEBUG, "unable to open replacement database: %s\n", real_path);
+        skipd_log(SKIPDB_DEBUG, "unable to open replacement database: %s\n",
+            real_path);
         SkipDB_free(other);
         return;
     }
 
-    SkipDB_mergeInto_(server->db, other);
+    if (!SkipDB_mergeInto_(server->db, other) ||
+        !SkipDB_isOpen(server->db) || !SkipDB_isOpen(other) ||
+        SkipDB_count(other) != source_count) {
+        skipd_log(SKIPDB_DEBUG, "database switch copy failed; retaining active database\n");
+        SkipDB_delete(other);
+        SkipDB_free(other);
+        return;
+    }
+
     SkipDB_beginTransaction(other);
+    if (!SkipDB_isOpen(other)) {
+        skipd_log(SKIPDB_DEBUG, "replacement database transaction could not start\n");
+        SkipDB_delete(other);
+        SkipDB_free(other);
+        return;
+    }
     SkipDB_commitTransaction(other);
+    if (!SkipDB_isOpen(other) || SkipDB_count(other) != source_count) {
+        skipd_log(SKIPDB_DEBUG, "replacement database commit failed; retaining active database\n");
+        SkipDB_delete(other);
+        SkipDB_free(other);
+        return;
+    }
+
+    marker_status = write_db_switch_marker(server->db_path, n2);
+    if (marker_status != 0) {
+        skipd_log(SKIPDB_DEBUG, "database switch marker write failed\n");
+        SkipDB_delete(other);
+        SkipDB_free(other);
+        if (marker_status == -2) {
+            /* Marker rename may be visible; stop before accepting more writes. */
+            exit(EXIT_FAILURE);
+        }
+        return;
+    }
 
     tmp = server->db;
-    n1 = snprintf(real_path, sizeof(real_path), "%s/switch", server->db_path);
-    if (n1 < 0 || (size_t)n1 >= sizeof(real_path)) {
-        SkipDB_free(other);
-        skipd_log(SKIPDB_DEBUG, "database switch marker path too long\n");
-        return;
-    }
-    sf = open(real_path, O_TRUNC | O_RDWR | O_CREAT, 0640);
-    if (sf < 0) {
-        skipd_log(SKIPD_DEBUG, "cannot write swich file");
-        exit(1);
-    }
-    n1 = sprintf(nbuf, "%d", n2);
-    write(sf, nbuf, n1);
-    close(sf);
-
     server->db = other;
     server->curr_db = n2;
     SkipDB_delete(tmp);
