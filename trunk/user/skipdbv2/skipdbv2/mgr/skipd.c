@@ -1407,7 +1407,10 @@ static void server_init_time(EV_P_ skipd_server *server) {
             memcpy(static_buffer, dvalue.data, n1);
             static_buffer[n1] = '\0';
 
-            if (strptime(static_buffer, "%H:%M:%S", &tm1) != NULL) {
+            memset(&tm1, 0, sizeof(tm1));
+            tm1.tm_mday = 1;
+            p1 = strptime(static_buffer, "%H:%M:%S", &tm1);
+            if(p1 != NULL && *p1 == '\0') {
                 t1 = time(NULL);
                 tnow = localtime(&t1);
                 if(NULL == tnow) {
@@ -1419,23 +1422,26 @@ static void server_init_time(EV_P_ skipd_server *server) {
                 tm2.tm_min = tm1.tm_min;
                 tm2.tm_hour = tm1.tm_hour;
                 t2 = mktime(&tm2);
-
-                if(t2 > t1) {
-                    time_obj = (time_cmd*)malloc(sizeof(time_cmd));
-                    if(NULL == time_obj) {
-                        skipd_log(SKIPD_DEBUG, "out of memory\n");
-                        break;
-                    }
-                    memcpy(time_obj->key, dkey.data, dkey.size);
-                    time_obj->key[dkey.size] = '\0';
-                    time_obj->server = server;
-
-                    ev_timer_init(&time_obj->watcher, time_cmd_cb, (t2-t1), 24*3600);
-                    ev_timer_start(EV_A_ &time_obj->watcher);
-                } else {
-                    ev_timer_init(&time_obj->watcher, time_cmd_cb, (t1-t2+24*3600), 24*3600);
-                    ev_timer_start(EV_A_ &time_obj->watcher);
+                if(t2 == (time_t)-1) {
+                    skipd_log(SKIPD_DEBUG, "mktime error\n");
+                    record = SkipDB_list_next(server->db, skey, cursor);
+                    continue;
                 }
+
+                time_obj = (time_cmd*)malloc(sizeof(time_cmd));
+                if(NULL == time_obj) {
+                    skipd_log(SKIPD_DEBUG, "out of memory\n");
+                    break;
+                }
+                memcpy(time_obj->key, dkey.data, dkey.size);
+                time_obj->key[dkey.size] = '\0';
+                time_obj->server = server;
+
+                if(t2 > t1)
+                    ev_timer_init(&time_obj->watcher, time_cmd_cb, (t2-t1), 24*3600);
+                else
+                    ev_timer_init(&time_obj->watcher, time_cmd_cb, (t1-t2+24*3600), 24*3600);
+                ev_timer_start(EV_A_ &time_obj->watcher);
             }
         }
 
