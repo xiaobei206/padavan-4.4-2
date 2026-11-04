@@ -18,12 +18,18 @@ static PID_TYPE SkipDBPointer_pid(SkipDBPointer *self)
 
 SkipDBRecord *SkipDBRecord_new(void)
 {
-	//SkipDBRecord *self = (SkipDBRecord *)calloc(1, sizeof(SkipDBRecord));
-	SkipDBRecord *self = (SkipDBRecord *)malloc(sizeof(SkipDBRecord));
-	memset(self, 0, sizeof(SkipDBRecord));
+	SkipDBRecord *self = (SkipDBRecord *)calloc(1, sizeof(SkipDBRecord));
+	if (NULL == self)
+		return NULL;
 	self->key = UArray_new();
-	self->ownsKey = 1;
 	self->value = UArray_new();
+	self->ownsKey = 1;
+	if (NULL == self->key || NULL == self->value) {
+		if (self->key) UArray_free(self->key);
+		if (self->value) UArray_free(self->value);
+		free(self);
+		return NULL;
+	}
 	return self;
 }
 
@@ -31,8 +37,11 @@ SkipDBRecord *SkipDBRecord_newWithDB_(void *db)
 {
 	SkipDB *sdb = (SkipDB *)db;
 	SkipDBRecord *self = SkipDBRecord_new();
+	if (NULL == self)
+		return NULL;
 	SkipDBRecord_db_(self, sdb);
-	SkipDB_noteNewRecord_(sdb, self);
+	if (sdb)
+		SkipDB_noteNewRecord_(sdb, self);
 	return self;
 }
 
@@ -149,13 +158,16 @@ static List *deallocedRecords = NULL;
 
 void SkipDBRecord_dealloc(SkipDBRecord *self)
 {
+	if (NULL == self)
+		return;
 #ifdef SKIPDB_DEBUG
 	if (!deallocedRecords) deallocedRecords = List_new();
 	printf("SkipDBRecord_dealloc(%p)\n", (void *)self);
 	List_append_(deallocedRecords, self);
 #endif
 
-	SkipDB_noteWillFreeRecord_((SkipDB *)(self->sdb), self);
+	if (self->sdb)
+		SkipDB_noteWillFreeRecord_((SkipDB *)(self->sdb), self);
 
 	if (self->pointers)
 	{
@@ -173,12 +185,10 @@ void SkipDBRecord_dealloc(SkipDBRecord *self)
 		free(self->pointers);
 	}
 
-	if (self->ownsKey) // is this correct?
-	{
+	if (self->ownsKey && self->key)
 		UArray_free(self->key);
-	}
-
-	UArray_free(self->value);
+	if (self->value)
+		UArray_free(self->value);
 
 
 #ifdef SKIPDB_DEBUG
@@ -189,13 +199,17 @@ void SkipDBRecord_dealloc(SkipDBRecord *self)
 
 void SkipDBRecord_db_(SkipDBRecord *self, void *sdb)
 {
-	self->sdb = sdb;
+	if (self)
+		self->sdb = sdb;
 }
 
 void SkipDBRecord_pid_(SkipDBRecord *self, PID_TYPE pid)
 {
+	if (NULL == self)
+		return;
 	self->pid = pid;
-	SkipDB_noteAssignedPidToRecord_(self->sdb, self);
+	if (self->sdb && pid)
+		SkipDB_noteAssignedPidToRecord_((SkipDB *)self->sdb, self);
 }
 
 PID_TYPE SkipDBRecord_pid(SkipDBRecord *self)
@@ -205,45 +219,52 @@ PID_TYPE SkipDBRecord_pid(SkipDBRecord *self)
 
 PID_TYPE SkipDBRecord_pidAllocIfNeeded(SkipDBRecord *self)
 {
-	if (!self->pid)
-	{
-		PID_TYPE pid = UDB_allocPid(SkipDB_udb(self->sdb));
+	PID_TYPE pid;
+	if (NULL == self)
+		return 0;
+	if (!self->pid) {
+		if (NULL == self->sdb)
+			return 0;
+		pid = UDB_allocPid(SkipDB_udb((SkipDB *)self->sdb));
+		if (pid == 0)
+			return 0;
 		SkipDBRecord_pid_(self, pid);
-		//printf("record '%s' alloced pid %i\n", (char *)UArray_asCString(self->key), (int)self->pid);
 	}
-
 	return self->pid;
 }
 
 void SkipDBRecord_mark(SkipDBRecord *self)
 {
-	self->mark = 1;
+	if (self)
+		self->mark = 1;
 }
 
 void SkipDBRecord_markAsDirty(SkipDBRecord *self)
 {
-	if (!self->isDirty)
-	{
+	if (self && !self->isDirty) {
 		self->isDirty = 1;
-		SkipDB_noteDirtyRecord_(self->sdb, self);
+		if (self->sdb)
+			SkipDB_noteDirtyRecord_((SkipDB *)self->sdb, self);
 	}
 }
 
 void SkipDBRecord_markAsClean(SkipDBRecord *self)
 {
-	self->isDirty = 0;
+	if (self)
+		self->isDirty = 0;
 }
 
 uint8_t SkipDBRecord_isDirty(SkipDBRecord *self)
 {
-	return self->isDirty;
+	return self ? self->isDirty : 0;
 }
 
 // key ------------------------------------
 
 void SkipDBRecord_keyDatum_(SkipDBRecord *self, Datum k)
 {
-	UArray_setData_type_size_copy_(self->key, k.data, CTYPE_uint8_t, k.size, 1);
+	if (self && self->key && (k.size == 0 || k.data != NULL))
+		UArray_setData_type_size_copy_(self->key, k.data, CTYPE_uint8_t, k.size, 1);
 }
 
 Datum SkipDBRecord_keyDatum(SkipDBRecord *self)
@@ -260,7 +281,8 @@ UArray *SkipDBRecord_key(SkipDBRecord *self)
 
 void SkipDBRecord_valueDatum_(SkipDBRecord *self, Datum v)
 {
-	UArray_setData_type_size_copy_(self->value, v.data, CTYPE_uint8_t, v.size, 1);
+	if (self && self->value && (v.size == 0 || v.data != NULL))
+		UArray_setData_type_size_copy_(self->value, v.data, CTYPE_uint8_t, v.size, 1);
 }
 
 Datum SkipDBRecord_valueDatum(SkipDBRecord *self)
