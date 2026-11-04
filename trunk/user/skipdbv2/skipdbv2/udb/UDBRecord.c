@@ -104,33 +104,65 @@ void UDBRecord_saveWithDatum_(UDBRecord *self, Datum d)
 
 // read ----------------------------------------- 
 
-int UDBRecord_readHeader(UDBRecord *self) 
-{ 
+int UDBRecord_readHeader(UDBRecord *self)
+{
     int objectsRead;
-    
-    JFile_setPosition_(self->file, self->pos);
-    objectsRead = JFile_fread(self->file, (unsigned char *)(&(self->header)), sizeof(UDBRecordHeader), 1);
-    
-    if (objectsRead != 1)
-    {
-	self->header.pid = 0;
-	self->header.size = 0;
-	return 0;
+    size_t file_size;
+
+    if (NULL == self || NULL == self->file || self->file->maxPos < 0)
+        return 0;
+
+    file_size = (size_t)self->file->maxPos;
+    if (self->pos > file_size ||
+        file_size - self->pos < sizeof(UDBRecordHeader)) {
+        self->header.tag = RECORD_TAG_EMPTY;
+        self->header.pid = 0;
+        self->header.size = 0;
+        return 0;
     }
-    
+
+    JFile_setPosition_(self->file, (long)self->pos);
+    objectsRead = JFile_fread(self->file,
+                              (unsigned char *)&self->header,
+                              sizeof(UDBRecordHeader), 1);
+
+    if (objectsRead != 1 ||
+        self->header.size > file_size - self->pos - sizeof(UDBRecordHeader)) {
+        self->header.tag = RECORD_TAG_EMPTY;
+        self->header.pid = 0;
+        self->header.size = 0;
+        return 0;
+    }
+
     return 1;
 }
 
 Datum UDBRecord_readDatum(UDBRecord *self)
 {
-    UArray *ba = UDBRecord_data(self);
+    UArray *ba;
     Datum d;
-    PID_TYPE size = self->header.size;
-    
-    JFile_fseek(self->file, self->pos + sizeof(UDBRecordHeader), SEEK_SET);
-    
+    PID_TYPE size;
+
+    d.size = 0;
+    d.data = NULL;
+    if (NULL == self || NULL == self->file || self->file->maxPos < 0)
+        return d;
+
+    size = self->header.size;
+    if (self->pos > (size_t)self->file->maxPos ||
+        (size_t)self->file->maxPos - self->pos < sizeof(UDBRecordHeader) ||
+        size > (size_t)self->file->maxPos - self->pos - sizeof(UDBRecordHeader))
+        return d;
+
+    ba = UDBRecord_data(self);
+    if (NULL == ba)
+        return d;
+    JFile_fseek(self->file, (long)(self->pos + sizeof(UDBRecordHeader)), SEEK_SET);
     UArray_setSize_(ba, size);
-    JFile_fread(self->file, UArray_bytes(ba), size, 1);
+    if (size > 0 && JFile_fread(self->file, UArray_bytes(ba), size, 1) != 1) {
+        UArray_setSize_(ba, 0);
+        return d;
+    }
     d.size = size;
     d.data = UArray_bytes(ba);
     return d;
@@ -155,6 +187,8 @@ void UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)
 
 PID_TYPE UDBRecord_totalSize(UDBRecord *self)
 {
+    if (NULL == self || self->header.size > (PID_TYPE)-1 - sizeof(UDBRecordHeader))
+        return 0;
     return sizeof(UDBRecordHeader) + self->header.size;
 }
 
