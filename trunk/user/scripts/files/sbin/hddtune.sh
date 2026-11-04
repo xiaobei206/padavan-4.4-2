@@ -20,6 +20,7 @@ esac
 hdd_apmoff=`nvram get hdd_apmoff`
 case "$hdd_apmoff" in
 	''|*[!0-9]*) hdd_apmoff=0 ;;
+	*) case "$hdd_apmoff" in *[1-9]*) ;; *) hdd_apmoff=0 ;; esac ;;
 esac
 
 
@@ -69,17 +70,17 @@ if [ -z "$1" ] ; then
 		fi
 	done
 else
-	if [ -e /sys/block/$1 ] ; then
+	if [ -e "/sys/block/$1" ] ; then
 		removable=1
-		[ -r /sys/block/$1/removable ] && removable=`cat /sys/block/$1/removable`
+		[ -r "/sys/block/$1/removable" ] && removable=`cat "/sys/block/$1/removable"`
 		if [ "$removable" = "0" ] ; then
 			if [ "$hdd_spindt" != "0" ] ; then
 				logger -t hdparm "Set spindown timeout to device /dev/$1"
-				/sbin/hdparm $HDPARM_S /dev/$1
+				/sbin/hdparm $HDPARM_S "/dev/$1"
 			fi
-			if [ $hdd_apmoff -ne 0 ] ; then
+			if [ "$hdd_apmoff" != "0" ] ; then
 				logger -t hdparm "Set APM to device /dev/$1"
-				/sbin/hdparm $HDPARM_B /dev/$1
+				/sbin/hdparm $HDPARM_B "/dev/$1"
 			fi
 		fi
 	fi
