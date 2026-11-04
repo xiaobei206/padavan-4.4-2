@@ -71,3 +71,4 @@ b6d065f  common_ex.c: restore single newline trimming and reject truncated modul
 2a12b2a  flash_mtd.c: reject read/write lengths whose signed offsets could overflow.
 125b0a4  net6.c: avoid overlapping IPv6 source/destination formatting and validate pointers.
 cc3d09d  net_wan6.c: validate/canonicalize IPv4 tunnel endpoints and IPv6 gateways before shell commands; reject malformed static IPv6.
+07094bc  hddtune.sh: include sdj in the all-disk tuning scan.
