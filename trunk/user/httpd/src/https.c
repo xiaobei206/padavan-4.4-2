@@ -323,8 +323,15 @@ FILE *ssl_server_fopen(int fd)
 {
 	FILE *fp;
 	http_ssl_cookie_t *hsc;
+	struct timeval deadline, now, tv;
+	fd_set rfds, wfds;
+	int old_flags = -1, nonblocking_set = 0;
 
-	hsc = (http_ssl_cookie_t *)malloc(sizeof(http_ssl_cookie_t));
+	/* SSL_accept must not let one incomplete TLS handshake stall the HTTP daemon. */
+	if (fd < 0 || fd >= FD_SETSIZE || !ssl_ctx)
+		return NULL;
+
+	hsc = (http_ssl_cookie_t *)calloc(1, sizeof(http_ssl_cookie_t));
 	if (!hsc)
 		return NULL;
 
@@ -338,16 +345,57 @@ FILE *ssl_server_fopen(int fd)
 	if (SSL_set_fd(hsc->ssl, fd) != 1)
 		goto ERROR;
 
+	old_flags = fcntl(fd, F_GETFL, 0);
+	if (old_flags < 0 || fcntl(fd, F_SETFL, old_flags | O_NONBLOCK) < 0)
+		goto ERROR;
+	nonblocking_set = 1;
+
+	if (gettimeofday(&deadline, NULL) < 0)
+		goto ERROR;
+	deadline.tv_sec += 10;
+
 	for (;;) {
 		int ret = SSL_accept(hsc->ssl);
-		if (ret <= 0) {
-			int err = SSL_get_error(hsc->ssl, ret);
-			if (ret < 0 && (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE))
-				continue;
+		int err, ready;
+
+		if (ret == 1)
+			break;
+
+		err = SSL_get_error(hsc->ssl, ret);
+		if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE)
 			goto ERROR;
+
+		if (gettimeofday(&now, NULL) < 0)
+			goto ERROR;
+		tv.tv_sec = deadline.tv_sec - now.tv_sec;
+		tv.tv_usec = deadline.tv_usec - now.tv_usec;
+		if (tv.tv_usec < 0) {
+			tv.tv_sec--;
+			tv.tv_usec += 1000000;
 		}
-		break;
+		if (tv.tv_sec < 0 || (tv.tv_sec == 0 && tv.tv_usec <= 0))
+			goto ERROR;
+
+		FD_ZERO(&rfds);
+		FD_ZERO(&wfds);
+		if (err == SSL_ERROR_WANT_READ)
+			FD_SET(fd, &rfds);
+		else
+			FD_SET(fd, &wfds);
+
+		ready = select(fd + 1,
+			       err == SSL_ERROR_WANT_READ ? &rfds : NULL,
+			       err == SSL_ERROR_WANT_WRITE ? &wfds : NULL,
+			       NULL, &tv);
+		if (ready < 0 && errno == EINTR)
+			continue;
+		if (ready <= 0)
+			goto ERROR;
 	}
+
+	if (fcntl(fd, F_SETFL, old_flags) < 0)
+		goto ERROR;
+	nonblocking_set = 0;
 
 	fp = fopencookie((void*)hsc, "r+", http_ssl_io);
 	if (!fp)
@@ -356,12 +404,11 @@ FILE *ssl_server_fopen(int fd)
 	return fp;
 
 ERROR:
-
+	if (nonblocking_set && old_flags >= 0)
+		(void)fcntl(fd, F_SETFL, old_flags);
 	if (hsc->ssl)
 		SSL_free(hsc->ssl);
-
 	free(hsc);
-
 	return NULL;
 }
 
