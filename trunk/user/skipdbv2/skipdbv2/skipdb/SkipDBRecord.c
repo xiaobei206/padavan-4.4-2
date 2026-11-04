@@ -495,30 +495,33 @@ int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
 
 void SkipDBRecord_save(SkipDBRecord *self)
 {
-	if (self->isDirty)
-	{
-		SkipDB *sdb = self->sdb;
-		BStream *s = SkipDB_tmpStream(sdb);
-		BStream_empty(s);
-		SkipDBRecord_toStream_(self, s);
+	SkipDB *sdb;
+	BStream *stream;
+	Datum data;
+	PID_TYPE pid;
 
-		{
-			Datum d = Datum_FromUArray_(BStream_byteArray(s));
-			PID_TYPE pid = SkipDBRecord_pid(self);
-
-			if (pid)
-			{
-				UDB_at_put_(SkipDB_udb(sdb), pid, d);
-			}
-			else
-			{
-				pid = UDB_put_(SkipDB_udb(sdb), d);
-				SkipDBRecord_pid_(self, pid);
-			}
-		}
-
-		SkipDBRecord_markAsClean(self);
+	if (NULL == self || !self->isDirty || NULL == self->sdb)
+		return;
+	sdb = (SkipDB *)self->sdb;
+	stream = SkipDB_tmpStream(sdb);
+	if (NULL == stream || NULL == UDB_udb(sdb) ||
+		!UDB_isOpen(UDB_udb(sdb)))
+		return;
+	BStream_empty(stream);
+	SkipDBRecord_toStream_(self, stream);
+	data = Datum_FromUArray_(BStream_byteArray(stream));
+	pid = SkipDBRecord_pid(self);
+	if (pid) {
+		UDB_at_put_(UDB_udb(sdb), pid, data);
+		if (!UDB_isOpen(UDB_udb(sdb)))
+			return;
+	} else {
+		pid = UDB_put_(UDB_udb(sdb), data);
+		if (pid == 0)
+			return;
+		SkipDBRecord_pid_(self, pid);
 	}
+	SkipDBRecord_markAsClean(self);
 }
 
 // search ------------------------------------
