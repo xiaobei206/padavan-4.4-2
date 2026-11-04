@@ -44,23 +44,28 @@ static void print_time(char* prefix)
 #endif
 
 static int create_client_fd(char* sock_path) {
-    int len, remote_fd;
+    int remote_fd;
+    size_t path_len;
+    socklen_t address_len;
     struct sockaddr_un remote;
 
-    if(-1 == (remote_fd = socket(PF_UNIX, SOCK_STREAM, 0))) {
-        //perror("socket");
+    if (NULL == sock_path)
         return -1;
-    }
+    path_len = strlen(sock_path);
+    if (path_len == 0 || path_len >= sizeof(remote.sun_path))
+        return -1;
+    if ((remote_fd = socket(PF_UNIX, SOCK_STREAM, 0)) < 0)
+        return -1;
 
+    memset(&remote, 0, sizeof(remote));
     remote.sun_family = AF_UNIX;
-    strcpy(remote.sun_path, sock_path);
-    len = strlen(remote.sun_path) + sizeof(remote.sun_family);
-    if(-1 == connect(remote_fd, (struct sockaddr*)&remote, len)) {
-        //perror("connect");
+    memcpy(remote.sun_path, sock_path, path_len + 1);
+    address_len = (socklen_t)(offsetof(struct sockaddr_un, sun_path) +
+        path_len + 1);
+    if (connect(remote_fd, (struct sockaddr *)&remote, address_len) < 0) {
         close(remote_fd);
         return -1;
     }
-
     return remote_fd;
 }
 
@@ -72,18 +77,23 @@ int setnonblock(int fd) {
     return fcntl(fd, F_SETFL, flags);
 }
 
-static void check_buf(dbclient* client, int len) {
-    int clen = _max(len, BUF_MAX);
+static int check_buf(dbclient* client, int len) {
+    int capacity;
+    char *new_buf;
 
-    if((NULL != client->buf) && (client->buf_max < clen)) {
-        free(client->buf);
-        client->buf = NULL;
-    }
-
-    if(NULL == client->buf) {
-        client->buf = (char*)malloc(clen+1);
-        client->buf_max = clen;
-    }
+    if (NULL == client || len < 0 || len > READ_MAX)
+        return -1;
+    capacity = _max(len, BUF_MAX);
+    if (capacity < 0 || capacity == INT_MAX)
+        return -1;
+    if (client->buf && client->buf_max >= capacity)
+        return 0;
+    new_buf = (char *)realloc(client->buf, (size_t)capacity + 1);
+    if (NULL == new_buf)
+        return -1;
+    client->buf = new_buf;
+    client->buf_max = capacity;
+    return 0;
 }
 
 static int read_util(dbclient* client, int len, unsigned int delay) {
@@ -91,7 +101,10 @@ static int read_util(dbclient* client, int len, unsigned int delay) {
     unsigned int now, timeout;
     struct timeval tv,  tv2;
 
-    check_buf(client, len);
+    if (len < 0 || len > READ_MAX || check_buf(client, len) != 0)
+        return -4;
+    if (len == 0)
+        return 0;
     gettimeofday(&tv2, NULL);
     timeout = (tv2.tv_sec * 1000) + (tv2.tv_usec / 1000) + delay;
     client->buf_pos = 0;
@@ -144,8 +157,9 @@ int parse_common_result(dbclient *client) {
         }
 
         client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10)) {
-            //message error
+        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
+            n2 <= 0 || n2 > READ_MAX) {
+            //message error or excessive response size
             return -4;
         }
 
@@ -183,8 +197,9 @@ int parse_get_result(dbclient *client) {
         }
 
         client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10)) {
-            //message error
+        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
+            n2 <= 0 || n2 > READ_MAX) {
+            //message error or excessive response size
             return -4;
         }
 
@@ -234,8 +249,9 @@ int parse_list_result(dbclient *client) {
         }
 
         client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10)) {
-            //message error
+        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
+            n2 <= 0 || n2 > READ_MAX) {
+            //message error or excessive response size
             return -4;
         }
 
@@ -283,8 +299,9 @@ int parse_script_result(dbclient *client) {
         }
 
         client->buf[HEADER_PREFIX-1] = '\0';
-        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10)) {
-            //message error
+        if(S2ISUCCESS != str2int(&n2, client->buf+MAGIC_LEN, 10) ||
+            n2 <= 0 || n2 > READ_MAX) {
+            //message error or excessive response size
             return -4;
         }
 
@@ -468,7 +485,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
-            check_buf(client, n1 + HEADER_PREFIX);
+            if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
+                err = -23;
+                break;
+            }
             n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
             write(remote_fd, client->buf, n2);
 
@@ -477,7 +497,10 @@ int main(int argc, char **argv, char * envp[])
         } else if(!strcmp("export", argv[1])) {
             strcpy(client->command, "list");
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
-            check_buf(client, n1 + HEADER_PREFIX);
+            if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
+                err = -23;
+                break;
+            }
             n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
             write(remote_fd, client->buf, n2);
 
@@ -502,7 +525,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
-            check_buf(client, n1 + HEADER_PREFIX);
+            if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
+                err = -23;
+                break;
+            }
             n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
             write(remote_fd, client->buf, n2);
 
@@ -515,7 +541,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
-            check_buf(client, n1 + HEADER_PREFIX);
+            if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
+                err = -23;
+                break;
+            }
             n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
             write(remote_fd, client->buf, n2);
 
@@ -528,7 +557,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, argv[1]);
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
-            check_buf(client, n1 + HEADER_PREFIX);
+            if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
+                err = -23;
+                break;
+            }
             n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
             write(remote_fd, client->buf, n2);
 
@@ -598,7 +630,10 @@ int main(int argc, char **argv, char * envp[])
             }
             strcpy(client->command, "set");
             n1 = strlen(client->command) + strlen(argv[2]) + strlen(argv[3]) + 3 + 9;
-            check_buf(client, n1 + HEADER_PREFIX);
+            if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
+                err = -23;
+                break;
+            }
             n2 = snprintf(client->buf, client->buf_max, "%s%07d %s __event__%s %s\n", MAGIC, n1, client->command, argv[2], argv[3]);
             write(remote_fd, client->buf, n2);
 
@@ -616,7 +651,10 @@ int main(int argc, char **argv, char * envp[])
 
             strcpy(client->command, argv[1]);
             n1 = strlen(client->command) + strlen(argv[2]) + strlen(argv[3]) + strlen(argv[4]) + 4;
-            check_buf(client, n1 + HEADER_PREFIX);
+            if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
+                err = -23;
+                break;
+            }
             n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3], argv[4]);
             write(remote_fd, client->buf, n2);
 
@@ -635,7 +673,10 @@ int main(int argc, char **argv, char * envp[])
 
             strcpy(client->command, argv[1]);
             n1 = strlen(client->command) + strlen(argv[2]) + strlen(argv[3]) + strlen(argv[4]) + 4;
-            check_buf(client, n1 + HEADER_PREFIX);
+            if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
+                err = -23;
+                break;
+            }
             n2 = snprintf(client->buf, client->buf_max, "%s%07d %s %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3], argv[4]);
             write(remote_fd, client->buf, n2);
 
