@@ -1069,8 +1069,11 @@ int add_folder(const char *const mount_path, const char *const folder)
 	sprintf(full_path, "%s/%s", mount_path, folder);
 	full_path[len] = 0;
 
-	umask(0000);
-	result = mkdir(full_path, 0777);
+	{
+		mode_t old_umask = umask(0000);
+		result = mkdir(full_path, 0777);
+		(void)umask(old_umask);
+	}
 	free(full_path);
 	if (result != 0)
 		return -1;
