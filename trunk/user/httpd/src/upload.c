@@ -62,15 +62,16 @@ check_header_bz2(const char *buf, long *file_len)
 static int
 check_header_nvram(const char *buf, long *file_len)
 {
-	unsigned int *p_len = (unsigned int *)(buf + 4);
+	unsigned int raw_len;
+	memcpy(&raw_len, buf + 4, sizeof(raw_len));
 
 	if (strncmp(buf, PROFILE_HEADER_NEW, 4) == 0) {
-		*file_len = (long)(*p_len & 0xffffff);
+		*file_len = (long)(raw_len & 0xffffff);
 		return 0;
 	}
 
 	if (strncmp(buf, PROFILE_HEADER, 4) == 0) {
-		*file_len = (long)(*p_len);
+		*file_len = (long)raw_len;
 		return 0;
 	}
 
@@ -194,16 +195,21 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 {
 	FILE *fp = NULL;
 	char buf[64+UPLOAD_BUF_SIZE+1], buf_obj[32], *ptr;
-	int cnt, count, offset, ret, ch, valid_header;
-	long filelen;
+	int cnt, count, offset, ret, ch, valid_header, boundary_found;
+	long filelen, end_pos, back_len;
+
+	if (!stream || !fn || !*fn || !obj_name || !func_hdr ||
+	    clen < 0 || hdr_size <= 0 || hdr_size > UPLOAD_BUF_SIZE)
+		return -1;
 
 	ret = EINVAL;
 	valid_header = 0;
+	boundary_found = (bndr == NULL);
 	snprintf(buf_obj, sizeof(buf_obj), "name=\"%s\"", obj_name);
 
 	/* Look for our part */
 	while (clen > 0) {
-		if (!fgets(buf, MIN(clen + 1, sizeof(buf)), stream))
+		if (!fgets(buf, MIN(clen, (int)sizeof(buf) - 1) + 1, stream))
 			goto err;
 		clen -= strlen(buf);
 		if (!strncasecmp(buf, "Content-Disposition:", 20) && strstr(buf, buf_obj))
@@ -259,11 +265,18 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 			if (!pb)
 				pb = memmem(buf, 64 + count, bndr+1, strlen(bndr+1));
 			if (pb) {
-				if (pb > ptr) {
+				boundary_found = 1;
+				if (pb >= ptr) {
 					count = (int)(pb - ptr);
 					filelen = count;
 				} else {
-					/* part of boundary marker may be writed to file, ignore this */
+					/* The marker began in the previous chunk; remove its written prefix. */
+					back_len = (long)(ptr - pb);
+					if (fflush(fp) != 0 ||
+					    (end_pos = ftell(fp)) < back_len ||
+					    ftruncate(fileno(fp), (off_t)(end_pos - back_len)) != 0 ||
+					    fseek(fp, end_pos - back_len, SEEK_SET) != 0)
+						goto err;
 					filelen = 0;
 					break;
 				}
@@ -274,13 +287,20 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 			count = filelen;
 		
 		filelen -= count;
-		fwrite(ptr, 1, count, fp);
-		
-		if (bndr && count >= 64)
-			memcpy(buf, ptr + count - 64, 64);
+		if (count > 0 && fwrite(ptr, 1, (size_t)count, fp) != (size_t)count)
+			goto err;
+
+		if (bndr) {
+			if (count >= 64) {
+				memcpy(buf, ptr + count - 64, 64);
+			} else if (count > 0) {
+				memmove(buf, buf + count, 64 - count);
+				memcpy(buf + 64 - count, ptr, (size_t)count);
+			}
+		}
 	}
 
-	if (!valid_header)
+	if (!valid_header || filelen > 0 || (bndr && !boundary_found))
 		goto err;
 
 	/* Slurp anything remaining in the request */
@@ -289,7 +309,8 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 			break;
 		
 		if (filelen > 0) {
-			fwrite(&ch, 1, 1, fp);
+			if (fwrite(&ch, 1, 1, fp) != 1)
+				goto err;
 			filelen--;
 		}
 	}
@@ -297,8 +318,11 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 	ret = 0;
 
 err:
-	if (fp)
-		fclose(fp);
+	if (fp) {
+		if (fclose(fp) != 0 && ret == 0)
+			ret = EIO;
+		fp = NULL;
+	}
 
 	/* Slurp anything remaining in the request */
 	while (clen-- > 0) {
