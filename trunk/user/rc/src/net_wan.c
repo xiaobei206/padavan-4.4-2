@@ -1826,7 +1826,8 @@ add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
 {
 	char *routes, *tmp;
 	struct in_addr mask;
-	char *ipaddr, *gateway, *bits_str;
+	char *ipaddr, *gateway, *bits_str, *bits_end;
+	long parsed_bits;
 	int bits;
 	char netmask[] = "255.255.255.255";
 
@@ -1860,15 +1861,18 @@ add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
 		if (!bits_str || !*bits_str || !tmp || !*tmp)
 			break;
 
-		bits = atoi(bits_str);
+		parsed_bits = strtol(bits_str, &bits_end, 10);
 		gateway = strsep(&tmp, " ");
-		if (gateway && *gateway && bits > 0 && bits <= 32 &&
-		    is_valid_ipv4(ipaddr))
-		{
-			mask.s_addr = htonl(0xffffffff << (32 - bits));
-			strcpy(netmask, inet_ntoa(mask));
-			route_add(ifname, metric, ipaddr, gateway, netmask);
-		}
+		if (bits_end == bits_str || *bits_end != '\\0' ||
+		    parsed_bits < 0 || parsed_bits > 32 ||
+		    !gateway || !*gateway || !is_valid_ipv4(ipaddr) ||
+		    !is_valid_ipv4(gateway))
+			continue;
+
+		bits = (int)parsed_bits;
+		mask.s_addr = (bits == 0) ? 0 : htonl(0xffffffffU << (32 - bits));
+		strcpy(netmask, inet_ntoa(mask));
+		route_add(ifname, metric, ipaddr, gateway, netmask);
 	}
 	free(routes);
 }
