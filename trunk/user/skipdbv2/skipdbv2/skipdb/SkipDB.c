@@ -186,68 +186,63 @@ void SkipDB_delete(SkipDB *self)
 
 void SkipDB_noteNewRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	self->cachedRecordCount ++;
+	if (NULL == self || NULL == r)
+		return;
+	self->cachedRecordCount++;
 	SkipDB_noteAccessedRecord_(self, r);
 }
 
 void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	SkipDBRecord *y = self->youngestRecord;
-
-	//SkipDBRecord_showAgeList(r);
-
-	if (y != r)
-	{
-		if (y)
-		{
+	SkipDBRecord *y;
+	if (NULL == self || NULL == r)
+		return;
+	y = self->youngestRecord;
+	if (y != r) {
+		if (y) {
 			SkipDBRecord_removeFromAgeList(r);
 			SkipDBRecord_setOlderRecord_(r, y);
 			SkipDBRecord_setYoungerRecord_(y, r);
 		}
-
 		self->youngestRecord = r;
 	}
-
-	//SkipDBRecord_showAgeList(r);
 }
 
 void SkipDB_noteDirtyRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	if (SkipDB_isOpen(self))
-	{
+	if (self && r && self->dirtyRecords && SkipDB_isOpen(self))
 		List_append_(self->dirtyRecords, r);
-	}
 }
 
 void SkipDB_noteAssignedPidToRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	PHash_at_put_(self->pidToRecord, (void *)SkipDBRecord_pid(r), r);
+	if (self && r && self->pidToRecord && SkipDBRecord_pid(r) != 0)
+		PHash_at_put_(self->pidToRecord, (void *)SkipDBRecord_pid(r), r);
 }
 
 void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	SkipDBFreeObjectFunc *f = self->objectFreeFunc;
-	void *object = SkipDBRecord_object(r);
-
+	SkipDBFreeObjectFunc *f;
+	void *object;
+	if (NULL == self || NULL == r)
+		return;
+	f = self->objectFreeFunc;
+	object = SkipDBRecord_object(r);
 	if (f && object)
-	{
 		(*f)(object);
-	}
-
-	self->cachedRecordCount --;
-
+	if (self->cachedRecordCount > 0)
+		self->cachedRecordCount--;
 	if (r == self->youngestRecord)
-	{
 		self->youngestRecord = SkipDBRecord_olderRecord(r);
-		//printf("will free youngestRecord\n");
-	}
-
 	SkipDBRecord_removeFromAgeList(r);
-	PHash_removeKey_(self->pidToRecord, (void *)SkipDBRecord_pid(r));
+	if (self->pidToRecord && SkipDBRecord_pid(r) != 0)
+		PHash_removeKey_(self->pidToRecord, (void *)SkipDBRecord_pid(r));
 }
 
 void SkipDB_freeAllCachedRecords(SkipDB *self)
 {
+	if (NULL == self)
+		return;
 	//SkipDBRecord *r = self->youngestRecord;
 	//self->headerPid = SkipDBRecord_pid(self->header);
 
