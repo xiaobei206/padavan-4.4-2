@@ -17,3 +17,5 @@ be34849  net6.c: reject truncated IPv6 input and empty/invalid prefixes.
 0c316d7  services_stor.c: enlarge mount target buffer and check path concatenation.
 931f587  services_stor.c: pass Samba account values as argv, not shell text.
 76e1d0d  usb_modem.c: pass QMI PIN/APN/login values as argv, not shell text.
+ea825a5  vpn_openvpn.c: run OpenVPN peer hooks with argv, not shell interpolation.
+954996b  vpn_server.c: run VPN hooks and interface/firewall commands with argv.
