@@ -257,7 +257,7 @@ void UDB_open(UDB *self)
 	}
 	recovering = (marker == 1);
 
-	/* Never clear a durable commit marker if either committed journal is damaged. */
+	/* Validate both durable journals before opening either database file. */
 	if (recovering &&
 		(!UDB_verifyCommittedJournal(self->index->file->logPath) ||
 		 !UDB_verifyCommittedJournal(self->records->file->logPath))) {
@@ -273,6 +273,10 @@ void UDB_open(UDB *self)
 			UDB_close(self);
 			return;
 		}
+	} else {
+		/* Defer per-file replay until both journal streams are open. */
+		self->index->file->deferLogReplay = 1;
+		self->records->file->deferLogReplay = 1;
 	}
 
 	if (!UDBIndex_open(self->index)) {
@@ -285,11 +289,37 @@ void UDB_open(UDB *self)
 		return;
 	}
 
-	/* A recovered transaction must not leave the global marker armed. */
-	if (recovering && UDB_setCommittedFlag_(self, 0) != 0) {
-		UDB_close(self);
-		return;
+	if (recovering) {
+		/* Replay both files without deleting either recovery journal. */
+		if (!JFile_applyLogToFile(self->index->file) ||
+			!UDB_streamsOpen(self) ||
+			!JFile_applyLogToFile(self->records->file) ||
+			!UDB_streamsOpen(self)) {
+			UDB_close(self);
+			return;
+		}
+
+		/* Both files are now durable; disarm recovery before journal cleanup. */
+		if (UDB_setCommittedFlag_(self, 0) != 0) {
+			UDB_close(self);
+			return;
+		}
+		if (JFile_clipLog(self->index->file) != 0 ||
+			JFile_clipLog(self->records->file) != 0) {
+			UDB_close(self);
+			return;
+		}
+
+		self->index->file->deferLogReplay = 0;
+		self->records->file->deferLogReplay = 0;
+		if (!UDBIndex_finishOpening(self->index) ||
+			!UDBRecords_finishOpening(self->records) ||
+			!UDB_streamsOpen(self)) {
+			UDB_close(self);
+			return;
+		}
 	}
+
 	/* Persist directories containing data, commit marker, and both journals. */
 	if (UDB_syncParentDirectory(self->path) != 0 ||
 		UDB_syncParentDirectory(self->committedPath) != 0 ||
