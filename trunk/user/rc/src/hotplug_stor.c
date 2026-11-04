@@ -92,8 +92,7 @@ int
 mdev_sd_main(int argc, char **argv)
 {
 	int isLock;
-	size_t len, disk_len, i;
-	const char *p;
+	size_t len, disk_len;
 	char share_name[32], disk_name[32];
 	char *device_name, *action, *partno;
 
@@ -171,7 +170,8 @@ int
 mdev_mmc_main(int argc, char **argv)
 {
 	int isLock;
-	size_t len, disk_len;
+	size_t len, disk_len, i;
+	const char *p;
 	char share_name[32], disk_name[32];
 	char *device_name, *action, *partno;
 
