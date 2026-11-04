@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <signal.h>
 
@@ -31,19 +32,34 @@ static struct hsearch_data *htab = NULL;
 void
 unescape(char *s)
 {
-	unsigned int c;
+	char *src, *dst;
+	unsigned int hi, lo;
 
-	while ((s = strpbrk(s, "%+"))) {
-		/* Parse %xx */
-		if (*s == '%') {
-			sscanf(s + 1, "%02x", &c);
-			*s++ = (char) c;
-			strncpy(s, s + 2, strlen(s) + 1);
+	if (!s)
+		return;
+
+	src = dst = s;
+	while (*src) {
+		if (*src == '+') {
+			*dst++ = ' ';
+			++src;
+		} else if (*src == '%' &&
+			   isxdigit((unsigned char)src[1]) &&
+			   isxdigit((unsigned char)src[2])) {
+			unsigned char a = (unsigned char)src[1];
+			unsigned char b = (unsigned char)src[2];
+
+			hi = (a <= '9') ? a - '0' :
+			     ((a | 0x20) - 'a' + 10);
+			lo = (b <= '9') ? b - '0' :
+			     ((b | 0x20) - 'a' + 10);
+			*dst++ = (char)((hi << 4) | lo);
+			src += 3;
+		} else {
+			*dst++ = *src++;
 		}
-		/* Space is special */
-		else if (*s == '+')
-			*s++ = ' ';
 	}
+	*dst = '\0';
 }
 
 char *
