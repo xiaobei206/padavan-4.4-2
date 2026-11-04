@@ -1,15 +1,12 @@
 #!/bin/sh
-lanip=$1
-defaultfile=$2
-dicfile=$3
-oc1=${lanip%%.*}
-x=${lanip#*.*}
-oc2=${x%%.*}
-x=${x#*.*}
-oc3=${x%%.*}
-dhcpfrom=$oc1"."$oc2"."$oc3".100"
-dhcpto=$oc1"."$oc2"."$oc3".244"
-sed -i "s/\"192.168.2.1\"/\"$lanip\"/g" $defaultfile
-sed -i "s/\"192.168.2.100\"/\"$dhcpfrom\"/g" $defaultfile
-sed -i "s/\"192.168.2.244\"/\"$dhcpto\"/g" $defaultfile
-sed -i "s/192.168.2.1/$lanip/" $dicfile
+# Compatibility wrapper: validate and apply a custom LAN address safely.
+if [ "$#" -ne 3 ]; then
+	echo "Usage: $0 LAN_IP DEFAULTS_H CN_DICT" >&2
+	exit 2
+fi
+
+script_dir=$(cd "$(dirname "$0")" && pwd) || exit 2
+customization_json=$(python3 -c 'import json,sys; print(json.dumps({"lanip":sys.argv[1]}))' "$1") || exit 2
+CUSTOMIZATION_JSON=$customization_json
+export CUSTOMIZATION_JSON
+exec python3 "$script_dir/apply_customization.py" "$2" "$3"
