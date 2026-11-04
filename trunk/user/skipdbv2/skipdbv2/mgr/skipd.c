@@ -1079,7 +1079,22 @@ static int client_run_command(EV_P_ skipd_client* client)
         if(NULL == dvalue.data) {
             tmp2 = 0;
         } else {
-            if(S2ISUCCESS != str2int(&tmp2, (char*)dvalue.data, 10)) {
+            char numeric_value[32];
+            size_t numeric_len = dvalue.size;
+
+            /* A stored Datum is length-delimited and is not always NUL-terminated. */
+            if (numeric_len > sizeof(numeric_value) - 1 ||
+                (numeric_len > 0 && dvalue.data[numeric_len - 1] == '\0' &&
+                 --numeric_len, numeric_len > sizeof(numeric_value) - 1) ||
+                numeric_len == 0 ||
+                memchr(dvalue.data, '\0', numeric_len) != NULL) {
+                p1 = "error\n";
+                client_send(EV_A_ client, p1, strlen(p1));
+                ccrReturn(ctx, ccr_error_ok1);
+            }
+            memcpy(numeric_value, dvalue.data, numeric_len);
+            numeric_value[numeric_len] = '\0';
+            if(S2ISUCCESS != str2int(&tmp2, numeric_value, 10)) {
                 p1 = "error\n";
                 client_send(EV_A_ client, p1, strlen(p1));
                 ccrReturn(ctx, ccr_error_ok1);
