@@ -199,14 +199,14 @@ jobs:
               plugins = {key: "n" for key in plugins}
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               for key, value in plugins.items():
-                  env_file.write(f"PLUGIN_{key.upper()}={value}\\n")
+                  env_file.write(f"PLUGIN_{key.upper()}={value}\n")
           PY
 
       - name: Apply Configurations
         env:
           CUSTOMIZATION_JSON: ${{ inputs.customization }}
         run: |
-          python3 trunk/custom/scripts/apply_customization.py "$CONFIGFILE" trunk/user/shared/src/defaults.h trunk/user/www/dict/CN.dict
+          python3 trunk/custom/scripts/apply_customization.py trunk/user/shared/src/defaults.h trunk/user/www/dict/CN.dict
           for key in $(env | grep '^PLUGIN_' | cut -d= -f1); do
             echo "CONFIG_FIRMWARE_INCLUDE_${key#PLUGIN_}=${!key}" >> "$CONFIGFILE"
           done
