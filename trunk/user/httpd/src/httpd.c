@@ -978,6 +978,15 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 
 	do_logout = (strcmp(file, "Logout.asp") == 0) ? 1 : 0;
 
+	/* A different IP must not bypass auth on CGI routes while another client is logged in. */
+	if (handler->need_auth && login_state == 0 && !do_logout) {
+		if (method_id == HTTP_METHOD_POST)
+			eat_post_data(conn_fp, clen);
+		send_error(403, "Forbidden", NULL,
+			   "Another client is already logged in.", conn_fp);
+		return;
+	}
+
 	if (handler->need_auth && login_state > 1 && !do_logout) {
 		if (!auth_check(authorization)) {
 			http_logout(&conn_ip);
