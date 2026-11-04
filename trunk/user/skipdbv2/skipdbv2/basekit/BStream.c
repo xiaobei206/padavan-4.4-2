@@ -279,25 +279,40 @@ void BStream_writeCString_(BStream *self, const char *s)
 
 void BStream_writeUArray_(BStream *self, UArray *ba)
 {
+	UArray *snapshot = NULL;
 	size_t length, oldSize;
 	const unsigned char *bytes;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		NULL == ba || UArray_size(self->errorBa) != 0)
 		return;
-	if (self->ba == ba || ba->itemSize == 0 ||
-		ba->size > (size_t)-1 / ba->itemSize ||
-		(ba->size > 0 && NULL == ba->data)) {
+	if (ba->itemSize == 0 || ba->size > (size_t)-1 / ba->itemSize ||
+		(ba->size > 0 && NULL == ba->data) ||
+		self->ba->itemSize != 1 ||
+		(self->ba->size > 0 && NULL == self->ba->data)) {
 		BStream_error_(self, "invalid binary stream array");
 		return;
 	}
 	length = UArray_sizeInBytes(ba);
 	oldSize = UArray_size(self->ba);
-	if (self->ba->itemSize != 1 || length > INT32_MAX ||
-		oldSize > (size_t)-1 - 4 ||
-		length > (size_t)-1 - oldSize - 4 ||
-		oldSize + 4 + length == (size_t)-1) {
+	if (length > INT32_MAX || oldSize > (size_t)-1 - 4 ||
+		length > (size_t)-1 - oldSize - 4 || oldSize + 4 + length == (size_t)-1) {
 		BStream_error_(self, "array too large for binary stream");
 		return;
+	}
+	if (length > 0 && oldSize > 0) {
+		uintptr_t sourceStart = (uintptr_t)ba->data;
+		uintptr_t streamStart = (uintptr_t)self->ba->data;
+		int overlaps = (sourceStart >= streamStart ?
+			sourceStart - streamStart < oldSize :
+			streamStart - sourceStart < length);
+		if (overlaps) {
+			snapshot = UArray_clone(ba);
+			if (NULL == snapshot) {
+				BStream_error_(self, "unable to snapshot binary stream array");
+				return;
+			}
+			ba = snapshot;
+		}
 	}
 	bytes = UArray_bytes(ba);
 	BStream_writeInt32_(self, (int32_t)length);
@@ -305,6 +320,7 @@ void BStream_writeUArray_(BStream *self, UArray *ba)
 		BStream_writeData_length_(self, bytes, length);
 	if (UArray_size(self->errorBa) != 0)
 		BStream_rollbackWrite_(self, oldSize);
+	UArray_free(snapshot);
 }
 
 
