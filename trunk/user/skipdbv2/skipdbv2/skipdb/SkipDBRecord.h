@@ -106,7 +106,7 @@ SKIPDB_API UArray *SkipDBRecord_value(SkipDBRecord *self);
 // serialization ----------------------------- 
 
 SKIPDB_API void SkipDBRecord_toStream_(SkipDBRecord *self, BStream *s);
-SKIPDB_API void SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s);
+SKIPDB_API int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s);
 SKIPDB_API void SkipDBRecord_save(SkipDBRecord *self);
 
 // search ------------------------------------ 
