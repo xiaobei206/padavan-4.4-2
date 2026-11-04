@@ -1506,7 +1506,9 @@ int setnonblock(int fd) {
 int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_queue) {
     int fd;
     size_t path_len;
+    struct stat existing;
 
+    (void)max_queue;
     if (NULL == socket_un || NULL == sock_path) {
         errno = EINVAL;
         return -1;
@@ -1517,16 +1519,25 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_que
         return -1;
     }
 
-    unlink(sock_path);
-    fd = socket(PF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) {
-        perror("echo server socket");
-        exit(EXIT_FAILURE);
+    /* Remove only our own stale socket. Never unlink an arbitrary file or
+     * another user's socket just because it occupies the configured pathname. */
+    if (lstat(sock_path, &existing) == 0) {
+        if (!S_ISSOCK(existing.st_mode) || existing.st_uid != geteuid()) {
+            errno = EEXIST;
+            return -1;
+        }
+        if (unlink(sock_path) != 0)
+            return -1;
+    } else if (errno != ENOENT) {
+        return -1;
     }
+
+    fd = socket(PF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0)
+        return -1;
     if (setnonblock(fd) < 0) {
-        perror("echo server socket nonblock");
         close(fd);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     memset(socket_un, 0, sizeof(*socket_un));
