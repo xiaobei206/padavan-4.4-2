@@ -222,6 +222,8 @@ int main(void)
 {
     static const char common_ok[] = "set alpha ok\n";
     static const char common_error[] = "set alpha database error\n";
+    static const char common_error_key[] = "set __error__ response too large\n";
+    static const char common_error_output[] = "response too large\n";
     static const char delay_ok[] = "delay timer delay_ok\n";
     static const char get_value[] = "get alpha value\n";
     static const char get_value_nul[] = "get alpha value\n\0";
@@ -270,6 +272,8 @@ int main(void)
             0, common_ok, sizeof(common_ok) - 1) != 0 ||
         run_case(1, "set", common_error, sizeof(common_error) - 1,
             -5, common_error, sizeof(common_error) - 1) != 0 ||
+        run_case(1, "set", common_error_key, sizeof(common_error_key) - 1,
+            -5, common_error_output, sizeof(common_error_output) - 1) != 0 ||
         run_case(1, "delay", delay_ok, sizeof(delay_ok) - 1,
             0, delay_ok, sizeof(delay_ok) - 1) != 0 ||
         run_case(0, "get", get_value, sizeof(get_value) - 1,
