@@ -119,14 +119,22 @@ char *read_whole_file(const char *target)
 }
 
 int mkdir_if_none(char *dir) {
-	DIR *dp = opendir(dir);
+	DIR *dp;
+	mode_t old_umask;
+	int result;
+
+	if (!dir || !*dir)
+		return 0;
+	dp = opendir(dir);
 	if (dp != NULL) {
 		closedir(dp);
 		return 0;
 	}
-	
-	umask(0000);
-	return (!mkdir(dir, 0777))?1:0;
+
+	old_umask = umask(0000);
+	result = mkdir(dir, 0777);
+	(void)umask(old_umask);
+	return result == 0 ? 1 : 0;
 }
 
 int delete_file_or_dir(char *target) {
