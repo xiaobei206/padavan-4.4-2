@@ -74,31 +74,53 @@ int f_wait_exists(const char *name, int max)
 
 int f_read(const char *path, void *buffer, int max)
 {
-	int f;
-	int n;
+	int f, n;
 
-	if ((f = open(path, O_RDONLY)) < 0) return -1;
-	n = read(f, buffer, max);
-	close(f);
+	if (!path || !buffer || max < 0)
+		return -1;
+	if ((f = open(path, O_RDONLY)) < 0)
+		return -1;
+
+	do {
+		n = read(f, buffer, (size_t)max);
+	} while (n < 0 && errno == EINTR);
+
+	if (close(f) != 0 && n >= 0)
+		return -1;
 	return n;
 }
 
 int f_read_string(const char *path, char *buffer, int max)
 {
-	if (max <= 0) return -1;
-	int n = f_read(path, buffer, max - 1);
-	buffer[(n > 0) ? n : 0] = 0;
+	int n;
+
+	if (!path || !buffer || max <= 0)
+		return -1;
+	n = f_read(path, buffer, max - 1);
+	if (n < 0) {
+		buffer[0] = '\0';
+		return -1;
+	}
+	buffer[n] = '\0';
 	return n;
 }
 
 size_t strlcpy(char *d, const char *s, size_t bufsize)
 {
-	size_t len = strlen(s);
-	size_t ret = len;
-	if (bufsize <= 0) return 0;
-	if (len >= bufsize) len = bufsize-1;
+	size_t len, ret;
+
+	if (!s)
+		return 0;
+	len = strlen(s);
+	ret = len;
+	if (bufsize == 0)
+		return ret;
+	if (!d)
+		return 0;
+	if (len >= bufsize)
+		len = bufsize - 1;
 	memcpy(d, s, len);
-	d[len] = 0;
+	d[len] = '\0';
 	return ret;
 }
 
