@@ -865,8 +865,23 @@ static int client_run_command(EV_P_ skipd_client* client)
                     (char*)dkey.data, (char*)dvalue.data, dvalue.size) != 0) {
                 p1 = "list response error\n";
                 if (client_send_key(EV_A_ client, "__error__", "list",
-                        p1, strlen(p1)) == 0)
+                        p1, strlen(p1)) == 0) {
+                    /* The error frame is queued; release the suspended cursor
+                     * before yielding, then terminate this list coroutine once
+                     * the frame has been written. Do not continue the stream. */
+                    if (CS->cursor) {
+                        SkipDBCursor_release(CS->cursor);
+                        CS->cursor = NULL;
+                    }
+                    client->cursor = NULL;
+                    if (client->in_doing) {
+                        if (client->server->in_doing > 0)
+                            client->server->in_doing--;
+                        client->in_doing = 0;
+                    }
                     ccrReturn(ctx, ccr_error_ok);
+                    ccrStop(ctx, ccr_error_ok1);
+                }
                 client->break_level = ccr_break_killed;
                 ccrStop(ctx, ccr_error_err2);
             }
