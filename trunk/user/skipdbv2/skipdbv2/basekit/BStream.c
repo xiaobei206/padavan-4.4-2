@@ -918,87 +918,81 @@ int BStream_atEnd(BStream *self)
 
 int BStream_showInt(BStream *self)
 {
-	unsigned char c = BStream_readUint8(self);
-	BStreamTag t = BStreamTag_FromUnsignedChar(c);
+	unsigned char c;
+	BStreamTag t;
 	int v = 0;
-
+	if (NULL == self || NULL == self->ba)
+		return 0;
+	c = BStream_readUint8(self);
+	if (self->errorBa && UArray_size(self->errorBa) != 0)
+		return 0;
+	t = BStreamTag_FromUnsignedChar(c);
 	printf("%s%i ", BStreamTag_typeName(&t), t.byteCount * 8);
-
-	if (t.byteCount < 5)
-	{
-		BStream_readNumber_size_(self, (unsigned char *)(&v), t.byteCount);
+	if (t.byteCount == 0 || t.byteCount > sizeof(v)) {
+		BStream_error_(self, "invalid integer byte count while showing stream");
+		return 0;
 	}
-	else
-	{
-		printf("ERROR: byteCount out of range\n");
-		exit(-1);
-	}
-
+	BStream_readNumber_size_(self, (unsigned char *)&v, t.byteCount);
+	if (self->errorBa && UArray_size(self->errorBa) != 0)
+		return 0;
 	printf("%i", v);
 	return v;
 }
 
 void BStream_show(BStream *self)
 {
-	int pos = self->index;
-	int v = 0;
-
+	int pos, v = 0;
+	if (NULL == self || NULL == self->ba)
+		return;
+	pos = self->index;
 	self->index = 0;
 
 	while (!BStream_atEnd(self))
 	{
 		unsigned char c = BStream_readUint8(self);
-		BStreamTag t = BStreamTag_FromUnsignedChar(c);
-
-		/*printf("isArray:%i type:%s byteCount:%i value:", t.isArray, BStreamTag_typeName(t), t.byteCount);*/
-		printf("  %s%i %s", BStreamTag_typeName(&t), t.byteCount * 8, t.isArray ? "array " : "");
+		BStreamTag t;
+		if (self->errorBa && UArray_size(self->errorBa) != 0)
+			break;
+		t = BStreamTag_FromUnsignedChar(c);
+		printf("  %s%i %s", BStreamTag_typeName(&t),
+			t.byteCount * 8, t.isArray ? "array " : "");
 		fflush(stdout);
 
 		if (t.isArray)
 		{
+			int size;
+			unsigned char *data;
+			if (t.byteCount != 1) {
+				BStream_error_(self, "invalid array length byte count while showing stream");
+				break;
+			}
 			printf("[");
-
-			if (t.byteCount == 1)
-			{
-				int size = BStream_showInt(self);
-				if (size == 0)
-				{
-					printf(" '']\n");
-				}
-				else
-				{
-					unsigned char *data = BStream_readDataOfLength_(self, size);
-					printf(" '%s']\n", data);
-				}
+			size = BStream_showInt(self);
+			if (self->errorBa && UArray_size(self->errorBa) != 0)
+				break;
+			if (size < 0) {
+				BStream_error_(self, "negative array length while showing stream");
+				break;
 			}
-			else
-			{
-				printf("ERROR: array element byteCount not 1\n");
-				exit(-1);
-			}
+			data = BStream_readDataOfLength_(self, (size_t)size);
+			if (size > 0 && NULL == data)
+				break;
+			printf(" '");
+			if (size > 0)
+				fwrite(data, 1, (size_t)size, stdout);
+			printf("']\n");
 		}
 		else
 		{
-			if (t.byteCount > 0 && t.byteCount < 5)
-			{
-				BStream_readNumber_size_(self, (unsigned char *)(&v), t.byteCount);
+			if (t.byteCount == 0 || t.byteCount > sizeof(v)) {
+				BStream_error_(self, "invalid integer byte count while showing stream");
+				break;
 			}
-			else
-			{
-				printf("ERROR: byteCount out of range\n");
-				exit(1);
-			}
-
-			/*
-			if (t.byteCount == 1)
-			{
-				printf("%c\n", v);
-			}
-			else
-			{
-				*/
+			v = 0;
+			BStream_readNumber_size_(self, (unsigned char *)&v, t.byteCount);
+			if (self->errorBa && UArray_size(self->errorBa) != 0)
+				break;
 			printf("%i\n", v);
-			/*}*/
 		}
 	}
 	self->index = pos;
