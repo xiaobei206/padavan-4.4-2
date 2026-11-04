@@ -707,8 +707,9 @@ module_param_get(const char *module_name, const char *module_param, char *param_
 	FILE *fp;
 	char mod_path[256];
 	size_t len;
+	int next_char;
 
-	if (!param_value || param_value_size < 2 ||
+	if (!param_value || param_value_size < 2 || param_value_size > INT_MAX ||
 	    module_parameter_path(mod_path, sizeof(mod_path), module_name, module_param) < 0)
 		return -1;
 
@@ -716,19 +717,32 @@ module_param_get(const char *module_name, const char *module_param, char *param_
 	if (!fp)
 		return -1;
 
-	if (!fgets(param_value, param_value_size, fp)) {
+	if (!fgets(param_value, (int)param_value_size, fp)) {
 		fclose(fp);
+		return -1;
+	}
+
+	len = strlen(param_value);
+	if (len > 0 && param_value[len - 1] == '\n') {
+		param_value[--len] = '\0';
+	} else if (len == param_value_size - 1) {
+		next_char = fgetc(fp);
+		if (next_char != EOF && next_char != '\n') {
+			fclose(fp);
+			param_value[0] = '\0';
+			return -1;
+		}
+	}
+
+	if (ferror(fp)) {
+		fclose(fp);
+		param_value[0] = '\0';
 		return -1;
 	}
 	fclose(fp);
 
-	len = strlen(param_value);
-		param_value[len - 1] = '\0';
-		param_value[len - 1] = '\\0';
-
 	return 0;
 }
-
 int
 module_param_set_int(const char *module_name, const char *module_param, int param_value)
 {
