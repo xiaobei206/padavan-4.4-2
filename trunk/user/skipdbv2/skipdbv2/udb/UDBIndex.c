@@ -180,8 +180,13 @@ PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 		NULL == self->file->file)
 		return 0;
 	hole = (PID_TYPE)List_pop(self->holes);
-	if (hole)
+	if (hole) {
+		/* Normalize legacy duplicate free-slot entries before reserving the PID. */
+		while (List_removeFirst_(self->holes, (void *)hole)) {
+			/* Remove every stale duplicate for this allocation. */
+		}
 		return hole;
+	}
 
 	max = (PID_TYPE)JFile_setPositionToEnd(self->file) /
 		sizeof(UDBIndexEntry);
@@ -225,7 +230,8 @@ int UDBIndex_isReservedPid_(UDBIndex *self, PID_TYPE pid)
 	size_t i;
 
 	if (NULL == self || NULL == self->holes || NULL == self->file ||
-		NULL == self->file->file || pid == 0 || pid > self->maxPid)
+		NULL == self->file->file || pid == 0 || pid > self->maxPid ||
+		UDBIndex_posForPid_(self, pid) != 0)
 		return 0;
 
 	for (i = 0; i < self->holes->size; ++i) {
