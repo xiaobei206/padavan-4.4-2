@@ -690,25 +690,44 @@ ej_safely_remove_disk(int eid, webs_t wp, int argc, char **argv)
 	int result, port_num;
 	char *disk_port = websGetVar(wp, "port", "");
 	char *disk_devn = websGetVar(wp, "devn", "");
+	char device_path[128], port_arg[16];
 
 	port_num = atoi(disk_port);
 	if (port_num < 0)
 		port_num = 0;
 
+#if !defined (USE_MMC_SUPPORT)
+	(void)port_num;
+#endif
+#if defined (USE_MMC_SUPPORT)
+	if (port_num != MMC_VIRT_PORT_ID)
+#endif
+	{
+		/* Accept only an existing whole SCSI disk, never caller-supplied shell text. */
+		if (!get_blk_sd_path_by_device(disk_devn, device_path, sizeof(device_path))) {
+			websWrite(wp, "<script>safely_remove_disk_error(\\'%s\\');</script>\n",
+				  get_alert_msg_from_dict("Action9"));
+			return -1;
+		}
+	}
+
 #if defined (USE_ATA_SUPPORT)
 	if (port_num == ATA_VIRT_PORT_ID)
-		result = doSystem("/sbin/ejata %s", disk_devn);
+		result = eval("/sbin/ejata", disk_devn);
 	else
 #endif
 #if defined (USE_MMC_SUPPORT)
 	if (port_num == MMC_VIRT_PORT_ID)
-		result = system("/sbin/ejmmc");
+		result = eval("/sbin/ejmmc");
 	else
 #endif
-		result = doSystem("/sbin/ejusb %d %s", port_num, disk_devn);
+	{
+		snprintf(port_arg, sizeof(port_arg), "%d", port_num);
+		result = eval("/sbin/ejusb", port_arg, disk_devn);
+	}
 
 	if (result != 0) {
-		websWrite(wp, "<script>safely_remove_disk_error(\'%s\');</script>\n", get_alert_msg_from_dict("Action9"));
+		websWrite(wp, "<script>safely_remove_disk_error(\\'%s\\');</script>\n", get_alert_msg_from_dict("Action9"));
 	} else {
 		websWrite(wp, "<script>safely_remove_disk_success();</script>\n");
 	}
