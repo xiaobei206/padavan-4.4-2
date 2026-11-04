@@ -8,6 +8,8 @@ SkipDBCursor ioDoc(
 
 #include "SkipDBCursor.h"
 
+#include <limits.h>
+
 SkipDBCursor *SkipDBCursor_new(void)
 {
 	SkipDBCursor *self = (SkipDBCursor *)calloc(1, sizeof(SkipDBCursor));
