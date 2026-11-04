@@ -1,0 +1,38 @@
+name: SkipDBv2 Regression
+
+on:
+  push:
+    paths:
+      - ".github/workflows/skipdbv2-regression.yml"
+      - "trunk/user/skipdbv2/skipdbv2/**"
+  pull_request:
+    paths:
+      - "trunk/user/skipdbv2/skipdbv2/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc g++ libev-dev
+
+      - name: Configure
+        run: |
+          cmake -S trunk/user/skipdbv2/skipdbv2 -B build/skipdbv2 \
+            -DSKIPDB_BUILD_TESTS=ON
+
+      - name: Build all SkipDBv2 targets
+        run: cmake --build build/skipdbv2 --parallel 2
+
+      - name: Run regression tests
+        run: ctest --test-dir build/skipdbv2 --output-on-failure
