@@ -15,16 +15,37 @@ UDB ioDoc(
 UDB *UDB_new(void)
 {
 	UDB *self = (UDB *)calloc(1, sizeof(UDB));
-	
-	self->index       = UDBIndex_new();
-	self->records     = UDBRecords_new();
-	
+
+	if (NULL == self)
+		return NULL;
+
+	self->index = UDBIndex_new();
+	self->records = UDBRecords_new();
+	if (NULL == self->index || NULL == self->records) {
+		UDBIndex_free(self->index);
+		UDBRecords_free(self->records);
+		free(self);
+		return NULL;
+	}
+
 	UDB_setPath_(self, "default");
+	if (NULL == self->path || NULL == self->committedPath ||
+		NULL == self->index->file->path || NULL == self->index->file->logPath ||
+		NULL == self->records->file->path || NULL == self->records->file->logPath) {
+		UDBIndex_free(self->index);
+		UDBRecords_free(self->records);
+		free(self->path);
+		free(self->committedPath);
+		free(self);
+		return NULL;
+	}
 	return self;
 }
 
 void UDB_free(UDB *self)
 {
+	if (NULL == self)
+		return;
 	UDB_close(self);
 	free(self->path);    
 	free(self->committedPath);    
@@ -36,6 +57,8 @@ void UDB_free(UDB *self)
 
 void UDB_delete(UDB *self)
 {
+	if (NULL == self)
+		return;
 	UDB_close(self);
 	UDBIndex_delete(self->index);
 	UDBRecords_delete(self->records);
@@ -117,6 +140,16 @@ void UDB_open(UDB *self)
 
 	UDBIndex_open(self->index);
 	UDBRecords_open(self->records);
+	if (NULL == self->index->file->file || NULL == self->index->file->log ||
+		NULL == self->records->file->file || NULL == self->records->file->log) {
+		UDBIndex_close(self->index);
+		UDBRecords_close(self->records);
+		if (self->committedFile) {
+			fclose(self->committedFile);
+			self->committedFile = NULL;
+		}
+		return;
+	}
 	self->isOpen = 1;
 }
 
@@ -127,12 +160,16 @@ int UDB_isOpen(UDB *self)
 
 void UDB_close(UDB *self)
 {
-        if(self->isOpen) {
-                UDBIndex_close(self->index);
-                UDBRecords_close(self->records);
-                if (self->committedFile) fclose(self->committedFile);
-                self->isOpen = 0;
-        }
+	if (NULL == self)
+		return;
+	UDBIndex_close(self->index);
+	UDBRecords_close(self->records);
+	if (self->committedFile) {
+		fclose(self->committedFile);
+		self->committedFile = NULL;
+	}
+	self->isOpen = 0;
+	self->withinTransaction = 0;
 }
 
 // transactions --------------------------------------------------- 
