@@ -1563,6 +1563,11 @@ int server_init(skipd_server* server, int max_queue) {
     server_open(server);
 
     count = SkipDB_count(server->db);
+    if (count < 0) {
+        skipd_log(SKIPD_DEBUG, "SkipDB record chain is corrupt; refusing startup\n");
+        SkipDB_close(server->db);
+        return -1;
+    }
     skipd_log(SKIPD_DEBUG, "Load count=%d maxPos=%d\n", count, SkipDB_maxPos(server->db));
 
     server->fd = unix_socket_init(&server->socket, server->sock_path, max_queue);
