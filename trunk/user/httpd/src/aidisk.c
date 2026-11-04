@@ -73,6 +73,21 @@ write_tree_entry(webs_t wp, const char *name, int first, int second)
 	write_json_string(wp, entry);
 }
 
+static int
+make_child_path(char *dst, size_t dst_size, const char *base, const char *component)
+{
+	int written;
+
+	if (!dst || dst_size == 0 || !base || !component)
+		return -1;
+	written = snprintf(dst, dst_size, "%s/%s", base, component);
+	if (written < 0 || (size_t)written >= dst_size) {
+		dst[0] = '\0';
+		return -1;
+	}
+	return 0;
+}
+
 #if defined (USE_USB_SUPPORT)
 int
 ej_get_usb_ports_info(int eid, webs_t wp, int argc, char **argv)
@@ -1078,7 +1093,11 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 				++folder_count1;
 
 				if (layer == 2) { // get L1's folders.
-					snprintf(dir2_Path, sizeof(dir2_Path), "%s/%s", dir1_Path, dp1->d_name);
+					if (make_child_path(dir2_Path, sizeof(dir2_Path), dir1_Path, dp1->d_name) != 0) {
+						closedir(dir1);
+						free_disk_data(disks_info);
+						return -1;
+					}
 					dir2 = opendir(dir2_Path);
 
 					folder_count2 = 0;
@@ -1135,7 +1154,10 @@ ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv)
 			++folder_count1;
 
 			if (layer == 0) {
-				snprintf(dir2_Path, sizeof(dir2_Path), "%s/%s", dir1_Path, dp1->d_name);
+				if (make_child_path(dir2_Path, sizeof(dir2_Path), dir1_Path, dp1->d_name) != 0) {
+					closedir(dir1);
+					return -1;
+				}
 				dir2 = opendir(dir2_Path);
 				folder_count2 = 0;
 				if (dir2 != NULL) {
