@@ -149,41 +149,24 @@ static int read_util(dbclient* client, int len, unsigned int delay) {
     return -3;
 }
 
-int parse_common_result(dbclient *client) {
+/*
+ * skipd frames every response body as:
+ *     <command> <key> <raw-value>
+ * The value is length-delimited and may contain embedded NUL bytes.
+ */
+static int read_response_payload(dbclient *client, unsigned int delay,
+    size_t *payload_offset, int *body_len)
+{
     int n1, n2;
+    size_t command_len, key_start;
+    char *key_end;
     const char *magic = MAGIC;
-    int success;
 
-    /* fire/event may execute scripts before the server sends its reply. */
-    n1 = read_util(client, HEADER_PREFIX, 60000);
-    if (n1 < 0)
-        return n1;
-    if (0 != memcmp(client->buf, magic, MAGIC_LEN))
-        return -3;
-
-    client->buf[HEADER_PREFIX - 1] = '\0';
-    if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
-        n2 <= 0 || n2 > READ_MAX)
+    if (NULL == client || NULL == client->command ||
+        NULL == payload_offset || NULL == body_len)
         return -4;
 
-    n1 = read_util(client, n2, 60000);
-    if (n1 < 0)
-        return n1;
-
-    success = (n2 == 3 && memcmp(client->buf, "ok\n", 3) == 0) ||
-        (n2 == 9 && memcmp(client->buf, "delay_ok\n", 9) == 0);
-    if (n2 > 0 && fwrite(client->buf, 1, (size_t)n2, stdout) != (size_t)n2)
-        return -5;
-    if (n2 == 0 || client->buf[n2 - 1] != '\n')
-        putchar('\n');
-    return success ? 0 : -5;
-}
-
-int parse_get_result(dbclient *client) {
-    int n1, n2;
-    const char *magic = MAGIC;
-
-    n1 = read_util(client, HEADER_PREFIX, 110);
+    n1 = read_util(client, HEADER_PREFIX, delay);
     if (n1 < 0)
         return n1;
     if (0 != memcmp(client->buf, magic, MAGIC_LEN))
@@ -194,24 +177,82 @@ int parse_get_result(dbclient *client) {
         n2 < 0 || n2 > READ_MAX)
         return -4;
 
-    n1 = read_util(client, n2, 510);
+    n1 = read_util(client, n2, delay);
     if (n1 < 0)
         return n1;
 
-    /* get/inc/desc/replace responses are the raw Datum payload, not a
-     * key/value record. Preserve the exact length, including embedded NULs. */
-    if (n2 > 0 && fwrite(client->buf, 1, (size_t)n2, stdout) != (size_t)n2)
+    command_len = strlen(client->command);
+    if (command_len == 0 || (size_t)n2 <= command_len + 2 ||
+        memcmp(client->buf, client->command, command_len) != 0 ||
+        client->buf[command_len] != ' ')
+        return -4;
+
+    key_start = command_len + 1;
+    key_end = (char *)memchr(client->buf + key_start, ' ',
+        (size_t)n2 - key_start);
+    if (NULL == key_end || key_end == client->buf + key_start)
+        return -4;
+
+    *payload_offset = (size_t)(key_end - client->buf) + 1;
+    *body_len = n2;
+    return 0;
+}
+
+int parse_common_result(dbclient *client) {
+    int n1, body_len;
+    size_t payload_offset, payload_len;
+    int success;
+
+    /* Script-backed commands can take longer than ordinary DB operations. */
+    n1 = read_response_payload(client, 60000, &payload_offset, &body_len);
+    if (n1 < 0)
+        return n1;
+
+    payload_len = (size_t)body_len - payload_offset;
+    success = (payload_len == 3 &&
+        memcmp(client->buf + payload_offset, "ok\n", 3) == 0) ||
+        (payload_len == 9 &&
+        memcmp(client->buf + payload_offset, "delay_ok\n", 9) == 0);
+
+    /* Preserve the historical full command/key/response output. */
+    if (body_len > 0 &&
+        fwrite(client->buf, 1, (size_t)body_len, stdout) != (size_t)body_len)
         return -5;
-    if (n2 == 0 || client->buf[n2 - 1] != '\n')
+    if (body_len == 0 || client->buf[body_len - 1] != '\n')
+        putchar('\n');
+    return success ? 0 : -5;
+}
+
+int parse_get_result(dbclient *client) {
+    int n1, body_len;
+    size_t payload_offset, payload_len;
+    const char *payload;
+
+    n1 = read_response_payload(client, 510, &payload_offset, &body_len);
+    if (n1 < 0)
+        return n1;
+
+    payload = client->buf + payload_offset;
+    payload_len = (size_t)body_len - payload_offset;
+
+    /* Print only the raw Datum value, not skipd's command/key envelope. */
+    if (payload_len > 0 &&
+        fwrite(payload, 1, payload_len, stdout) != payload_len)
+        return -5;
+    if (payload_len == 0 || payload[payload_len - 1] != '\n')
         putchar('\n');
 
-    if (((!strcmp(client->command, "inc") || !strcmp(client->command, "desc")) &&
-         ((n2 == 6 && memcmp(client->buf, "error\n", 6) == 0) ||
-          (n2 == 15 && memcmp(client->buf, "database error\n", 15) == 0) ||
-          (n2 == 17 && memcmp(client->buf, "integer overflow\n", 17) == 0)) ||
-        (!strcmp(client->command, "replace") &&
-         n2 == 15 && memcmp(client->buf, "database error\n", 15) == 0))
+    if ((!strcmp(client->command, "inc") ||
+         !strcmp(client->command, "desc")) &&
+        ((payload_len == 6 && memcmp(payload, "error\n", 6) == 0) ||
+         (payload_len == 15 && memcmp(payload, "database error\n", 15) == 0) ||
+         (payload_len == 17 && memcmp(payload, "integer overflow\n", 17) == 0)))
         return -5;
+
+    if (!strcmp(client->command, "replace") &&
+        payload_len == 15 && memcmp(payload, "database error\n", 15) == 0)
+        return -5;
+
     return 0;
 }
 
