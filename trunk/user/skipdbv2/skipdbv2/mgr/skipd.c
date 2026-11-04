@@ -143,10 +143,7 @@ static char *find_terminated_value_separator(Datum value)
     return (char*)memchr(value.data, ' ', value.size - 1);
 }
 
-/*
- * Compute the next occurrence of a local wall-clock time. A fixed 86400
- * second repeat drifts by one hour when the local timezone enters/leaves DST.
- */
+/* Check the command/key/value envelope before persisting a value. */
 static int value_fits_list_frame(const char *key, size_t value_len)
 {
     size_t key_len;
@@ -159,6 +156,10 @@ static int value_fits_list_frame(const char *key, size_t value_len)
     return value_len <= (size_t)READ_MAX - key_len - 6;
 }
 
+/*
+ * Compute the next occurrence of a local wall-clock time. A fixed 86400
+ * second repeat drifts by one hour when the local timezone enters/leaves DST.
+ */
 static int next_daily_delay(const char *time_text, time_t now, double *delay)
 {
     struct tm target, *local_now;
@@ -465,7 +466,7 @@ static void time_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
 
     time_len = (int)(p1 - (char*)dvalue.data);
     if (time_len <= 0 || (size_t)time_len >= sizeof(time_text)) {
-        skipd_log(SKIPDB_DEBUG, "time %s schedule value error\n", dkey.data);
+        skipd_log(SKIPD_DEBUG, "time %s schedule value error\n", dkey.data);
         ev_timer_stop(EV_A_ watcher);
         free(time_obj);
         return;
@@ -1584,11 +1585,11 @@ static void server_open(skipd_server* server)
     n = snprintf(marker_path, sizeof(marker_path), "%s/switch",
         server->db_path);
     if (n < 0 || (size_t)n >= sizeof(marker_path)) {
-        skipd_log(SKIPDB_DEBUG, "database switch marker path too long\n");
+        skipd_log(SKIPD_DEBUG, "database switch marker path too long\n");
         exit(EXIT_FAILURE);
     }
     if (read_db_switch_marker(marker_path, &server->curr_db) != 0) {
-        skipd_log(SKIPDB_DEBUG, "invalid database switch marker: %s\n",
+        skipd_log(SKIPD_DEBUG, "invalid database switch marker: %s\n",
             marker_path);
         exit(EXIT_FAILURE);
     }
@@ -1596,17 +1597,17 @@ static void server_open(skipd_server* server)
     n = snprintf(real_path, sizeof(real_path), "%s/%d",
         server->db_path, server->curr_db);
     if (n < 0 || (size_t)n >= sizeof(real_path)) {
-        skipd_log(SKIPDB_DEBUG, "database path too long\n");
+        skipd_log(SKIPD_DEBUG, "database path too long\n");
         exit(EXIT_FAILURE);
     }
     server->db = SkipDB_new();
     if (NULL == server->db) {
-        skipd_log(SKIPDB_DEBUG, "database allocation failed\n");
+        skipd_log(SKIPD_DEBUG, "database allocation failed\n");
         exit(EXIT_FAILURE);
     }
     SkipDB_setPath_(server->db, real_path);
     if (!server_open_database(server->db)) {
-        skipd_log(SKIPDB_DEBUG, "database open failed: %s\n", real_path);
+        skipd_log(SKIPD_DEBUG, "database open failed: %s\n", real_path);
         SkipDB_free(server->db);
         server->db = NULL;
         exit(EXIT_FAILURE);
@@ -1626,12 +1627,12 @@ static void server_switch(skipd_server* server)
 
     source_count = SkipDB_count(server->db);
     if (source_count < 0) {
-        skipd_log(SKIPDB_DEBUG, "active database record chain is corrupt; switch aborted\n");
+        skipd_log(SKIPD_DEBUG, "active database record chain is corrupt; switch aborted\n");
         return;
     }
     other = SkipDB_new();
     if (NULL == other) {
-        skipd_log(SKIPDB_DEBUG, "database switch allocation failed\n");
+        skipd_log(SKIPD_DEBUG, "database switch allocation failed\n");
         return;
     }
     n2 = 1 - server->curr_db;
@@ -1639,14 +1640,14 @@ static void server_switch(skipd_server* server)
         server->db_path, n2);
     if (n1 < 0 || (size_t)n1 >= sizeof(real_path)) {
         SkipDB_free(other);
-        skipd_log(SKIPDB_DEBUG, "database switch path too long\n");
+        skipd_log(SKIPD_DEBUG, "database switch path too long\n");
         return;
     }
 
     SkipDB_setPath_(other, real_path);
     SkipDB_delete(other);
     if (!server_open_database(other)) {
-        skipd_log(SKIPDB_DEBUG, "unable to open replacement database: %s\n",
+        skipd_log(SKIPD_DEBUG, "unable to open replacement database: %s\n",
             real_path);
         SkipDB_free(other);
         return;
@@ -1655,7 +1656,7 @@ static void server_switch(skipd_server* server)
     if (!SkipDB_mergeInto_(server->db, other) ||
         !SkipDB_isOpen(server->db) || !SkipDB_isOpen(other) ||
         SkipDB_count(other) != source_count) {
-        skipd_log(SKIPDB_DEBUG, "database switch copy failed; retaining active database\n");
+        skipd_log(SKIPD_DEBUG, "database switch copy failed; retaining active database\n");
         SkipDB_delete(other);
         SkipDB_free(other);
         return;
@@ -1663,14 +1664,14 @@ static void server_switch(skipd_server* server)
 
     SkipDB_beginTransaction(other);
     if (!SkipDB_isOpen(other)) {
-        skipd_log(SKIPDB_DEBUG, "replacement database transaction could not start\n");
+        skipd_log(SKIPD_DEBUG, "replacement database transaction could not start\n");
         SkipDB_delete(other);
         SkipDB_free(other);
         return;
     }
     SkipDB_commitTransaction(other);
     if (!SkipDB_isOpen(other) || SkipDB_count(other) != source_count) {
-        skipd_log(SKIPDB_DEBUG, "replacement database commit failed; retaining active database\n");
+        skipd_log(SKIPD_DEBUG, "replacement database commit failed; retaining active database\n");
         SkipDB_delete(other);
         SkipDB_free(other);
         return;
@@ -1678,7 +1679,7 @@ static void server_switch(skipd_server* server)
 
     marker_status = write_db_switch_marker(server->db_path, n2);
     if (marker_status != 0) {
-        skipd_log(SKIPDB_DEBUG, "database switch marker write failed\n");
+        skipd_log(SKIPD_DEBUG, "database switch marker write failed\n");
         if (marker_status == -2) {
             /* The marker was renamed: preserve both databases and stop. */
             SkipDB_free(other);
@@ -1829,7 +1830,7 @@ static void server_init_time(EV_P_ skipd_server *server) {
                 dkey.size > sizeof(time_obj->key) ||
                 ((char*)dkey.data)[dkey.size - 1] != '\0' ||
                 memchr(dkey.data, '\0', dkey.size - 1) != NULL) {
-                skipd_log(SKIPDB_DEBUG, "time read key/value error\n");
+                skipd_log(SKIPD_DEBUG, "time read key/value error\n");
                 record = SkipDB_list_next(server->db, skey, cursor);
                 continue;
             }
@@ -1837,14 +1838,14 @@ static void server_init_time(EV_P_ skipd_server *server) {
             memcpy(static_buffer, dvalue.data, (size_t)n1);
             static_buffer[n1] = '\0';
             if (!next_daily_delay(static_buffer, time(NULL), &timer_delay)) {
-                skipd_log(SKIPDB_DEBUG, "time schedule value error\n");
+                skipd_log(SKIPD_DEBUG, "time schedule value error\n");
                 record = SkipDB_list_next(server->db, skey, cursor);
                 continue;
             }
 
             time_obj = (time_cmd*)calloc(1, sizeof(time_cmd));
             if (NULL == time_obj) {
-                skipd_log(SKIPDB_DEBUG, "out of memory\n");
+                skipd_log(SKIPD_DEBUG, "out of memory\n");
                 break;
             }
             memcpy(time_obj->key, dkey.data, dkey.size);
