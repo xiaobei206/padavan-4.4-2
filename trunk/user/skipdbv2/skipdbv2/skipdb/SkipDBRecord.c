@@ -434,7 +434,16 @@ SkipDBRecord *SkipDBRecord_recordAtLevel_(SkipDBRecord *self, int level)
 		return NULL;
 	r = p->record;
 	if (NULL == r && p->pid && self->sdb) {
-		r = SkipDB_recordAtPid_((SkipDB *)self->sdb, p->pid);
+		SkipDB *db = (SkipDB *)self->sdb;
+		r = SkipDB_recordAtPid_(db, p->pid);
+		if (NULL == r) {
+			/* A nonzero forward PID is authoritative; treating a missing row
+			 * as an ordinary end-of-list would silently hide later records. */
+			fprintf(stderr, "SkipDB: invalid forward reference to PID %lu\n",
+				(unsigned long)p->pid);
+			UDB_close(SkipDB_udb(db));
+			return NULL;
+		}
 		p->record = r;
 	}
 	return r;
