@@ -236,17 +236,23 @@ convert_ip_to_string(const uaddr *ip, char *p_out_ip, size_t out_ip_len)
 	char s_addr[INET_ADDRSTRLEN];
 #endif
 	char *p_addr = s_addr;
+	size_t addr_len;
 
-	if (ip->len < 1 || !inet_ntop(ip->family, &ip->addr, s_addr, sizeof(s_addr))) {
-		p_out_ip[0] = 0;
+	if (!p_out_ip || out_ip_len == 0)
 		return -1;
-	}
+	p_out_ip[0] = '\0';
+	if (!ip || ip->len < 1 ||
+	    !inet_ntop(ip->family, &ip->addr, s_addr, sizeof(s_addr)))
+		return -1;
 
 #if defined (USE_IPV6)
 	if (ip->family == AF_INET6 && strncmp(p_addr, "::ffff:", 7) == 0)
 		p_addr += 7;
 #endif
-	strncpy(p_out_ip, p_addr, out_ip_len);
+	addr_len = strlen(p_addr);
+	if (addr_len >= out_ip_len)
+		return -1;
+	memcpy(p_out_ip, p_addr, addr_len + 1);
 
 	return 0;
 }
@@ -279,7 +285,11 @@ find_mac_from_ip(const uaddr *ip, unsigned char *p_out_mac, int *p_out_lan)
 		
 		while (fgets(buffer, sizeof(buffer), fp)) {
 			arp_flags = 0;
-			if (sscanf(buffer, "%s %*s 0x%x %31s %*s %31s", s_addr2, &arp_flags, arp_mac, arp_if) == 4) {
+#if defined (USE_IPV6)
+			if (sscanf(buffer, "%45s %*s 0x%x %31s %*s %31s", s_addr2, &arp_flags, arp_mac, arp_if) == 4) {
+#else
+			if (sscanf(buffer, "%15s %*s 0x%x %31s %*s %31s", s_addr2, &arp_flags, arp_mac, arp_if) == 4) {
+#endif
 				if ((arp_flags & 0x02) && !strcmp(s_addr1, s_addr2) && strcmp(arp_mac, "00:00:00:00:00:00")) {
 					if (ether_atoe(arp_mac, p_out_mac)) {
 						if (p_out_lan)
