@@ -16,6 +16,7 @@
 #include "disk_io_tools.h"
 
 static int is_valid_sysfs_component(const char *value);
+static const char *find_usb_root_port(const char *target_string, const char *port);
 
 int get_usb_root_port_by_sd_device(const char *device_name)
 {
@@ -24,12 +25,14 @@ int get_usb_root_port_by_sd_device(const char *device_name)
 	if (!get_blk_sd_path_by_device(device_name, usb_path, sizeof(usb_path)))
 		return -1;
 
-	// ../../devices/platform/xhci-hcd/usb2/2-1/2-1:1.0/host0/target0:0:0/0:0:0:0
-
-	if (strstr(usb_path, USB_EHCI_PORT_1) || strstr(usb_path, USB_OHCI_PORT_1))
+	// Match a complete USB port component (e.g. "1-1"), not prefixes such
+	// as "1-10" or port numbers embedded in deeper path components.
+	if (find_usb_root_port(usb_path, USB_EHCI_PORT_1) ||
+	    find_usb_root_port(usb_path, USB_OHCI_PORT_1))
 		return 1;
 
-	if (strstr(usb_path, USB_EHCI_PORT_2) || strstr(usb_path, USB_OHCI_PORT_2))
+	if (find_usb_root_port(usb_path, USB_EHCI_PORT_2) ||
+	    find_usb_root_port(usb_path, USB_OHCI_PORT_2))
 		return 2;
 
 	return -1;
@@ -453,7 +456,7 @@ int get_usb_interface_Int_endpoint(const char *usb_interface_id)
 
 int isSerialNode(const char *device_name)
 {
-	if(strncmp(device_name, "ttyUSB", 6))
+	if (!device_name || strncmp(device_name, "ttyUSB", 6))
 		return 0;
 
 	return 1;
@@ -461,7 +464,7 @@ int isSerialNode(const char *device_name)
 
 int isACMNode(const char *device_name)
 {
-	if(strncmp(device_name, "ttyACM", 6))
+	if (!device_name || strncmp(device_name, "ttyACM", 6))
 		return 0;
 
 	return 1;
@@ -469,7 +472,7 @@ int isACMNode(const char *device_name)
 
 int isWDMNode(const char *device_name)
 {
-	if(strncmp(device_name, "cdc-wdm", 7))
+	if (!device_name || strncmp(device_name, "cdc-wdm", 7))
 		return 0;
 
 	return 1;
