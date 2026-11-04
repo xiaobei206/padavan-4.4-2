@@ -2024,9 +2024,12 @@ int main(int argc, char **argv)
                 break;
             }
             case 'h':
-                fprintf(stderr, "Usage: skipd xxx todo\n");
-                exit(1);
-                break;
+                fprintf(stderr, "Usage: skipd [-h] [-d DB_PATH] [-s SOCKET_PATH] [-D ARG]\n");
+                return EXIT_SUCCESS;
+            case '?':
+            default:
+                fprintf(stderr, "skipd: invalid command-line option\n");
+                return EXIT_FAILURE;
             }
     }
 
