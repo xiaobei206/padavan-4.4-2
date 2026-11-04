@@ -235,6 +235,13 @@ int parse_get_result(dbclient *client) {
     payload = client->buf + payload_offset;
     payload_len = (size_t)body_len - payload_offset;
 
+    /*
+     * Text Datums are stored with one trailing NUL. Preserve embedded NUL
+     * bytes, but do not leak the storage terminator into terminal output.
+     */
+    if (payload_len > 0 && payload[payload_len - 1] == '\0')
+        --payload_len;
+
     /* Print only the raw Datum value, not skipd's command/key envelope. */
     if (payload_len > 0 &&
         fwrite(payload, 1, payload_len, stdout) != payload_len)
