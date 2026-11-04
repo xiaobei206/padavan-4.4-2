@@ -16,7 +16,7 @@ case "$6" in
 esac
 
 cd /etc/storage || exit 1
-exp=`printf '%s %s %s %s %s' "$1" "$2" "$3" "$4" "$5" | sed 's/a/\\*/g'`
+exp=`printf '%s %s %s %s %s' "$1" "$2" "$3" "$4" "$5" | tr 'a' '*'`
 cron_file="cron/crontabs/admin"
 script_path="/usr/bin/$6"
 
