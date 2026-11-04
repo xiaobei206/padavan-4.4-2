@@ -87,3 +87,4 @@ f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k
 29c40b8  firewall_ex.c: skip firewall/port-forward rules when a configured IP range is invalid (fail closed).
 5aff909  firewall_ex.c: retain restrictive deny-list handling while invalid whitelist ranges are skipped.
 02336c8  usb_modem.c: validate VID/PID and rule-path length; invoke usb_modeswitch with argv.
+426595c  vpn_openvpn.c: reject path separators/control chars in CCD client names; check path truncation.
