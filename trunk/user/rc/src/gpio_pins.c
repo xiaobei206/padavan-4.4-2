@@ -32,8 +32,10 @@ void gpio_led_trig_set(int led, const char* trig_name)
 	const char *led_name = led_to_name(led);
 
 	if (led_name && trig_name) {
-		sprintf(led_path, "/sys/class/leds/%s/trigger", led_name);
-		fput_string(led_path, trig_name);
+		int path_len = snprintf(led_path, sizeof(led_path),
+					"/sys/class/leds/%s/trigger", led_name);
+		if (path_len >= 0 && path_len < (int)sizeof(led_path))
+			fput_string(led_path, trig_name);
 	}
 }
 
@@ -43,7 +45,9 @@ void gpio_led_set(int led, int value)
 	const char *led_name = led_to_name(led);
 
 	if (led_name) {
-		sprintf(led_path, "/sys/class/leds/%s/brightness", led_name);
-		fput_int(led_path, value);
+		int path_len = snprintf(led_path, sizeof(led_path),
+					"/sys/class/leds/%s/brightness", led_name);
+		if (path_len >= 0 && path_len < (int)sizeof(led_path))
+			fput_int(led_path, value);
 	}
 }
