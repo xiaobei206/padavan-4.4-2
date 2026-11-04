@@ -292,3 +292,10 @@ d5f8506  dbus.c: parse command/key response envelope separately from binary-safe
 49a04dc  skipd.c: validate local time conversion and next timer delay before persisting time tasks, avoiding failed-but-persisted schedules.
 2a305bb  tests/dbus_protocol.c: add socketpair regression coverage for response envelope parsing, common replies, errors and binary values.
 86a1884  CMakeLists.txt: register dbus protocol tests under SKIPDB_BUILD_TESTS.
+ac5aeba  skipd.c: give list end-of-stream frames a distinct command token, avoiding collisions with stored values.
+47bd05f  dbus.c: parse list and export responses using bounded command/key/value fields and the dedicated end frame.
+0b9e2cc  dbapi.c: recognize framed list termination and preserve sentinel-like stored values.
+6b81ceb  tests/dbus_protocol.c: cover list/export end frames and a stored value equal to the old sentinel.
+8fd7ea8  tests/dbapi_protocol.c: cover dbapi list framing and sentinel-like value handling.
+87962fd  CMakeLists.txt: register dbapi framing regression tests.
+ad22b29/5baa3fd/d74553d  correct C string escaping for the end-marker payload and document the unambiguous protocol.
