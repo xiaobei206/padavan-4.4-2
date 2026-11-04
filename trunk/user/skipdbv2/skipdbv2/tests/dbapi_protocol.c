@@ -115,6 +115,44 @@ fail:
     return -1;
 }
 
+static int run_bulk_status_case(const char *response, int expected_result)
+{
+    int sockets[2] = {-1, -1};
+    int bulk_result = -1;
+    dbclient client;
+
+    memset(&client, 0, sizeof(client));
+    client.remote_fd = -1;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0)
+        return -1;
+    client.remote_fd = sockets[0];
+    if (setnonblock(client.remote_fd) != 0 ||
+        write_frame(sockets[1], response, strlen(response)) != 0)
+        goto fail;
+
+    bulk_result = dbclient_bulk(&client, "set", "alpha", "value");
+    if (bulk_result != expected_result) {
+        fprintf(stderr,
+            "dbapi bulk status test failed: result=%d expected=%d\n",
+            bulk_result, expected_result);
+        goto fail;
+    }
+
+    free(client.buf);
+    close(client.remote_fd);
+    close(sockets[1]);
+    return 0;
+
+fail:
+    free(client.buf);
+    if (client.remote_fd >= 0)
+        close(client.remote_fd);
+    if (sockets[1] >= 0)
+        close(sockets[1]);
+    return -1;
+}
+
 static int run_bulk_error_frame_case(void)
 {
     static const char error_frame[] =
@@ -190,7 +228,9 @@ int main(void)
     }
 
     if (run_error_frame_case() != 0 ||
-        run_bulk_error_frame_case() != 0)
+        run_bulk_error_frame_case() != 0 ||
+        run_bulk_status_case("set alpha ok\n", 0) != 0 ||
+        run_bulk_status_case("set alpha database error\n", -5) != 0)
         goto done;
 
     puts("dbapi protocol tests passed");
