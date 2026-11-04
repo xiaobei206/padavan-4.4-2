@@ -905,6 +905,10 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			authorization = cp;
 			cur = cp + strlen(cp) + 1;
 		}
+		else if (strncasecmp(cur, "Transfer-Encoding:", 18) == 0) {
+			send_error(400, "Bad Request", NULL, "Transfer encoding is unsupported.", conn_fp);
+			return;
+		}
 		else if (strncasecmp(cur, "Content-Length:", 15) == 0) {
 			cp = cur + 15;
 			cp += strspn(cp, " \t");
