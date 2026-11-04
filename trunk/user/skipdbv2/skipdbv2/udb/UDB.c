@@ -249,13 +249,8 @@ void UDB_close(UDB *self)
 
 int UDB_isInTransaction(UDB *self)
 {
-	if (NULL == self || !self->isOpen)
+	if (NULL == self || !self->isOpen || !self->withinTransaction)
 		return 0;
-	if (!self->withinTransaction) {
-		printf("UDB error - mutation operations must be within a transaction\n");
-		exit(1);
-		return 0;
-	}
 	return 1;
 }
 
