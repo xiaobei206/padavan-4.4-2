@@ -258,27 +258,44 @@ inet_handler(int is_ap_mode)
 int timecheck_reboot(char *activeSchedule)
 {
 	int active, current_time, current_date, Time2Active, Date2Active;
+	int hour, minute, i;
 	time_t now;
 	struct tm *tm;
-	int i;
+
+	if (!activeSchedule || strlen(activeSchedule) != 11)
+		return 0;
+
+	for (i = 0; i < 7; i++) {
+		if (activeSchedule[i] != '0' && activeSchedule[i] != '1')
+			return 0;
+	}
+	for (i = 7; i < 11; i++) {
+		if (activeSchedule[i] < '0' || activeSchedule[i] > '9')
+			return 0;
+	}
+
+	hour = (activeSchedule[7] - '0') * 10 + activeSchedule[8] - '0';
+	minute = (activeSchedule[9] - '0') * 10 + activeSchedule[10] - '0';
+	if (hour > 23 || minute > 59)
+		return 0;
 
 	setenv("TZ", nvram_safe_get("time_zone_x"), 1);
 
 	time(&now);
 	tm = localtime(&now);
+	if (!tm)
+		return 0;
 	current_time = tm->tm_hour * 60 + tm->tm_min;
-	current_date = 1 << (6-tm->tm_wday);
+	current_date = 1 << (6 - tm->tm_wday);
 	active = 0;
-	Time2Active = 0;
+	Time2Active = hour * 60 + minute;
 	Date2Active = 0;
 
-	Time2Active = ((activeSchedule[7]-'0')*10 + (activeSchedule[8]-'0'))*60 + ((activeSchedule[9]-'0')*10 + (activeSchedule[10]-'0'));
+	for (i = 0; i <= 6; i++)
+		Date2Active |= (activeSchedule[i] - '0') << (6 - i);
 
-	for(i=0;i<=6;i++) {
-		Date2Active += (activeSchedule[i]-'0') << (6-i);
-	}
-
-	if ((current_time == Time2Active) && (Date2Active & current_date))	active = 1;
+	if ((current_time == Time2Active) && (Date2Active & current_date))
+		active = 1;
 
 	//dbG("[watchdog] current_time=%d, ActiveTime=%d, current_date=%d, ActiveDate=%d, active=%d\n",
 	//	current_time, Time2Active, current_date, Date2Active, active);
@@ -382,7 +399,7 @@ svc_timecheck(void)
 		if (nvram_match("ntp_ready", "1"))
 		{
 			snprintf(reboot_schedule, sizeof(reboot_schedule), "%s", nvram_safe_get("reboot_schedule"));
-			if (strlen(reboot_schedule) == 11 && atoi(reboot_schedule) > 2359)
+			if (strlen(reboot_schedule) == 11)
 			{
 				if (timecheck_reboot(reboot_schedule))
 				{
@@ -401,7 +418,7 @@ svc_timecheck(void)
 		if (nvram_match("ntp_ready", "1"))
 		{
 			snprintf(ss_schedule, sizeof(ss_schedule), "%s", nvram_safe_get("ss_schedule"));
-			if (strlen(ss_schedule) == 11 && atoi(ss_schedule) > 2359)
+			if (strlen(ss_schedule) == 11)
 			{
 				if (timecheck_reboot(ss_schedule))
 				{
