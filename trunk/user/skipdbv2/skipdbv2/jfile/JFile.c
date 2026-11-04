@@ -54,9 +54,30 @@ void JFile_free(JFile *self)
 
 void JFile_setPath_(JFile *self, const char *path)
 {
-	self->path    = strcpy((char *)realloc(self->path,    strlen(path)+1), path);
-	self->logPath = strcpy((char *)realloc(self->logPath, strlen(path)+5), path);
-	strcat(self->logPath,  ".log");
+	size_t path_len;
+	char *new_path, *new_log_path;
+
+	if (NULL == self || NULL == path)
+		return;
+	path_len = strlen(path);
+	if (path_len > (size_t)-1 - 5)
+		return;
+
+	new_path = (char *)malloc(path_len + 1);
+	new_log_path = (char *)malloc(path_len + 5);
+	if (NULL == new_path || NULL == new_log_path) {
+		free(new_path);
+		free(new_log_path);
+		return;
+	}
+	memcpy(new_path, path, path_len + 1);
+	memcpy(new_log_path, path, path_len);
+	memcpy(new_log_path + path_len, ".log", 5);
+
+	free(self->path);
+	free(self->logPath);
+	self->path = new_path;
+	self->logPath = new_log_path;
 }
 
 char *JFile_fileName(JFile *self)
@@ -71,20 +92,55 @@ char *JFile_fileName(JFile *self)
 
 void JFile_setLogPath_(JFile *self, const char *path)
 {
-	char *fileName = JFile_fileName(self);
-	self->logPath = strcpy((char *)realloc(self->logPath, strlen(path) + strlen(fileName)+10), path);
-	if (self->logPath[strlen(self->logPath)-1] != '/') strcat(self->logPath, "/");
-	strcat(self->logPath, fileName);
-	strcat(self->logPath,  ".log");
+	const char *file_name;
+	size_t path_len, name_len, need_slash, total_len;
+	char *new_log_path;
+
+	if (NULL == self || NULL == path || NULL == self->path)
+		return;
+	file_name = JFile_fileName(self);
+	if (file_name && (*file_name == '/' || *file_name == '\\'))
+		++file_name;
+	if (NULL == file_name || '\0' == *file_name)
+		return;
+
+	path_len = strlen(path);
+	name_len = strlen(file_name);
+	need_slash = path_len > 0 && path[path_len - 1] != '/';
+	if (path_len > (size_t)-1 - name_len - 6 - need_slash)
+		return;
+	total_len = path_len + need_slash + name_len + 5;
+	new_log_path = (char *)malloc(total_len);
+	if (NULL == new_log_path)
+		return;
+
+	memcpy(new_log_path, path, path_len);
+	if (need_slash)
+		new_log_path[path_len] = '/';
+	memcpy(new_log_path + path_len + need_slash, file_name, name_len);
+	memcpy(new_log_path + path_len + need_slash + name_len, ".log", 5);
+	free(self->logPath);
+	self->logPath = new_log_path;
 }
 
 void JFile_setPath_withExtension_(JFile *self, const char *path, const char *ext)
 {
-	size_t length = strlen(path) + 1 + strlen(ext) + 1;
-	char *s = (char *)calloc(1, length);
-	strcat(s, path);
-	strcat(s, ".");
-	strcat(s, ext);
+	size_t path_len, ext_len, length;
+	char *s;
+
+	if (NULL == self || NULL == path || NULL == ext)
+		return;
+	path_len = strlen(path);
+	ext_len = strlen(ext);
+	if (path_len > (size_t)-1 - ext_len - 2)
+		return;
+	length = path_len + ext_len + 2;
+	s = (char *)malloc(length);
+	if (NULL == s)
+		return;
+	memcpy(s, path, path_len);
+	s[path_len] = '.';
+	memcpy(s + path_len + 1, ext, ext_len + 1);
 	JFile_setPath_(self, s);
 	free(s);
 }
