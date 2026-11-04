@@ -290,6 +290,18 @@ static int ignore_result(dbclient *client,
         memcmp(key_start, key, key_len) != 0)
         return -4;
 
+    /*
+     * dbapi_bulk's only in-tree writer is "set". Its success payload is
+     * exactly "ok\n"; a correctly framed database/size error must not be
+     * reported as a successful write.
+     */
+    if (strcmp(command, "set") == 0 || strcmp(command, "ram") == 0) {
+        char *payload = key_end + 1;
+        size_t payload_len = (size_t)(client->buf + n2 - payload);
+        if (payload_len != 3 || memcmp(payload, "ok\n", 3) != 0)
+            return -5;
+    }
+
     return 0;
 }
 
