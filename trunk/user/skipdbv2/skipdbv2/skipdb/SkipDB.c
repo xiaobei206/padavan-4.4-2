@@ -466,35 +466,34 @@ int SkipDB_pickRandomRecordLevel(SkipDB *self)
 
 SkipDBRecord *SkipDB_recordAtPid_(SkipDB *self, PID_TYPE pid)
 {
-	if (pid)
-	{
-		SkipDBRecord *r = PHash_at_(self->pidToRecord, (void *)pid);
+	SkipDBRecord *record;
+	Datum data;
 
-		if (r)
-		{
-			return r;
-		}
-		else
-		{
-			Datum d = UDB_at_(SkipDB_udb(self), pid);
+	if (NULL == self || pid == 0 || NULL == self->pidToRecord ||
+		NULL == self->stream || !SkipDB_isOpen(self))
+		return NULL;
 
-			if (d.size)
-			{
-				SkipDBRecord *r = SkipDBRecord_newWithDB_(self);
-				BStream_setData_length_(self->stream, d.data, d.size); // need to optimize this out
-				SkipDBRecord_fromStream_(r, self->stream);
-				SkipDBRecord_pid_(r, pid);
-				return r;
-			}
-		}
+	record = (SkipDBRecord *)PHash_at_(self->pidToRecord, (void *)pid);
+	if (record)
+		return record;
 
-		if (pid != 1)
-		{
-			UDB *udb = SkipDB_udb(self);
-			printf("MISSING SKIP RECORD WITH PID: %" PID_FORMAT "\n", pid);
-			UDB_at_(udb, pid);
+	data = UDB_at_(SkipDB_udb(self), pid);
+	if (data.size > 0 && data.data != NULL) {
+		record = SkipDBRecord_newWithDB_(self);
+		if (NULL == record)
+			return NULL;
+		BStream_setData_length_(self->stream, data.data, data.size);
+		if (!SkipDBRecord_fromStream_(record, self->stream)) {
+			fprintf(stderr, "SkipDB: invalid serialized record for PID %" PID_FORMAT "\n", pid);
+			SkipDBRecord_dealloc(record);
+			return NULL;
 		}
+		SkipDBRecord_pid_(record, pid);
+		return record;
 	}
+
+	if (pid != 1)
+		fprintf(stderr, "SkipDB: missing record for PID %" PID_FORMAT "\n", pid);
 	return NULL;
 }
 
