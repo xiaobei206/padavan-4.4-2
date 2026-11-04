@@ -569,8 +569,13 @@ const char *UArray_asCString(const UArray *self)
 
 void UArray_stackFree(UArray *self)
 {
-	if (self && self->data)
+	if (NULL == self)
+		return;
+	if (self->data && !self->stackAllocated)
 		io_free(self->data);
+	self->data = NULL;
+	self->size = 0;
+	self->hash = 0;
 }
 
 void UArray_free(UArray *self)
