@@ -46,6 +46,44 @@
 #include "common.h"
 #include "httpd.h"
 
+static int
+write_escaped_html_field(webs_t wp, const char *text)
+{
+	const unsigned char *p;
+	int ret = 0;
+
+	if (!text)
+		return 0;
+
+	for (p = (const unsigned char *)text; *p; ++p) {
+		switch (*p) {
+		case '&':
+			ret += websWrite(wp, "%s", "&amp;");
+			break;
+		case '<':
+			ret += websWrite(wp, "%s", "&lt;");
+			break;
+		case '>':
+			ret += websWrite(wp, "%s", "&gt;");
+			break;
+		case '"':
+			ret += websWrite(wp, "%s", "&quot;");
+			break;
+		case '\'':
+			ret += websWrite(wp, "%s", "&#39;");
+			break;
+		default:
+			if (*p < 0x20 || *p == 0x7f)
+				ret += websWrite(wp, "%s", " ");
+			else
+				ret += websWrite(wp, "%c", (int)*p);
+			break;
+		}
+	}
+
+	return ret;
+}
+
 /******************************************************************************************************************************************/
 
 /* Dump leases in <tr><td>hostname</td><td>MAC</td><td>IP</td><td>expires</td></tr> format */
@@ -83,7 +121,7 @@ ej_lan_leases(int eid, webs_t wp, int argc, char **argv)
 			continue;
 		}
 #endif
-		strcat(dh_lease, " secs");
+		/* Lease expiration is not displayed in this table. */
 
 		if (!dh_host[0])
 			strcpy(dh_host, "*");
@@ -94,7 +132,8 @@ ej_lan_leases(int eid, webs_t wp, int argc, char **argv)
 
 		ret += websWrite(wp, "%-19s", (dh_ip[0]!=0) ? dh_ip : " ");
 		ret += websWrite(wp, "%-21s", (dh_mac[0]!=0) ? dh_mac : " " );
-		ret += websWrite(wp, "%s\n",  dh_host);
+		ret += write_escaped_html_field(wp, dh_host);
+			ret += websWrite(wp, "\n");
 	}
 	fclose(fp);
 
@@ -117,13 +156,14 @@ ej_lan_leases(int eid, webs_t wp, int argc, char **argv)
 			if (inet_pton(AF_INET6, dh_ip, &addr6) == 0)
 				continue;
 
-			strcat(dh_lease, " secs");
+			/* Lease expiration is not displayed in this table. */
 
 			if (!dh_host[0])
 				strcpy(dh_host, "*");
 
 			ret += websWrite(wp, "%-40s", (dh_ip[0]!=0) ? dh_ip : " ");
-			ret += websWrite(wp, "%s\n",  dh_host);
+			ret += write_escaped_html_field(wp, dh_host);
+			ret += websWrite(wp, "\n");
 		}
 		fclose(fp);
 	}
