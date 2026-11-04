@@ -34,3 +34,5 @@ c3871a7  apply_customization.py: correct C macro matcher whitespace pattern.
 2d21823  setip.sh: route LAN IP edits through validated helper.
 bfba14d  setaccount.sh: route account edits through validated helper.
 e213d85  setwifi.sh: route Wi-Fi edits through validated helper.
+fd32038  flash_mtd.c: guard erase/write geometry and UBI-aligned int lengths.
+8e227a1  flash_mtd.c: reject short UBI alignment reads before programming.
