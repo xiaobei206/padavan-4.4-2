@@ -47,6 +47,59 @@
 #include "common.h"
 #include "httpd.h"
 
+static size_t
+mac_table_entry_limit(size_t buffer_size, size_t response_size,
+		      size_t entries_offset, size_t entry_size)
+{
+	size_t available;
+
+	if (entry_size == 0 || buffer_size <= entries_offset)
+		return 0;
+	available = buffer_size;
+	if (response_size > 0 && response_size < available) {
+		if (response_size <= entries_offset)
+			return 0;
+		available = response_size;
+	}
+	return (available - entries_offset) / entry_size;
+}
+
+static void
+limit_mac_table(RT_802_11_MAC_TABLE *table, size_t buffer_size,
+		size_t response_size)
+{
+	size_t limit, declared;
+
+	if (!table)
+		return;
+	declared = sizeof(table->Entry) / sizeof(table->Entry[0]);
+	limit = mac_table_entry_limit(buffer_size, response_size,
+				      offsetof(RT_802_11_MAC_TABLE, Entry),
+				      sizeof(table->Entry[0]));
+	if (limit > declared)
+		limit = declared;
+	if (table->Num > limit)
+		table->Num = limit;
+}
+
+static void
+limit_mac_table_inic(RT_802_11_MAC_TABLE_INIC *table, size_t buffer_size,
+		     size_t response_size)
+{
+	size_t limit, declared;
+
+	if (!table)
+		return;
+	declared = sizeof(table->Entry) / sizeof(table->Entry[0]);
+	limit = mac_table_entry_limit(buffer_size, response_size,
+				      offsetof(RT_802_11_MAC_TABLE_INIC, Entry),
+				      sizeof(table->Entry[0]));
+	if (limit > declared)
+		limit = declared;
+	if (table->Num > limit)
+		table->Num = limit;
+}
+
 static int
 write_escaped_html_field(webs_t wp, const char *text)
 {
@@ -974,6 +1027,7 @@ is_mac_in_sta_list(const unsigned char* p_mac)
 	wrq.u.data.flags = 0;
 	if (wl_ioctl(IFNAME_5G_MAIN, RTPRIV_IOCTL_GET_MAC_TABLE_STRUCT, &wrq) >= 0) {
 		RT_802_11_MAC_TABLE *mp = (RT_802_11_MAC_TABLE *)wrq.u.data.pointer;
+		limit_mac_table(mp, sizeof(mac_table_data), wrq.u.data.length);
 		for (i = 0; i < mp->Num; i++) {
 			if (memcmp(mp->Entry[i].Addr, p_mac, ETHER_ADDR_LEN) == 0)
 #if defined (BOARD_MT7915_DBDC)
@@ -999,6 +1053,7 @@ is_mac_in_sta_list(const unsigned char* p_mac)
 	wrq.u.data.flags = 0;
 	if (wl_ioctl(IFNAME_2G_MAIN, RTPRIV_IOCTL_GET_MAC_TABLE, &wrq) >= 0) {
 		RT_802_11_MAC_TABLE_INIC *mp = (RT_802_11_MAC_TABLE_INIC *)wrq.u.data.pointer;
+		limit_mac_table_inic(mp, sizeof(mac_table_data), wrq.u.data.length);
 		for (i = 0; i < mp->Num; i++) {
 			if (memcmp(mp->Entry[i].Addr, p_mac, ETHER_ADDR_LEN) == 0)
 				return (mp->Entry[i].ApIdx == 0) ? 1 : 2;
@@ -1012,6 +1067,7 @@ is_mac_in_sta_list(const unsigned char* p_mac)
 	wrq.u.data.flags = 0;
 	if (wl_ioctl(IFNAME_2G_MAIN, RTPRIV_IOCTL_GET_MAC_TABLE_STRUCT, &wrq) >= 0) {
 		RT_802_11_MAC_TABLE *mp = (RT_802_11_MAC_TABLE *)wrq.u.data.pointer;
+		limit_mac_table(mp, sizeof(mac_table_data), wrq.u.data.length);
 		for (i = 0; i < mp->Num; i++) {
 			if (memcmp(mp->Entry[i].Addr, p_mac, ETHER_ADDR_LEN) == 0)
 #if defined (BOARD_MT7615_DBDC)
@@ -1235,6 +1291,7 @@ print_mac_table_inic(webs_t wp, const char *wif_name, int num_ss_rx, int is_gues
 
 	if (wl_ioctl(wif_name, RTPRIV_IOCTL_GET_MAC_TABLE, &wrq) >= 0) {
 		mp = (RT_802_11_MAC_TABLE_INIC*)wrq.u.data.pointer;
+		limit_mac_table_inic(mp, sizeof(mac_table_data), wrq.u.data.length);
 
 		ret += print_sta_list_inic(wp, mp, num_ss_rx, 0);
 		if (is_guest_on)
@@ -1368,6 +1425,7 @@ print_mac_table(webs_t wp, const char *wif_name, int num_ss_rx, int is_guest_on)
 
 	if (wl_ioctl(wif_name, RTPRIV_IOCTL_GET_MAC_TABLE_STRUCT, &wrq) >= 0) {
 		mp = (RT_802_11_MAC_TABLE*)wrq.u.data.pointer;
+		limit_mac_table(mp, sizeof(mac_table_data), wrq.u.data.length);
 #if defined (BOARD_MT7615_DBDC) || defined (BOARD_MT7915_DBDC)
 		ret += print_sta_list(wp, mp, num_ss_rx, apidx); 
 #else
@@ -1633,6 +1691,7 @@ ej_wl_auth_list(int eid, webs_t wp, int argc, char **argv)
 	if (wl_ioctl(IFNAME_5G_MAIN, RTPRIV_IOCTL_GET_MAC_TABLE_STRUCT, &wrq) >= 0)
 	{
 		RT_802_11_MAC_TABLE *mp = (RT_802_11_MAC_TABLE *)wrq.u.data.pointer;
+		limit_mac_table(mp, sizeof(mac_table_data), wrq.u.data.length);
 		num_ss_rx = nvram_wlan_get_int(1, "stream_rx");
 		for (i=0; i<mp->Num; i++)
 		{
@@ -1665,6 +1724,7 @@ ej_wl_auth_list(int eid, webs_t wp, int argc, char **argv)
 	if (wl_ioctl(IFNAME_2G_MAIN, RTPRIV_IOCTL_GET_MAC_TABLE, &wrq) >= 0)
 	{
 		RT_802_11_MAC_TABLE_INIC *mp = (RT_802_11_MAC_TABLE_INIC *)wrq.u.data.pointer;
+		limit_mac_table_inic(mp, sizeof(mac_table_data), wrq.u.data.length);
 		for (i = 0; i < mp->Num; i++)
 		{
 			sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1689,6 +1749,7 @@ ej_wl_auth_list(int eid, webs_t wp, int argc, char **argv)
 	if (wl_ioctl(IFNAME_2G_MAIN, RTPRIV_IOCTL_GET_MAC_TABLE_STRUCT, &wrq) >= 0)
 	{
 		RT_802_11_MAC_TABLE *mp = (RT_802_11_MAC_TABLE *)wrq.u.data.pointer;
+		limit_mac_table(mp, sizeof(mac_table_data), wrq.u.data.length);
 		for (i = 0; i < mp->Num; i++)
 		{
 			sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X",
