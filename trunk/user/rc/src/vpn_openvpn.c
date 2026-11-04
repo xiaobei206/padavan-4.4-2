@@ -1059,7 +1059,15 @@ ovpn_server_expcli_main(int argc, char **argv)
 	/* Generate client cert and key */
 	doSystem("rm -rf %s", tmp_ovpn_path);
 	setenv("CRT_PATH_CLI", tmp_ovpn_path, 1);
-	doSystem("/usr/bin/openvpn-cert.sh %s -n '%s' -b %s -d %d", "client", argv[1], rsa_bits, days_valid);
+	{
+		char days_arg[16];
+		char *cert_argv[] = {
+			"/usr/bin/openvpn-cert.sh", "client", "-n", argv[1],
+			"-b", rsa_bits, "-d", days_arg, NULL
+		};
+		snprintf(days_arg, sizeof(days_arg), "%d", days_valid);
+		_eval(cert_argv, NULL, 0, NULL);
+	}
 	unsetenv("CRT_PATH_CLI");
 
 	i_prot = nvram_get_int("vpns_ov_prot");
