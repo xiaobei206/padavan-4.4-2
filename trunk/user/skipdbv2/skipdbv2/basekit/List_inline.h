@@ -151,6 +151,8 @@ IOINLINE void List_appendSeq_(List *self, const List *otherList)
 		return;
 	if (self == otherList) {
 		oldSize = self->size;
+		if (oldSize == 0)
+			return;
 		List_ifNeededSizeTo_(self, oldSize * 2);
 		if (oldSize * 2 > self->memSize / sizeof(void *))
 			return;
