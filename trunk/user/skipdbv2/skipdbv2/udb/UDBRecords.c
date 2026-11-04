@@ -97,7 +97,8 @@ void UDBRecords_commit(UDBRecords *self)
 
 UDBRecord *UDBRecords_firstRecord(UDBRecords *self)
 {
-	return UDBRecords_recordAtPos_(self, 1);
+	/* The data file begins with firstEmptyPos at offset zero. */
+	return UDBRecords_recordAtPos_(self, sizeof(PID_TYPE));
 }
 
 UDBRecord *UDBRecords_newRecord(UDBRecords *self)
