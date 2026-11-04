@@ -1517,51 +1517,86 @@ size_t UArray_wrapPos_(const UArray *self, long pos)
 	return size - distance;
 }
 
-int cmp_uint8_t (const uint8_t  *a, const uint8_t *b)     { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
-int cmp_uint16_t(const uint16_t *a, const uint16_t *b)    { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
-int cmp_uint32_t(const uint32_t *a, const uint32_t *b)    { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
-int cmp_uint64_t(const uint64_t *a, const uint64_t *b)    { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
+#define DEFINE_UARRAY_COMPARATOR(name, type) \
+static int name(const void *va, const void *vb) \
+{ \
+	const type a = *(const type *)va; \
+	const type b = *(const type *)vb; \
+	return a == b ? 0 : (a < b ? -1 : 1); \
+}
 
-int cmp_int8_t (const int8_t  *a, const int8_t  *b)       { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
-int cmp_int16_t(const int16_t *a, const int16_t *b)       { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
-int cmp_int32_t(const int32_t *a, const int32_t *b)       { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
-int cmp_int64_t(const int64_t *a, const int64_t *b)       { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
+DEFINE_UARRAY_COMPARATOR(cmp_uint8_t, uint8_t)
+DEFINE_UARRAY_COMPARATOR(cmp_uint16_t, uint16_t)
+DEFINE_UARRAY_COMPARATOR(cmp_uint32_t, uint32_t)
+DEFINE_UARRAY_COMPARATOR(cmp_uint64_t, uint64_t)
+DEFINE_UARRAY_COMPARATOR(cmp_int8_t, int8_t)
+DEFINE_UARRAY_COMPARATOR(cmp_int16_t, int16_t)
+DEFINE_UARRAY_COMPARATOR(cmp_int32_t, int32_t)
+DEFINE_UARRAY_COMPARATOR(cmp_int64_t, int64_t)
+DEFINE_UARRAY_COMPARATOR(cmp_uintptr_t, uintptr_t)
 
-int cmp_float32_t(const float32_t *a, const float32_t *b) { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
-int cmp_float64_t(const float64_t *a, const float64_t *b) { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
-int cmp_uintptr_t(const uintptr_t *a, const uintptr_t *b) { return *a == *b ? 0 : (*a < *b ? -1 : 1); }
+static int cmp_float32_t(const void *va, const void *vb)
+{
+	float32_t a = *(const float32_t *)va;
+	float32_t b = *(const float32_t *)vb;
+	if (isnan(a)) return isnan(b) ? 0 : 1;
+	if (isnan(b)) return -1;
+	return a < b ? -1 : (a > b ? 1 : 0);
+}
+
+static int cmp_float64_t(const void *va, const void *vb)
+{
+	float64_t a = *(const float64_t *)va;
+	float64_t b = *(const float64_t *)vb;
+	if (isnan(a)) return isnan(b) ? 0 : 1;
+	if (isnan(b)) return -1;
+	return a < b ? -1 : (a > b ? 1 : 0);
+}
+
+#undef DEFINE_UARRAY_COMPARATOR
 
 void UArray_sort(UArray *self)
 {
-	void *base = self->data;
-	size_t size = self->size;
-
+	void *base;
+	size_t size;
+	if (NULL == self || (self->size > 0 && NULL == self->data))
+		return;
+	base = self->data;
+	size = self->size;
 	UArray_changed(self);
+	if (size < 2)
+		return;
 
 	switch(self->itemType)
 	{
-		case CTYPE_uint8_t:   qsort(base, size,  sizeof(uint8_t),  (UArraySortCallback *)cmp_uint8_t);   return;
-		case CTYPE_uint16_t:  qsort(base, size, sizeof(uint16_t),  (UArraySortCallback *)cmp_uint16_t);  return;
-		case CTYPE_uint32_t:  qsort(base, size, sizeof(uint32_t),  (UArraySortCallback *)cmp_uint32_t);  return;
-		case CTYPE_uint64_t:  qsort(base, size, sizeof(uint64_t),  (UArraySortCallback *)cmp_uint64_t);  return;
+		case CTYPE_uint8_t:   qsort(base, size,  sizeof(uint8_t),  cmp_uint8_t);   return;
+		case CTYPE_uint16_t:  qsort(base, size, sizeof(uint16_t),  cmp_uint16_t);  return;
+		case CTYPE_uint32_t:  qsort(base, size, sizeof(uint32_t),  cmp_uint32_t);  return;
+		case CTYPE_uint64_t:  qsort(base, size, sizeof(uint64_t),  cmp_uint64_t);  return;
 
-		case CTYPE_int8_t:    qsort(base, size,  sizeof(int8_t),   (UArraySortCallback *)cmp_int8_t);    return;
-		case CTYPE_int16_t:   qsort(base, size, sizeof(int16_t),   (UArraySortCallback *)cmp_int16_t);   return;
-		case CTYPE_int32_t:   qsort(base, size, sizeof(int32_t),   (UArraySortCallback *)cmp_int32_t);   return;
-		case CTYPE_int64_t:   qsort(base, size, sizeof(int64_t),   (UArraySortCallback *)cmp_int64_t);   return;
+		case CTYPE_int8_t:    qsort(base, size,  sizeof(int8_t),   cmp_int8_t);    return;
+		case CTYPE_int16_t:   qsort(base, size, sizeof(int16_t),   cmp_int16_t);   return;
+		case CTYPE_int32_t:   qsort(base, size, sizeof(int32_t),   cmp_int32_t);   return;
+		case CTYPE_int64_t:   qsort(base, size, sizeof(int64_t),   cmp_int64_t);   return;
 
-		case CTYPE_float32_t: qsort(base, size, sizeof(float32_t), (UArraySortCallback *)cmp_float32_t); return;
-		case CTYPE_float64_t: qsort(base, size, sizeof(float64_t), (UArraySortCallback *)cmp_float64_t); return;
-		case CTYPE_uintptr_t: qsort(base, size, sizeof(uintptr_t), (UArraySortCallback *)cmp_uintptr_t); return;
+		case CTYPE_float32_t: qsort(base, size, sizeof(float32_t), cmp_float32_t); return;
+		case CTYPE_float64_t: qsort(base, size, sizeof(float64_t), cmp_float64_t); return;
+		case CTYPE_uintptr_t: qsort(base, size, sizeof(uintptr_t), cmp_uintptr_t); return;
 	}
 }
 
 void UArray_sortBy_(UArray *self, UArraySortCallback *cmp)
 {
-	void *base = self->data;
-	size_t size = self->size;
-
+	void *base;
+	size_t size;
+	if (NULL == self || NULL == cmp ||
+		(self->size > 0 && NULL == self->data))
+		return;
+	base = self->data;
+	size = self->size;
 	UArray_changed(self);
+	if (size < 2)
+		return;
 
 	switch(self->itemType)
 	{
