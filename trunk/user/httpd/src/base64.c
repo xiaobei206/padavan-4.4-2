@@ -60,10 +60,13 @@ b64_decode(const char* str, unsigned char* space, int size )
 	int space_idx, phase;
 	unsigned char c;
 
+	if (!str || !space || size <= 0)
+		return -1;
+
 	space_idx = 0;
 	phase = 0;
 	for ( cp = str; *cp != '\0'; ++cp ) {
-		d = (int)b64_decode_table[(int)*cp];
+		d = (int)b64_decode_table[(unsigned char)*cp];
 		if ( d != -1 ) {
 			switch ( phase )
 			{
