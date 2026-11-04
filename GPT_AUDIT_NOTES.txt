@@ -303,3 +303,10 @@ ad22b29/5baa3fd/d74553d  correct C string escaping for the end-marker payload an
 4019021  SkipDBRecord.c: reconstruct missing reverse links from the authoritative forward skip-list after database reopen, without dirtying records.
 5bb43ee  tests/skipdb_cursor_previous.c: verify previous() across three persisted records and the first-record boundary after reopen.
 c9bfb3d  CMakeLists.txt: register the reverse-cursor persistence regression test.
+4019021  SkipDBRecord.c: reconstruct missing reverse links from the authoritative forward skip-list after database reopen, without dirtying records.
+5bb43ee  tests/skipdb_cursor_previous.c: verify previous() across three persisted records and the first-record boundary after reopen.
+c9bfb3d  CMakeLists.txt: register the reverse-cursor persistence regression test.
+1fa22b9  CMakeLists.txt: link protocol regression targets with their required libraries.
+ea2fe7d  tests/dbapi_protocol.c: rename the included dbapi CLI entry point to avoid duplicate main.
+a02ede3/78eeb36  dbus.c/dbapi.c: correct C NUL/newline escapes in list-frame parsers.
+Verification: repository source and commit diffs reviewed. Network access to clone/build the repository was unavailable; no firmware build or CTest execution is claimed.
