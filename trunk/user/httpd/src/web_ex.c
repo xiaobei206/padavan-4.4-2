@@ -3563,24 +3563,26 @@ int ej_shown_language_option(int eid, webs_t wp, int argc, char **argv) {
 			continue;
 		
 		follow_info += 5;
-		follow_info_end = strstr(follow_info, "=");
-		len = follow_info_end-follow_info;
-		if (len < 1 || len >= sizeof(key))
+		follow_info_end = strchr(follow_info, '=');
+		if (!follow_info_end)
 			continue;
-		
-		strncpy(key, follow_info, len);
-		key[len] = 0;
-		
-		follow_info = follow_info_end+1;
-		follow_info_end = strstr(follow_info, "\n");
-		len = follow_info_end-follow_info;
+		len = follow_info_end - follow_info;
+		if (len < 1 || len >= (int)sizeof(key))
+			continue;
+
+		memcpy(key, follow_info, (size_t)len);
+		key[len] = '\0';
+
+		follow_info = follow_info_end + 1;
+		follow_info_end = strchr(follow_info, '\n');
+		len = follow_info_end ? (int)(follow_info_end - follow_info) : (int)strlen(follow_info);
 		if (len < 1)
 			continue;
-		
-		if (len >= sizeof(target))
+
+		if (len >= (int)sizeof(target))
 			len = sizeof(target) - 1;
-		strncpy(target, follow_info, len);
-		target[len] = 0;
+		memcpy(target, follow_info, (size_t)len);
+		target[len] = '\0';
 		
 		for (pLang = language_tables; pLang->Lang != NULL; ++pLang) {
 			if (strcmp(key, pLang->Target_Lang))
