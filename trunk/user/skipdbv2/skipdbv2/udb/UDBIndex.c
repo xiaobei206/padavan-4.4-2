@@ -217,20 +217,27 @@ int UDBIndex_findHoles(UDBIndex *self)
 PID_TYPE UDBIndex_nextPid(UDBIndex *self)
 {
 	PID_TYPE hole;
+	long end_pos;
+
 	if (NULL == self || NULL == self->holes || NULL == self->file ||
 		NULL == self->file->file)
 		return 0;
 	hole = (PID_TYPE)List_top(self->holes);
 	if (hole)
 		return hole;
-	return (PID_TYPE)JFile_setPositionToEnd(self->file) /
-		sizeof(UDBIndexEntry);
+
+	end_pos = JFile_setPositionToEnd(self->file);
+	if (end_pos < 0 ||
+		end_pos % (long)sizeof(UDBIndexEntry) != 0)
+		return 0;
+	return (PID_TYPE)(end_pos / (long)sizeof(UDBIndexEntry));
 }
 
 PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 {
 	PID_TYPE hole, pid, max, old_max_pid;
 	size_t old_reserved_size;
+	long end_pos;
 
 	if (NULL == self || NULL == self->holes || NULL == self->reserved ||
 		NULL == self->file || NULL == self->file->file)
@@ -249,9 +256,13 @@ PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 		return hole;
 	}
 
+	/* A failed seek returns -1; never cast it to PID_TYPE before checking. */
+	end_pos = JFile_setPositionToEnd(self->file);
+	if (end_pos < 0 ||
+		end_pos % (long)sizeof(UDBIndexEntry) != 0)
+		return 0;
 	old_max_pid = self->maxPid;
-	max = (PID_TYPE)JFile_setPositionToEnd(self->file) /
-		sizeof(UDBIndexEntry);
+	max = (PID_TYPE)(end_pos / (long)sizeof(UDBIndexEntry));
 	if (max > self->maxPid)
 		pid = max;
 	else {
