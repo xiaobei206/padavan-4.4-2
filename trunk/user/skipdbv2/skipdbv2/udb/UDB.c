@@ -290,8 +290,11 @@ void UDB_open(UDB *self)
 		UDB_close(self);
 		return;
 	}
-	/* Persist creation of the index/data/commit files before exposing the DB. */
-	if (UDB_syncParentDirectory(self->path) != 0) {
+	/* Persist directories containing data, commit marker, and both journals. */
+	if (UDB_syncParentDirectory(self->path) != 0 ||
+		UDB_syncParentDirectory(self->committedPath) != 0 ||
+		UDB_syncParentDirectory(self->index->file->logPath) != 0 ||
+		UDB_syncParentDirectory(self->records->file->logPath) != 0) {
 		UDB_close(self);
 		return;
 	}
