@@ -932,12 +932,17 @@ check_if_dev_exist(const char *devpath)
 }
 
 static int
-mkdir_component_if_missing(const char *path, mode_t mode)
+mkdir_component_if_missing(const char *path, mode_t mode, int *created)
 {
 	struct stat st;
 
-	if (mkdir(path, mode) == 0)
+	if (created)
+		*created = 0;
+	if (mkdir(path, mode) == 0) {
+		if (created)
+			*created = 1;
 		return 0;
+	}
 	if (errno != EEXIST)
 		return -1;
 	if (stat(path, &st) < 0)
@@ -953,9 +958,10 @@ int
 mkdir_if_none(const char *dirpath, const char *mode)
 {
 	char *path, *p, *end;
+	struct stat st;
 	unsigned long parsed_mode;
 	size_t len;
-	int ret = 0;
+	int ret = 0, created;
 
 	if (!dirpath || !*dirpath || !mode || !*mode)
 		return 0;
@@ -973,22 +979,31 @@ mkdir_if_none(const char *dirpath, const char *mode)
 	while (len > 1 && path[len - 1] == '/')
 		path[--len] = '\0';
 
+	if (stat(path, &st) == 0) {
+		free(path);
+		return 0;
+	}
+	if (errno != ENOENT) {
+		free(path);
+		return 0;
+	}
+
 	if (len == 1 && path[0] == '/') {
 		free(path);
-		return 1;
+		return 0;
 	}
 
 	for (p = path + (path[0] == '/' ? 1 : 0); *p; p++) {
 		if (*p == '/') {
 			*p = '\0';
-			if (*path && mkdir_component_if_missing(path, 0777) < 0)
+			if (*path && mkdir_component_if_missing(path, 0777, NULL) < 0)
 				goto out;
 			*p = '/';
 		}
 	}
 
-	if (mkdir_component_if_missing(path, (mode_t)parsed_mode) == 0)
-		ret = 1;
+	if (mkdir_component_if_missing(path, (mode_t)parsed_mode, &created) == 0)
+		ret = created;
 
 out:
 	free(path);
