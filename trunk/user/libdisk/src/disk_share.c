@@ -194,85 +194,94 @@ int get_all_folder_in_mount_path(const char *const mount_path, int *sh_num, char
 {
 	DIR *pool_to_open;
 	struct dirent *dp;
-	char *testdir;
-	char **tmp_folder_list, **tmp_folder;
-	int len, i;
+	char *testdir, *folder_name;
+	char **tmp_folder_list = NULL, **new_folder_list;
+	int count = 0, i;
+	size_t mount_len, name_len, path_len;
 
-	tmp_folder_list = NULL;
+	if (!mount_path || !*mount_path || !sh_num || !folder_list)
+		return -1;
+
+	*sh_num = 0;
+	*folder_list = NULL;
+	mount_len = strlen(mount_path);
 
 	pool_to_open = opendir(mount_path);
 	if (!pool_to_open)
 		return -1;
 
-	*sh_num = 0;
 	while ((dp = readdir(pool_to_open)) != NULL) {
 		if (dp->d_name[0] == '.')
 			continue;
-		
 		if (test_if_System_folder(dp->d_name) == 1)
 			continue;
-		
-		len = strlen(mount_path)+strlen("/")+strlen(dp->d_name);
-		testdir = (char *)malloc(sizeof(char)*(len+1));
-		if (testdir == NULL) {
-			closedir(pool_to_open);
-			return -1;
-		}
-		sprintf(testdir, "%s/%s", mount_path, dp->d_name);
-		testdir[len] = 0;
+
+		name_len = strlen(dp->d_name);
+		if (mount_len > (size_t)-1 - name_len - 2)
+			goto failed;
+
+		path_len = mount_len + name_len + 1;
+		testdir = (char *)malloc(path_len + 1);
+		if (!testdir)
+			goto failed;
+
+		snprintf(testdir, path_len + 1, "%s/%s", mount_path, dp->d_name);
 		if (!test_if_dir(testdir)) {
 			free(testdir);
 			continue;
 		}
 		free(testdir);
-		
-		tmp_folder = (char **)malloc(sizeof(char *)*(*sh_num+1));
-		if (tmp_folder == NULL) {
-			return -1;
+
+		if (count == INT_MAX ||
+		    (size_t)count >= (size_t)-1 / sizeof(*tmp_folder_list))
+			goto failed;
+
+		folder_name = (char *)malloc(name_len + 1);
+		if (!folder_name)
+			goto failed;
+		memcpy(folder_name, dp->d_name, name_len + 1);
+
+		new_folder_list = (char **)realloc(tmp_folder_list,
+						  sizeof(*tmp_folder_list) * (size_t)(count + 1));
+		if (!new_folder_list) {
+			free(folder_name);
+			goto failed;
 		}
-		
-		len = strlen(dp->d_name);
-		tmp_folder[*sh_num] = (char *)malloc(sizeof(char)*(len+1));
-		if (tmp_folder[*sh_num] == NULL) {
-			free(tmp_folder);
-			
-			return -1;
-		}
-		strcpy(tmp_folder[*sh_num], dp->d_name);
-		if (*sh_num != 0) {
-			for (i = 0; i < *sh_num; ++i)
-				tmp_folder[i] = tmp_folder_list[i];
-			free(tmp_folder_list);
-			tmp_folder_list = tmp_folder;
-		}
-		else
-			tmp_folder_list = tmp_folder;
-		
-		++(*sh_num);
+
+		tmp_folder_list = new_folder_list;
+		tmp_folder_list[count++] = folder_name;
 	}
+
 	closedir(pool_to_open);
-
+	*sh_num = count;
 	*folder_list = tmp_folder_list;
-
 	return 0;
-}
 
+failed:
+	closedir(pool_to_open);
+	for (i = 0; i < count; ++i)
+		free(tmp_folder_list[i]);
+	free(tmp_folder_list);
+	return -1;
+}
 void free_2_dimension_list(int *num, char ***list)
 {
 	int i;
-	char **target = *list;
+	char **target;
 
-	if (*num <= 0 || target == NULL)
+	if (!num || !list)
 		return;
 
-	for (i = 0; i < *num; ++i)
-		if (target[i] != NULL)
-			free(target[i]);
-
-	if (target != NULL)
+	target = *list;
+	if (target) {
+		for (i = 0; i < *num; ++i)
+			if (target[i] != NULL)
+				free(target[i]);
 		free(target);
+	}
 
 	*num = 0;
+	*list = NULL;
 }
 
 int initial_folder_list_in_mount_path(const char *const mount_path)
