@@ -190,6 +190,7 @@ long Datum_find_(Datum *self, void *delimsList, size_t startIndex)
 	size_t i;
 	if (NULL == self || NULL == delims ||
 		(self->size > 0 && NULL == self->data) ||
+		self->size > (size_t)LONG_MAX ||
 		startIndex > self->size)
 		return -1;
 	for (i = startIndex; i < self->size; i++) {
