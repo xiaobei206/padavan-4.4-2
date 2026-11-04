@@ -153,7 +153,7 @@ void UDBRecords_preCommit(UDBRecords *self)
 void UDBRecords_commit(UDBRecords *self)
 {
 	if (self && self->file)
-		JFile_commitToFile(self->file);
+		(void)JFile_applyLogToFile(self->file);
 }
 
 // ops -------------------------------------------------- 
