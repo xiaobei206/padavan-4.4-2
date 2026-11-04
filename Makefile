@@ -64,6 +64,7 @@ prepare-headers:
 		echo "\033[1;32m===> ✅ sys/queue.h already exists.\033[0m"; \
 	fi
 else
+prepare-headers:
 	@true
 endif
 
