@@ -21,13 +21,16 @@ void UArray_append_(UArray *self, const UArray *other)
 
 void UArray_appendCString_(UArray *self, const char *s)
 {
+	UArray source;
+	size_t length;
 	if (NULL == self || NULL == s)
 		return;
-	while (*s)
-	{
-		UArray_appendLong_(self, (unsigned char)*s);
-		s++;
-	}
+	length = strlen(s);
+	if (length == 0)
+		return;
+	source = UArray_stackAllocedWithData_type_size_((void *)s,
+		CTYPE_uint8_t, length);
+	UArray_append_(self, &source);
 }
 
 void UArray_prepend_(UArray *self, const UArray *other)
