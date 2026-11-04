@@ -63,6 +63,25 @@ is_valid_account_name(const char *name)
 }
 
 static int
+is_valid_account_password(const char *password)
+{
+	const unsigned char *p;
+	size_t len;
+
+	if (!password || !*password)
+		return 0;
+	len = strlen(password);
+	if (len > 128)
+		return 0;
+	for (p = (const unsigned char *)password; *p; ++p) {
+		/* Newlines/control bytes can corrupt generated FTP/SMB metadata. */
+		if (*p < 0x20 || *p == 0x7f)
+			return 0;
+	}
+	return 1;
+}
+
+static int
 is_valid_folder_name(const char *name)
 {
 	const unsigned char *p;
@@ -681,10 +700,12 @@ int set_permission(const char *account,
 	char *target, *follow_info, *var_info;
 	int len, result;
 
-	if (flag < 0 || flag > 3)
+	if (flag < 0 || flag > 3 || !protocol ||
+	    (strcmp(protocol, "cifs") && strcmp(protocol, "ftp") &&
+	     strcmp(protocol, "dms")))
 		return -1;
 	if (!mount_path || !*mount_path || !is_valid_account_name(account) ||
-	    !is_valid_folder_name(folder) || !protocol)
+	    !is_valid_folder_name(folder))
 		return -1;
 
 	// 2. get the content of the var_file of the account
@@ -807,7 +828,7 @@ int add_account(const char *const account, const char *const password)
 
 	if (!is_valid_account_name(account) || !strcmp(account, FTP_ANONYMOUS_USER))
 		return -1;
-	if (password == NULL || strlen(password) <= 0)
+	if (!is_valid_account_password(password))
 		return -1;
 
 	// 1. check if can create the account
@@ -965,6 +986,9 @@ int mod_account(const char *const account, const char *const new_account, const 
 		return -1;
 	if (new_account && *new_account &&
 	    (!is_valid_account_name(new_account) || !strcmp(new_account, FTP_ANONYMOUS_USER)))
+		return -1;
+	if (new_password && *new_password &&
+	    !is_valid_account_password(new_password))
 		return -1;
 	if ((new_account == NULL || strlen(new_account) <= 0) && (new_password == NULL || strlen(new_password) <= 0))
 		return -1;
