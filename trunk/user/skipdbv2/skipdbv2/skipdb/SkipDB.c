@@ -792,41 +792,65 @@ void SkipDB_removeAt_(SkipDB *self, Datum k)
 
 void SkipDB_showUpdate(SkipDB *self)
 {
-	int i = self->header->level;
-
-	printf("SkipDB update vector:\n");
-
-	while (i --)
-	{
-		printf("  %i : %s\n", i, UArray_asCString(SkipDBRecord_key(self->update[i])));
+	int i;
+	if (NULL == self || NULL == self->header) {
+		printf("SkipDB update vector: unavailable\n");
+		return;
 	}
-
+	i = SkipDBRecord_level(self->header);
+	if (i > SKIPDB_MAX_LEVEL)
+		i = SKIPDB_MAX_LEVEL;
+	printf("SkipDB update vector:\n");
+	while (i-- > 0) {
+		SkipDBRecord *record = self->update[i];
+		Datum key;
+		if (NULL == record) {
+			printf("  %i : (null)\n", i);
+			continue;
+		}
+		key = SkipDBRecord_keyDatum(record);
+		printf("  %i : %.*s\n", i,
+			(int)(key.size > INT_MAX ? INT_MAX : key.size),
+			key.data ? (const char *)key.data : "");
+	}
 	printf("\n");
 }
 
+
 void SkipDB_show(SkipDB *self)
 {
-	SkipDBRecord *r = self->header;
-	printf("\nSkipDB:\n");
-	while (r)
-	{
-		SkipDBRecord_show(r);
-		r = SkipDBRecord_recordAtLevel_(r, 0);
+	SkipDBRecord *record;
+	size_t guard = 0;
+	if (NULL == self || NULL == self->header) {
+		printf("SkipDB: unavailable\n");
+		return;
 	}
+	printf("\nSkipDB:\n");
+	record = self->header;
+	while (record && guard++ < (size_t)1000000) {
+		SkipDBRecord_show(record);
+		record = SkipDBRecord_recordAtLevel_(record, 0);
+	}
+	if (record)
+		printf("SkipDB: traversal stopped (cycle or corrupt linkage)\n");
 	printf("\n\n");
 }
+
 
 // objects --------------------------------------------------
 
 void SkipDB_objectMarkFunc_(SkipDB *self, SkipDBObjectMarkFunc *func)
 {
-	self->objectMarkFunc = func;
+	if (self)
+		self->objectMarkFunc = func;
 }
 
 void SkipDB_freeObjectCallback_(SkipDB *self, SkipDBFreeObjectFunc *func)
 {
-	self->objectFreeFunc = func;
+	if (self)
+		self->objectFreeFunc = func;
 }
+
 
 // cursor ---------------------------------
 
