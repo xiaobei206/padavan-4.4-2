@@ -299,3 +299,7 @@ ac5aeba  skipd.c: give list end-of-stream frames a distinct command token, avoid
 8fd7ea8  tests/dbapi_protocol.c: cover dbapi list framing and sentinel-like value handling.
 87962fd  CMakeLists.txt: register dbapi framing regression tests.
 ad22b29/5baa3fd/d74553d  correct C string escaping for the end-marker payload and document the unambiguous protocol.
+9610bda  tests/dbus_protocol.c: include SkipDB's trailing NUL byte in the list-value sentinel regression fixture.
+4019021  SkipDBRecord.c: reconstruct missing reverse links from the authoritative forward skip-list after database reopen, without dirtying records.
+5bb43ee  tests/skipdb_cursor_previous.c: verify previous() across three persisted records and the first-record boundary after reopen.
+c9bfb3d  CMakeLists.txt: register the reverse-cursor persistence regression test.
