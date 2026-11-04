@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+c8c9e3c  nvram_linux.c: initialize is_temp for NVRAM_IOCTL_GET to avoid stack-garbage query mode.
 c5b6054  shutils.c: reject oversized doSystem format output instead of executing truncated commands.
 0fb7d0b  notify_rc.c: reject unsafe event names before using them as init-notification filenames.
 a790c61  netutils.c: validate sysctl/bridge path components and reject truncated paths.
