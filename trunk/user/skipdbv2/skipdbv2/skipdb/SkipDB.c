@@ -620,7 +620,8 @@ SkipDBRecord *SkipDB_recordAt_(SkipDB *self, Datum k)
 		(k.size > 0 && NULL == k.data))
 		return NULL;
 	SkipDB_clearUpdate(self);
-	return SkipDBRecord_find_quick_(self->header, k, 0);
+	/* Mutations require the predecessor at every skip-list level. */
+	return SkipDBRecord_find_quick_(self->header, k, 1);
 }
 
 
@@ -900,7 +901,12 @@ SkipDBRecord *SkipDB_firstRecord(SkipDB *self)
 
 SkipDBRecord *SkipDB_lastRecord(SkipDB *self)
 {
-	return self && self->header ? SkipDBRecord_findLastRecord(self->header) : NULL;
+	SkipDBRecord *last;
+	if (NULL == self || NULL == self->header ||
+		SkipDBRecord_level(self->header) == 0)
+		return NULL;
+	last = SkipDBRecord_findLastRecord(self->header);
+	return last == self->header ? NULL : last;
 }
 
 
@@ -913,7 +919,9 @@ SkipDBRecord *SkipDB_goto_(SkipDB *self, Datum key)
 	record = SkipDB_recordAt_(self, key);
 	if (record)
 		return record;
-	return self->update[0];
+	if (self->update[0])
+		return SkipDBRecord_nextRecord(self->update[0]);
+	return SkipDB_firstRecord(self);
 }
 
 
