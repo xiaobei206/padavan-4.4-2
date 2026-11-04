@@ -58,6 +58,8 @@ static int rand_level()
 int skiplist_insert(skiplist *list, int key, int value)
 {
     snode *update[SKIPLIST_MAX_LEVEL+1];
+    if (NULL == list || NULL == list->header || key == INT_MAX)
+        return 1;
     snode *x = list->header;
     int i, level;
     for (i = list->level; i >= 1; i--) {
@@ -93,7 +95,10 @@ int skiplist_insert(skiplist *list, int key, int value)
  
 snode *skiplist_search(skiplist *list, int key)
 {
-    snode *x = list->header;
+    snode *x;
+    if (NULL == list || NULL == list->header || key == INT_MAX)
+        return NULL;
+    x = list->header;
     int i;
     for (i = list->level; i >= 1; i--) {
         while (x->forward[i]->key < key)
@@ -118,6 +123,8 @@ static void skiplist_node_free(snode *x)
 int skiplist_delete(skiplist *list, int key)
 {
     int i;
+    if (NULL == list || NULL == list->header || key == INT_MAX)
+        return 1;
     snode *update[SKIPLIST_MAX_LEVEL + 1];
     snode *x = list->header;
     for (i = list->level; i >= 1; i--) {
@@ -131,7 +138,7 @@ int skiplist_delete(skiplist *list, int key)
         for (i = 1; i <= list->level; i++) {
             if (update[i]->forward[i] != x)
                 break;
-            update[i]->forward[1] = x->forward[i];
+            update[i]->forward[i] = x->forward[i];
         }
         skiplist_node_free(x);
  
