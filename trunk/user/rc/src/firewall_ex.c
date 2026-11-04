@@ -620,8 +620,16 @@ include_lw_filter(FILE *fp, char *wan_if, char *logaccept, char *logdrop)
 		
 		srcip = iprange_ex_conv("filter_lw_srcip_x", i);
 		dstip = iprange_ex_conv("filter_lw_dstip_x", i);
-		if (!srcip || !dstip)
-			continue;
+		if (!srcip || !dstip) {
+			/* Preserve the deny-list's restrictive behavior; whitelist entries
+			 * with invalid ranges must never become unrestricted allow rules. */
+			if (lw_need_drop)
+				continue;
+			if (!srcip)
+				srcip = "";
+			if (!dstip)
+				dstip = "";
+		}
 		
 		filterstr = filter_conv(proto, flag, srcip, srcport, dstip, dstport);
 		if (*filterstr) {
