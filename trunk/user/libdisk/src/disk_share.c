@@ -43,7 +43,7 @@ static void nvram_commit_safe()
 int get_account_list(int *acc_num, char ***account_list)
 {
 	char nvram_name[24], *nvram_value, **tmp_account_list;
-	int acc_max, len, i, j, count;
+	int acc_max, len, i, j, count, seen_empty;
 
 	if (!acc_num || !account_list)
 		return -1;
@@ -62,12 +62,22 @@ int get_account_list(int *acc_num, char ***account_list)
 		return -1;
 
 	count = 0;
+	seen_empty = 0;
 	for (i = 0; i < acc_max; ++i) {
 		snprintf(nvram_name, sizeof(nvram_name), "acc_username%d", i);
 		nvram_value = nvram_safe_get(nvram_name);
 		len = strlen(nvram_value);
-		if (len < 1)
+		if (len < 1) {
+			seen_empty = 1;
 			continue;
+		}
+		/* Account management uses the count as the next NVRAM index. */
+		if (seen_empty) {
+			for (j = 0; j < count; ++j)
+				free(tmp_account_list[j]);
+			free(tmp_account_list);
+			return -1;
+		}
 
 		tmp_account_list[count] = (char *)malloc((size_t)len + 1);
 		if (!tmp_account_list[count]) {
@@ -856,7 +866,8 @@ int mod_account(const char *const account, const char *const new_account, const 
 		return -1;
 
 	// 1. check if can modify the account
-	get_account_list(&acc_num, &account_list);
+	if (get_account_list(&acc_num, &account_list) != 0)
+		return -1;
 
 	for (i = 0; i < acc_num; ++i) {
 		if (new_account != NULL && strcmp(new_account, account) && strlen(new_account) > 0) {
