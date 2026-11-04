@@ -288,7 +288,15 @@ sys_script(char *name)
 				return;
 			for (p = (const unsigned char *)token; *p; ++p) {
 				if (*p < 32 || *p == 127 ||
-				    strchr(";|&><`
+				    strchr(";|&><$'\"\\*?(){}[]", *p) != NULL)
+					return;
+			}
+			script_argv[argc++] = token;
+		}
+		script_argv[argc] = NULL;
+		_eval(script_argv, NULL, 0, NULL);
+	}
+}
 
 static int
 write_file_dos2unix(const char* value, const char* file_path)
