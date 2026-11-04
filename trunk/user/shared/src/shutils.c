@@ -57,21 +57,53 @@ static char *
 fd2str(int fd, size_t chunk_size)
 {
 	char *buf = NULL;
-	size_t count = 0, n;
+	size_t count = 0;
+	ssize_t n;
 
-	do {
-		buf = realloc(buf, count + chunk_size);
-		n = read(fd, buf + count, chunk_size);
-		if (n < 0) {
+	if (chunk_size == 0) {
+		close(fd);
+		errno = EINVAL;
+		return NULL;
+	}
+
+	for (;;) {
+		char *new_buf;
+
+		if (count == (size_t)-1 ||
+		    chunk_size > (size_t)-1 - count - 1) {
 			free(buf);
-			buf = NULL;
+			close(fd);
+			errno = EOVERFLOW;
+			return NULL;
 		}
-		count += n;
-	} while (n == chunk_size);
 
+		new_buf = realloc(buf, count + chunk_size + 1);
+		if (!new_buf) {
+			free(buf);
+			close(fd);
+			return NULL;
+		}
+		buf = new_buf;
+
+		do {
+			n = read(fd, buf + count, chunk_size);
+		} while (n < 0 && errno == EINTR);
+
+		if (n < 0) {
+			int saved_errno = errno;
+			free(buf);
+			close(fd);
+			errno = saved_errno;
+			return NULL;
+		}
+
+		count += (size_t)n;
+		if ((size_t)n < chunk_size)
+			break;
+	}
+
+	buf[count] = '\0';
 	close(fd);
-	if (buf)
-		buf[count] = '\0';
 	return buf;
 }
 
@@ -115,7 +147,7 @@ void time_zone_x_mapping()
 	char tmpstr[32];
 	char *ptr;
 
-	strcpy(tmpstr, nvram_safe_get("time_zone"));
+	snprintf(tmpstr, sizeof(tmpstr), "%s", nvram_safe_get("time_zone"));
 
 	/* replace . with : */
 	if ((ptr=strchr(tmpstr, '.'))!=NULL) *ptr = ':';
@@ -158,7 +190,14 @@ void time_zone_x_mapping()
 	else
 		nvram_set("time_zone_x", tmpstr);
 
-	doSystem("echo %s > /etc/TZ", nvram_safe_get("time_zone_x"));
+	{
+		FILE *fp = fopen("/etc/TZ", "w");
+		if (fp) {
+			fputs(nvram_safe_get("time_zone_x"), fp);
+			fputc('\n', fp);
+			fclose(fp);
+		}
+	}
 }
 
 void change_passwd_unix(char *user, char *pass)

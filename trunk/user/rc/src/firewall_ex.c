@@ -260,40 +260,56 @@ iprange_ex_conv(const char *ip_name, int idx)
 {
 	char *ip;
 	char itemname_arr[32];
-	char startip[16], endip[16];
-	int i, j, k;
-	int mask;
+	char startip[16];
+	struct in_addr addr;
+	size_t ip_len;
+	int i, j, mask, wildcard_seen, valid;
 
 	snprintf(itemname_arr, sizeof(itemname_arr), "%s%d", ip_name, idx);
 	ip = nvram_safe_get(itemname_arr);
-	strcpy(g_buf, "");
+	g_buf[0] = '\0';
 
-	// scan all ip string
-	i=j=k=0;
-	mask=32;
+	ip_len = strlen(ip);
+	if (ip_len == 0 || ip_len >= sizeof(startip))
+		return (g_buf_alloc(g_buf));
 
-	while (*(ip+i)) {
-		if (*(ip+i)=='*') {
+	/* Wildcards must occupy complete trailing octets (for example 192.168.1.*). */
+	j = 0;
+	mask = 32;
+	wildcard_seen = 0;
+	valid = 1;
+
+	for (i = 0; i < (int)ip_len; i++) {
+		char c = ip[i];
+
+		if (c == '*') {
+			if ((i > 0 && ip[i-1] != '.') ||
+			    (i + 1 < (int)ip_len && ip[i+1] != '.')) {
+				valid = 0;
+				break;
+			}
+			wildcard_seen = 1;
+			mask -= 8;
 			startip[j++] = '0';
-			endip[k++] = '0';
-			// 255 is for broadcast
-			mask-=8;
+		} else if (c == '.') {
+			startip[j++] = c;
+		} else if (c >= '0' && c <= '9' && !wildcard_seen) {
+			startip[j++] = c;
 		} else {
-			startip[j++] = *(ip+i);
-			endip[k++] = *(ip+i);
+			valid = 0;
+			break;
 		}
-		++i;
 	}
 
-	startip[j++] = 0;
-	endip[k++] = 0;
+	startip[j] = '\0';
+	if (!valid || mask < 0 || inet_pton(AF_INET, startip, &addr) != 1)
+		return (g_buf_alloc(g_buf));
 
-	if (mask==32)
-		sprintf(g_buf, "%s", startip);
-	else if (mask==0)
-		strcpy(g_buf, "");
-	else
-		sprintf(g_buf, "%s/%d", startip, mask);
+	if (mask == 32) {
+		snprintf(g_buf, sizeof(g_buf_pool), "%s", startip);
+	} else if (mask > 0) {
+		snprintf(g_buf, sizeof(g_buf_pool), "%s/%d", startip, mask);
+	}
 
 	return (g_buf_alloc(g_buf));
 }

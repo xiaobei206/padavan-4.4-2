@@ -850,23 +850,29 @@ rename_if_dir_exist(const char *dir, const char *subdir)
 	DIR *dirp;
 	struct dirent *direntp;
 	char oldpath[257], newpath[257];
+	int old_len, new_len, renamed;
 
 	if (!dir || !subdir)
 		return 0;
 
-	if ((dirp = opendir(dir))) {
-		while (dirp && (direntp = readdir(dirp))) {
-			if (!strcasecmp(direntp->d_name, subdir) && strcmp(direntp->d_name, subdir)) {
-				sprintf(oldpath, "%s/%s", dir, direntp->d_name);
-				sprintf(newpath, "%s/%s", dir, subdir);
-				rename(oldpath, newpath);
-				return 1;
-			}
-		}
+	dirp = opendir(dir);
+	if (!dirp)
+		return 0;
 
-		closedir(dirp);
+	while ((direntp = readdir(dirp))) {
+		if (!strcasecmp(direntp->d_name, subdir) && strcmp(direntp->d_name, subdir)) {
+			old_len = snprintf(oldpath, sizeof(oldpath), "%s/%s", dir, direntp->d_name);
+			new_len = snprintf(newpath, sizeof(newpath), "%s/%s", dir, subdir);
+			renamed = 0;
+			if (old_len >= 0 && old_len < (int)sizeof(oldpath) &&
+			    new_len >= 0 && new_len < (int)sizeof(newpath))
+				renamed = (rename(oldpath, newpath) == 0);
+			closedir(dirp);
+			return renamed;
+		}
 	}
 
+	closedir(dirp);
 	return 0;
 }
 
@@ -876,20 +882,30 @@ if_dircase_exist(const char *dir, const char *subdir)
 	DIR *dirp;
 	struct dirent *direntp;
 	char oldpath[257];
+	int path_len;
+	char *result;
 
 	if (!dir || !subdir)
 		return NULL;
 
-	if ((dirp = opendir(dir))) {
-		while (dirp && (direntp = readdir(dirp))) {
-			if (!strcasecmp(direntp->d_name, subdir) && strcmp(direntp->d_name, subdir)) {
-				sprintf(oldpath, "%s/%s", dir, direntp->d_name);
-				return strdup(oldpath);
+	dirp = opendir(dir);
+	if (!dirp)
+		return NULL;
+
+	while ((direntp = readdir(dirp))) {
+		if (!strcasecmp(direntp->d_name, subdir) && strcmp(direntp->d_name, subdir)) {
+			path_len = snprintf(oldpath, sizeof(oldpath), "%s/%s", dir, direntp->d_name);
+			if (path_len < 0 || path_len >= (int)sizeof(oldpath)) {
+				closedir(dirp);
+				return NULL;
 			}
+			result = strdup(oldpath);
+			closedir(dirp);
+			return result;
 		}
-		closedir(dirp);
 	}
 
+	closedir(dirp);
 	return NULL;
 }
 
