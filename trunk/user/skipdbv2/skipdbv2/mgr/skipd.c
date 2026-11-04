@@ -588,7 +588,7 @@ static int client_run_command(EV_P_ skipd_client* client)
 {
     char *p1, *p2;
     time_t t1, t2;
-    int tmpi, tmp2, existed, write_ok;
+    int tmpi, tmp2, write_ok;
     long long arithmetic_result;
     struct tm tm1, tm2, *tnow;
     Datum dkey, dvalue;
