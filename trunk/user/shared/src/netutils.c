@@ -60,6 +60,20 @@ copy_ifname(char *dest, size_t dest_size, const char *ifname)
 	return 0;
 }
 
+static int
+is_safe_path_component(const char *value)
+{
+	const unsigned char *p;
+
+	if (!value || !*value || !strcmp(value, ".") || !strcmp(value, ".."))
+		return 0;
+	for (p = (const unsigned char *)value; *p; ++p) {
+		if (*p < 0x20 || *p == 0x7f || *p == '/' || *p == '\\')
+			return 0;
+	}
+	return 1;
+}
+
 static const struct ifname_desc_t {
 	const char *ifname;
 	const char *ifdesc;
@@ -627,7 +641,9 @@ set_interface_conf_int(const char *ver, const char *ifname, const char *param, i
 	char conf_path[80];
 	int path_len;
 
-	if (!ver || !ifname || !param)
+	if (!is_safe_path_component(ver) ||
+	    !is_safe_path_component(ifname) ||
+	    !is_safe_path_component(param))
 		return;
 	path_len = snprintf(conf_path, sizeof(conf_path), "/proc/sys/net/%s/conf/%s/%s", ver, ifname, param);
 	if (path_len < 0 || path_len >= (int)sizeof(conf_path))
@@ -819,8 +835,13 @@ void
 br_set_param_int(const char *brname, const char *param, int value)
 {
 	char bridge_path[80];
+	int path_len;
 
-	snprintf(bridge_path, sizeof(bridge_path), "/sys/class/net/%s/bridge/%s", brname, param);
+	if (!is_safe_path_component(brname) || !is_safe_path_component(param))
+		return;
+	path_len = snprintf(bridge_path, sizeof(bridge_path), "/sys/class/net/%s/bridge/%s", brname, param);
+	if (path_len < 0 || path_len >= (int)sizeof(bridge_path))
+		return;
 	fput_int(bridge_path, value);
 }
 
@@ -840,8 +861,13 @@ void
 brport_set_param_int(const char *ifname, const char *param, int value)
 {
 	char brport_path[80];
+	int path_len;
 
-	snprintf(brport_path, sizeof(brport_path), "/sys/class/net/%s/brport/%s", ifname, param);
+	if (!is_safe_path_component(ifname) || !is_safe_path_component(param))
+		return;
+	path_len = snprintf(brport_path, sizeof(brport_path), "/sys/class/net/%s/brport/%s", ifname, param);
+	if (path_len < 0 || path_len >= (int)sizeof(brport_path))
+		return;
 	fput_int(brport_path, value);
 }
 
