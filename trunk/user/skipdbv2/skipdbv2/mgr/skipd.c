@@ -565,7 +565,7 @@ static int client_run_command(EV_P_ skipd_client* client)
 {
     char *p1, *p2;
     time_t t1, t2;
-    int tmpi, tmp2;
+    int tmpi, tmp2, existed;
     long long arithmetic_result;
     struct tm tm1, tm2, *tnow;
     Datum dkey, dvalue;
@@ -784,31 +784,23 @@ static int client_run_command(EV_P_ skipd_client* client)
         delay_obj->server = client->server;
 
         dkey = Datum_FromCString_(client->key);
-        /* if(SkipDB_exists(client->server->db, dkey)) {
-            p1 = "exists\n";
-            free(delay_obj);
-            client_send(EV_A_ client, p1, strlen(p1));
-
-            //Just replace the old
-            SkipDB_beginTransaction(client->server->db);
-            SkipDB_at_put_(client->server->db, dkey, dvalue);
-            //SkipDB_commitTransaction(client->server->db);
-            server_sync(EV_A_ client->server);
-            ccrReturn(ctx, ccr_error_ok1);
-        } */
-
+        existed = SkipDB_exists(client->server->db, dkey);
         SkipDB_beginTransaction(client->server->db);
-        if(SkipDB_at_put_(client->server->db, dkey, dvalue)) {
-            p1 = "exists\n";
-            /* client_send_key still reads client->key; do not free it first. */
+        if (!SkipDB_at_put_(client->server->db, dkey, dvalue)) {
+            p1 = "database error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             free(delay_obj);
-
             server_sync(EV_A_ client->server);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        //SkipDB_commitTransaction(client->server->db);
         server_sync(EV_A_ client->server);
+        if (existed) {
+            p1 = "exists\n";
+            /* client_send copies the key into the frame before this free. */
+            client_send(EV_A_ client, p1, strlen(p1));
+            free(delay_obj);
+            ccrReturn(ctx, ccr_error_ok1);
+        }
 
         ev_timer_init(&delay_obj->watcher, delay_cmd_cb, delay_obj->tick, delay_obj->tick);
         ev_timer_start(EV_A_ &delay_obj->watcher);
@@ -873,27 +865,31 @@ static int client_run_command(EV_P_ skipd_client* client)
         sprintf(time_obj->key, "__time__%s", client->key);
         client->key = time_obj->key;
         dkey = Datum_FromCString_(client->key);
-        /*if(SkipDB_exists(client->server->db, dkey)) {
-            p1 = "exists\n";
-            client_send(EV_A_ client, p1, strlen(p1));
-            free(time_obj);
-            ccrReturn(ctx, ccr_error_ok1);
-        }*/
-
+        existed = SkipDB_exists(client->server->db, dkey);
         SkipDB_beginTransaction(client->server->db);
-        if(SkipDB_at_put_(client->server->db, dkey, dvalue)) {
-            p1 = "exists\n";
+        if (!SkipDB_at_put_(client->server->db, dkey, dvalue)) {
+            p1 = "database error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             free(time_obj);
-
             server_sync(EV_A_ client->server);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        //SkipDB_commitTransaction(client->server->db);
         server_sync(EV_A_ client->server);
+        if (existed) {
+            p1 = "exists\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            free(time_obj);
+            ccrReturn(ctx, ccr_error_ok1);
+        }
 
         t1 = time(NULL);
         tnow = localtime(&t1);
+        if (NULL == tnow) {
+            p1 = "time schedule error\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            free(time_obj);
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         tm2 = *tnow;
         tm2.tm_sec = tm1.tm_sec;
         tm2.tm_min = tm1.tm_min;
