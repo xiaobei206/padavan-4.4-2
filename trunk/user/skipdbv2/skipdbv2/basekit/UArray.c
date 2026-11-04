@@ -455,9 +455,7 @@ void UArray_checkIfOkToRelloc(UArray *self)
 
 void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t size, int copy)
 {
-	size_t itemSize;
-	size_t sizeInBytes;
-	size_t oldSizeInBytes;
+	size_t itemSize, sizeInBytes;
 	void *sourceCopy = NULL;
 	uint8_t *newData;
 
@@ -472,21 +470,17 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 
 	if (copy)
 	{
-#ifdef UARRAY_DEBUG
-		UArray_checkIfOkToRelloc(self);
-#endif
-		/* If source bytes alias this array, preserve them before realloc. */
+		/* Snapshot any overlapping source before reallocating or detaching. */
 		if (sizeInBytes > 0 && self->data && self->itemSize > 0 &&
 			self->size <= (size_t)-1 / self->itemSize)
 		{
+			size_t oldSizeInBytes = self->size * self->itemSize;
 			uintptr_t base = (uintptr_t)self->data;
 			uintptr_t src = (uintptr_t)data;
-			oldSizeInBytes = self->size * self->itemSize;
-			if (src >= base && src - base < oldSizeInBytes)
+			int overlaps = src >= base ? src - base < oldSizeInBytes :
+				base - src < sizeInBytes;
+			if (overlaps)
 			{
-				size_t offset = (size_t)(src - base);
-				if (sizeInBytes > oldSizeInBytes - offset)
-					return;
 				sourceCopy = io_malloc(sizeInBytes);
 				if (NULL == sourceCopy)
 					return;
@@ -494,7 +488,12 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 				data = sourceCopy;
 			}
 		}
-		newData = (uint8_t *)io_realloc(self->data, sizeInBytes + 1);
+
+		/* A stack-allocated UArray borrows its buffer; never realloc it. */
+		if (self->stackAllocated)
+			newData = (uint8_t *)io_malloc(sizeInBytes + 1);
+		else
+			newData = (uint8_t *)io_realloc(self->data, sizeInBytes + 1);
 		if (NULL == newData) {
 			if (sourceCopy)
 				io_free(sourceCopy);
@@ -504,13 +503,30 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 			memmove(newData, data, sizeInBytes);
 		newData[sizeInBytes] = 0;
 		self->data = newData;
+		self->stackAllocated = 0;
 		if (sourceCopy)
 			io_free(sourceCopy);
 	}
 	else
 	{
-		if (self->data && self->data != data)
-			io_free(self->data);
+		if (self->data != data) {
+			/* A pointer into the current allocation cannot become an owner. */
+			if (self->data && data) {
+				size_t oldSizeInBytes = self->itemSize > 0 &&
+					self->size <= (size_t)-1 / self->itemSize ?
+					self->size * self->itemSize : 0;
+				uintptr_t base = (uintptr_t)self->data;
+				uintptr_t src = (uintptr_t)data;
+				if (oldSizeInBytes > 0 &&
+					(src >= base ? src - base < oldSizeInBytes :
+					base - src < sizeInBytes))
+					return;
+			}
+			if (self->data && !self->stackAllocated)
+				io_free(self->data);
+			/* copy=0 transfers ownership of the supplied buffer. */
+			self->stackAllocated = 0;
+		}
 		self->data = (uint8_t *)data;
 	}
 
@@ -518,7 +534,6 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 	self->itemSize = itemSize;
 	self->size = size;
 }
-
 UArray UArray_stackAllocedWithCString_(char *s)
 {
 	if (NULL == s)
