@@ -485,50 +485,52 @@ long JFile_lastCommitPosition(JFile *self)
 {
 	long lastCommitPosition = 0;
 	long end;
-	fseek(self->log, 0, SEEK_END);
+
+	if (NULL == self || NULL == self->log ||
+		fseek(self->log, 0, SEEK_END) != 0)
+		return 0;
 	end = ftell(self->log);
-	fseek(self->log, 0, SEEK_SET);
+	if (end < 0 || fseek(self->log, 0, SEEK_SET) != 0)
+		return 0;
 
 	while (1)
 	{
-		long pos;
+		long pos, data_pos;
 		size_t total;
-		int r;
+		int r, terminator;
 
 		r = fread(&pos, sizeof(long), 1, self->log);
-		if (r != 1)
-		{
-			if (feof(self->log)) break;
-
-			//printf("log broken at pos");
+		if (r != 1) {
+			if (!feof(self->log))
+				fprintf(stderr, "JFile: error reading log position\n");
 			break;
 		}
 
 		r = fread(&total, sizeof(size_t), 1, self->log);
 		if (r != 1)
-		{
-			//printf("log broken at size");
+			break;
+
+		data_pos = ftell(self->log);
+		if (data_pos < 0 || data_pos >= end ||
+			total > (size_t)(end - data_pos - 1) ||
+			pos < 0 || total > (size_t)LONG_MAX ||
+			pos > LONG_MAX - (long)total) {
+			/* Ignore corrupt/truncated records; retain only completed prefix. */
 			break;
 		}
 
-		if(fseek(self->log, total, SEEK_CUR) != 0)
-		{
-			//printf("log broken at data");
+		if (fseek(self->log, (long)total, SEEK_CUR) != 0)
 			break;
+		terminator = fgetc(self->log);
+		if (terminator == JFILE_END_TRANSACTION_ITEM)
+			continue;
+		if (terminator == JFILE_END_TRANSACTION) {
+			lastCommitPosition = ftell(self->log);
+			if (lastCommitPosition < 0)
+				lastCommitPosition = 0;
+			continue;
 		}
-
-		switch (fgetc(self->log))
-		{
-			case JFILE_END_TRANSACTION_ITEM:
-				//printf("JFILE_END_TRANSACTION_ITEM at %i\n", ftell(self->log));
-				continue;
-			case JFILE_END_TRANSACTION:
-				//printf("JFILE_END_TRANSACTION at %i\n", ftell(self->log));
-				lastCommitPosition = ftell(self->log);
-				continue;
-			default:
-				break;
-		}
+		break;
 	}
 
 	fseek(self->log, 0, SEEK_END);
