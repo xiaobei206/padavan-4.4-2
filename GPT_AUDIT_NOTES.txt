@@ -303,10 +303,13 @@ ad22b29/5baa3fd/d74553d  correct C string escaping for the end-marker payload an
 4019021  SkipDBRecord.c: reconstruct missing reverse links from the authoritative forward skip-list after database reopen, without dirtying records.
 5bb43ee  tests/skipdb_cursor_previous.c: verify previous() across three persisted records and the first-record boundary after reopen.
 c9bfb3d  CMakeLists.txt: register the reverse-cursor persistence regression test.
-4019021  SkipDBRecord.c: reconstruct missing reverse links from the authoritative forward skip-list after database reopen, without dirtying records.
-5bb43ee  tests/skipdb_cursor_previous.c: verify previous() across three persisted records and the first-record boundary after reopen.
-c9bfb3d  CMakeLists.txt: register the reverse-cursor persistence regression test.
 1fa22b9  CMakeLists.txt: link protocol regression targets with their required libraries.
 ea2fe7d  tests/dbapi_protocol.c: rename the included dbapi CLI entry point to avoid duplicate main.
 a02ede3/78eeb36  dbus.c/dbapi.c: correct C NUL/newline escapes in list-frame parsers.
 Verification: repository source and commit diffs reviewed. Network access to clone/build the repository was unavailable; no firmware build or CTest execution is claimed.
+6f85bed  skipd.c: calculate recurring time tasks from the next local calendar date instead of fixed 86400-second intervals, avoiding DST drift.
+adc1719  skipd.c: keep the stored daily time separate from the shared script command buffer when re-arming timers.
+1e6be3e  dbus.c: strip the trailing storage NUL from get output while retaining embedded binary NUL bytes.
+b040f05  tests/dbus_protocol.c: cover get responses containing a trailing storage NUL.
+2e153f0  dbapi.c: accept zero-length stored values in list responses.
+83a8cff  tests/dbapi_protocol.c: cover empty values alongside sentinel-like list payloads.
