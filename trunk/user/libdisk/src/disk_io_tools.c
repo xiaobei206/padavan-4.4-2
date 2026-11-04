@@ -354,7 +354,7 @@ void write_escaped_value(FILE *fp, const char *value) {
 			fputc('\\', fp);
 			fputc('v', fp);
 		}
-		else if (isprint(*follow_value)) {
+		else if (isprint((unsigned char)*follow_value)) {
 			fputc(*follow_value, fp);
 		}
 		else if (((unsigned char)(*follow_value) & 0x80) != 0) {
