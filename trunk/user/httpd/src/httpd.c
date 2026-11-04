@@ -651,16 +651,31 @@ send_error( int status, const char *title, const char *extra_header, const char 
 }
 
 static void
-send_authenticate( FILE *conn_fp )
+send_authenticate(FILE *conn_fp)
 {
-	char header[128], *realm;
+	char header[128], realm_buf[64];
+	const unsigned char *src;
+	const char *realm;
+	size_t used = 0;
 
 	realm = nvram_safe_get("computer_name");
-	if (strlen(realm) < 1)
+	if (!realm || !*realm)
 		realm = nvram_safe_get("productid");
 
-	snprintf(header, sizeof(header), "WWW-Authenticate: Basic realm=\"%s\"", realm);
-	send_error( 401, "Unauthorized", header, "Authorization required.", conn_fp );
+	/* A configurable device name must not be allowed to inject HTTP headers
+	 * or break the quoted Basic-auth realm. Keep only safe printable ASCII. */
+	for (src = (const unsigned char *)realm;
+	     src && *src && used < sizeof(realm_buf) - 1; ++src) {
+		if (*src >= 0x20 && *src <= 0x7e && *src != '"' && *src != '\\')
+			realm_buf[used++] = (char)*src;
+		else
+			realm_buf[used++] = '_';
+	}
+	realm_buf[used] = '\0';
+
+	snprintf(header, sizeof(header), "WWW-Authenticate: Basic realm=\"%s\"",
+		 realm_buf);
+	send_error(401, "Unauthorized", header, "Authorization required.", conn_fp);
 }
 
 static int
