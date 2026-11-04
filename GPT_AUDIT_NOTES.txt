@@ -90,3 +90,4 @@ f5f6ce1  hddtune.sh: enumerate all /sys/block/sd* devices instead of a fixed a-k
 426595c  vpn_openvpn.c: reject path separators/control chars in CCD client names; check path truncation.
 5c637f5  vpn_openvpn.c: validate VPN peer hostnames/IPs and restrict data-cipher list characters.
 2b9b0f7  services_stor.c: match full SCSI/MMC root-disk names and numeric partition suffixes before unmount.
+dcf22fc  services_stor.c: guard Samba config cleanup when append-open fails.
