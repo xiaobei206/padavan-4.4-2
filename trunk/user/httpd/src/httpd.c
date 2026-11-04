@@ -673,7 +673,10 @@ auth_check( const char *authorization )
 		return 0;
 
 	/* Decode it. */
-	auth_len = b64_decode(authorization+6, authinfo, sizeof(authinfo)-1);
+	auth_len = b64_decode(authorization + 6, (unsigned char *)authinfo,
+			     (int)sizeof(authinfo) - 1);
+	if (auth_len < 0 || (size_t)auth_len >= sizeof(authinfo))
+		return 0;
 	authinfo[auth_len] = '\0';
 
 	/* Is this the right user and password? */
