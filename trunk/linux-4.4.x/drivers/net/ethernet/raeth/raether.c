@@ -2291,17 +2291,22 @@ struct net_device_stats *virtualif_get_stats(struct net_device *dev)
 int virtualif_ioctl(struct net_device *net_dev, struct ifreq *ifr, int cmd)
 {
 	struct ra_mii_ioctl_data mii;
-	unsigned long ret;
+
+	if (!ifr || !ifr->ifr_data)
+		return -EFAULT;
 
 	switch (cmd) {
 	case RAETH_MII_READ:
-		ret = copy_from_user(&mii, ifr->ifr_data, sizeof(mii));
+		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii)))
+			return -EFAULT;
 		mii_mgr_read(mii.phy_id, mii.reg_num, &mii.val_out);
-		ret = copy_to_user(ifr->ifr_data, &mii, sizeof(mii));
+		if (copy_to_user(ifr->ifr_data, &mii, sizeof(mii)))
+			return -EFAULT;
 		break;
 
 	case RAETH_MII_WRITE:
-		ret = copy_from_user(&mii, ifr->ifr_data, sizeof(mii));
+		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii)))
+			return -EFAULT;
 		mii_mgr_write(mii.phy_id, mii.reg_num, mii.val_in);
 		break;
 	default:
@@ -2696,46 +2701,75 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 	unsigned int offset = 0;
 	unsigned int value = 0;
 	int ret = 0;
-	unsigned long result;
 	struct END_DEVICE *ei_local = netdev_priv(dev);
 	struct ra_mii_ioctl_data mii;
 	char ip_tmp[IP4_ADDR_LEN];
+
+	if (!ifr || !ifr->ifr_data)
+		return -EFAULT;
 
 	spin_lock_irq(&ei_local->page_lock);
 
 	switch (cmd) {
 	case RAETH_MII_READ:
-		result = copy_from_user(&mii, ifr->ifr_data, sizeof(mii));
+		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii))) {
+			ret = -EFAULT;
+			break;
+		}
 		mii_mgr_read(mii.phy_id, mii.reg_num, &mii.val_out);
-		result = copy_to_user(ifr->ifr_data, &mii, sizeof(mii));
+		if (copy_to_user(ifr->ifr_data, &mii, sizeof(mii))) {
+			ret = -EFAULT;
+			break;
+		}
 		break;
 
 	case RAETH_MII_WRITE:
-		result = copy_from_user(&mii, ifr->ifr_data, sizeof(mii));
+		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii))) {
+			ret = -EFAULT;
+			break;
+		}
 		mii_mgr_write(mii.phy_id, mii.reg_num, mii.val_in);
 		break;
 	case RAETH_MII_READ_CL45:
-		result = copy_from_user(&mii, ifr->ifr_data, sizeof(mii));
+		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii))) {
+			ret = -EFAULT;
+			break;
+		}
 		mii_mgr_read_cl45(mii.port_num, mii.dev_addr, mii.reg_addr,
 				  &mii.val_out);
-		result = copy_to_user(ifr->ifr_data, &mii, sizeof(mii));
+		if (copy_to_user(ifr->ifr_data, &mii, sizeof(mii))) {
+			ret = -EFAULT;
+			break;
+		}
 		break;
 	case RAETH_MII_WRITE_CL45:
-		result = copy_from_user(&mii, ifr->ifr_data, sizeof(mii));
+		if (copy_from_user(&mii, ifr->ifr_data, sizeof(mii))) {
+			ret = -EFAULT;
+			break;
+		}
 		mii_mgr_write_cl45(mii.port_num, mii.dev_addr, mii.reg_addr,
 				   mii.val_in);
 		break;
 	case RAETH_ESW_REG_READ:
-		result = copy_from_user(&reg, ifr->ifr_data, sizeof(reg));
+		if (copy_from_user(&reg, ifr->ifr_data, sizeof(reg))) {
+			ret = -EFAULT;
+			break;
+		}
 		if (reg.off > REG_ESW_MAX) {
 			ret = -EINVAL;
 			break;
 		}
 		reg.val = sys_reg_read(RALINK_ETH_SW_BASE + reg.off);
-		result = copy_to_user(ifr->ifr_data, &reg, sizeof(reg));
+		if (copy_to_user(ifr->ifr_data, &reg, sizeof(reg))) {
+			ret = -EFAULT;
+			break;
+		}
 		break;
 	case RAETH_ESW_REG_WRITE:
-		result = copy_from_user(&reg, ifr->ifr_data, sizeof(reg));
+		if (copy_from_user(&reg, ifr->ifr_data, sizeof(reg))) {
+			ret = -EFAULT;
+			break;
+		}
 		if (reg.off > REG_ESW_MAX) {
 			ret = -EINVAL;
 			break;
@@ -2743,7 +2777,14 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		sys_reg_write(RALINK_ETH_SW_BASE + reg.off, reg.val);
 		break;
 	case RAETH_ESW_PHY_DUMP:
-		result = copy_from_user(&reg, ifr->ifr_data, sizeof(reg));
+		if (copy_from_user(&reg, ifr->ifr_data, sizeof(reg))) {
+			ret = -EFAULT;
+			break;
+		}
+		if (reg.val > 4 && reg.val != 32) {
+			ret = -EINVAL;
+			break;
+		}
 		/* SPEC defined Register 0~15
 		 * Global Register 16~31 for each page
 		 * Local Register 16~31 for each page
@@ -2804,8 +2845,10 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case RAETH_ESW_INGRESS_RATE:
-		result = copy_from_user(&ratelimit, ifr->ifr_data,
-					sizeof(ratelimit));
+		if (copy_from_user(&ratelimit, ifr->ifr_data, sizeof(ratelimit))) {
+			ret = -EFAULT;
+			break;
+		}
 		offset = 0x1800 + (0x100 * ratelimit.port);
 		value = sys_reg_read(RALINK_ETH_SW_BASE + offset);
 
@@ -2834,8 +2877,10 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case RAETH_ESW_EGRESS_RATE:
-		result = copy_from_user(&ratelimit, ifr->ifr_data,
-					sizeof(ratelimit));
+		if (copy_from_user(&ratelimit, ifr->ifr_data, sizeof(ratelimit))) {
+			ret = -EFAULT;
+			break;
+		}
 		offset = 0x1040 + (0x100 * ratelimit.port);
 		value = sys_reg_read(RALINK_ETH_SW_BASE + offset);
 
@@ -2864,7 +2909,10 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case RAETH_SET_LAN_IP:
-		result = copy_from_user(ip_tmp, ifr->ifr_data, IP4_ADDR_LEN);
+		if (copy_from_user(ip_tmp, ifr->ifr_data, IP4_ADDR_LEN)) {
+			ret = -EFAULT;
+			break;
+		}
 		strncpy(ei_local->lan_ip4_addr, ip_tmp, IP4_ADDR_LEN);
 		pr_info("RAETH_SET_LAN_IP: %s\n", ei_local->lan_ip4_addr);
 
@@ -2876,26 +2924,29 @@ int ei_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 
 	case RAETH_SW_IOCTL:
-		ret =
-		    copy_from_user(&ioctl_data, ifr->ifr_data,
-				   sizeof(ioctl_data));
+		if (copy_from_user(&ioctl_data, ifr->ifr_data, sizeof(ioctl_data))) {
+			ret = -EFAULT;
+			break;
+		}
 		sw_ioctl(&ioctl_data);
 		break;
 
 	case RAETH_QDMA_IOCTL:
 
-		ret =
-		    copy_from_user(&qdma_data, ifr->ifr_data,
-				   sizeof(qdma_data));
+		if (copy_from_user(&qdma_data, ifr->ifr_data, sizeof(qdma_data))) {
+			ret = -EFAULT;
+			break;
+		}
 		ei_qdma_ioctl(dev, ifr, &qdma_data);
 
 		break;
 
 	case RAETH_EPHY_IOCTL:
 
-		ret =
-		    copy_from_user(&ephy_data, ifr->ifr_data,
-				   sizeof(ephy_data));
+		if (copy_from_user(&ephy_data, ifr->ifr_data, sizeof(ephy_data))) {
+			ret = -EFAULT;
+			break;
+		}
 		ephy_ioctl(dev, ifr, &ephy_data);
 
 		break;
