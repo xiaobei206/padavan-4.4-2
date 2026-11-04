@@ -288,7 +288,7 @@ static int split_list_frame(dbclient *client, int body_len,
     key_size = (size_t)(key_end - key_start);
     payload = key_end + 1;
     payload_size = (size_t)(body + body_len - payload);
-    if (memchr(key_start, '\\0', key_size) != NULL)
+    if (memchr(key_start, '\0', key_size) != NULL)
         return -4;
 
     if (command_len == 6 && memcmp(body, "__end__", 6) == 0) {
@@ -301,7 +301,7 @@ static int split_list_frame(dbclient *client, int body_len,
     if (command_len != 4 || memcmp(body, "list", 4) != 0)
         return -4;
 
-    *key_end = '\\0';
+    *key_end = '\0';
     *key = key_start;
     *key_len = key_size;
     *value = payload;
@@ -323,7 +323,7 @@ int parse_list_result(dbclient *client) {
         if (0 != memcmp(client->buf, magic, MAGIC_LEN))
             return -3;
 
-        client->buf[HEADER_PREFIX - 1] = '\\0';
+        client->buf[HEADER_PREFIX - 1] = '\0';
         if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
             n2 <= 0 || n2 > READ_MAX)
             return -4;
@@ -331,7 +331,7 @@ int parse_list_result(dbclient *client) {
         n1 = read_util(client, n2, 510);
         if (n1 < 0)
             return n1;
-        client->buf[n2] = '\\0';
+        client->buf[n2] = '\0';
 
         parsed = split_list_frame(client, n2, &key, &key_len,
             &value, &value_len);
@@ -341,7 +341,7 @@ int parse_list_result(dbclient *client) {
             break;
 
         /* SkipDB string Datums include one trailing NUL byte. */
-        if (value_len > 0 && value[value_len - 1] == '\\0')
+        if (value_len > 0 && value[value_len - 1] == '\0')
             --value_len;
 
         if (fwrite(key, 1, key_len, stdout) != key_len ||
@@ -349,8 +349,8 @@ int parse_list_result(dbclient *client) {
             (value_len > 0 &&
              fwrite(value, 1, value_len, stdout) != value_len))
             return -5;
-        if (value_len == 0 || value[value_len - 1] != '\\n')
-            putchar('\\n');
+        if (value_len == 0 || value[value_len - 1] != '\n')
+            putchar('\n');
     }
 
     return 0;
@@ -398,7 +398,7 @@ int parse_script_result(dbclient *client) {
         if (0 != memcmp(client->buf, magic, MAGIC_LEN))
             return -3;
 
-        client->buf[HEADER_PREFIX - 1] = '\\0';
+        client->buf[HEADER_PREFIX - 1] = '\0';
         if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
             n2 <= 0 || n2 > READ_MAX)
             return -4;
@@ -406,7 +406,7 @@ int parse_script_result(dbclient *client) {
         n1 = read_util(client, n2, 510);
         if (n1 < 0)
             return n1;
-        client->buf[n2] = '\\0';
+        client->buf[n2] = '\0';
 
         parsed = split_list_frame(client, n2, &key, &key_len,
             &value, &value_len);
@@ -416,11 +416,11 @@ int parse_script_result(dbclient *client) {
             break;
 
         if (value_len == 0 ||
-            (value[value_len - 1] != '\\0' &&
-             value[value_len - 1] != '\\n'))
+            (value[value_len - 1] != '\0' &&
+             value[value_len - 1] != '\n'))
             return -4;
         --value_len;
-        if (memchr(value, '\\0', value_len) != NULL ||
+        if (memchr(value, '\0', value_len) != NULL ||
             !valid_shell_identifier(key))
             return -4;
 
