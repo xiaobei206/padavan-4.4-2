@@ -56,6 +56,7 @@ nvram_get_(const char *name)
 	nvr.len_value = MAX_CACHE_LEN - i_cache;
 	nvr.param = (char*)name;
 	nvr.value = &nvr_cache[i_cache];
+	nvr.is_temp = 0;
 
 	ret = ioctl(nvram_fd, NVRAM_IOCTL_GET, &nvr);
 	if (ret < 0) {
