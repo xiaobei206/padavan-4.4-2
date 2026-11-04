@@ -839,29 +839,36 @@ switch (self->itemType)\
 
 void UArray_at_putLong_(UArray *self, size_t pos, long v)
 {
-	if(pos >= self->size) UArray_setSize_(self, pos + 1);
-
-	//if(UArray_longAt_(self, pos) != v)
-	{
-		UARRAY_RAWAT_PUT_(self, pos, v);
-		UArray_changed(self);
-	}
+	if (NULL == self || pos == (size_t)-1)
+		return;
+	if (pos >= self->size)
+		UArray_setSize_(self, pos + 1);
+	if (pos >= self->size || NULL == self->data)
+		return;
+	UARRAY_RAWAT_PUT_(self, pos, v);
+	UArray_changed(self);
 }
 
 void UArray_at_putDouble_(UArray *self, size_t pos, double v)
 {
-	if(pos >= self->size) UArray_setSize_(self, pos + 1);
-
-	//if(UArray_doubleAt_(self, pos) != v)
-	{
-		UARRAY_RAWAT_PUT_(self, pos, v);
-		UArray_changed(self);
-	}
+	if (NULL == self || pos == (size_t)-1)
+		return;
+	if (pos >= self->size)
+		UArray_setSize_(self, pos + 1);
+	if (pos >= self->size || NULL == self->data)
+		return;
+	UARRAY_RAWAT_PUT_(self, pos, v);
+	UArray_changed(self);
 }
 
 void UArray_at_putPointer_(UArray *self, size_t pos, void *v)
 {
-	if (pos >= self->size) UArray_setSize_(self, pos + 1);
+	if (NULL == self || pos == (size_t)-1)
+		return;
+	if (pos >= self->size)
+		UArray_setSize_(self, pos + 1);
+	if (pos >= self->size || NULL == self->data)
+		return;
 
 	switch (self->itemType)
 	{
@@ -879,17 +886,20 @@ void UArray_at_putPointer_(UArray *self, size_t pos, void *v)
 
 void UArray_appendLong_(UArray *self, long v)
 {
-	UArray_at_putLong_(self, self->size, v);
+	if (self)
+		UArray_at_putLong_(self, self->size, v);
 }
 
 void UArray_appendDouble_(UArray *self, double v)
 {
-	UArray_at_putDouble_(self, self->size, v);
+	if (self)
+		UArray_at_putDouble_(self, self->size, v);
 }
 
 void UArray_appendPointer_(UArray *self, void *v)
 {
-	UArray_at_putPointer_(self, self->size, v);
+	if (self)
+		UArray_at_putPointer_(self, self->size, v);
 }
 
 void UArray_appendBytes_size_(UArray *self, const uint8_t *bytes, size_t size)
