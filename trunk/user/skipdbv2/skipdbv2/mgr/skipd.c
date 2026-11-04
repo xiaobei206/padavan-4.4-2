@@ -134,6 +134,14 @@ ev_signal signal_watcher2;
 #define STATIC_BUF_LEN 511
 char static_buffer[STATIC_BUF_LEN+1];
 
+static char *find_terminated_value_separator(Datum value)
+{
+    if (NULL == value.data || value.size < 2 ||
+        ((char*)value.data)[value.size - 1] != '\0')
+        return NULL;
+    return (char*)memchr(value.data, ' ', value.size - 1);
+}
+
 static int is_valid_script_name(const char *name)
 {
     const unsigned char *p;
@@ -317,7 +325,7 @@ static void delay_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
             break;
         }
 
-        p1 = strstr((char*)dvalue.data, " ");
+        p1 = find_terminated_value_separator(dvalue);
         if(NULL == p1) {
             skipd_log(SKIPD_DEBUG, "delay cmd:%s, dvalue.data error\n", dkey.data);
             break;
@@ -366,7 +374,7 @@ static void time_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
             break;
         }
 
-        p1 = strstr((char*)dvalue.data, " ");
+        p1 = find_terminated_value_separator(dvalue);
         if(NULL == p1) {
             skipd_log(SKIPD_DEBUG, "time %s value error\n", dkey.data);
             ev_timer_stop(EV_A_ watcher);
@@ -783,7 +791,14 @@ static int client_run_command(EV_P_ skipd_client* client)
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
-        sprintf(delay_obj->key, "__delay__%s", client->key);
+        tmp2 = snprintf(delay_obj->key, sizeof(delay_obj->key),
+            "__delay__%s", client->key);
+        if (tmp2 < 0 || (size_t)tmp2 >= sizeof(delay_obj->key)) {
+            free(delay_obj);
+            p1 = "key too big\\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         client->key = delay_obj->key;
         delay_obj->tick = tmpi;
         delay_obj->server = client->server;
@@ -870,7 +885,14 @@ static int client_run_command(EV_P_ skipd_client* client)
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
-        sprintf(time_obj->key, "__time__%s", client->key);
+        tmp2 = snprintf(time_obj->key, sizeof(time_obj->key),
+            "__time__%s", client->key);
+        if (tmp2 < 0 || (size_t)tmp2 >= sizeof(time_obj->key)) {
+            free(time_obj);
+            p1 = "key too big\\n";
+            client_send(EV_A_ client, p1, strlen(p1));
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         client->key = time_obj->key;
         dkey = Datum_FromCString_(client->key);
         existed = SkipDB_exists(client->server->db, dkey);
@@ -1598,7 +1620,7 @@ static void server_init_delay(EV_P_ skipd_server *server) {
         dkey = SkipDBRecord_keyDatum(record);
         dvalue = SkipDBRecord_valueDatum(record);
 
-        p1 = strstr((char*)dvalue.data, " ");
+        p1 = find_terminated_value_separator(dvalue);
         if(NULL != p1) {
             n1 = (p1 - (char*)dvalue.data);
             if(n1 > STATIC_BUF_LEN || NULL == dkey.data ||
@@ -1650,7 +1672,7 @@ static void server_init_time(EV_P_ skipd_server *server) {
         dkey = SkipDBRecord_keyDatum(record);
         dvalue = SkipDBRecord_valueDatum(record);
 
-        p1 = strstr((char*)dvalue.data, " ");
+        p1 = find_terminated_value_separator(dvalue);
         if(NULL != p1) {
             n1 = (p1 - (char*)dvalue.data);
             if(n1 > STATIC_BUF_LEN || NULL == dkey.data ||
