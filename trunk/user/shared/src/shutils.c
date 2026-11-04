@@ -482,10 +482,20 @@ int doSystem(const char *fmt, ...)
 {
 	char cmd_buf[512];
 	va_list pargv;
+	int len;
+
+	if (!fmt)
+		return -1;
 
 	va_start(pargv, fmt);
-	vsnprintf(cmd_buf, sizeof(cmd_buf), fmt, pargv);
+	len = vsnprintf(cmd_buf, sizeof(cmd_buf), fmt, pargv);
 	va_end(pargv);
+
+	/* Never execute a silently truncated shell command. */
+	if (len < 0 || len >= (int)sizeof(cmd_buf)) {
+		errno = EOVERFLOW;
+		return -1;
+	}
 
 	return system(cmd_buf);
 }
