@@ -132,15 +132,27 @@ size_t UArray_sizeRequiredToContain_(const UArray *self, const UArray *other)
 
 void UArray_rawSetItemType_(UArray *self, CTYPE type)
 {
-	size_t itemSize = CTYPE_size(type);
+	size_t itemSize;
+	if (NULL == self)
+		return;
+	itemSize = CTYPE_size(type);
+	if (itemSize == 0)
+		return;
 	self->itemType = type;
 	self->itemSize = itemSize;
 }
 
 void UArray_setItemType_(UArray *self, CTYPE type)
 {
-	size_t itemSize = CTYPE_size(type);
-	div_t q = div(UArray_sizeInBytes(self), itemSize);
+	size_t itemSize;
+	div_t q;
+	if (NULL == self)
+		return;
+	itemSize = CTYPE_size(type);
+	if (itemSize == 0 || self->itemSize == 0)
+		return;
+	q = div((int)(UArray_sizeInBytes(self) > INT_MAX ? INT_MAX : UArray_sizeInBytes(self)),
+		(int)itemSize);
 
 	if (q.rem != 0)
 	{
@@ -226,18 +238,30 @@ void UArray_convertToEncoding_(UArray *self, CENCODING encoding)
 
 UArray *UArray_newWithData_type_encoding_size_copy_(void *bytes, CTYPE type, CENCODING encoding, size_t size, int copy)
 {
-	UArray *self = (UArray *)io_calloc(1, sizeof(UArray));
+	UArray *self;
+	size_t itemSize = CTYPE_size(type);
+	if (itemSize == 0 || size > (size_t)-1 / itemSize ||
+		size * itemSize == (size_t)-1 || (size > 0 && NULL == bytes))
+		return NULL;
+	self = (UArray *)io_calloc(1, sizeof(UArray));
+	if (NULL == self)
+		return NULL;
 	UArray_setData_type_size_copy_(self, bytes, type, size, copy);
+	if (self->itemSize != itemSize || self->size != size ||
+		(copy && NULL == self->data)) {
+		if (self->data)
+			io_free(self->data);
+		io_free(self);
+		return NULL;
+	}
 	self->encoding = encoding;
 	return self;
 }
 
 UArray *UArray_newWithData_type_size_copy_(void *bytes, CTYPE type, size_t size, int copy)
 {
-	UArray *self = (UArray *)io_calloc(1, sizeof(UArray));
-	UArray_setData_type_size_copy_(self, bytes, type, size, copy);
-	self->encoding = CENCODING_ASCII;
-	return self;
+	return UArray_newWithData_type_encoding_size_copy_(bytes, type,
+		CENCODING_ASCII, size, copy);
 }
 
 UArray *UArray_new(void)
@@ -359,29 +383,68 @@ void UArray_checkIfOkToRelloc(UArray *self)
 
 void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t size, int copy)
 {
+	size_t itemSize;
 	size_t sizeInBytes;
+	size_t oldSizeInBytes;
+	void *sourceCopy = NULL;
+	uint8_t *newData;
 
-	UArray_rawSetItemType_(self, type);
-	self->size = size;
-
-	sizeInBytes = self->size * self->itemSize;
+	if (NULL == self)
+		return;
+	itemSize = CTYPE_size(type);
+	if (itemSize == 0 || size > (size_t)-1 / itemSize)
+		return;
+	sizeInBytes = size * itemSize;
+	if (sizeInBytes == (size_t)-1 || (sizeInBytes > 0 && NULL == data))
+		return;
 
 	if (copy)
-	{	
-		#ifdef UARRAY_DEBUG
+	{
+#ifdef UARRAY_DEBUG
 		UArray_checkIfOkToRelloc(self);
-		#endif
-
-		self->data = io_realloc(self->data, sizeInBytes + 1);
-		memmove(self->data, data, sizeInBytes);
-		self->data[sizeInBytes] = 0x0;
+#endif
+		/* If source bytes alias this array, preserve them before realloc. */
+		if (sizeInBytes > 0 && self->data && self->itemSize > 0 &&
+			self->size <= (size_t)-1 / self->itemSize)
+		{
+			uintptr_t base = (uintptr_t)self->data;
+			uintptr_t src = (uintptr_t)data;
+			oldSizeInBytes = self->size * self->itemSize;
+			if (src >= base && src - base < oldSizeInBytes)
+			{
+				size_t offset = (size_t)(src - base);
+				if (sizeInBytes > oldSizeInBytes - offset)
+					return;
+				sourceCopy = io_malloc(sizeInBytes);
+				if (NULL == sourceCopy)
+					return;
+				memmove(sourceCopy, data, sizeInBytes);
+				data = sourceCopy;
+			}
+		}
+		newData = (uint8_t *)io_realloc(self->data, sizeInBytes + 1);
+		if (NULL == newData) {
+			if (sourceCopy)
+				io_free(sourceCopy);
+			return;
+		}
+		if (sizeInBytes > 0)
+			memmove(newData, data, sizeInBytes);
+		newData[sizeInBytes] = 0;
+		self->data = newData;
+		if (sourceCopy)
+			io_free(sourceCopy);
 	}
 	else
 	{
-		if(self->data) free(self->data);
-		self->data = data;
+		if (self->data && self->data != data)
+			io_free(self->data);
+		self->data = (uint8_t *)data;
 	}
 
+	self->itemType = type;
+	self->itemSize = itemSize;
+	self->size = size;
 }
 
 UArray UArray_stackAllocedWithCString_(char *s)
@@ -425,24 +488,31 @@ void UArray_free(UArray *self)
 
 void UArray_setSize_(UArray *self, size_t size)
 {
+	size_t oldSizeInBytes;
+	size_t newSizeInBytes;
+	uint8_t *newData;
+	if (NULL == self || self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		size > (size_t)-1 / self->itemSize)
+		return;
+	oldSizeInBytes = self->size * self->itemSize;
+	newSizeInBytes = self->itemSize * size;
+	if (newSizeInBytes == (size_t)-1)
+		return;
 	if (size != self->size)
 	{
-		size_t oldSizeInBytes = UArray_sizeInBytes(self);
-		size_t newSizeInBytes = self->itemSize * size;
-
 #ifdef UARRAY_DEBUG
-			UArray_checkIfOkToRelloc(self);
+		UArray_checkIfOkToRelloc(self);
 #endif
-		self->data = io_realloc(self->data, newSizeInBytes + 1);
-
-
+		newData = (uint8_t *)io_realloc(self->data, newSizeInBytes + 1);
+		if (NULL == newData)
+			return;
+		self->data = newData;
 		self->data[newSizeInBytes] = 0x0;
 		self->size = size;
 
 		if (newSizeInBytes > oldSizeInBytes)
-		{
 			memset(self->data + oldSizeInBytes, 0, newSizeInBytes - oldSizeInBytes);
-		}
 
 		UArray_changed(self);
 	}
