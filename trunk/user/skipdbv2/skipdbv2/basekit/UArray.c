@@ -576,6 +576,7 @@ void UArray_stackFree(UArray *self)
 	self->data = NULL;
 	self->size = 0;
 	self->hash = 0;
+	self->stackAllocated = 0;
 }
 
 void UArray_free(UArray *self)
