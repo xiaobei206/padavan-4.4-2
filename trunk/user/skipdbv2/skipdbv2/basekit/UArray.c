@@ -775,85 +775,95 @@ long UArray_lastLong(const UArray *self)
 
 void UArray_removeRange(UArray *self, size_t start, size_t removeSize)
 {
-	if (start < self->size)
-	{
-		if (start + removeSize > self->size)
-		{
-			removeSize = self->size - start;
-		}
-		else if (start + removeSize < self->size)
-		{
-			// need to copy end
-			size_t remainder = start + removeSize;
-			size_t remainderSize = self->size - remainder;
-			memmove(UARRAY_BYTESAT_(self, start), UARRAY_BYTESAT_(self, remainder), self -> itemSize * remainderSize);
-		}
+	size_t originalSize, newSize, remainder, remainderSize, newBytes;
+	if (NULL == self || self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize)
+		return;
+	originalSize = self->size;
+	if (start >= originalSize || removeSize == 0)
+		return;
+	if (removeSize > originalSize - start)
+		removeSize = originalSize - start;
+	newSize = originalSize - removeSize;
 
-		UArray_setSize_(self, self->size - removeSize);
+	if (start < newSize) {
+		remainder = start + removeSize;
+		remainderSize = originalSize - remainder;
+		if (remainderSize > (size_t)-1 / self->itemSize)
+			return;
+		memmove(UARRAY_BYTESAT_(self, start), UARRAY_BYTESAT_(self, remainder),
+			self->itemSize * remainderSize);
+	}
+	newBytes = newSize * self->itemSize;
+	UArray_setSize_(self, newSize);
+	/* Shrinking reallocations may fail; the old allocation is still large
+	 * enough, so keep the logical removal successful without reallocating. */
+	if (self->size != newSize) {
+		self->size = newSize;
+		self->data[newBytes] = 0;
+		UArray_changed(self);
 	}
 	UArray_changed(self);
 }
 
 void UArray_leave_thenRemove_(UArray *self, size_t itemsToLeave, size_t itemsToRemove)
 {
-	if (itemsToLeave <= 0)
-	{
+	size_t size, itemSize, period, remainder, chunkCount;
+	size_t tailCount, newItemCount, newBytes, chunkBytes, chunkPos;
+	uint8_t *newData;
+
+	if (NULL == self || self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize)
+		return;
+	if (itemsToLeave == 0) {
 		UArray_clear(self);
 		UArray_setSize_(self, 0);
 		return;
 	}
-	
-	if (itemsToRemove <= 0)
-	{
+	if (itemsToRemove == 0 || self->size == 0)
+		return;
+	if (itemsToLeave > (size_t)-1 - itemsToRemove)
+		return;
+
+	size = self->size;
+	itemSize = self->itemSize;
+	period = itemsToLeave + itemsToRemove;
+	remainder = size % period;
+	chunkCount = size / period;
+	tailCount = remainder < itemsToLeave ? remainder : itemsToLeave;
+
+	if (itemsToLeave > (size_t)-1 / itemSize)
+		return;
+	chunkBytes = itemsToLeave * itemSize;
+	if (chunkCount > ((size_t)-1 - tailCount) / itemsToLeave)
+		return;
+	newItemCount = chunkCount * itemsToLeave + tailCount;
+	if (newItemCount > (size_t)-1 / itemSize)
+		return;
+	newBytes = newItemCount * itemSize;
+	if (newBytes == (size_t)-1)
+		return;
+
+	newData = (uint8_t *)io_malloc(newBytes + 1);
+	if (NULL == newData)
+		return;
+	for (chunkPos = 0; chunkPos < chunkCount; chunkPos++) {
+		memmove(newData + chunkPos * chunkBytes,
+			UARRAY_BYTESAT_(self, chunkPos * period), chunkBytes);
+	}
+	if (tailCount > 0) {
+		memmove(newData + chunkPos * chunkBytes,
+			UARRAY_BYTESAT_(self, chunkPos * period), tailCount * itemSize);
+	}
+	newData[newBytes] = 0;
+	UArray_setData_type_size_copy_(self, newData, UArray_itemType(self), newItemCount, 0);
+	if (self->size != newItemCount || self->data != newData) {
+		/* The setter validates all bounds before transferring ownership. */
+		io_free(newData);
 		return;
 	}
-	
-	{
-		size_t tailChunkSizeInBytes;
-		
-		size_t period = itemsToLeave + itemsToRemove;
-		size_t tailItemCount = UArray_size(self) % period;
-		size_t itemSize = self->itemSize;
-		size_t chunkSizeInBytes = itemSize * itemsToLeave;
-		
-		if (tailItemCount == 0)
-		{
-			tailChunkSizeInBytes = 0;
-		}
-		else if (tailItemCount <= itemsToLeave)
-		{
-			tailChunkSizeInBytes = tailItemCount * itemSize;
-		}
-		else
-		{
-			tailChunkSizeInBytes = chunkSizeInBytes;
-		}
-		
-		{
-			size_t chunkCount = UArray_size(self) / period;
-			size_t newItemCount = chunkCount * itemsToLeave + tailChunkSizeInBytes / itemSize;
-			uint8_t *newData = malloc(newItemCount * itemSize);
-			
-			{
-				size_t chunkPos;
-				
-				for (chunkPos = 0; chunkPos < chunkCount; chunkPos++)
-				{
-					memmove(newData + chunkPos * chunkSizeInBytes, UARRAY_BYTESAT_(self, chunkPos * period), chunkSizeInBytes);
-				}
-
-				if (tailChunkSizeInBytes)
-				{
-					memmove(newData + chunkPos * chunkSizeInBytes, UARRAY_BYTESAT_(self, chunkPos * period), tailChunkSizeInBytes);
-				}
-				
-				UArray_setData_type_size_copy_(self, newData, UArray_itemType(self), newItemCount, 0);
-				UArray_changed(self);
-			}
-		}
-	}
+	UArray_changed(self);
 }
-
 BASEKIT_API void UArray_removeFirst(UArray *self)
 {
 	UArray_removeRange(self, 0, 1);
