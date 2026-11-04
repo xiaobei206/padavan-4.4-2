@@ -45,6 +45,9 @@ write_json_string(webs_t wp, const char *value)
 		switch (*p) {
 		case '"':  websWrite(wp, "%s", "\\\""); break;
 		case '\\': websWrite(wp, "%s", "\\\\"); break;
+		case '<':  websWrite(wp, "%s", "\\u003c"); break;
+		case '>':  websWrite(wp, "%s", "\\u003e"); break;
+		case '&':  websWrite(wp, "%s", "\\u0026"); break;
 		case '\b': websWrite(wp, "%s", "\\b"); break;
 		case '\f': websWrite(wp, "%s", "\\f"); break;
 		case '\n': websWrite(wp, "%s", "\\n"); break;
