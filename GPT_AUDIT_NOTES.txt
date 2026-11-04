@@ -1,5 +1,6 @@
 Padavan GPT audit notes (brief)
 Date: 2026-11-04
+0ace721  skipd.c: validate -d/-s lengths, handle server allocation failure, and trim/check database path before concatenation.
 149dce6  skipd.c: allocate restored daily timers for both future and already-passed times; validate exact stored time tokens.
 6259522  skipd.c: advance persisted delay-timer cursor on malformed records instead of hanging startup.
 db9b8d2  skipd.c: bound time-token copy, require exact HH:MM:SS parsing, handle timer allocation failures, and fix delay duplicate-response use-after-free.
