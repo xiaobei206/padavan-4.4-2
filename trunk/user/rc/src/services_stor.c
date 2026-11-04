@@ -192,15 +192,22 @@ int
 check_existed_share(const char *string)
 {
 	FILE *tp;
-	char buf[4096], target[256];
+	char buf[4096], target[258];
+	int target_len;
 
 	if((tp = fopen(SAMBA_CONF, "r")) == NULL)
 		return 0;
 
-	if(string == NULL || strlen(string) <= 0)
+	if (!string || !*string) {
+		fclose(tp);
 		return 0;
+	}
 
-	sprintf(target, "[%s]", string);
+	target_len = snprintf(target, sizeof(target), "[%s]", string);
+	if (target_len < 0 || target_len >= (int)sizeof(target)) {
+		fclose(tp);
+		return 0;
+	}
 
 	while(fgets(buf, sizeof(buf), tp) != NULL){
 		if(strstr(buf, target)){
@@ -346,19 +353,17 @@ write_smb_conf(void)
 					
 					int guest_right = get_permission(SMB_GUEST_USER, follow_partition->mount_point, folder_list[n], "cifs");
 
-					memset(share, 0, 256);
-					strcpy(share, folder_list[n]);
+					snprintf(share, sizeof(share), "%s", folder_list[n]);
 					
 					fclose(fp);
 					
 					if(check_existed_share(share)){
 						i = 1;
 						memset(share, 0, 256);
-						sprintf(share, "%s(%d)", folder_list[n], i);
+						snprintf(share, sizeof(share), "%.*s(%d)", (int)sizeof(share) - 12, folder_list[n], i);
 						while(check_existed_share(share)){
 							++i;
-							memset(share, 0, 256);
-							sprintf(share, "%s(%d)", folder_list[n], i);
+							snprintf(share, sizeof(share), "%.*s(%d)", (int)sizeof(share) - 12, folder_list[n], i);
 						}
 					}
 					
@@ -739,7 +744,10 @@ int create_mp_link(char *search_dir, char *link_path, int force_first_valid)
 {
 	FILE *procpt;
 	char line[512], devname[32], mpname[256], fstype[32], target_path[256];
-	int link_created;
+	int link_created, path_len;
+
+	if (!search_dir || !link_path)
+		return 0;
 
 	link_created = 0;
 
@@ -759,7 +767,9 @@ int create_mp_link(char *search_dir, char *link_path, int force_first_valid)
 				continue;
 
 			if (strncmp(mpname, "/media/", 7) == 0) {
-				sprintf(target_path, "%s/%s", mpname, search_dir);
+				path_len = snprintf(target_path, sizeof(target_path), "%s/%s", mpname, search_dir);
+				if (path_len < 0 || path_len >= (int)sizeof(target_path))
+					continue;
 				if (!force_first_valid) {
 					if (check_if_dir_exist(target_path)) {
 						if (symlink(target_path, link_path) == 0) {
