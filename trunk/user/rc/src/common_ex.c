@@ -17,6 +17,7 @@
 
 #include <stdlib.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <errno.h>
 #include <time.h>
@@ -725,6 +726,20 @@ module_param_set_int(const char *module_name, const char *module_param, int para
 		return -1;
 
 	return fput_int(mod_path, param_value);
+}
+
+void
+oom_score_adjust(pid_t pid, int oom_score_adj)
+{
+	char proc_path[40];
+	int path_len;
+
+	if (pid <= 0)
+		return;
+	path_len = snprintf(proc_path, sizeof(proc_path), "/proc/%u/oom_score_adj", (unsigned int)pid);
+	if (path_len < 0 || path_len >= (int)sizeof(proc_path))
+		return;
+	fput_int(proc_path, oom_score_adj);
 }
 
 #if defined (USE_NAND_FLASH)
