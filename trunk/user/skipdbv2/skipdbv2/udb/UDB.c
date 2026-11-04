@@ -390,8 +390,10 @@ void UDB_commitTransaction(UDB *self)
 
 	UDBIndex_preCommit(self->index);
 	UDBRecords_preCommit(self->records);
-	if (!UDB_streamsOpen(self) || UDB_setCommittedFlag_(self, 1) != 0) {
-		/* Leave journals untouched; the old marker decides recovery on reopen. */
+	if (!UDB_streamsOpen(self) ||
+		!UDBIndex_prepareCommit(self->index) ||
+		!UDB_streamsOpen(self) || UDB_setCommittedFlag_(self, 1) != 0) {
+		/* Marker 0 discards both complete journals if preparation fails. */
 		UDB_close(self);
 		return;
 	}
