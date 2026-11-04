@@ -1531,6 +1531,11 @@ int how_many_layer(int is_chroot, const char *basedir, char **mount_path, char *
 			prefix_len = (size_t)(follow_info_end - basedir);
 		else
 			prefix_len = path_len;
+		if (layer >= SHARE_LAYER) {
+			if (!follow_info_end)
+				return -1;
+			follow_info = follow_info_end;
+		}
 
 		*mount_path = (char *)malloc(prefix_len + 1);
 		if (!*mount_path)
