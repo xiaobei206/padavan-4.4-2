@@ -41,3 +41,13 @@ fd32038  flash_mtd.c: guard erase/write geometry and UBI-aligned int lengths.
 1ace63a  common_ex.c: create directories directly, removing shell path interpolation.
 82c24e2  hotplug_stor.c: pass disk names to automount/hddtune through argv.
 ab86478  hotplug_usb.c: bound modem node paths and use argv for zerocd/eject.
+fd32038  flash_mtd.c: guard erase/write geometry and UBI-aligned int lengths.
+8e227a1  flash_mtd.c: reject short UBI alignment reads before programming.
+1ace63a  common_ex.c: create directories directly, removing shell path interpolation.
+82c24e2  hotplug_stor.c: pass disk names to automount/hddtune through argv.
+ab86478  hotplug_usb.c: bound modem node paths and use argv for zerocd/eject.
+51b0854  common_ex.c: validate module names/parameters and use argv for modprobe/rmmod.
+af983ab  common_ex.c: restore OOM helper and include integer limits.
+5ef90f7  common_ex.c: correct module-helper C escape sequences.
+b52fd0f  common_ex.c: write user config as plain text and preserve final line.
+20458d7  ralink.c: bound wireless ioctl interface names and MAC/WDS list formatting.
