@@ -1,3 +1,20 @@
+## 2026-11-06 07:10 CST — Preserve newer PID-cache mappings during stale-record cleanup
+
+### Baseline
+- Base commit: `d9f280d948eb7d17df073b179cd9245021231983`; latest SkipDBv2 Regression run #220 passed all source contracts, compilation, and CTests.
+- Scope is limited to SkipDB record-cache PID mapping cleanup, its existing workflow source contract, and this handoff log.
+
+### Changes
+- Before removing a record's PID mapping during deallocation, verify that the mapping still points to that exact record.
+- Prevent freeing an older duplicate record from deleting a newer record's valid cache entry for the same PID.
+- Strengthen the existing SkipDBCache source contract; no new files, symbols, build targets, or test registrations.
+
+### Validation
+- Static preflight confirms PID removal is conditional on pointer identity and leaves unrelated mappings untouched.
+- Remote SkipDBv2 Regression is authoritative for source contracts, compilation, and CTest.
+
+---
+
 ## 2026-11-06 06:28 CST — Honor long IPC deadlines across poll slices
 
 ### Baseline and scope

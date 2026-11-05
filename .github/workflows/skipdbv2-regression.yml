@@ -305,6 +305,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c": [
                   "void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)",
+                  "PHash_at_(self->pidToRecord, (void *)SkipDBRecord_pid(r)) == r",
                   "void SkipDB_noteDirtyRecord_(SkipDB *self, SkipDBRecord *r)",
                   "static void SkipDB_clearCacheMarks_(SkipDB *self)",
                   "static void SkipDB_markRecentCacheRecords_(SkipDB *self, size_t lowMark)",

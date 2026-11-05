@@ -82,7 +82,9 @@ void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)
 	if (r == self->youngestRecord)
 		self->youngestRecord = SkipDBRecord_olderRecord(r);
 	SkipDBRecord_removeFromAgeList(r);
-	if (self->pidToRecord && SkipDBRecord_pid(r) != 0)
+	/* Do not evict a newer cache entry when freeing a stale duplicate. */
+	if (self->pidToRecord && SkipDBRecord_pid(r) != 0 &&
+		PHash_at_(self->pidToRecord, (void *)SkipDBRecord_pid(r)) == r)
 		PHash_removeKey_(self->pidToRecord, (void *)SkipDBRecord_pid(r));
 }
 
