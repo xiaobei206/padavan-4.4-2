@@ -923,9 +923,10 @@ int UDB_compactStepFor_(UDB *self, double maxSeconds)
 		newSize = UDBRecord_totalSize(firstEmptyRecord) -
 			sizeof(UDBRecordHeader) + UDBRecord_totalSize(record);
 		UDBRecord_size_(firstEmptyRecord, newSize);
-		if (!UDBRecord_saveHeader(firstEmptyRecord) ||
-			!UDBIndex_setPos_forPid_(self->index, 0,
-				UDBRecord_pid(record))) {
+		/* Both empty extents were unmapped when their records were removed.
+		 * Do not clear the second PID again: rejecting unmapped PIDs here is
+		 * intentional, and the merged extent must remain a pure data-file edit. */
+		if (!UDBRecord_saveHeader(firstEmptyRecord)) {
 			UDB_close(self);
 			return 0;
 		}
