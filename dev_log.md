@@ -1,3 +1,23 @@
+## 2026-11-05 21:24 CST — Repair IPC request formatter regression links
+
+### Baseline and failure
+- Base commit: `624a260d25a646a305b653204edb06a6a92ef551` (`refactor(ipc): centralize request frame serialization`).
+- SkipDBv2 Regression run #163 (`42034645359`) passed the firmware integration contracts and CMake configure, then failed while linking `dbus_protocol_test` and `dbapi_protocol_test`: both fixtures compile their CLI implementation but did not link the newly extracted `mgr/ipc_request.c` symbols.
+
+### Changes
+1. **Host regression target linkage — `CMakeLists.txt`**
+   - Added `mgr/ipc_request.c` to both protocol fixture executables, matching the source already linked by the production DBus/DBAPI executables.
+2. **CI source contracts — `.github/workflows/skipdbv2-regression.yml`**
+   - Raised the formatter source-registration expectation from three to five targets.
+   - Added explicit per-target assertions that both protocol fixtures link the shared formatter; the standalone formatter test remains registered.
+
+### Validation
+- In-memory structural checks confirm exactly five CMake registrations and the source-contract text checks both fixture target blocks.
+- This is a link-only integration correction; no production C implementation or protocol behavior changed.
+- No local compiler/CMake/CTest result is claimed. The pushed revision must pass the complete remote SkipDBv2 Regression workflow.
+
+---
+
 ## 2026-11-05 20:59 CST — Centralize IPC request-frame serialization
 
 ### Baseline and regression state

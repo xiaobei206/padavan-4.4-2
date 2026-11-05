@@ -140,7 +140,8 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/dbus_protocol.c
         ${PROJECT_SOURCE_DIR}/mgr/dbus_result.c
         ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c
-        ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_request.c)
     TARGET_LINK_LIBRARIES(dbus_protocol_test skipdb m ${LIBEV_LIBRARIES})
     add_test(NAME dbus_protocol_test COMMAND dbus_protocol_test)
 
@@ -148,7 +149,8 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/dbapi_protocol.c
         ${PROJECT_SOURCE_DIR}/mgr/dbapi_result.c
         ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c
-        ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_request.c)
     TARGET_LINK_LIBRARIES(dbapi_protocol_test skipdb m ${LIBEV_LIBRARIES})
     add_test(NAME dbapi_protocol_test COMMAND dbapi_protocol_test)
 
