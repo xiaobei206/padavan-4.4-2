@@ -121,7 +121,7 @@ int UDBIndex_finishOpening(UDBIndex *self)
 	JFile_begin(self->file);
 	if (!UDBIndex_setPos_forPid_(self, 0, 0))
 		return 0;
-	UDBIndex_preCommit(self);
+	JFile_commitToFile(self->file);
 	if (NULL == self->file->file || NULL == self->file->log)
 		return 0;
 	if (!UDBIndex_findHoles(self))

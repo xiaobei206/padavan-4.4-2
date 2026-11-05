@@ -152,7 +152,7 @@ void SkipDB_removeAt_(SkipDB *self, Datum k)
 			SkipDBRecord_willRemove_(update, record);
 		if (i == 0) {
 			SkipDBRecord *next = SkipDBRecord_nextRecord(record);
-			SkipDBRecord *previous = SkipDBRecord_previousRecord(record);
+			SkipDBRecord *previous = self->update[0];
 			if (next) {
 				SkipDBRecord_previousRecord_(next, previous);
 				SkipDBRecord_markAsDirty(next);
