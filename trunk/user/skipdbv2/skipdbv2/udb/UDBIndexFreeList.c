@@ -2,6 +2,16 @@
 #include "UDBIndexInternal.h"
 #include <stdio.h>
 
+static int UDBIndex_pushAndVerify_(List *list, void *value)
+{
+	size_t old_size;
+	if (NULL == list || list->size == (size_t)-1)
+		return 0;
+	old_size = list->size;
+	List_push_(list, value);
+	return list->size == old_size + 1;
+}
+
 int UDBIndex_hasReservation_(UDBIndex *self, PID_TYPE pid)
 {
 	size_t i;
@@ -17,14 +27,10 @@ int UDBIndex_hasReservation_(UDBIndex *self, PID_TYPE pid)
 
 int UDBIndex_reservePid_(UDBIndex *self, PID_TYPE pid)
 {
-	size_t old_size;
-
 	if (!UDBIndex_isValid_(self) || pid == 0 ||
 		UDBIndex_hasReservation_(self, pid))
 		return 0;
-	old_size = self->reserved->size;
-	List_push_(self->reserved, (void *)pid);
-	return self->reserved->size == old_size + 1;
+	return UDBIndex_pushAndVerify_(self->reserved, (void *)pid);
 }
 
 void UDBIndex_unreservePid_(UDBIndex *self, PID_TYPE pid)
@@ -45,14 +51,10 @@ void UDBIndex_removeHole_(UDBIndex *self, PID_TYPE pid)
 /* Add exactly one reusable PID to the free stack, checking allocation. */
 static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)
 {
-	size_t old_size;
-
 	if (!UDBIndex_isValid_(self) || pid == 0)
 		return 0;
 	UDBIndex_removeHole_(self, pid);
-	old_size = self->holes->size;
-	List_push_(self->holes, (void *)pid);
-	return self->holes->size == old_size + 1;
+	return UDBIndex_pushAndVerify_(self->holes, (void *)pid);
 }
 
 int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)
@@ -105,14 +107,11 @@ int UDBIndex_findHoles(UDBIndex *self)
 
 	/* PID 0 is reserved as the null/sentinel record, not a reusable hole. */
 	while (pid > 1) {
-		size_t old_size;
 		--pid;
 		if (!UDBIndex_posForPid_(self, pid)) {
 			if (ferror(self->file->file))
 				return 0;
-			old_size = self->holes->size;
-			List_push_(self->holes, (void *)pid);
-			if (self->holes->size != old_size + 1)
+			if (!UDBIndex_pushAndVerify_(self->holes, (void *)pid))
 				return 0;
 		}
 	}

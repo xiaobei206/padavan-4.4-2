@@ -159,6 +159,9 @@ jobs:
                   "void UDBIndex_commit(UDBIndex *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexFreeList.c": [
+                  "static int UDBIndex_pushAndVerify_(List *list, void *value)",
+                  "UDBIndex_pushAndVerify_(self->reserved, (void *)pid)",
+                  "UDBIndex_pushAndVerify_(self->holes, (void *)pid)",
                   "static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)",
                   "int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)",
                   "int UDBIndex_prepareCommit(UDBIndex *self)",
@@ -811,6 +814,12 @@ jobs:
           ).read_text()
           if records_storage_source.count("UDBRecords_hasReadyStreams_(") != 8:
               raise SystemExit("UDB record and journal stream readiness is not centralized")
+
+          index_free_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexFreeList.c"
+          ).read_text()
+          if index_free_source.count("UDBIndex_pushAndVerify_(") != 4:
+              raise SystemExit("UDB PID-list append growth checks are not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

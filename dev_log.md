@@ -1,3 +1,20 @@
+## 2026-11-06 01:38 CST — Unify verified UDB PID-list insertion
+
+### Baseline and scope
+- Base commit: `668187832280be705cf97d387c34e2be5e977d15` (`refactor(udb): centralize records stream readiness`); SkipDBv2 Regression run #190 passed all steps.
+- This iteration is limited to `udb/UDBIndexFreeList.c`.
+
+### Changes
+- Centralized the append-and-verify sequence used when reserving a PID, adding a reusable hole, and rebuilding the free-PID list.
+- Added an overflow guard before checking the expected list-size increment; callers retain their PID validation and error handling.
+- Updated CI contracts to require one private helper and three append call sites. Existing index-layer tests continue to cover reservation, reuse, and rebuild behavior. No new source files or CMake changes.
+
+### Validation
+- Static preflight confirms one helper definition and three uses; CI enforces the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:35 CST — Centralize UDB records stream readiness
 
 ### Baseline and scope
