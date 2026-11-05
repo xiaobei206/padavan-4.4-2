@@ -9,6 +9,7 @@
  void delay_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
     char* p1;
     int tmpi;
+    size_t prefix_len;
     delay_cmd* delay_obj = container_of(watcher, delay_cmd, watcher);
     Datum dkey = Datum_FromCString_(delay_obj->key);
     Datum dvalue = SkipDB_at_(delay_obj->server->db, dkey);
@@ -24,13 +25,13 @@
             break;
         }
 
-        tmpi = (unsigned char*)p1 - dvalue.data;
-        if(tmpi > STATIC_BUF_LEN) {
+        prefix_len = (size_t)(p1 - (char*)dvalue.data);
+        if(prefix_len > STATIC_BUF_LEN) {
             skipd_log(SKIPD_DEBUG, "delay cmd:%s, dvalue.data error\n", dkey.data);
             break;
         }
-        memcpy(static_buffer, dvalue.data, tmpi);
-        static_buffer[tmpi] = '\0';
+        memcpy(static_buffer, dvalue.data, prefix_len);
+        static_buffer[prefix_len] = '\0';
         if(S2ISUCCESS != str2int(&tmpi, static_buffer, 10) || tmpi < 0) {
             skipd_log(SKIPD_DEBUG, "delay cmd:%s, str2int error\n", dkey.data);
             break;
@@ -62,7 +63,7 @@
  void time_cmd_cb(EV_P_ ev_timer* watcher, int revents) {
     char *p1;
     char time_text[16];
-    int time_len;
+    size_t time_len;
     double timer_delay;
     time_t now;
     time_cmd* time_obj = container_of(watcher, time_cmd, watcher);
@@ -84,14 +85,14 @@
         return;
     }
 
-    time_len = (int)(p1 - (char*)dvalue.data);
-    if (time_len <= 0 || (size_t)time_len >= sizeof(time_text)) {
+    time_len = (size_t)(p1 - (char*)dvalue.data);
+    if (time_len == 0 || time_len >= sizeof(time_text)) {
         skipd_log(SKIPD_DEBUG, "time %s schedule value error\n", dkey.data);
         ev_timer_stop(EV_A_ watcher);
         free(time_obj);
         return;
     }
-    memcpy(time_text, dvalue.data, (size_t)time_len);
+    memcpy(time_text, dvalue.data, time_len);
     time_text[time_len] = '\0';
 
     sys_script(p1 + 1,
@@ -115,6 +116,8 @@
 
  void server_init_delay(EV_P_ skipd_server *server) {
     int n1;
+void server_init_delay(EV_P_ skipd_server *server) {
+    size_t delay_len;
     char *p1;
     Datum skey, dkey, dvalue;
     SkipDBCursor* cursor = NULL;
@@ -130,8 +133,8 @@
 
         p1 = find_terminated_value_separator(dvalue);
         if(NULL != p1) {
-            n1 = (p1 - (char*)dvalue.data);
-            if(n1 > STATIC_BUF_LEN || NULL == dkey.data ||
+            delay_len = (size_t)(p1 - (char*)dvalue.data);
+            if(delay_len > STATIC_BUF_LEN || NULL == dkey.data ||
                dkey.size == 0 || dkey.size > sizeof(delay_obj->key) ||
                ((char*)dkey.data)[dkey.size - 1] != '\0' ||
                memchr(dkey.data, '\0', dkey.size - 1) != NULL) {
@@ -141,8 +144,8 @@
                 record = SkipDB_list_next(server->db, skey, cursor);
                 continue;
             }
-            memcpy(static_buffer, dvalue.data, n1);
-            static_buffer[n1] = '\0';
+            memcpy(static_buffer, dvalue.data, delay_len);
+            static_buffer[delay_len] = '\0';
             if(S2ISUCCESS == str2int(&n1, static_buffer, 10) && n1 >= 0) {
                 delay_obj = (delay_cmd*)malloc(sizeof(delay_cmd));
                 if(NULL == delay_obj) {
@@ -167,7 +170,7 @@
 }
 
  void server_init_time(EV_P_ skipd_server *server) {
-    int n1;
+    size_t time_len;
     char *p1;
     double timer_delay;
     Datum skey, dkey, dvalue;
@@ -183,8 +186,8 @@
 
         p1 = find_terminated_value_separator(dvalue);
         if (NULL != p1) {
-            n1 = (int)(p1 - (char*)dvalue.data);
-            if (n1 <= 0 || (size_t)n1 >= sizeof(static_buffer) ||
+            time_len = (size_t)(p1 - (char*)dvalue.data);
+            if (time_len == 0 || time_len >= sizeof(static_buffer) ||
                 NULL == dkey.data || dkey.size == 0 ||
                 dkey.size > sizeof(time_obj->key) ||
                 ((char*)dkey.data)[dkey.size - 1] != '\0' ||
@@ -194,8 +197,8 @@
                 continue;
             }
 
-            memcpy(static_buffer, dvalue.data, (size_t)n1);
-            static_buffer[n1] = '\0';
+            memcpy(static_buffer, dvalue.data, time_len);
+            static_buffer[time_len] = '\0';
             if (!next_daily_delay(static_buffer, time(NULL), &timer_delay)) {
                 skipd_log(SKIPD_DEBUG, "time schedule value error\n");
                 record = SkipDB_list_next(server->db, skey, cursor);

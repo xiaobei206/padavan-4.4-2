@@ -1052,8 +1052,17 @@ jobs:
               ],
               "skipd_scheduler.c": [
                   "void delay_cmd_cb(",
+                  "size_t prefix_len;",
+                  "prefix_len = (size_t)(p1 - (char*)dvalue.data);",
+                  "if(prefix_len > STATIC_BUF_LEN)",
+                  "void time_cmd_cb(",
+                  "size_t time_len;",
+                  "time_len = (size_t)(p1 - (char*)dvalue.data);",
                   "void server_init_delay(",
+                  "size_t delay_len;",
+                  "delay_len = (size_t)(p1 - (char*)dvalue.data);",
                   "void server_init_time(",
+                  "if (time_len == 0 || time_len >= sizeof(static_buffer)",
                   "void server_sync_tick(",
               ],
               "skipd_socket.c": [
@@ -1151,6 +1160,12 @@ jobs:
               raise SystemExit("database marker file validation must have one private owner and two callers")
           if skipd_database_text.find("static int verify_owned_regular_file_(") > skipd_database_text.find("static int read_db_switch_marker("):
               raise SystemExit("database marker validator must be declared before its first call")
+          scheduler_source_text = (manager_root / "skipd_scheduler.c").read_text()
+          if (
+              "(int)(p1 - (char*)dvalue.data)" in scheduler_source_text or
+              "tmpi = (unsigned char*)p1 - dvalue.data;" in scheduler_source_text
+          ):
+              raise SystemExit("scheduled value prefix length must not narrow before bounds checking")
           jfile_source_text = Path("trunk/user/skipdbv2/skipdbv2/jfile/JFile.c").read_text()
           if jfile_source_text.count("JFile_verifyManagedFile_(") != 2:
               raise SystemExit("managed JFile descriptor validation must have one owner and one call")

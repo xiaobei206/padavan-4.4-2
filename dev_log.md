@@ -1,3 +1,20 @@
+## 2026-11-06 04:17 CST — Keep scheduled-value lengths wide until bounded
+
+### Baseline and scope
+- Base commit: `7a4236052c05b8adaae6a3fe1b4d5e4e55b08258` (`refactor(jfile): harden managed file validation`); SkipDBv2 Regression run #202 passed source contracts, configuration, build, and CTest.
+- Scope is limited to scheduled-value parsing in `mgr/skipd_scheduler.c`.
+
+### Changes
+- Removed pointer-difference narrowing in both timer callbacks and both startup restoration scans.
+- Kept delay/time prefix lengths as `size_t` through validation and bounded copy, preventing large or corrupt persisted values from wrapping to a small positive `int` and bypassing fixed-buffer limits.
+- Extended CI source contracts to require wide lengths at all parsing sites and reject the previous narrow casts. No new files, test targets, or CMake changes.
+
+### Validation
+- Static preflight confirms four size-aware prefix calculations and no narrowing casts remain in the scheduler.
+- Remote SkipDBv2 Regression validates compilation and the existing regression suite.
+
+---
+
 ## 2026-11-06 04:14 CST — Harden JFile managed-file validation
 
 ### Baseline and scope
