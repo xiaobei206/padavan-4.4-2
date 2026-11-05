@@ -906,9 +906,19 @@ int UDB_compactStepFor_(UDB *self, double maxSeconds)
 		return 0;
 
 	if (NULL == record) {
-		/* Remove a trailing free block; no live records follow it. */
-		if (!UDBRecords_truncate_(self->records,
-				(off_t)UDBRecord_pos(firstEmptyRecord)) ||
+		PID_TYPE tail_pos = UDBRecord_pos(firstEmptyRecord);
+		/* Clear the persisted free-list pointer before truncating its target. */
+		UDB_beginTransaction(self);
+		if (!self->withinTransaction ||
+			!UDBRecords_firstEmptyRecordPos_(self->records, 0)) {
+			UDB_close(self);
+			return 0;
+		}
+		UDB_commitTransaction(self);
+		if (!self->isOpen)
+			return 0;
+		/* The trailing hole contains no live rows, so truncation is now safe. */
+		if (!UDBRecords_truncate_(self->records, (off_t)tail_pos) ||
 			self->records->file->file == NULL ||
 			self->records->file->log == NULL) {
 			UDB_close(self);
