@@ -218,6 +218,40 @@ fail:
     return -1;
 }
 
+static int run_cli_token_validation_case(void)
+{
+    dbclient client;
+    char bad_key[] = "bad key=value";
+    char good_key[] = "good=value";
+    char *bad_argv[] = { "dbus", "set", bad_key, NULL };
+    char *good_argv[] = { "dbus", "set", good_key, NULL };
+    int length;
+
+    memset(&client, 0, sizeof(client));
+    strcpy(client.command, "set");
+    if (valid_protocol_field("bad key", 0) ||
+        valid_protocol_field("bad\tkey", 0) ||
+        valid_protocol_field("", 0) ||
+        !valid_protocol_field("", 1) ||
+        prefix_set_command(&client, 3, bad_argv) != -1) {
+        fprintf(stderr, "dbus accepted a malformed CLI key token\n");
+        free(client.buf);
+        return -1;
+    }
+    free(client.buf);
+    memset(&client, 0, sizeof(client));
+    strcpy(client.command, "set");
+    length = prefix_set_command(&client, 3, good_argv);
+    if (length <= 0 || (size_t)length > (size_t)client.buf_max ||
+        NULL == strstr(client.buf, "set good value\n")) {
+        fprintf(stderr, "dbus rejected a valid key=value CLI field\n");
+        free(client.buf);
+        return -1;
+    }
+    free(client.buf);
+    return 0;
+}
+
 int main(void)
 {
     static const char common_ok[] = "set alpha ok\n";
@@ -270,7 +304,8 @@ int main(void)
         sizeof(list_error_frame) - 1
     };
 
-    if (run_case(1, "set", common_ok, sizeof(common_ok) - 1,
+    if (run_cli_token_validation_case() != 0 ||
+        run_case(1, "set", common_ok, sizeof(common_ok) - 1,
             0, common_ok, sizeof(common_ok) - 1) != 0 ||
         run_case(1, "set", common_error, sizeof(common_error) - 1,
             -5, common_error, sizeof(common_error) - 1) != 0 ||
