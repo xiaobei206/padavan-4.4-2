@@ -663,6 +663,12 @@ static int SkipDB_recordAt_put_inner(SkipDB *self, Datum k, Datum v, SkipDBRecor
 		return 0;
 
 	record = SkipDB_recordAt_(self, k);
+	/* A corrupt lookup closes the database; never turn its NULL result into
+	 * an apparent insert or mutate detached in-memory records. */
+	if (!SkipDB_isOpen(self)) {
+		SkipDB_clearUpdate(self);
+		return 0;
+	}
 	if (record) {
 		SkipDBRecord_valueDatum_(record, v);
 		SkipDBRecord_markAsDirty(record);
