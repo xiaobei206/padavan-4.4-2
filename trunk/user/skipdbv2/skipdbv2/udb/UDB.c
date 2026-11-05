@@ -73,6 +73,37 @@ static int UDB_verifyCommittedJournal(const char *path)
 	return valid;
 }
 
+/* Never follow a symlink or block on a special file for the commit marker. */
+static FILE *UDB_openCommittedFile(const char *path, int create)
+{
+	int fd;
+	struct stat st;
+	FILE *file;
+
+#ifdef O_NOFOLLOW
+	fd = open(path, O_RDWR | O_NOFOLLOW | O_NONBLOCK);
+	if (fd < 0 && create && errno == ENOENT)
+		fd = open(path, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW |
+			O_NONBLOCK, 0600);
+#else
+	(void)create;
+	errno = ENOTSUP;
+	return NULL;
+#endif
+	if (fd < 0)
+		return NULL;
+	if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+		int saved_errno = errno ? errno : EPERM;
+		close(fd);
+		errno = saved_errno;
+		return NULL;
+	}
+	file = fdopen(fd, "r+");
+	if (NULL == file)
+		close(fd);
+	return file;
+}
+
 /* A missing commit marker is only valid for a genuinely new database.
  * Otherwise recreating it as an empty file would make UDB_open discard
  * journals that may be the only copy of an interrupted committed write. */
@@ -294,24 +325,18 @@ void UDB_open(UDB *self)
 		return;
 
 	errno = 0;
-	self->committedFile = fopen(self->committedPath, "r+");
+	self->committedFile = UDB_openCommittedFile(self->committedPath, 0);
 	if (NULL == self->committedFile) {
-		FILE *created;
 		int artifacts;
 		if (errno != ENOENT)
 			return;
 		/* Do not silently bless an existing database after its marker vanishes. */
 		artifacts = UDB_hasExistingArtifacts(self);
 		if (artifacts != 0) {
-			fprintf(stderr, "UDB: commit marker is missing while database artifacts exist\\n");
+			fprintf(stderr, "UDB: commit marker is missing while database artifacts exist\n");
 			return;
 		}
-		created = fopen(self->committedPath, "w+");
-		if (NULL == created)
-			return;
-		if (fclose(created) != 0)
-			return;
-		self->committedFile = fopen(self->committedPath, "r+");
+		self->committedFile = UDB_openCommittedFile(self->committedPath, 1);
 		if (NULL == self->committedFile)
 			return;
 	}
@@ -322,7 +347,7 @@ void UDB_open(UDB *self)
 		return;
 	}
 	if (marker == -1 && !UDB_primaryFilesEmpty(self)) {
-		fprintf(stderr, "UDB: empty commit marker with nonempty or invalid database files\\n");
+		fprintf(stderr, "UDB: empty commit marker with nonempty or invalid database files\n");
 		UDB_close(self);
 		return;
 	}
