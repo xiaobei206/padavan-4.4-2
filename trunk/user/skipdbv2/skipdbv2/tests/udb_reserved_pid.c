@@ -138,12 +138,24 @@ int main(void)
         goto done;
     }
 
-    /* Compaction can move the remaining live row into the leading hole
-     * while absorbing the deleted row that follows it. */
+    /* Compaction moves a live row into the leading hole, merges the
+     * adjacent empty extent, then safely truncates the trailing hole. */
     if (UDB_compactStep(db) != 1 || !UDB_isOpen(db) ||
         !has_value(db, first_pid, "updated") ||
         UDB_at_(db, second_pid).data != NULL) {
-        fprintf(stderr, "compaction failed to merge adjacent empty records\n");
+        fprintf(stderr, "compaction failed to move a live row into a hole\n");
+        goto done;
+    }
+    if (UDB_compactStep(db) != 1 || !UDB_isOpen(db) ||
+        !has_value(db, first_pid, "updated") ||
+        UDB_at_(db, second_pid).data != NULL) {
+        fprintf(stderr, "compaction failed to merge adjacent empty extents\n");
+        goto done;
+    }
+    if (UDB_compactStep(db) != 0 || !UDB_isOpen(db) ||
+        !has_value(db, first_pid, "updated") ||
+        UDB_at_(db, second_pid).data != NULL) {
+        fprintf(stderr, "trailing-hole truncation damaged live records\n");
         goto done;
     }
 
