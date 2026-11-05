@@ -1108,6 +1108,22 @@ jobs:
              command_source.count("SkipDB_at_put_(server->db, dkey, value)") != 1 or \
              command_source.count("SkipDB_exists(server->db, dkey)") != 1:
               raise SystemExit("delay/time task persistence is not centralized in one private helper")
+          increment_start = command_source.find('} else if((!strcmp(client->command, "inc"))')
+          increment_end = command_source.find("\n    }\n\n    ccrFinish(ctx, ccr_error_err2);", increment_start)
+          increment_source = (
+              command_source[increment_start:increment_end]
+              if increment_start >= 0 and increment_end > increment_start
+              else ""
+          )
+          read_result = increment_source.find("dvalue = SkipDB_at_(client->server->db, dkey);")
+          database_state_check = increment_source.find("if (!SkipDB_isOpen(client->server->db))", read_result)
+          missing_key_check = increment_source.find("if(NULL == dvalue.data)", read_result)
+          if (
+              not increment_source or read_result < 0 or database_state_check < 0 or
+              missing_key_check < 0 or database_state_check > missing_key_check or
+              "ccrReturn(ctx, ccr_error_ok1);" not in increment_source[database_state_check:missing_key_check]
+          ):
+              raise SystemExit("inc/desc must distinguish a failed database read from a missing key before defaulting to zero")
 
           if "static int client_run_command(" in (manager_root / "skipd.c").read_text():
               raise SystemExit("skipd command engine remains in the event-loop facade")

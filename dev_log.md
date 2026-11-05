@@ -1,3 +1,20 @@
+## 2026-11-06 05:40 CST — Distinguish inc/desc database failures from missing keys
+
+### Baseline and scope
+- Base commit: `83c09913af82397a5c07cd2fa2d0e94fdb0c55cc` (`fix(skipd): preserve database marker write errors`); SkipDBv2 Regression run #212 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to the increment/decrement read path in `mgr/skipd_command.c`.
+
+### Changes
+- Check `SkipDB_isOpen()` immediately after loading the current numeric value.
+- A failed database read now returns a database error instead of being misinterpreted as an absent key with value zero; the command does not attempt a follow-up write on a closed database.
+- Extended the existing CI source contract to require the database-state check before the missing-key default. No new files, declarations, CMake targets, or source registrations.
+
+### Validation
+- Static preflight confirms the check is ordered between `SkipDB_at_()` and the NULL/missing-key branch, with an early coroutine return.
+- The next remote SkipDBv2 Regression run is authoritative for source contracts, compilation, and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 05:35 CST — Preserve SkipDB marker-write failure causes
 
 ### Baseline and scope

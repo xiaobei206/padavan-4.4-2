@@ -741,6 +741,14 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
 
         dvalue = SkipDB_at_(client->server->db, dkey);
+        if (!SkipDB_isOpen(client->server->db)) {
+            p1 = "database error\n";
+            if (client_send(EV_A_ client, p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         if(NULL == dvalue.data) {
             tmp2 = 0;
         } else {
