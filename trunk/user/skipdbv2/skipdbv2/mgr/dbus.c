@@ -17,6 +17,7 @@
 #include <limits.h> // [LONG|INT][MIN|MAX]
 #include "skipd.h"
 #include "ipc_transport.h"
+#include "ipc_request.h"
 #include "dbus_internal.h"
 
 //"list "
@@ -105,8 +106,8 @@ static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[])
             return -1;
         nkey = (size_t)(p2 - p1);
         n2 = snprintf(client->buf, (size_t)client->buf_max + 1,
-            "%s%07lu %s ", MAGIC, (unsigned long)body_len, client->command);
-        if (n2 < 0 || (size_t)n2 != HEADER_PREFIX + nc + 1)
+            "%s ", client->command);
+        if (n2 < 0 || (size_t)n2 != nc + 1)
             return -1;
         memcpy(client->buf + n2, p1, nkey);
         n2 += (int)nkey;
@@ -114,10 +115,12 @@ static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[])
         memcpy(client->buf + n2, p2 + 1, nenv - nkey - 1);
         n2 += (int)(nenv - nkey - 1);
         client->buf[n2++] = '\n';
-        if ((size_t)n2 != body_len + HEADER_PREFIX)
+        if ((size_t)n2 != body_len)
             return -1;
         client->buf[n2] = '\0';
-        if (write_util(client, n2) != 0)
+        n2 = skipdb_ipc_finalize_request(client->buf,
+            (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, body_len);
+        if (n2 < 0 || write_util(client, n2) != 0)
             return -1;
         if (setnonblock(client->remote_fd) < 0)
             return -1;
@@ -177,8 +180,8 @@ static int prefix_set_command(dbclient* client, int argc, char **argv)
         return -1;
 
     n2 = snprintf(client->buf, (size_t)client->buf_max + 1,
-        "%s%07lu %s ", MAGIC, (unsigned long)body_len, client->command);
-    if (n2 < 0 || n2 >= client->buf_max)
+        "%s ", client->command);
+    if (n2 < 0 || (size_t)n2 != strlen(client->command) + 1)
         return -1;
     for (i = 2; i < argc; ++i) {
         arg_len = strlen(argv[i]);
@@ -200,11 +203,12 @@ static int prefix_set_command(dbclient* client, int argc, char **argv)
                 return -1;
         }
     }
-    equals = strchr(client->buf + HEADER_PREFIX + strlen(client->command) + 1, '=');
+    equals = strchr(client->buf + strlen(client->command) + 1, '=');
     if (NULL == equals)
         return -1;
     *equals = ' ';
-    return n2;
+    return skipdb_ipc_finalize_request(client->buf,
+        (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, body_len);
 }
 
 dbclient* gclient;
@@ -267,7 +271,9 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            n2 = skipdb_ipc_format_request(client->buf,
+                (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, (size_t)n1,
+                "%s %s\n", client->command, argv[2]);
             if (n2 <= 0 || n2 > client->buf_max ||
                 write_util(client, n2) != 0) {
                 err = -23;
@@ -296,7 +302,9 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            n2 = skipdb_ipc_format_request(client->buf,
+                (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, (size_t)n1,
+                "%s %s\n", client->command, argv[2]);
             if (n2 <= 0 || n2 > client->buf_max ||
                 write_util(client, n2) != 0) {
                 err = -23;
@@ -347,7 +355,9 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            n2 = skipdb_ipc_format_request(client->buf,
+                (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, (size_t)n1,
+                "%s %s\n", client->command, argv[2]);
             if (n2 <= 0 || n2 > client->buf_max ||
                 write_util(client, n2) != 0) {
                 err = -23;
@@ -376,7 +386,9 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            n2 = skipdb_ipc_format_request(client->buf,
+                (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, (size_t)n1,
+                "%s %s\n", client->command, argv[2]);
             if (n2 <= 0 || n2 > client->buf_max ||
                 write_util(client, n2) != 0) {
                 err = -23;
@@ -405,7 +417,9 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s\n", MAGIC, n1, client->command, argv[2]);
+            n2 = skipdb_ipc_format_request(client->buf,
+                (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, (size_t)n1,
+                "%s %s\n", client->command, argv[2]);
             if (n2 <= 0 || n2 > client->buf_max ||
                 write_util(client, n2) != 0) {
                 err = -23;
@@ -565,7 +579,9 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s __event__%s %s\n", MAGIC, n1, client->command, argv[2], argv[3]);
+            n2 = skipdb_ipc_format_request(client->buf,
+                (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, (size_t)n1,
+                "%s __event__%s %s\n", client->command, argv[2], argv[3]);
             if (n2 <= 0 || n2 > client->buf_max ||
                 write_util(client, n2) != 0) {
                 err = -23;
@@ -600,7 +616,9 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3], argv[4]);
+            n2 = skipdb_ipc_format_request(client->buf,
+                (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, (size_t)n1,
+                "%s %s %s %s\n", client->command, argv[2], argv[3], argv[4]);
             if (n2 <= 0 || n2 > client->buf_max ||
                 write_util(client, n2) != 0) {
                 err = -23;
@@ -642,7 +660,9 @@ int main(int argc, char **argv, char * envp[])
                 err = -23;
                 break;
             }
-            n2 = snprintf(client->buf, (size_t)client->buf_max + 1, "%s%07d %s %s %s %s\n", MAGIC, n1, client->command, argv[2], argv[3], argv[4]);
+            n2 = skipdb_ipc_format_request(client->buf,
+                (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, (size_t)n1,
+                "%s %s %s %s\n", client->command, argv[2], argv[3], argv[4]);
             if (n2 <= 0 || n2 > client->buf_max ||
                 write_util(client, n2) != 0) {
                 err = -23;

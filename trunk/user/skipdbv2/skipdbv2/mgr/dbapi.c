@@ -16,6 +16,7 @@
 #include <stddef.h>
 #include "dbapi_internal.h"
 #include "ipc_transport.h"
+#include "ipc_request.h"
 
 //"list "
 #define LIST_LEN 5
@@ -96,9 +97,9 @@ int dbclient_bulk(dbclient* client, char* command, char* key, char* value) {
         dbapi_check_buf(client, (int)body_len + HEADER_PREFIX) != 0)
         return -1;
 
-    written = snprintf(client->buf, (size_t)client->buf_max + 1,
-        "%s%07lu %s %s %s\n", MAGIC, (unsigned long)body_len,
-        command, key, value);
+    written = skipdb_ipc_format_request(client->buf,
+        (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, body_len,
+        "%s %s %s\n", command, key, value);
     if (written < 0 || (size_t)written != body_len + HEADER_PREFIX)
         return -1;
     if (write_util(client, written, 200) != 0)
@@ -117,8 +118,9 @@ int dbclient_list(dbclient* client, char* prefix, void* o, fn_db_parse fn) {
     if (body_len > READ_MAX ||
         dbapi_check_buf(client, (int)body_len + HEADER_PREFIX) != 0)
         return -1;
-    written = snprintf(client->buf, (size_t)client->buf_max + 1,
-        "%s%07lu list %s\n", MAGIC, (unsigned long)body_len, prefix);
+    written = skipdb_ipc_format_request(client->buf,
+        (size_t)client->buf_max + 1, MAGIC, MAGIC_LEN, body_len,
+        "list %s\n", prefix);
     if (written < 0 || (size_t)written != body_len + HEADER_PREFIX)
         return -1;
     if (write_util(client, written, 100) != 0)

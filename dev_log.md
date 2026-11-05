@@ -1,3 +1,31 @@
+## 2026-11-05 20:59 CST — Centralize IPC request-frame serialization
+
+### Baseline and regression state
+- Base commit: `50a9bacaa95878fe00afbf8448c768df177c873f` (`refactor(dbapi): isolate response result handling`).
+- The host-side SkipDBv2 Regression remains the required post-push gate. No local CMake/compiler/CTest result is claimed.
+
+### Changes
+1. **Shared request-frame module — `mgr/ipc_request.c`, `mgr/ipc_request.h`**
+   - Centralized printf-style body formatting and the common `magicv1 ` + seven-digit body length + separator header.
+   - Added a finalizer for DBus's incrementally assembled request bodies; it validates the newline terminator, seven-digit length bound, capacity including the final NUL, and integer return range before moving the body behind the header.
+2. **CLI callers — `mgr/dbus.c`, `mgr/dbapi.c`**
+   - Routed ordinary DBus/DBAPI request frames through the shared formatter and retained DBus's incremental environment/prefix-set assembly through the shared finalizer.
+   - Kept command validation/routing, socket lifecycle, writes, response parsing, and JSON/shell output in their existing owners.
+3. **Regression — `tests/ipc_request.c`**
+   - Added standalone coverage for exact frame bytes, an empty list prefix, incremental body finalization, invalid input, and formatted-length mismatch.
+4. **Build and CI contracts — `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Linked the formatter into both CLI executables, registered its host regression target, and added source ownership/delegation/link-count assertions.
+
+### Validation
+- Static migration audit confirms both CLIs use the shared request formatter, no CLI retains the duplicated seven-digit header format, and DBus's incremental request bodies pass through the shared finalizer.
+- Both cross-translation-unit entry points are declared in `ipc_request.h`; implementation-local formatting state remains private to `ipc_request.c`.
+- No local compiler or CTest run is claimed. The pushed commit must pass the complete SkipDBv2 Regression workflow.
+
+### Follow-up
+- Keep request header/body framing in `ipc_request.c`; keep command semantics and request-field validation in `dbus.c` and `dbapi.c`. Response envelope/result handling remain in their current result modules.
+
+---
+
 ## 2026-11-05 20:42 CST — Extract DBAPI response processing from CLI facade
 
 ### Baseline and regression state

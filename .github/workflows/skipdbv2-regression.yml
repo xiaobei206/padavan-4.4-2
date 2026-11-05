@@ -416,6 +416,9 @@ jobs:
                   "skipdb_ipc_ensure_buffer(&client->buf, &client->buf_max,",
                   "skipdb_ipc_valid_protocol_field(text, allow_empty,",
                   "skipdb_ipc_write_exact(client->remote_fd, client->buf, len, 20)",
+                  "#include \"ipc_request.h\"",
+                  "skipdb_ipc_format_request(",
+                  "skipdb_ipc_finalize_request(",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbus_internal.h": [
                   "typedef struct _dbclient {",
@@ -449,6 +452,8 @@ jobs:
                   "dbapi_parse_list_result(client, prefix, o, fn)",
                   "skipdb_ipc_valid_protocol_field(text, allow_empty, (size_t)-1)",
                   "skipdb_ipc_write_exact(client->remote_fd, client->buf, len, delay)",
+                  "#include \"ipc_request.h\"",
+                  "skipdb_ipc_format_request(",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi_internal.h": [
                   "typedef struct _dbclient",
@@ -466,6 +471,21 @@ jobs:
                   "int dbapi_parse_list_result(dbclient *client,",
                   "skipdb_ipc_parse_envelope(client->buf,",
                   "skipdb_ipc_read_exact(client->remote_fd, client->buf, len,",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/ipc_request.h": [
+                  "int skipdb_ipc_finalize_request(char *buffer, size_t capacity,",
+                  "int skipdb_ipc_format_request(char *buffer, size_t capacity,",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/ipc_request.c": [
+                  "int skipdb_ipc_finalize_request(",
+                  "int skipdb_ipc_format_request(",
+                  "vsnprintf(buffer, capacity, format, arguments)",
+                  "memmove(buffer + header_length, buffer, body_length)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/ipc_request.c": [
+                  "skipdb_ipc_format_request(",
+                  "skipdb_ipc_finalize_request(",
+                  "SkipDB IPC request-frame tests passed.",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/dbapi_protocol.c": [
                   "dbapi_parse_list_result(&client,",
@@ -549,6 +569,9 @@ jobs:
                   "add_test(NAME ipc_transport_test COMMAND ipc_transport_test)",
                   "ADD_EXECUTABLE(ipc_protocol_test",
                   "add_test(NAME ipc_protocol_test COMMAND ipc_protocol_test)",
+                  "ADD_EXECUTABLE(ipc_request_test",
+                  "add_test(NAME ipc_request_test COMMAND ipc_request_test)",
+                  "mgr/ipc_request.c",
                   "mgr/dbus_result.c",
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
@@ -635,6 +658,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c",
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c",
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi_result.c",
+              "trunk/user/skipdbv2/skipdbv2/mgr/ipc_request.c",
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_transport.c",
           ):
               content = Path(path).read_text()
@@ -768,6 +792,29 @@ jobs:
               raise SystemExit("DBAPI result module lost list-result ownership")
           if "static int ignore_result(" in dbapi_cli_text:
               raise SystemExit("DBAPI write-response parser remains in the CLI facade")
+
+          if cmake_text.count("mgr/ipc_request.c") != 3:
+              raise SystemExit("IPC request formatter is not linked by both CLIs and its regression test")
+          if "add_test(NAME ipc_request_test COMMAND ipc_request_test)" not in cmake_text:
+              raise SystemExit("IPC request-frame regression is not registered")
+          request_header_text = (manager_root / "ipc_request.h").read_text()
+          request_impl_text = (manager_root / "ipc_request.c").read_text()
+          request_test_text = Path("trunk/user/skipdbv2/skipdbv2/tests/ipc_request.c").read_text()
+          for request_source in (dbus_cli_text, dbapi_cli_text):
+              if "skipdb_ipc_format_request(" not in request_source:
+                  raise SystemExit("a CLI is not using the shared IPC request formatter")
+              if "%s%07" in request_source:
+                  raise SystemExit("a CLI still owns duplicate IPC request-header formatting")
+          if "skipdb_ipc_finalize_request(" not in dbus_cli_text:
+              raise SystemExit("DBus manual request assembly bypasses the shared finalizer")
+          if "int skipdb_ipc_finalize_request(" not in request_header_text or \
+             "int skipdb_ipc_format_request(" not in request_header_text:
+              raise SystemExit("IPC request module declarations are incomplete")
+          if "int skipdb_ipc_finalize_request(" not in request_impl_text or \
+             "int skipdb_ipc_format_request(" not in request_impl_text:
+              raise SystemExit("IPC request implementation ownership is incomplete")
+          if "skipdb_ipc_format_request(" not in request_test_text:
+              raise SystemExit("IPC request-frame regression cases are missing")
 
           print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
           PY
