@@ -155,6 +155,8 @@ jobs:
                   "void UDBIndex_commit(UDBIndex *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexFreeList.c": [
+                  "static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)",
+                  "int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)",
                   "int UDBIndex_prepareCommit(UDBIndex *self)",
                   "int UDBIndex_findHoles(UDBIndex *self)",
                   "PID_TYPE UDBIndex_allocPid(UDBIndex *self)",
@@ -170,6 +172,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_index_layers.c": [
                   "UDBIndex_isReservedPid_(db->index, first)",
+                  "UDBIndex_isReservedPid_(db->index, abandoned)",
+                  "unwritten reservation was not reclaimed at commit",
                   "UDBIndex_nextPid(db->index) != first",
                   "UDBIndex_nextPid(db->index) != 3",
                   "index state did not survive a rebuild on reopen",
@@ -705,6 +709,12 @@ jobs:
           ).read_text()
           if cursor_source.count("SkipDBCursor_beginTraversalStep_(") != 3:
               raise SystemExit("SkipDB cursor direction step guard is not centralized")
+
+          freelist_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexFreeList.c"
+          ).read_text()
+          if freelist_source.count("UDBIndex_pushHole_(") != 3:
+              raise SystemExit("UDB free-PID insertion is not centralized across release and commit")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

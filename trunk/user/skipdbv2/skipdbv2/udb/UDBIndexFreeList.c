@@ -42,17 +42,25 @@ void UDBIndex_removeHole_(UDBIndex *self, PID_TYPE pid)
 	}
 }
 
-int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)
+/* Add exactly one reusable PID to the free stack, checking allocation. */
+static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)
 {
 	size_t old_size;
 
 	if (!UDBIndex_isValid_(self) || pid == 0)
 		return 0;
-	UDBIndex_unreservePid_(self, pid);
 	UDBIndex_removeHole_(self, pid);
 	old_size = self->holes->size;
 	List_push_(self->holes, (void *)pid);
 	return self->holes->size == old_size + 1;
+}
+
+int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)
+{
+	if (!UDBIndex_isValid_(self) || pid == 0)
+		return 0;
+	UDBIndex_unreservePid_(self, pid);
+	return UDBIndex_pushHole_(self, pid);
 }
 
 void UDBIndex_forgetPid_(UDBIndex *self, PID_TYPE pid)
@@ -71,14 +79,10 @@ int UDBIndex_prepareCommit(UDBIndex *self)
 	/* Retire unwritten reservations before UDB arms the durable marker. */
 	for (i = 0; i < self->reserved->size; ++i) {
 		PID_TYPE pid = (PID_TYPE)self->reserved->items[i];
-		size_t old_size;
 
 		if (pid == 0)
 			continue;
-		UDBIndex_removeHole_(self, pid);
-		old_size = self->holes->size;
-		List_push_(self->holes, (void *)pid);
-		if (self->holes->size != old_size + 1)
+		if (!UDBIndex_pushHole_(self, pid))
 			return 0;
 	}
 	List_removeAll(self->reserved);

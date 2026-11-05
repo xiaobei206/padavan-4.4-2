@@ -1,3 +1,21 @@
+## 2026-11-06 — Centralize UDB free-PID insertion
+
+### Baseline and scope
+- Base commit: `05384a079f06d8e3dc2bf4cd9e5e1a6f4c99189f` (`refactor(skipdb): unify cursor traversal guards`).
+- SkipDBv2 Regression run `42066219631` passed source contracts, CMake configuration, compilation, and CTest. This iteration is limited to `udb/UDBIndexFreeList.c`.
+
+### Changes
+- Centralized checked, duplicate-free insertion into the reusable PID stack in one private `static` helper.
+- Reused it for ordinary PID release and for retiring reservations that were allocated but not written before transaction commit. Reservation removal remains in the release path; commit still clears the reservation set only after every return-to-free-stack operation succeeds.
+- Extended `udb_index_layers_test` to allocate an unwritten PID, commit, and verify the reservation is cleared and the PID is returned to the free stack.
+- Added CI contracts for the private helper's single owner and the abandoned-reservation regression. No new source files, public declarations, or CMake source registration.
+
+### Validation
+- Static review confirms duplicate removal occurs before the checked list push in both call paths, and failed insertion still propagates failure to the transaction preparation layer.
+- The pushed SkipDBv2 Regression is authoritative; no local CMake/compiler result is claimed.
+
+---
+
 ## 2026-11-06 — Unify SkipDB cursor traversal step guards
 
 ### Baseline and scope

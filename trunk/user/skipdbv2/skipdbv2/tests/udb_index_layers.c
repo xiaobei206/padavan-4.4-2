@@ -16,7 +16,7 @@ static int has_value(UDB *db, PID_TYPE pid, const char *expected)
 int main(void)
 {
     UDB *db = UDB_new();
-    PID_TYPE first = 0, second = 0, reused = 0;
+    PID_TYPE first = 0, second = 0, reused = 0, abandoned = 0;
     char path[128];
     int path_len, result = EXIT_FAILURE;
 
@@ -55,6 +55,20 @@ int main(void)
         !has_value(db, first, "first") || !has_value(db, second, "second") ||
         UDBIndex_nextPid(db->index) != 3) {
         fprintf(stderr, "committed index retained reservations or lost mappings\n");
+        goto done;
+    }
+
+    UDB_beginTransaction(db);
+    abandoned = UDB_allocPid(db);
+    if (!UDB_isOpen(db) || abandoned != 3 ||
+        !UDBIndex_isReservedPid_(db->index, abandoned)) {
+        fprintf(stderr, "unwritten reservation was not allocated\n");
+        goto done;
+    }
+    UDB_commitTransaction(db);
+    if (!UDB_isOpen(db) || db->index->reserved->size != 0 ||
+        UDBIndex_nextPid(db->index) != abandoned) {
+        fprintf(stderr, "unwritten reservation was not reclaimed at commit\n");
         goto done;
     }
 
