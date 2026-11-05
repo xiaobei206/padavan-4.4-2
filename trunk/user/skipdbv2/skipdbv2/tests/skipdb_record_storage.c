@@ -84,6 +84,18 @@ int main(void)
         goto done;
     }
 
+    source->level = SKIPDB_MAX_LEVEL + 1;
+    if (SkipDBRecord_recordAtLevel_(source, 0) != NULL) {
+        fprintf(stderr, "invalid level was accepted by record link lookup\n");
+        goto done;
+    }
+    source->level = -1;
+    if (SkipDBRecord_recordAtLevel_(source, 0) != NULL) {
+        fprintf(stderr, "negative level was accepted by record link lookup\n");
+        goto done;
+    }
+    source->level = 2;
+
     if (!rejects_stream(encoded_bytes, encoded_length - 1)) {
         fprintf(stderr, "truncated record stream accepted\n");
         goto done;

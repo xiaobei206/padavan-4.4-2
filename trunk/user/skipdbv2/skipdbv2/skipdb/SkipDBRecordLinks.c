@@ -8,12 +8,18 @@ static void SkipDBPointer_setRecord_(SkipDBPointer *self, SkipDBRecord *r)
 	self->record = r;
 }
 
+/* A valid level always has a matching pointer array when nonempty. */
+static int SkipDBRecord_hasValidLevel_(SkipDBRecord *self)
+{
+	return self != NULL && self->level >= 0 &&
+		self->level <= SKIPDB_MAX_LEVEL &&
+		(self->level == 0 || self->pointers != NULL);
+}
+
 static int SkipDBRecord_checkLevel_(SkipDBRecord *self, int level)
 {
-	return self != NULL && self->level > 0 &&
-		self->level <= SKIPDB_MAX_LEVEL &&
-		level >= 0 && level < self->level &&
-		self->pointers != NULL;
+	return SkipDBRecord_hasValidLevel_(self) && self->level > 0 &&
+		level >= 0 && level < self->level;
 }
 
 SkipDBPointer *SkipDBRecord_pointerAtLevel_(SkipDBRecord *self, int level)
@@ -162,8 +168,7 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 			int c;
 
 			if (++steps > step_limit || level >= SKIPDB_MAX_LEVEL ||
-				current->level < 0 || current->level > SKIPDB_MAX_LEVEL ||
-				(current->level > 0 && NULL == current->pointers)) {
+				!SkipDBRecord_hasValidLevel_(current)) {
 				SkipDB_clearUpdate(db);
 				UDB_close(db->udb);
 				return NULL;
@@ -231,8 +236,7 @@ SkipDBRecord *SkipDBRecord_findLastRecord(SkipDBRecord *self)
 	while (current)
 	{
 		if (++steps > (size_t)max_steps ||
-			current->level < 0 || current->level > SKIPDB_MAX_LEVEL ||
-			(current->level > 0 && NULL == current->pointers)) {
+			!SkipDBRecord_hasValidLevel_(current)) {
 			fprintf(stderr, "SkipDB: invalid linkage while finding last record\n");
 			UDB_close(db->udb);
 			return NULL;
@@ -275,8 +279,8 @@ void SkipDBRecord_willRemove_(SkipDBRecord *self, SkipDBRecord *other)
 	PID_TYPE otherPid;
 	int level;
 
-	if (NULL == self || NULL == other || self->level <= 0 ||
-		self->level > SKIPDB_MAX_LEVEL || NULL == self->pointers)
+	if (NULL == other || !SkipDBRecord_hasValidLevel_(self) ||
+		self->level == 0)
 		return;
 	otherPid = SkipDBRecord_pid(other);
 	level = self->level;
@@ -304,9 +308,7 @@ int SkipDBRecord_hasRecord_(SkipDBRecord *self, SkipDBRecord *other)
 {
 	int i;
 
-	if (NULL == self || NULL == other || self->level < 0 ||
-		self->level > SKIPDB_MAX_LEVEL ||
-		(self->level > 0 && NULL == self->pointers))
+	if (NULL == other || !SkipDBRecord_hasValidLevel_(self))
 		return 0;
 
 	for (i = 0; i < self->level; i ++)

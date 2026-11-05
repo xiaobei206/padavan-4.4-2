@@ -228,6 +228,9 @@ jobs:
                   "SkipDBRecord_removeReferencesToUnmarked",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordLinks.c": [
+                  "static int SkipDBRecord_hasValidLevel_(SkipDBRecord *self)",
+                  "SkipDBRecord_hasValidLevel_(current)",
+                  "SkipDBRecord_hasValidLevel_(self)",
                   "SkipDBRecord_recordAtLevel_",
                   "SkipDBRecord_find_quick_",
                   "SkipDBRecord_willRemove_",
@@ -242,6 +245,9 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/skipdb_record_storage.c": [
                   "SkipDBRecord_toStream_(source, writer)",
                   "SkipDBRecord_fromStream_(restored, reader)",
+                  "SkipDBRecord_recordAtLevel_(source, 0)",
+                  "invalid level was accepted by record link lookup",
+                  "negative level was accepted by record link lookup",
                   "truncated record stream accepted",
                   "stream trailing data accepted",
               ],
@@ -677,6 +683,12 @@ jobs:
                   "btn_hold_tick();",
               ],
           }
+
+          record_links_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordLinks.c"
+          ).read_text()
+          if record_links_source.count("SkipDBRecord_hasValidLevel_(") != 6:
+              raise SystemExit("SkipDB record level validation is not centralized across all link operations")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

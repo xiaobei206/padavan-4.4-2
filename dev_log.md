@@ -1,3 +1,21 @@
+## 2026-11-06 — Centralize SkipDB record-link level validation
+
+### Baseline and scope
+- Base commit: `5a9366af5ecf2d128113d69179fcddfd20217f0b` (`refactor(skipdb): isolate cache eviction phases`).
+- SkipDBv2 Regression run `42064998700` passed source contracts, CMake configuration, compilation, and CTest. This iteration is limited to structural link validation in `skipdb/SkipDBRecordLinks.c`.
+
+### Changes
+- Added one private `static` predicate for the invariant shared by skip-list link operations: record level must be within `0..SKIPDB_MAX_LEVEL`, and a nonempty level must have a pointer array.
+- Reused the predicate in level-index validation, bounded quick-search and tail traversal, predecessor repair, and link membership checks; operation-specific rules such as requiring a nonempty level remain at their call sites.
+- Extended the existing record-storage regression to verify that negative and over-limit record levels are rejected by record-link lookup. Extended CI source contracts to require the common predicate and its single implementation owner.
+- No new files, public declarations, or CMake source registrations.
+
+### Validation
+- Static review preserved each caller's existing failure response: invalid quick-search/tail linkage still closes the database, while invalid standalone level access and removal/membership guards remain non-mutating.
+- The pushed SkipDBv2 Regression is authoritative; no local compiler/CMake result is claimed.
+
+---
+
 ## 2026-11-06 — Separate SkipDB cache eviction phases
 
 ### Baseline and scope
