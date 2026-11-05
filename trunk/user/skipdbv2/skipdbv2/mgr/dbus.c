@@ -20,6 +20,25 @@
 //"list "
 #define LIST_LEN 5
 
+/* Validate one space-delimited protocol token before constructing a frame. */
+static int valid_protocol_field(const char *text, int allow_empty)
+{
+    const unsigned char *p = (const unsigned char *)text;
+    size_t length;
+
+    if (NULL == text)
+        return 0;
+    length = strlen(text);
+    if ((!allow_empty && length == 0) ||
+        length > (size_t)READ_MAX - HEADER_PREFIX - 16)
+        return 0;
+    for (; *p; ++p) {
+        if (*p <= 0x20 || *p == 0x7f)
+            return 0;
+    }
+    return 1;
+}
+
 typedef struct _dbclient {
     int remote_fd;
     char command[DELAY_KEY_LEN+1];
@@ -648,7 +667,20 @@ static int prefix_set_command(dbclient* client, int argc, char **argv)
         client->buf[n2++] = (i == argc - 1) ? '\n' : ' ';
     }
     client->buf[n2] = '\0';
-    equals = strstr(client->buf, "=");
+    /* Only the first argument is the key=value field. Validate its key
+     * before rewriting '=' to a protocol separator; otherwise "bad key=x"
+     * silently turns into a successful write to the unintended key "bad". */
+    equals = strchr(argv[2], '=');
+    if (NULL == equals || equals == argv[2])
+        return -1;
+    {
+        const unsigned char *p;
+        for (p = (const unsigned char *)argv[2]; p < (const unsigned char *)equals; ++p) {
+            if (*p <= 0x20 || *p == 0x7f)
+                return -1;
+        }
+    }
+    equals = strchr(client->buf + HEADER_PREFIX + strlen(client->command) + 1, '=');
     if (NULL == equals)
         return -1;
     *equals = ' ';
@@ -705,6 +737,10 @@ int main(int argc, char **argv, char * envp[])
                 err = -12;
                 break;
             }
+            if (!valid_protocol_field(argv[2], 1)) {
+                err = -16;
+                break;
+            }
             strcpy(client->command, argv[1]);
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
             if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
@@ -728,6 +764,10 @@ int main(int argc, char **argv, char * envp[])
         } else if(!strcmp("export", argv[1])) {
             if (argc < 3) {
                 err = -12;
+                break;
+            }
+            if (!valid_protocol_field(argv[2], 1)) {
+                err = -16;
                 break;
             }
             strcpy(client->command, "list");
@@ -769,6 +809,10 @@ int main(int argc, char **argv, char * envp[])
                 err = -13;
                 break;
             }
+            if (!valid_protocol_field(argv[2], 0)) {
+                err = -16;
+                break;
+            }
             strcpy(client->command, argv[1]);
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
             if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
@@ -794,6 +838,10 @@ int main(int argc, char **argv, char * envp[])
                 err = -14;
                 break;
             }
+            if (!valid_protocol_field(argv[2], 0)) {
+                err = -16;
+                break;
+            }
             strcpy(client->command, argv[1]);
             n1 = strlen(argv[2]) + 2 + strlen(client->command);
             if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
@@ -817,6 +865,10 @@ int main(int argc, char **argv, char * envp[])
         } else if(!strcmp("fire", argv[1])) {
             if(argc < 3) {
                 err = -15;
+                break;
+            }
+            if (!valid_protocol_field(argv[2], 0)) {
+                err = -16;
                 break;
             }
             strcpy(client->command, argv[1]);
