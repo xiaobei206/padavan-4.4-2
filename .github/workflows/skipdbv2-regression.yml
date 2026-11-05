@@ -94,13 +94,31 @@ jobs:
                   '#include "UDBCommitMarker.h"',
                   "UDBCommitMarker commitMarker;",
               ],
-              "trunk/user/skipdbv2/skipdbv2/udb/UDB.c": [
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBStorage.c": [
+                  "void UDB_open(UDB *self)",
                   "UDBCommitMarker_open(&self->commitMarker,0)",
                   "UDBCommitMarker_artifactsExist(artifact_paths,4)",
                   "UDBCommitMarker_verifyJournal(self->index->file->logPath)",
-                  "UDBCommitMarker_write(&self->commitMarker,1)",
+                  "UDBCommitMarker_write(&self->commitMarker, 1)",
                   "UDBCommitMarker_write(&self->commitMarker,0)",
                   "UDBCommitMarker_syncParentDirectory(self->commitMarker.path)",
+                  "void UDB_commitTransaction(UDB *self)",
+                  "static int UDB_streamsOpen(UDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBCompact.c": [
+                  "int UDB_compactStepFor_(UDB *self, double maxSeconds)",
+                  "UDBRecord_totalSize(record) > UDBRecord_totalSize(firstEmptyRecord)",
+                  "UDBRecords_truncate_(self->records, (off_t)tail_pos)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/udb_reserved_pid.c": [
+                  "UDBCommitMarker_write(&db->commitMarker, 1)",
+                  "UDB_compactStep(db)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDB.c": [
+                  "static int UDB_rollbackJournalAppend(JFile *file, long log_start,",
+                  "static int UDB_append_withPid_(UDB *self, Datum d, PID_TYPE pid)",
+                  "PID_TYPE UDB_put_(UDB *self, Datum d)",
+                  "void UDB_at_put_(UDB *self, PID_TYPE pid, Datum d)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/commit_marker.c": [
                   "UDBCommitMarker_write(&marker,0)",
@@ -108,10 +126,6 @@ jobs:
                   "symlink followed",
                   "complete journal rejected",
                   "incomplete journal accepted",
-              ],
-              "trunk/user/skipdbv2/skipdbv2/CMakeLists.txt": [
-                  "ADD_EXECUTABLE(commit_marker_test",
-                  "add_test(NAME commit_marker_test COMMAND commit_marker_test)",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_io.h": [
                   "static int skipdb_monotonic_milliseconds(",
@@ -134,6 +148,11 @@ jobs:
                   "skipdb_wait_socket_until(client->remote_fd, POLLOUT, timeout)",
               ],
               "trunk/user/skipdbv2/skipdbv2/CMakeLists.txt": [
+                  "SET(UDB_SRC",
+                  "UDBStorage.c",
+                  "UDBCompact.c",
+                  "ADD_EXECUTABLE(commit_marker_test",
+                  "add_test(NAME commit_marker_test COMMAND commit_marker_test)",
                   "ADD_EXECUTABLE(ipc_io_test",
                   "add_test(NAME ipc_io_test COMMAND ipc_io_test)",
               ],

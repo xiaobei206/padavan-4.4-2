@@ -5,8 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* Internal marker helper used to simulate a power loss during commit. */
-int UDB_setCommittedFlag_(UDB *self, int flag);
+/* The marker component is armed directly to simulate a power loss. */
 
 static int has_value(UDB *db, PID_TYPE pid, const char *expected)
 {
@@ -316,7 +315,7 @@ int main(void)
         UDBIndex_preCommit(db->index);
         UDBRecords_preCommit(db->records);
         if (!UDB_isOpen(db) || !UDBIndex_prepareCommit(db->index) ||
-            UDB_setCommittedFlag_(db, 1) != 0) {
+            UDBCommitMarker_write(&db->commitMarker, 1) != 0) {
             fprintf(stderr, "failed to arm the index-recovery transaction\n");
             goto done;
         }

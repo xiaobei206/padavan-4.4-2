@@ -69,3 +69,39 @@
 ### Follow-up
 - Keep marker-file security and durability primitives inside `UDBCommitMarker.c`.
 - Keep multi-file transaction decisions in `UDB_open` and `UDB_commitTransaction`; do not move transaction ordering into the marker component.
+
+
+## 2026-11-05 — Split UDB storage lifecycle and compaction modules
+
+### Baseline
+- Base commit: fd99ecc7385cc64a6f3a5b3a7659d5c658e50bed (UDB commit-marker extraction).
+- main and the two current codex branches were identical at this baseline; no branch-only work was dropped.
+- gpt-audit/partition-parser-fix was 650 commits behind main and was not used as a base.
+
+### Changes
+1. Lifecycle and transaction coordinator — udb/UDBStorage.c
+   - Moved construction/destruction, path configuration, open/recovery, close, transaction begin, and transaction commit into a dedicated storage-lifecycle translation unit.
+   - Kept paired index/data recovery and durable marker transition ordering unchanged.
+   - Preserved public declarations and the exposed UDB layout.
+2. Record-space compaction — udb/UDBCompact.c
+   - Isolated free-extent traversal, adjacent-hole merging, safe live-record relocation, and tail truncation from CRUD and transaction orchestration.
+   - Kept existing size checks and transaction boundaries intact.
+3. Core API and build manifest
+   - Reduced UDB.c to PID operations and record CRUD, preserving append rollback, PID reservation checks, and read-error handling.
+   - Replaced the recursive UDB source glob with an explicit seven-source manifest.
+4. Regression/CI maintenance
+   - Replaced the removed UDB_setCommittedFlag_ test-only call with UDBCommitMarker_write.
+   - Corrected the regression workflow's whitespace-sensitive marker assertion.
+   - Removed the duplicate CMakeLists.txt dictionary key and retained both IPC and commit-marker CTest contracts.
+   - Added CI source contracts for the lifecycle and compaction module boundaries.
+
+### Validation
+- Structural validation: extracted function bodies are moved intact; all seven UDB translation units are listed in CMake.
+- Existing udb_reserved_pid_test covers PID reservation, index-only crash recovery, compaction hole handling, adjacent extent merging, live-record relocation, and tail truncation.
+- Latest baseline regression stopped before CMake/build/CTest on a formatting-sensitive assertion; the test source also contained a stale removed helper reference. Both are corrected here.
+- No local firmware build or local CTest execution is claimed. Remote regression and XY-C1 workflows are triggered by this commit.
+
+### Follow-up
+- Keep transaction ordering and paired-file recovery policy in UDBStorage.c.
+- Keep physical record-space mutations in UDBCompact.c.
+- Keep marker bytes, filesystem security, and durability primitives in UDBCommitMarker.c.
