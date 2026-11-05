@@ -174,7 +174,7 @@ void JFile_remove(JFile *self)
 static FILE *JFile_openManagedFile_(const char *path, int *created)
 {
 	struct stat before, after;
-	int exists, fd = -1, flags = O_RDWR | O_NONBLOCK;
+	int exists, fd = -1, flags = O_RDWR | O_NONBLOCK | O_CLOEXEC;
 	FILE *stream;
 
 	if (created)
