@@ -1283,6 +1283,32 @@ static int client_run_command(EV_P_ skipd_client* client)
             CS->n++;
         }
 
+        if (!SkipDB_isOpen(client->server->db)) {
+            p1 = "database error\n";
+            if (client_send_key(EV_A_ client, "__error__", "fire",
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            if (CS->cursor) {
+                SkipDBCursor_release(CS->cursor);
+                CS->cursor = NULL;
+            }
+            client->cursor = NULL;
+            if (client->in_doing) {
+                if (client->server->in_doing > 0)
+                    client->server->in_doing--;
+                client->in_doing = 0;
+            }
+            if (client->owned_key) {
+                free(client->owned_key);
+                client->owned_key = NULL;
+            }
+            client->key = NULL;
+            ccrReturn(ctx, ccr_error_ok);
+            ccrStop(ctx, ccr_error_ok1);
+        }
+
         //send end
         p1 = "ok\n";
         client_send(EV_A_ client, p1, strlen(p1));
