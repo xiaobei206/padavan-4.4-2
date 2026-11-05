@@ -795,11 +795,19 @@ int main(int argc, char **argv, char * envp[])
                 err = -13;
                 break;
             }
+            if (!valid_protocol_field(argv[2], 0)) {
+                err = -16;
+                break;
+            }
             if (bulk_key(gclient, "replace", argv[2], envp) != 0)
                 err = -23;
         } else if(!strcmp("save", argv[1])) {
             if(argc < 3) {
                 err = -13;
+                break;
+            }
+            if (!valid_protocol_field(argv[2], 0)) {
+                err = -16;
                 break;
             }
             if (bulk_key(gclient, "set", argv[2], envp) != 0)
