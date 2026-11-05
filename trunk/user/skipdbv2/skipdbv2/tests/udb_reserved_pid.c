@@ -155,6 +155,38 @@ int main(void)
         goto done;
     }
 
+    /* A new reservation cleared before commit must return to the free pool. */
+    UDB_beginTransaction(db);
+    abandoned_pid = UDB_allocPid(db);
+    if (!UDB_isOpen(db) || abandoned_pid == 0 ||
+        !UDBIndex_setPos_forPid_(db->index, 0, abandoned_pid) ||
+        !UDB_isOpen(db)) {
+        fprintf(stderr, "failed to release an unwritten PID reservation\n");
+        goto done;
+    }
+    UDB_commitTransaction(db);
+    if (!UDB_isOpen(db)) {
+        fprintf(stderr, "commit failed after releasing an unwritten reservation\n");
+        goto done;
+    }
+    UDB_beginTransaction(db);
+    reused_pid = UDB_allocPid(db);
+    if (!UDB_isOpen(db) || reused_pid != abandoned_pid) {
+        fprintf(stderr, "PID released before its first write was not reusable\n");
+        goto done;
+    }
+    UDB_at_put_(db, reused_pid, Datum_FromCString_("reused-before-first-write"));
+    if (!UDB_isOpen(db)) {
+        fprintf(stderr, "released-before-write PID could not be reused\n");
+        goto done;
+    }
+    UDB_commitTransaction(db);
+    if (!UDB_isOpen(db) ||
+        !has_value(db, reused_pid, "reused-before-first-write")) {
+        fprintf(stderr, "reused-before-write PID value did not persist\n");
+        goto done;
+    }
+
     /* A gap not reserved by allocPid must still be rejected. */
     UDB_beginTransaction(db);
     UDB_at_put_(db, (PID_TYPE)100, Datum_FromCString_("unreserved"));
