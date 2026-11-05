@@ -859,40 +859,39 @@ void textValid(void *record)
 SkipDBRecord *SkipDBRecord_previousRecord(SkipDBRecord *self)
 {
 	SkipDB *db;
+	SkipDBRecord *found;
+	SkipDBRecord *previous;
 
 	if (NULL == self)
 		return NULL;
 
 	db = (SkipDB *)self->sdb;
-	if (!self->previousRecord && self->previousPid && db)
-		self->previousRecord = SkipDB_recordAtPid_(db, self->previousPid);
+	if (NULL == db || NULL == self->key || !SkipDB_isOpen(db))
+		return NULL;
 
 	/*
-	 * Reverse links are intentionally not serialized; the forward skip-list
-	 * links are the authoritative on-disk structure. After reopening a DB a
-	 * record therefore has neither a cached predecessor nor a predecessor PID.
-	 * Re-run the ordered lookup to recover the immediate level-0 predecessor.
-	 * Keep this as a cache-only update: marking the record dirty here would
-	 * cause a read operation to schedule an unnecessary disk write.
+	 * Reverse links are cache-only and are not serialized. Always reconstruct
+	 * the predecessor from the authoritative forward skip-list instead of
+	 * trusting a potentially stale previousRecord/previousPid after reload,
+	 * cache eviction, or PID reuse.
 	 */
-	if (NULL == self->previousRecord && db && self->key &&
-		SkipDB_isOpen(db)) {
-		SkipDBRecord *found;
-		SkipDBRecord *previous;
-
-		found = SkipDB_recordAt_(db, SkipDBRecord_keyDatum(self));
-		previous = db->update[0];
-		if (found == self && previous && previous != self) {
-			self->previousRecord = previous;
-			self->previousPid = SkipDBRecord_pid(previous);
-		}
+	found = SkipDB_recordAt_(db, SkipDBRecord_keyDatum(self));
+	if (!SkipDB_isOpen(db))
+		return NULL;
+	if (found != self) {
+		fprintf(stderr, "SkipDB: reverse traversal target is not in the active index\n");
+		SkipDB_close(db);
+		return NULL;
 	}
 
-#ifdef SKIPDB_DEBUG
-	textValid(self);
-	textValid(self->previousRecord);
-#endif
-
-	return self->previousRecord;
+	previous = db->update[0];
+	if (previous == self) {
+		fprintf(stderr, "SkipDB: invalid self predecessor during reverse traversal\n");
+		SkipDB_close(db);
+		return NULL;
+	}
+	self->previousRecord = previous;
+	self->previousPid = previous ? SkipDBRecord_pid(previous) : 0;
+	return previous;
 }
 
