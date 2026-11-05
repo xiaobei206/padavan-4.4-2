@@ -329,8 +329,11 @@ int UDBIndex_isReservedPid_(UDBIndex *self, PID_TYPE pid)
 int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 {
 	UDBIndexEntry entry;
+	PID_TYPE old_pos = 0;
 	long previous_file_pos, previous_max_pos;
 	size_t offset;
+	int was_reserved = 0;
+	size_t i;
 
 	if (NULL == self || NULL == self->file ||
 		pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry) ||
@@ -343,9 +346,19 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 		return 0;
 
 	if (pos == 0) {
-		(void)UDBIndex_posForPid_(self, pid);
+		old_pos = UDBIndex_posForPid_(self, pid);
 		/* Do not mutate the index after a genuine read error. */
 		if (ferror(self->file->file))
+			return 0;
+		for (i = 0; i < self->reserved->size; ++i) {
+			if (self->reserved->items[i] == (void *)pid) {
+				was_reserved = 1;
+				break;
+			}
+		}
+		/* Only a live entry or a transaction-reserved PID may be freed.
+		 * Otherwise a bogus delete could expand the index and create arbitrary holes. */
+		if (pid != 0 && old_pos == 0 && !was_reserved)
 			return 0;
 	}
 	previous_file_pos = self->file->pos;
@@ -362,11 +375,10 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	/* Keep the free-PID stack unique when records are removed/reused/compacted. */
 	if (pos == 0) {
 		List_remove_(self->reserved, (void *)pid);
-		if (pid != 0) {
+		if (pid != 0 && (old_pos != 0 || was_reserved)) {
 			size_t old_hole_count;
 			while (List_removeFirst_(self->holes, (void *)pid)) {
-				/* Normalize stale duplicates even for newly allocated PIDs
-				 * removed again before their first committed index write. */
+				/* Normalize stale duplicates before releasing this PID. */
 			}
 			old_hole_count = self->holes->size;
 			List_push_(self->holes, (void *)pid);
