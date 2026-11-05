@@ -187,7 +187,23 @@ int main(void)
         goto done;
     }
 
-    /* A gap not reserved by allocPid must still be rejected. */
+    /* A direct attempt to free an arbitrary unmapped PID must not create
+     * an index entry or poison the free-PID pool. */
+    UDB_beginTransaction(db);
+    if (UDBIndex_setPos_forPid_(db->index, 0, (PID_TYPE)100) ||
+        !UDB_isOpen(db)) {
+        fprintf(stderr, "an arbitrary unmapped PID was added to the free pool\n");
+        goto done;
+    }
+    UDB_close(db);
+    UDB_open(db);
+    if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
+        !has_value(db, reused_pid, "reused-after-expiry")) {
+        fprintf(stderr, "rejected PID release damaged committed rows\n");
+        goto done;
+    }
+
+    /* A gap not reserved by allocPid must still be rejected for writes. */
     UDB_beginTransaction(db);
     UDB_at_put_(db, (PID_TYPE)100, Datum_FromCString_("unreserved"));
     if (UDB_isOpen(db)) {
