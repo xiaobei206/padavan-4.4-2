@@ -15,6 +15,8 @@ JFile ioDoc(
 #include <limits.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include "PortableTruncate.h"
 
 // See: http://lists.apple.com/archives/darwin-dev/2005/Feb/msg00072.html
@@ -167,6 +169,73 @@ void JFile_remove(JFile *self)
 		remove(self->logPath);
 }
 
+/* Open only regular files owned by this process. O_EXCL protects the
+ * create path from races, while O_NOFOLLOW rejects pre-existing symlinks. */
+static FILE *JFile_openManagedFile_(const char *path)
+{
+	struct stat before, after;
+	int exists, fd = -1, flags = O_RDWR | O_NONBLOCK;
+	FILE *stream;
+
+	if (NULL == path || '\0' == *path) {
+		errno = EINVAL;
+		return NULL;
+	}
+#ifdef O_NOFOLLOW
+	flags |= O_NOFOLLOW;
+#endif
+
+	if (lstat(path, &before) == 0) {
+		exists = 1;
+		if (!S_ISREG(before.st_mode)) {
+			errno = EINVAL;
+			return NULL;
+		}
+	} else {
+		if (errno != ENOENT)
+			return NULL;
+		exists = 0;
+	}
+
+	if (exists) {
+		fd = open(path, flags);
+	} else {
+		fd = open(path, flags | O_CREAT | O_EXCL, 0600);
+		if (fd < 0 && errno == EEXIST) {
+			/* A concurrent creator won; revalidate its inode below. */
+			if (lstat(path, &before) != 0 || !S_ISREG(before.st_mode))
+				return NULL;
+			exists = 1;
+			fd = open(path, flags);
+		}
+	}
+	if (fd < 0)
+		return NULL;
+
+	if (fstat(fd, &after) != 0 || !S_ISREG(after.st_mode) ||
+		after.st_uid != geteuid() ||
+		(exists && (before.st_dev != after.st_dev ||
+			before.st_ino != after.st_ino))) {
+		int saved_errno = errno ? errno : EPERM;
+		close(fd);
+		errno = saved_errno;
+		return NULL;
+	}
+	if (fchmod(fd, 0600) != 0) {
+		int saved_errno = errno;
+		close(fd);
+		errno = saved_errno;
+		return NULL;
+	}
+	stream = fdopen(fd, "r+");
+	if (NULL == stream) {
+		int saved_errno = errno;
+		close(fd);
+		errno = saved_errno;
+	}
+	return stream;
+}
+
 void JFile_open(JFile *self)
 {
 	long file_end;
@@ -179,15 +248,9 @@ void JFile_open(JFile *self)
 	self->pos = 0;
 	self->maxPos = 0;
 
-	self->file = fopen(self->path, "r+");
-	if (NULL == self->file) {
-		/* Do not truncate an existing database after an unrelated open error. */
-		if (errno != ENOENT)
-			goto fail;
-		self->file = fopen(self->path, "w+");
-		if (NULL == self->file)
-			goto fail;
-	}
+	self->file = JFile_openManagedFile_(self->path);
+	if (NULL == self->file)
+		goto fail;
 
 	if (fseek(self->file, 0, SEEK_END) != 0 ||
 		(file_end = ftell(self->file)) < 0)
@@ -195,14 +258,20 @@ void JFile_open(JFile *self)
 	self->maxPos = file_end;
 	self->pos = 0;
 
-	self->log = fopen(self->logPath, "r+");
-	if (NULL == self->log) {
-		if (errno != ENOENT)
+	self->log = JFile_openManagedFile_(self->logPath);
+	if (NULL == self->log)
+		goto fail;
+	if (file_end >= 0) {
+		struct stat log_stat;
+		if (fstat(fileno(self->log), &log_stat) != 0)
 			goto fail;
-		self->log = fopen(self->logPath, "w+");
-		if (NULL == self->log)
+	}
+	/* New empty journals need no replay or trimming. */
+	{
+		struct stat log_stat;
+		if (fstat(fileno(self->log), &log_stat) != 0)
 			goto fail;
-		created_log = 1;
+		created_log = (log_stat.st_size == 0);
 	}
 
 	if (created_log) {
