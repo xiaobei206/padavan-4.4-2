@@ -1763,6 +1763,7 @@ static int write_db_switch_marker(const char *db_path, int db_id)
     int fd = -1, dir_fd = -1, renamed = 0;
     int n;
     ssize_t written;
+    struct stat temp_stat;
 
     if (NULL == db_path || (db_id != 0 && db_id != 1)) {
         errno = EINVAL;
@@ -1779,9 +1780,25 @@ static int write_db_switch_marker(const char *db_path, int db_id)
         return -1;
     }
 
-    fd = open(temp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+#ifdef O_NOFOLLOW
+    fd = open(temp_path, O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600);
+#else
+    errno = ENOTSUP;
+    return -1;
+#endif
     if (fd < 0)
         return -1;
+
+    /* Never truncate a symlink, a special file, or a foreign-owned path. */
+    if (fstat(fd, &temp_stat) != 0 || !S_ISREG(temp_stat.st_mode) ||
+        temp_stat.st_uid != geteuid() || fchmod(fd, 0600) != 0 ||
+        ftruncate(fd, 0) != 0) {
+        int saved_errno = errno ? errno : EPERM;
+        close(fd);
+        errno = saved_errno;
+        return -1;
+    }
+
     value = (char)('0' + db_id);
     do {
         written = write(fd, &value, 1);
