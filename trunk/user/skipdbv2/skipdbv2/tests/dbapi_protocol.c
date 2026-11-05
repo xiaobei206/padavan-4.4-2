@@ -192,6 +192,40 @@ fail:
     return -1;
 }
 
+static int run_invalid_request_field_case(void)
+{
+    int sockets[2] = {-1, -1};
+    char pending;
+    ssize_t received;
+    dbclient client;
+
+    memset(&client, 0, sizeof(client));
+    client.remote_fd = -1;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0)
+        return -1;
+    client.remote_fd = sockets[0];
+
+    if (dbclient_bulk(&client, "set", "bad key", "value") != -1 ||
+        dbclient_bulk(&client, "set\n", "alpha", "value") != -1 ||
+        dbclient_list(&client, "bad prefix", NULL, capture_pair) != -1)
+        goto fail;
+
+    received = recv(sockets[1], &pending, sizeof(pending), MSG_DONTWAIT);
+    if (received != -1 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
+        fprintf(stderr, "dbapi invalid-field test sent a malformed request\n");
+        goto fail;
+    }
+
+    close(sockets[0]);
+    close(sockets[1]);
+    return 0;
+
+fail:
+    close(sockets[0]);
+    close(sockets[1]);
+    return -1;
+}
+
 int main(void)
 {
     static const char list_value_is_end[] = "list alpha __end__\n\0";
@@ -227,7 +261,8 @@ int main(void)
         goto done;
     }
 
-    if (run_error_frame_case() != 0 ||
+    if (run_invalid_request_field_case() != 0 ||
+        run_error_frame_case() != 0 ||
         run_bulk_error_frame_case() != 0 ||
         run_bulk_status_case("set alpha ok\n", 0) != 0 ||
         run_bulk_status_case("set alpha database error\n", -5) != 0)
