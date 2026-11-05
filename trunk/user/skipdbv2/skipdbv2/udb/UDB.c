@@ -53,6 +53,43 @@ static int UDB_syncParentDirectory(const char *path)
 	return result;
 }
 
+static FILE *UDB_openCommittedJournal(const char *path)
+{
+	struct stat before, after;
+	int fd;
+	FILE *file;
+
+	if (NULL == path || '\0' == *path) {
+		errno = EINVAL;
+		return NULL;
+	}
+#ifdef O_NOFOLLOW
+	if (lstat(path, &before) != 0 || !S_ISREG(before.st_mode))
+		return NULL;
+	fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+#else
+	errno = ENOTSUP;
+	return NULL;
+#endif
+	if (fd < 0)
+		return NULL;
+	if (fstat(fd, &after) != 0 || !S_ISREG(after.st_mode) ||
+		after.st_uid != geteuid() || before.st_dev != after.st_dev ||
+		before.st_ino != after.st_ino) {
+		int saved_errno = errno ? errno : EPERM;
+		close(fd);
+		errno = saved_errno;
+		return NULL;
+	}
+	file = fdopen(fd, "rb");
+	if (NULL == file) {
+		int saved_errno = errno;
+		close(fd);
+		errno = saved_errno;
+	}
+	return file;
+}
+
 static int UDB_verifyCommittedJournal(const char *path)
 {
 	FILE *log;
@@ -61,7 +98,7 @@ static int UDB_verifyCommittedJournal(const char *path)
 
 	if (NULL == path || '\0' == *path)
 		return 0;
-	log = fopen(path, "rb");
+	log = UDB_openCommittedJournal(path);
 	if (NULL == log)
 		return 0;
 
@@ -76,15 +113,28 @@ static int UDB_verifyCommittedJournal(const char *path)
 /* Never follow a symlink or block on a special file for the commit marker. */
 static FILE *UDB_openCommittedFile(const char *path, int create)
 {
-	int fd;
-	struct stat st;
+	struct stat before, after;
+	int fd, exists = 0;
 	FILE *file;
 
+	if (NULL == path || '\0' == *path) {
+		errno = EINVAL;
+		return NULL;
+	}
 #ifdef O_NOFOLLOW
-	fd = open(path, O_RDWR | O_NOFOLLOW | O_NONBLOCK);
-	if (fd < 0 && create && errno == ENOENT)
+	if (lstat(path, &before) == 0) {
+		exists = 1;
+		if (!S_ISREG(before.st_mode)) {
+			errno = EINVAL;
+			return NULL;
+		}
+		fd = open(path, O_RDWR | O_NOFOLLOW | O_NONBLOCK);
+	} else if (errno == ENOENT && create) {
 		fd = open(path, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW |
 			O_NONBLOCK, 0600);
+	} else {
+		return NULL;
+	}
 #else
 	(void)create;
 	errno = ENOTSUP;
@@ -92,15 +142,14 @@ static FILE *UDB_openCommittedFile(const char *path, int create)
 #endif
 	if (fd < 0)
 		return NULL;
-	if (fstat(fd, &st) != 0) {
-		int saved_errno = errno;
+	if (fstat(fd, &after) != 0 || !S_ISREG(after.st_mode) ||
+		after.st_uid != geteuid() ||
+		(exists && (before.st_dev != after.st_dev ||
+			before.st_ino != after.st_ino)) ||
+		fchmod(fd, 0600) != 0) {
+		int saved_errno = errno ? errno : EPERM;
 		close(fd);
 		errno = saved_errno;
-		return NULL;
-	}
-	if (!S_ISREG(st.st_mode)) {
-		close(fd);
-		errno = EINVAL;
 		return NULL;
 	}
 	file = fdopen(fd, "r+");
