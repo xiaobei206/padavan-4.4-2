@@ -1,3 +1,21 @@
+## 2026-11-06 — Unify SkipDB cursor traversal step guards
+
+### Baseline and scope
+- Base commit: `3add79592a5eb263ee86276d13126eede46521ed` (`refactor(skipdb): centralize record link validation`).
+- SkipDBv2 Regression run `42065572830` passed source contracts, CMake configuration, compilation, and CTest. This iteration is limited to `skipdb/SkipDBCursor.c`.
+
+### Changes
+- Centralized forward/reverse cursor preconditions, PID-index step bounds, direction-specific diagnostics, failure closure, and opposite-direction counter reset in one private `static` helper.
+- Kept actual record movement and reverse-header sentinel handling in their original public operations.
+- Extended the existing core-layer regression to move one active cursor forward, backward, and forward again after cache eviction/lazy reload.
+- Added CI source-contract checks for exactly one private traversal guard implementation and both direction-switch assertions. No new files, public declarations, or CMake source registration.
+
+### Validation
+- Static review confirms invalid cursor/database/record inputs remain non-mutating, step-limit failures still close the database and clear the cursor record, and a successful move resets only the opposite direction counter.
+- The pushed SkipDBv2 Regression is authoritative; no local compiler/CMake result is claimed.
+
+---
+
 ## 2026-11-06 — Centralize SkipDB record-link level validation
 
 ### Baseline and scope

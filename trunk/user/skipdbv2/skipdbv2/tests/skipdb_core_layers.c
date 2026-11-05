@@ -49,6 +49,10 @@ int main(void)
   fprintf(stderr,"cache eviction lost active cursor record\n");goto done;}
  if(!key_is(SkipDBCursor_next(cursor),"beta")){
   fprintf(stderr,"cache eviction cursor lazy reload failed\n");goto done;}
+ if(!key_is(SkipDBCursor_previous(cursor),"alpine")){
+  fprintf(stderr,"cursor reverse traversal after forward step failed\n");goto done;}
+ if(!key_is(SkipDBCursor_next(cursor),"beta")){
+  fprintf(stderr,"cursor forward traversal after reverse step failed\n");goto done;}
  SkipDBCursor_release(cursor);cursor=NULL;
  if(!value_is(source,"alpha","1")||!value_is(source,"alpine","2")){
   fprintf(stderr,"cache eviction/lazy reload failed\n");goto done;}

@@ -102,23 +102,48 @@ SkipDBRecord *SkipDBCursor_current(SkipDBCursor *self)
 	return self ? self->record : NULL;
 }
 
-SkipDBRecord *SkipDBCursor_previous(SkipDBCursor *self)
+/* Validate and account for one directional traversal step in a shared path. */
+static int SkipDBCursor_beginTraversalStep_(SkipDBCursor *self, int reverse)
 {
 	long max_steps;
-	if (NULL == self || NULL == self->sdb || !SkipDB_isOpen(self->sdb) ||
-		!self->record)
-		return NULL;
+	long *step_count;
+	long *opposite_count;
+	const char *direction;
+
+	if (NULL == self || NULL == self->sdb ||
+		!SkipDB_isOpen(self->sdb) || NULL == self->record)
+		return 0;
+
+	if (reverse) {
+		step_count = &self->previousSteps;
+		opposite_count = &self->nextSteps;
+		direction = "reverse";
+	} else {
+		step_count = &self->nextSteps;
+		opposite_count = &self->previousSteps;
+		direction = "forward";
+	}
 
 	max_steps = self->sdb->udb && self->sdb->udb->index
 		? UDBIndex_pidCount(self->sdb->udb->index) : -1;
-	if (max_steps <= 0 || ++self->previousSteps > max_steps) {
-		fprintf(stderr, "SkipDBCursor: invalid PID index length or cycle during reverse traversal\n");
+	if (max_steps <= 0 || ++*step_count > max_steps) {
+		fprintf(stderr,
+			"SkipDBCursor: invalid PID index length or cycle during %s traversal\n",
+			direction);
 		SkipDB_close(self->sdb);
 		self->record = NULL;
-		return NULL;
+		return 0;
 	}
 
-	self->nextSteps = 0;
+	*opposite_count = 0;
+	return 1;
+}
+
+SkipDBRecord *SkipDBCursor_previous(SkipDBCursor *self)
+{
+	if (!SkipDBCursor_beginTraversalStep_(self, 1))
+		return NULL;
+
 	self->record = SkipDBRecord_previousRecord(self->record);
 	if (self->record == SkipDB_headerRecord(self->sdb))
 		self->record = NULL;
@@ -127,21 +152,9 @@ SkipDBRecord *SkipDBCursor_previous(SkipDBCursor *self)
 
 SkipDBRecord *SkipDBCursor_next(SkipDBCursor *self)
 {
-	long max_steps;
-	if (NULL == self || NULL == self->sdb || !SkipDB_isOpen(self->sdb) ||
-		!self->record)
+	if (!SkipDBCursor_beginTraversalStep_(self, 0))
 		return NULL;
 
-	max_steps = self->sdb->udb && self->sdb->udb->index
-		? UDBIndex_pidCount(self->sdb->udb->index) : -1;
-	if (max_steps <= 0 || ++self->nextSteps > max_steps) {
-		fprintf(stderr, "SkipDBCursor: invalid PID index length or cycle during forward traversal\n");
-		SkipDB_close(self->sdb);
-		self->record = NULL;
-		return NULL;
-	}
-
-	self->previousSteps = 0;
 	return (self->record = SkipDBRecord_nextRecord(self->record));
 }
 

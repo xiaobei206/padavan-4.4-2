@@ -227,6 +227,13 @@ jobs:
                   "SkipDBRecord_pointersAreEmpty",
                   "SkipDBRecord_removeReferencesToUnmarked",
               ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c": [
+                  "static int SkipDBCursor_beginTraversalStep_(SkipDBCursor *self, int reverse)",
+                  "SkipDBCursor_beginTraversalStep_(self, 1)",
+                  "SkipDBCursor_beginTraversalStep_(self, 0)",
+                  "SkipDBRecord_previousRecord(self->record)",
+                  "SkipDBRecord_nextRecord(self->record)",
+              ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordLinks.c": [
                   "static int SkipDBRecord_hasValidLevel_(SkipDBRecord *self)",
                   "SkipDBRecord_hasValidLevel_(current)",
@@ -292,6 +299,9 @@ jobs:
                   "SkipDBCursor_goto_(cursor,Datum_FromCString_(\"alpine\"))",
                   "cache eviction lost active cursor record",
                   "cache eviction cursor lazy reload failed",
+                  "SkipDBCursor_previous(cursor)",
+                  "cursor reverse traversal after forward step failed",
+                  "cursor forward traversal after reverse step failed",
                   "SkipDB_mergeInto_(source,target)",
                   "cache eviction/lazy reload failed",
               ],
@@ -689,6 +699,12 @@ jobs:
           ).read_text()
           if record_links_source.count("SkipDBRecord_hasValidLevel_(") != 6:
               raise SystemExit("SkipDB record level validation is not centralized across all link operations")
+
+          cursor_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c"
+          ).read_text()
+          if cursor_source.count("SkipDBCursor_beginTraversalStep_(") != 3:
+              raise SystemExit("SkipDB cursor direction step guard is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):
