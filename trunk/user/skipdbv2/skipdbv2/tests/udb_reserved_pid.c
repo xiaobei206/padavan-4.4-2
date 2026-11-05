@@ -91,6 +91,23 @@ int main(void)
         goto done;
     }
 
+    /* Compacting adjacent old versions must not clear PIDs that now map
+     * to the newer, live records. */
+    UDB_beginTransaction(db);
+    UDB_at_put_(db, second_pid, Datum_FromCString_("second-updated"));
+    UDB_commitTransaction(db);
+    if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
+        !has_value(db, second_pid, "second-updated")) {
+        fprintf(stderr, "updating the second PID failed before compaction\n");
+        goto done;
+    }
+    if (UDB_compactStep(db) != 1 || !UDB_isOpen(db) ||
+        !has_value(db, first_pid, "updated") ||
+        !has_value(db, second_pid, "second-updated")) {
+        fprintf(stderr, "compaction cleared a PID still mapped to live data\n");
+        goto done;
+    }
+
     /* A freed PID can be reserved and written again in a later transaction. */
     UDB_beginTransaction(db);
     UDB_removeAt_(db, second_pid);
@@ -104,8 +121,8 @@ int main(void)
         goto done;
     }
 
-    /* The first two physical records are now adjacent empty extents.
-     * Compaction must merge them without trying to free their PIDs twice. */
+    /* Compaction can move the remaining live row into the leading hole
+     * while absorbing the deleted row that follows it. */
     if (UDB_compactStep(db) != 1 || !UDB_isOpen(db) ||
         !has_value(db, first_pid, "updated") ||
         UDB_at_(db, second_pid).data != NULL) {
