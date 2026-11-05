@@ -82,6 +82,43 @@ int main(void)
         goto done;
     }
 
+    /* Corrupt the persisted hole offset to point one byte into the first
+     * row. That byte resembles RECORD_TAG_EMPTY on little-endian systems;
+     * opening must recover a real record boundary before compaction. */
+    {
+        FILE *data_file;
+        char data_path[160];
+        PID_TYPE fake_pos = (PID_TYPE)sizeof(PID_TYPE) + 1;
+        int data_path_len = snprintf(data_path, sizeof(data_path),
+            "%s.udbData", path);
+        if (data_path_len < 0 || (size_t)data_path_len >= sizeof(data_path)) {
+            fprintf(stderr, "unable to construct UDB data path\n");
+            goto done;
+        }
+        UDB_close(db);
+        data_file = fopen(data_path, "r+b");
+        if (NULL == data_file) {
+            fprintf(stderr, "unable to corrupt first-empty metadata for test\n");
+            goto done;
+        }
+        if (fwrite(&fake_pos, sizeof(fake_pos), 1, data_file) != 1 ||
+            fflush(data_file) != 0) {
+            fclose(data_file);
+            fprintf(stderr, "unable to write corrupt first-empty metadata\n");
+            goto done;
+        }
+        if (fclose(data_file) != 0) {
+            fprintf(stderr, "unable to close corrupt metadata fixture\n");
+            goto done;
+        }
+        UDB_open(db);
+        if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
+            !has_value(db, second_pid, "second")) {
+            fprintf(stderr, "invalid free-list offset damaged live records\n");
+            goto done;
+        }
+    }
+
     /* "second" is one byte larger than the preceding "first" row. The
      * compactor must not overwrite it when the first hole is too small. */
     if (UDB_compactStep(db) != 0 || !UDB_isOpen(db) ||
