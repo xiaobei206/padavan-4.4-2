@@ -38,6 +38,7 @@ typedef struct
 UDBRecord *UDBRecord_new(void);
 UDBRecord *UDBRecord_clone(UDBRecord *self);
 void UDBRecord_free(UDBRecord *self);
+UArray *UDBRecord_data(UDBRecord *self);
 
 void UDBRecord_setJFile_(UDBRecord *self, JFile *file);
 

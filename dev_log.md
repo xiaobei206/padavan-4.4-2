@@ -1,3 +1,40 @@
+## 2026-11-05 18:01 CST — Decompose UDB lifecycle, dual-file recovery, and transaction engines
+
+### Baseline and regression state
+- Base commit: `1351999ea6d734ec64522ca8f33aa5cac6a59adc` (`refactor(udb-record): separate metadata, persistence, reads, and compaction`).
+- Latest `SkipDBv2 Regression` run `41999798454` (#143) passed XY-C1 integration contracts and CMake configure, then failed at 57% while compiling `udb/UDBRecordRead.c`: `UDBRecord_data` was implemented but absent from the shared `UDBRecord.h` declaration surface. CTest was skipped.
+- `SkipDBv2 Regression` remains the automatic validation gate. The full host build and full CTest suite remain enabled; firmware workflows remain manual-only.
+
+### Changes
+1. **Lifecycle and path ownership — `udb/UDBLifecycle.c`**
+   - Extracted UDB construction/destruction, database artifact cleanup, main/index/data/journal/marker path derivation, log-path configuration, path access, open-state inspection, and close cleanup.
+   - Kept path replacement atomic with respect to allocation and commit-marker path validation; existing suffixes and default paths are unchanged.
+2. **Two-file startup and crash recovery — `udb/UDBRecovery.c`**
+   - Isolated the coordinated index/data startup state machine and promoted the shared stream-health predicate to the private implementation contract.
+   - Preserved missing-marker refusal when artifacts exist, first-open marker initialization, validation of both journals before replay, deferred replay, replay-both-before-disarm ordering, journal cleanup, and parent-directory synchronization.
+3. **Transaction engine — `udb/UDBTransaction.c`**
+   - Isolated transaction admission, pre-commit flush/prepare, durable recovery-marker arming, index/data journal application, marker disarming, and post-commit clipping.
+   - Preserved the exact prepare → arm → apply index → apply data → disarm → clip sequence and fail-closed behavior.
+4. **Record ownership API and compile boundary — `udb/UDBRecord.h`, `udb/UDBRecordRead.c`, `udb/UDBInternal.h`**
+   - Declared the existing lazy `UDBRecord_data` accessor where all record translation units can see it, fixing the #143 implicit-declaration failure.
+   - Made the mutable owned payload conversion explicit at the `Datum` boundary and declared the cross-unit stream-health contract.
+5. **Build and regression contracts — `CMakeLists.txt`, `tests/udb_transaction_lifecycle.c`, `.github/workflows/skipdbv2-regression.yml`**
+   - Replaced the monolithic storage source with three explicit implementation units and added lifecycle/transaction regression coverage for path derivation, idempotent open/begin, append/commit, and close/reopen persistence.
+   - Updated source ownership, private contract, source-manifest, and CTest registration assertions. No build or test stage was disabled.
+
+### Validation
+- Static extraction audit partitions all UDBStorage functions into lifecycle, recovery, and transaction owners without changing their bodies or public API; no old storage implementation remains in the source manifest.
+- The #143 compiler blocker is repaired at the declaration boundary; the mutable owned-data cast is explicit.
+- No local CMake/compiler/CTest result is claimed. The pushed commit triggers the unchanged full host build and complete CTest suite.
+
+### Follow-up
+- Keep UDB construction, paths, destruction, and close in `UDBLifecycle.c`.
+- Keep startup marker checks, journal validation/replay, and directory durability in `UDBRecovery.c`.
+- Keep transaction prepare/apply/disarm ordering in `UDBTransaction.c`; any ordering change must preserve dual-file crash recovery coverage.
+- Keep lazy UDBRecord byte-array ownership declared by `UDBRecord.h`; do not reintroduce implicit cross-translation-unit calls.
+
+---
+
 ## 2026-11-05 17:00 CST — Separate UDB record metadata, persistence, validation, and relocation
 
 ### Baseline and regression state

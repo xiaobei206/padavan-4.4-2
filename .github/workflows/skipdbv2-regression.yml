@@ -98,19 +98,46 @@ jobs:
                   "SkipDB_list_first(SkipDB *self, Datum key, SkipDBCursor **cursor)",
                   "SkipDB_list_next(SkipDB *self, Datum key, SkipDBCursor *cursor)",
               ],
-              "trunk/user/skipdbv2/skipdbv2/udb/UDBStorage.c": [
-                  '#include "UDBInternal.h"',
-                  "memcpy(marker_path + n, \".committed\", sizeof(\".committed\"))",
-                  "UDBCommitMarker_setPath_(&self->commitMarker, marker_path)",
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBLifecycle.c": [
+                  "UDB *UDB_new(void)",
+                  "void UDB_free(UDB *self)",
+                  "void UDB_delete(UDB *self)",
+                  "void UDB_setPath_(UDB *self, const char *path)",
+                  "void UDB_close(UDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecovery.c": [
+                  "int UDB_streamsOpen_(UDB *self)",
                   "void UDB_open(UDB *self)",
-                  "UDBCommitMarker_open(&self->commitMarker,0)",
-                  "UDBCommitMarker_artifactsExist(artifact_paths,4)",
                   "UDBCommitMarker_verifyJournal(self->index->file->logPath)",
+                  "JFile_applyLogToFile(self->index->file)",
+                  "JFile_applyLogToFile(self->records->file)",
+                  "UDBCommitMarker_syncParentDirectory(self->commitMarker.path)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBTransaction.c": [
+                  "int UDB_isInTransaction(UDB *self)",
+                  "void UDB_beginTransaction(UDB *self)",
+                  "void UDB_commitTransaction(UDB *self)",
+                  "UDBIndex_prepareCommit(self->index)",
                   "UDBCommitMarker_write(&self->commitMarker, 1)",
                   "UDBCommitMarker_write(&self->commitMarker, 0)",
-                  "UDBCommitMarker_syncParentDirectory(self->commitMarker.path)",
-                  "void UDB_commitTransaction(UDB *self)",
-                  "static int UDB_streamsOpen(UDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBInternal.h": [
+                  "int UDB_streamsOpen_(UDB *self);",
+                  "int UDB_isInTransaction(UDB *self);",
+                  "UDBRecord *UDB_recordAtPid_(UDB *self, PID_TYPE pid);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecord.h": [
+                  "UArray *UDBRecord_data(UDBRecord *self);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordRead.c": [
+                  "ba = UDBRecord_data(self);",
+                  "d.data = (unsigned char *)UArray_bytes(ba);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/udb_transaction_lifecycle.c": [
+                  "UDB_setPath_(db, path)",
+                  "UDB_beginTransaction(db)",
+                  "UDB_commitTransaction(db)",
+                  "committed value did not survive close/reopen",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexInternal.h": [
                   "int UDBIndex_isValid_(UDBIndex *self);",
@@ -438,7 +465,9 @@ jobs:
                   "UDBRecordRead.c",
                   "UDBRecordMove.c",
                   "UDBWrite.c",
-                  "UDBStorage.c",
+                  "UDBLifecycle.c",
+                  "UDBRecovery.c",
+                  "UDBTransaction.c",
                   "UDBCompact.c",
                   "UDBRecordsStorage.c",
                   "UDBRecordsCursor.c",
@@ -451,6 +480,8 @@ jobs:
                   "add_test(NAME udb_record_api_test COMMAND udb_record_api_test)",
                   "udb_record_storage_test",
                   "add_test(NAME udb_record_storage_test COMMAND udb_record_storage_test)",
+                  "udb_transaction_lifecycle_test",
+                  "add_test(NAME udb_transaction_lifecycle_test COMMAND udb_transaction_lifecycle_test)",
                   "ADD_EXECUTABLE(commit_marker_test",
                   "add_test(NAME commit_marker_test COMMAND commit_marker_test)",
                   "ADD_EXECUTABLE(ipc_io_test",
@@ -556,6 +587,24 @@ jobs:
           ):
               if moved_definition in udb_record_core:
                   raise SystemExit("UDBRecord core still owns extracted function: " + moved_definition)
+
+          udb_root = Path("trunk/user/skipdbv2/skipdbv2/udb")
+          if (udb_root / "UDBStorage.c").exists():
+              raise SystemExit("UDBStorage.c must remain decomposed into lifecycle/recovery/transaction units")
+
+          for module, forbidden in (
+              ("UDBLifecycle.c", ("UDB_open(", "UDB_beginTransaction(", "UDB_commitTransaction(")),
+              ("UDBRecovery.c", ("UDB_new(", "UDB_setPath_(", "UDB_commitTransaction(")),
+              ("UDBTransaction.c", ("UDB_open(", "UDB_setPath_(", "UDB_free(")),
+          ):
+              content = (udb_root / module).read_text()
+              for symbol in forbidden:
+                  if symbol in content:
+                      raise SystemExit(f"cross-layer ownership leak in {module}: {symbol}")
+
+          record_header = (udb_root / "UDBRecord.h").read_text()
+          if "UArray *UDBRecord_data(UDBRecord *self);" not in record_header:
+              raise SystemExit("UDBRecord lazy-data accessor is missing from its shared header")
 
           record_core = Path("trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecord.c").read_text()
           for moved_definition in (

@@ -82,7 +82,7 @@ Datum UDBRecord_readDatum(UDBRecord *self)
         return d;
     }
     d.size = size;
-    d.data = UArray_bytes(ba);
+    d.data = (unsigned char *)UArray_bytes(ba);
     self->file->pos = old_pos;
     self->file->maxPos = old_max;
     return d;

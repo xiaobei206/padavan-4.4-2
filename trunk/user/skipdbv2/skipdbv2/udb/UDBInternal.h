@@ -5,6 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+int UDB_streamsOpen_(UDB *self);
 int UDB_isInTransaction(UDB *self);
 UDBRecord *UDB_recordAtPid_(UDB *self, PID_TYPE pid);
 #ifdef __cplusplus

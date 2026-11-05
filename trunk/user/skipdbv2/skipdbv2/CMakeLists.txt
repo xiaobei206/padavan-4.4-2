@@ -25,7 +25,9 @@ SET(UDB_SRC
     ${PROJECT_SOURCE_DIR}/udb/UDB.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRead.c
     ${PROJECT_SOURCE_DIR}/udb/UDBWrite.c
-    ${PROJECT_SOURCE_DIR}/udb/UDBStorage.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBLifecycle.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBRecovery.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBTransaction.c
     ${PROJECT_SOURCE_DIR}/udb/UDBCompact.c
     ${PROJECT_SOURCE_DIR}/udb/UDBCommitMarker.c
     ${PROJECT_SOURCE_DIR}/udb/UDBIndex.c
@@ -121,6 +123,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/udb_record_storage.c)
     TARGET_LINK_LIBRARIES(udb_record_storage_test skipdb m)
     add_test(NAME udb_record_storage_test COMMAND udb_record_storage_test)
+
+    ADD_EXECUTABLE(udb_transaction_lifecycle_test
+        ${PROJECT_SOURCE_DIR}/tests/udb_transaction_lifecycle.c)
+    TARGET_LINK_LIBRARIES(udb_transaction_lifecycle_test skipdb m)
+    add_test(NAME udb_transaction_lifecycle_test COMMAND udb_transaction_lifecycle_test)
 
     ADD_EXECUTABLE(dbus_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbus_protocol.c
