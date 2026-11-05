@@ -26,6 +26,9 @@ SET(UDB_SRC
     ${PROJECT_SOURCE_DIR}/udb/UDBIndex.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecord.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecords.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBRecordsStorage.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBRecordsCursor.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBRecordsFreeList.c
 )
 FILE(GLOB_RECURSE SKIPDB_SRC ${PROJECT_SOURCE_DIR}/skipdb/*.c)
 FILE(GLOB_RECURSE MGR_SRC ${PROJECT_SOURCE_DIR}/mgr/*.c)

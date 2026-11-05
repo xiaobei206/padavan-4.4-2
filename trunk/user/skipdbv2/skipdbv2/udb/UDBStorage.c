@@ -72,29 +72,68 @@ void UDB_delete(UDB *self)
 void UDB_setPath_(UDB *self, const char *path)
 {
 	size_t n;
-	char *main_path,*index_path,*index_log,*data_path,*data_log;
-	if(!self||!path||self->isOpen||!self->index||!self->records||
-		!self->index->file||!self->records->file)return;
-	n=strlen(path);
-	if(n>(size_t)-1-sizeof(".udbIndex.log")||n>(size_t)-1-sizeof(".udbData.log"))return;
-	main_path=(char *)malloc(n+1);
-	index_path=(char *)malloc(n+sizeof(".udbIndex"));
-	index_log=(char *)malloc(n+sizeof(".udbIndex.log"));
-	data_path=(char *)malloc(n+sizeof(".udbData"));
-	data_log=(char *)malloc(n+sizeof(".udbData.log"));
-	if(!main_path||!index_path||!index_log||!data_path||!data_log){
-		free(main_path);free(index_path);free(index_log);free(data_path);free(data_log);return;}
-	memcpy(main_path,path,n+1);
-	memcpy(index_path,path,n);memcpy(index_path+n,".udbIndex",sizeof(".udbIndex"));
-	memcpy(index_log,path,n);memcpy(index_log+n,".udbIndex.log",sizeof(".udbIndex.log"));
-	memcpy(data_path,path,n);memcpy(data_path+n,".udbData",sizeof(".udbData"));
-	memcpy(data_log,path,n);memcpy(data_log+n,".udbData.log",sizeof(".udbData.log"));
-	if(UDBCommitMarker_setPath_(&self->commitMarker,path)!=0){
-		free(main_path);free(index_path);free(index_log);free(data_path);free(data_log);return;}
-	free(self->path);free(self->index->file->path);free(self->index->file->logPath);
-	free(self->records->file->path);free(self->records->file->logPath);
-	self->path=main_path;self->index->file->path=index_path;self->index->file->logPath=index_log;
-	self->records->file->path=data_path;self->records->file->logPath=data_log;
+	char *main_path, *marker_path, *index_path, *index_log, *data_path, *data_log;
+
+	if (!self || !path || self->isOpen || !self->index || !self->records ||
+		!self->index->file || !self->records->file)
+		return;
+
+	n = strlen(path);
+	if (n > (size_t)-1 - sizeof(".committed") ||
+		n > (size_t)-1 - sizeof(".udbIndex.log") ||
+		n > (size_t)-1 - sizeof(".udbData.log"))
+		return;
+
+	main_path = (char *)malloc(n + 1);
+	marker_path = (char *)malloc(n + sizeof(".committed"));
+	index_path = (char *)malloc(n + sizeof(".udbIndex"));
+	index_log = (char *)malloc(n + sizeof(".udbIndex.log"));
+	data_path = (char *)malloc(n + sizeof(".udbData"));
+	data_log = (char *)malloc(n + sizeof(".udbData.log"));
+	if (!main_path || !marker_path || !index_path || !index_log ||
+		!data_path || !data_log) {
+		free(main_path);
+		free(marker_path);
+		free(index_path);
+		free(index_log);
+		free(data_path);
+		free(data_log);
+		return;
+	}
+
+	memcpy(main_path, path, n + 1);
+	memcpy(marker_path, path, n);
+	memcpy(marker_path + n, ".committed", sizeof(".committed"));
+	memcpy(index_path, path, n);
+	memcpy(index_path + n, ".udbIndex", sizeof(".udbIndex"));
+	memcpy(index_log, path, n);
+	memcpy(index_log + n, ".udbIndex.log", sizeof(".udbIndex.log"));
+	memcpy(data_path, path, n);
+	memcpy(data_path + n, ".udbData", sizeof(".udbData"));
+	memcpy(data_log, path, n);
+	memcpy(data_log + n, ".udbData.log", sizeof(".udbData.log"));
+
+	if (UDBCommitMarker_setPath_(&self->commitMarker, marker_path) != 0) {
+		free(main_path);
+		free(marker_path);
+		free(index_path);
+		free(index_log);
+		free(data_path);
+		free(data_log);
+		return;
+	}
+	free(marker_path);
+
+	free(self->path);
+	free(self->index->file->path);
+	free(self->index->file->logPath);
+	free(self->records->file->path);
+	free(self->records->file->logPath);
+	self->path = main_path;
+	self->index->file->path = index_path;
+	self->index->file->logPath = index_log;
+	self->records->file->path = data_path;
+	self->records->file->logPath = data_log;
 }
 /*
 void UDB_setSecondaryPath_(UDB *self, const char *secondaryPath)

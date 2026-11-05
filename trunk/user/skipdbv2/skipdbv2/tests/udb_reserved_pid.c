@@ -46,6 +46,12 @@ int main(void)
         fprintf(stderr, "new database did not open\n");
         goto done;
     }
+    path_len = snprintf(marker_path, sizeof(marker_path), "%s.committed", path);
+    if (path_len < 0 || (size_t)path_len >= sizeof(marker_path) ||
+        access(marker_path, F_OK) != 0) {
+        fprintf(stderr, "database commit marker did not preserve the .committed path\n");
+        goto done;
+    }
 
     /* A transaction may reserve several IDs before writing any of them. */
     UDB_beginTransaction(db);

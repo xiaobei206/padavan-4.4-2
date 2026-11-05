@@ -17,6 +17,7 @@ docDescription("An object for storing and fetching UDB records from the records 
 extern "C" {
 #endif
 
+/* Shared state for the lifecycle, cursor, and free-list implementation modules. */
 typedef struct
 {
     JFile *file;

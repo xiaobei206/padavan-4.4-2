@@ -1,5 +1,39 @@
 # Development handoff log
 
+## 2026-11-05 — Split UDB record-store lifecycle, cursor, and free-list layers
+
+### Baseline and regression state
+- Base commit: `2ec8f3f2996a319dc88a1c741b3f06d01baf5c7b` (`refactor(udb): split record read/write pipelines and formalize internal contracts`).
+- `SkipDBv2 Regression` run `41981099079` compiled all targets; seven of eight CTests passed. `udb_reserved_pid_test` failed when it tried to remove `<database-path>.committed`, exposing a marker filename compatibility regression from the earlier marker extraction.
+- The pre-extraction implementation constructed the durable marker filename as `<database-path>.committed`; preserve that persistent on-disk contract.
+
+### Changes
+1. **Marker-path compatibility — `udb/UDBStorage.c`, `tests/udb_reserved_pid.c`**
+   - Restored the `.committed` suffix when deriving the marker path, while retaining all-or-nothing allocation and path replacement.
+   - Added an explicit regression assertion that opening a fresh database creates the expected `.committed` marker before exercising missing-marker rejection.
+2. **Lifecycle and startup validation — `udb/UDBRecords.c`, `udb/UDBRecordsStorage.c`**
+   - Kept construction, ownership, path configuration, and deletion in the facade.
+   - Moved file opening, first-empty metadata recovery, journal/transaction delegation, close, and truncation into a storage lifecycle translation unit.
+3. **Physical cursor and free-list metadata — `udb/UDBRecordsCursor.c`, `udb/UDBRecordsFreeList.c`**
+   - Isolated validated record-boundary traversal and record mutation helpers from persisted first-empty-offset management.
+   - Preserved the mutable cursor object and shared `UDBRecords` layout; exported declarations remain in `UDBRecords.h`.
+4. **Build and CI contracts — `udb/UDBRecords.h`, `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Added the three implementation layers to the explicit UDB source manifest.
+   - Added source-level assertions for function ownership, manifest registration, and the durable marker filename convention.
+   - Kept both `SkipDBv2 Regression` and `XY-C1 Firmware Validation` enabled; no validation job was bypassed.
+
+### Validation
+- Static split checks: each original UDBRecords function block is assigned to exactly one translation unit; the lifecycle, cursor, and free-list anchors were verified before publishing.
+- The existing remote regression failure and the new marker-path assertion are documented above. No local compiler/CTest result is claimed; the pushed commit triggers the enabled remote workflows.
+
+### Follow-up
+- Keep record-file lifecycle and open-time recovery in `UDBRecordsStorage.c`.
+- Keep validated record cursor movement/header checks in `UDBRecordsCursor.c`.
+- Keep durable first-empty offset repair and free-list traversal in `UDBRecordsFreeList.c`.
+- Keep database marker naming synchronized with the legacy `.committed` suffix.
+
+---
+
 ## 2026-11-05 — SkipDB IPC transport deduplication
 
 ### Baseline

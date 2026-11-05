@@ -96,6 +96,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBStorage.c": [
                   '#include "UDBInternal.h"',
+                  "memcpy(marker_path + n, \".committed\", sizeof(\".committed\"))",
+                  "UDBCommitMarker_setPath_(&self->commitMarker, marker_path)",
                   "void UDB_open(UDB *self)",
                   "UDBCommitMarker_open(&self->commitMarker,0)",
                   "UDBCommitMarker_artifactsExist(artifact_paths,4)",
@@ -105,6 +107,28 @@ jobs:
                   "UDBCommitMarker_syncParentDirectory(self->commitMarker.path)",
                   "void UDB_commitTransaction(UDB *self)",
                   "static int UDB_streamsOpen(UDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecords.c": [
+                  "UDBRecords *UDBRecords_new(void)",
+                  "void UDBRecords_free(UDBRecords *self)",
+                  "void UDBRecords_setPath_(UDBRecords *self, const char *path)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsStorage.c": [
+                  "void UDBRecords_open(UDBRecords *self)",
+                  "int UDBRecords_finishOpening(UDBRecords *self)",
+                  "void UDBRecords_commit(UDBRecords *self)",
+                  "int UDBRecords_truncate_(UDBRecords *self, off_t size)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsCursor.c": [
+                  "UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)",
+                  "UDBRecord *UDBRecords_nextRecord(UDBRecords *self)",
+                  "int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsFreeList.c": [
+                  "UDBRecord *UDBRecords_findFirstEmptyRecord(UDBRecords *self)",
+                  "PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)",
+                  "int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)",
+                  "UDBRecord *UDBRecords_firstEmptyRecord(UDBRecords *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBCompact.c": [
                   "int UDB_compactStepFor_(UDB *self, double maxSeconds)",
@@ -203,6 +227,9 @@ jobs:
                   "UDBWrite.c",
                   "UDBStorage.c",
                   "UDBCompact.c",
+                  "UDBRecordsStorage.c",
+                  "UDBRecordsCursor.c",
+                  "UDBRecordsFreeList.c",
                   "ADD_EXECUTABLE(udb_record_api_test",
                   "add_test(NAME udb_record_api_test COMMAND udb_record_api_test)",
                   "ADD_EXECUTABLE(commit_marker_test",
