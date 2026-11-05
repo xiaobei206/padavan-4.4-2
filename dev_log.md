@@ -1,3 +1,20 @@
+## 2026-11-06 05:50 CST — Reject impossible zero-payload journal records
+
+### Baseline and scope
+- Base commit: `b22e1ff90779a1b21a6e8e8a6baa14bfb2620290` (`fix(jfile): preserve durability failure errors`); SkipDBv2 Regression run #214 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to record-length validation in `jfile/JFileJournalScan.c` and its existing journal regression.
+
+### Changes
+- Reject zero-length payload records during journal scanning. `JFile_fwrite()` explicitly refuses zero-byte writes, so such a record cannot be produced by the supported writer and must not be accepted as a committed transaction.
+- Added a regression fixture that writes a syntactically terminated, zero-payload record and verifies that `JFile_verifyLog()` rejects it.
+- Extended existing scanner and journal-test source contracts. No new files, declarations, CMake targets, or source registrations.
+
+### Validation
+- Static preflight confirms the zero-length guard precedes the record-boundary calculation and the regression observes the scanner's public verification result.
+- Remote SkipDBv2 Regression is authoritative for compilation and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 05:45 CST — Preserve JFile durability failure causes
 
 ### Baseline and scope

@@ -185,6 +185,37 @@ int main(void)
 		fprintf(stderr, "startup recovery retained an interrupted journal tail\n");
 		goto done;
 	}
+	/* Zero-length records are not emitted by JFile_fwrite and must not verify. */
+	JFile_close(file);
+	{
+		long zero_position = 0;
+		size_t zero_payload = 0;
+		unsigned char terminator = JFILE_END_TRANSACTION;
+		int fd = open(file->logPath, O_WRONLY | O_TRUNC | O_CLOEXEC);
+		int write_failed = 0;
+
+		if (fd < 0 ||
+			write(fd, &zero_position, sizeof(zero_position)) !=
+				(ssize_t)sizeof(zero_position) ||
+			write(fd, &zero_payload, sizeof(zero_payload)) !=
+				(ssize_t)sizeof(zero_payload) ||
+			write(fd, &terminator, sizeof(terminator)) !=
+				(ssize_t)sizeof(terminator) ||
+			fsync(fd) != 0)
+			write_failed = 1;
+		if (fd >= 0 && close(fd) != 0)
+			write_failed = 1;
+		if (write_failed) {
+			fprintf(stderr, "unable to create zero-length journal fixture\\n");
+			goto done;
+		}
+	}
+	file->log = JFile_openManagedFile_(file->logPath, NULL);
+	if (NULL == file->log || JFile_verifyLog(file)) {
+		fprintf(stderr, "zero-length journal record was accepted\\n");
+		goto done;
+	}
+
 	result = EXIT_SUCCESS;
 
 done:

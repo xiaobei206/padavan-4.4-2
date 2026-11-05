@@ -33,7 +33,8 @@ int JFileJournal_scan_(JFile *self, JFileJournalScan *scan)
 			return -1;
 
 		data_pos = cursor + (long)header_size;
-		if (pos < 0 || total > (size_t)LONG_MAX ||
+		/* JFile_fwrite never emits an empty payload record. */
+		if (pos < 0 || total == 0 || total > (size_t)LONG_MAX ||
 			total > (size_t)(end - data_pos - 1) ||
 			pos > LONG_MAX - (long)total)
 			break;
