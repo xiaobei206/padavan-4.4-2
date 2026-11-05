@@ -92,15 +92,23 @@ static FILE *UDB_openCommittedFile(const char *path, int create)
 #endif
 	if (fd < 0)
 		return NULL;
-	if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
-		int saved_errno = errno ? errno : EPERM;
+	if (fstat(fd, &st) != 0) {
+		int saved_errno = errno;
 		close(fd);
 		errno = saved_errno;
 		return NULL;
 	}
-	file = fdopen(fd, "r+");
-	if (NULL == file)
+	if (!S_ISREG(st.st_mode)) {
 		close(fd);
+		errno = EINVAL;
+		return NULL;
+	}
+	file = fdopen(fd, "r+");
+	if (NULL == file) {
+		int saved_errno = errno;
+		close(fd);
+		errno = saved_errno;
+	}
 	return file;
 }
 
