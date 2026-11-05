@@ -758,8 +758,13 @@ void JFile_truncate_(JFile *self, off_t size)
 	if (NULL == self->file || NULL == self->log)
 		return;
 	if (fflush(self->file) != 0 ||
-		ftruncate(fileno(self->file), size) != 0)
+		ftruncate(fileno(self->file), size) != 0) {
+		/* This API is void; close the stream so UDB's stream checks force
+		 * the transaction to abort instead of committing with stale length. */
+		fclose(self->file);
+		self->file = NULL;
 		return;
+	}
 	self->maxPos = (long)size;
 	if (self->pos > self->maxPos)
 		self->pos = self->maxPos;
