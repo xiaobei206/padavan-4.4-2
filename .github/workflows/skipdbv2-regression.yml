@@ -6,6 +6,7 @@ on:
       - ".github/workflows/skipdbv2-regression.yml"
       - "trunk/user/skipdbv2/skipdbv2/**"
       - "trunk/user/skipdbv2/Makefile"
+      - "trunk/Makefile"
       - "trunk/user/Makefile"
       - "trunk/libs/Makefile"
       - "trunk/configs/templates/XY-C1.config"
@@ -20,6 +21,7 @@ on:
       - ".github/workflows/skipdbv2-regression.yml"
       - "trunk/user/skipdbv2/skipdbv2/**"
       - "trunk/user/skipdbv2/Makefile"
+      - "trunk/Makefile"
       - "trunk/user/Makefile"
       - "trunk/libs/Makefile"
       - "trunk/configs/templates/XY-C1.config"
@@ -56,6 +58,15 @@ jobs:
               "trunk/configs/templates/XY-C1.config": [
                   "CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS=n",
                   "CONFIG_FIRMWARE_INCLUDE_SKIPDBV2=y",
+              ],
+              "trunk/Makefile": [
+                  "STAGEDIR := $(ROOTDIR)/stage",
+                  "PROJECT_CONFIG LINUX_CONFIG ROOTDIR LINUXDIR ROMFSDIR STAGEDIR",
+              ],
+              "trunk/user/skipdbv2/Makefile": [
+                  "build/$(CONFIG_CROSS_COMPILE)",
+                  '-DCMAKE_TOOLCHAIN_FILE="$(CONFIG_CMAKE_TOOLCHAIN_FILE)"',
+                  'LDFLAGS="$(LDFLAGS) -L$(STAGEDIR)/lib"',
               ],
               "trunk/user/Makefile": [
                   "CONFIG_FIRMWARE_INCLUDE_SKIPDBV2",
