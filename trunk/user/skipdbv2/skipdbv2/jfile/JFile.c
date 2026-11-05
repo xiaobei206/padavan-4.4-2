@@ -731,7 +731,8 @@ int JFile_clipLog(JFile *self)
 		return -1;
 
 	if (NULL == self->log) {
-		self->log = fopen(self->logPath, "r+");
+		/* Reopen through the same no-symlink, regular-file checks as startup. */
+		self->log = JFile_openManagedFile_(self->logPath, NULL);
 		if (NULL == self->log)
 			return errno == ENOENT ? 0 : -1;
 	}
