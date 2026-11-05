@@ -1,3 +1,19 @@
+## 2026-11-06 00:50 CST — Correct SkipDB prefix regression target contract
+
+### Baseline and failure
+- Base commit: `ea0215423bf34177f69cf5e6d8a0dc9bebfefa3d` (`fix(ci): align SkipDB prefix source contract`).
+- The follow-up SkipDBv2 Regression run `42058571347` passed all file-content contracts but failed the Prefix CMake wiring assertion. The assertion searched for `TARGET_LINK_LIBRARIES` after the `add_test()` line even though the actual target link declaration correctly appears between `ADD_EXECUTABLE()` and `add_test()`.
+
+### Changes
+- Corrected the contract to inspect the complete `skipdb_prefix_test` target block and require both the test source and its `skipdb m` link declaration inside that block.
+- No production C source, API declaration, CMake target, or new file was changed; only the faulty CI assertion and this handoff log were updated.
+
+### Validation
+- Compared the contract's inspected range with the existing CMake target order; confirmed the source and link declarations are present before `add_test()`.
+- The next remote SkipDBv2 Regression run is authoritative. No local CMake/compiler result is claimed.
+
+---
+
 ## 2026-11-05 23:46 CST — Repair stale SkipDB prefix source contract
 
 ### Baseline and failure

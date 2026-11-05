@@ -769,11 +769,15 @@ jobs:
               raise SystemExit("SkipDB prefix regression is not registered")
           prefix_target_start = cmake_text.find("ADD_EXECUTABLE(skipdb_prefix_test")
           prefix_target_end = cmake_text.find("add_test(", prefix_target_start)
+          prefix_target = (
+              cmake_text[prefix_target_start:prefix_target_end]
+              if prefix_target_start >= 0 and prefix_target_end > prefix_target_start
+              else ""
+          )
           if (
-              prefix_target_start < 0 or prefix_target_end < 0 or
-              "tests/skipdb_prefix.c" not in cmake_text[prefix_target_start:prefix_target_end] or
-              "TARGET_LINK_LIBRARIES(skipdb_prefix_test skipdb m)" not in
-              cmake_text[prefix_target_end:prefix_target_end + 120]
+              not prefix_target or
+              "tests/skipdb_prefix.c" not in prefix_target or
+              "TARGET_LINK_LIBRARIES(skipdb_prefix_test skipdb m)" not in prefix_target
           ):
               raise SystemExit("SkipDB prefix regression is not wired to the library")
           manager_contracts = {
