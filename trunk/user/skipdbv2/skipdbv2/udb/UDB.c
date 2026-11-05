@@ -75,7 +75,7 @@ static FILE *UDB_openCommittedJournal(const char *path)
 		return NULL;
 	if (fstat(fd, &after) != 0 || !S_ISREG(after.st_mode) ||
 		after.st_uid != geteuid() || before.st_dev != after.st_dev ||
-		before.st_ino != after.st_ino) {
+		before.st_ino != after.st_ino || fchmod(fd, 0600) != 0) {
 		int saved_errno = errno ? errno : EPERM;
 		close(fd);
 		errno = saved_errno;
