@@ -1,4 +1,4 @@
-/* Transaction journal parsing, replay, validation, and commit orchestration. */
+/* Transaction journal replay, validation, and commit orchestration. */
 #include "JFileInternal.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,70 +14,48 @@ void JFile_writeLogToFileIfNeeded(JFile *self)
 
 static int JFile_applyLogToFile_(JFile *self, int clear_log)
 {
-	int logNotEmpty = 0;
+	JFileJournalScan scan;
+	long cursor = 0;
 	int lastTerminator = 0;
-	long log_end, file_end;
+	int logNotEmpty;
 
 	if (NULL == self || NULL == self->log || NULL == self->file ||
-		fseek(self->log, 0, SEEK_END) != 0 ||
-		(log_end = ftell(self->log)) < 0 ||
-		fseek(self->log, 0, SEEK_SET) != 0)
+		JFileJournal_scan_(self, &scan) != 0 ||
+		scan.validEnd != scan.logEnd ||
+		scan.committedEnd != scan.logEnd)
 		goto fatalError;
 
-	while (1) {
-		long pos, data_pos, record_start, read_pos;
+	logNotEmpty = scan.committedRecordCount != 0;
+	if (fseek(self->log, 0, SEEK_SET) != 0)
+		goto fatalError;
+
+	while (cursor < scan.committedEnd) {
+		long pos, data_pos;
 		size_t total;
 		unsigned char *new_buf;
 
-		record_start = ftell(self->log);
-		if (record_start < 0)
+		if (fseek(self->log, cursor, SEEK_SET) != 0 ||
+			fread(&pos, sizeof(pos), 1, self->log) != 1 ||
+			fread(&total, sizeof(total), 1, self->log) != 1)
 			goto fatalError;
-		if (fread(&pos, sizeof(pos), 1, self->log) != 1) {
-			read_pos = ftell(self->log);
-			/* Only a zero-byte read exactly at EOF is a clean end. */
-			if (!ferror(self->log) && read_pos == record_start &&
-				record_start == log_end)
-				break;
-			printf("JFile: incomplete/error reading log position\n");
-			goto fatalError;
-		}
+		data_pos = cursor + (long)(sizeof(long) + sizeof(size_t));
 
-		if (fread(&total, sizeof(total), 1, self->log) != 1) {
-			printf("JFile: incomplete/error reading log length\n");
-			goto fatalError;
-		}
-
-		/* Older versions could leave zero-length payload records in the log. */
-		if (total == 0) {
-			lastTerminator = fgetc(self->log);
-			if (lastTerminator != JFILE_END_TRANSACTION_ITEM &&
-				lastTerminator != JFILE_END_TRANSACTION) {
-				printf("JFile: invalid empty log record terminator\n");
+		if (total > 0) {
+			new_buf = (unsigned char *)realloc(self->buf, total);
+			if (NULL == new_buf) {
+				printf("JFile: out of memory reading log\n");
 				goto fatalError;
 			}
-			logNotEmpty = 1;
-			continue;
-		}
-
-		data_pos = ftell(self->log);
-		if (pos < 0 || data_pos < 0 || data_pos >= log_end ||
-			total > (size_t)(log_end - data_pos - 1) ||
-			total > (size_t)LONG_MAX ||
-			pos > LONG_MAX - (long)total) {
-			printf("JFile: invalid log record bounds\n");
-			goto fatalError;
-		}
-
-		new_buf = (unsigned char *)realloc(self->buf, total);
-		if (NULL == new_buf) {
-			printf("JFile: out of memory reading log\n");
-			goto fatalError;
-		}
-		self->buf = new_buf;
-
-		if (fread(self->buf, total, 1, self->log) != 1) {
-			printf("JFile: error reading buf %lu\n", (unsigned long)total);
-			goto fatalError;
+			self->buf = new_buf;
+			if (fread(self->buf, 1, total, self->log) != total) {
+				printf("JFile: error reading buf %lu\n", (unsigned long)total);
+				goto fatalError;
+			}
+			if (fseek(self->file, pos, SEEK_SET) != 0 ||
+				fwrite(self->buf, 1, total, self->file) != total) {
+				printf("JFile: error applying log record\n");
+				goto fatalError;
+			}
 		}
 
 		lastTerminator = fgetc(self->log);
@@ -86,16 +64,10 @@ static int JFile_applyLogToFile_(JFile *self, int clear_log)
 			printf("JFile: invalid log terminator\n");
 			goto fatalError;
 		}
-
-		if (fseek(self->file, pos, SEEK_SET) != 0 ||
-			fwrite(self->buf, total, 1, self->file) != 1) {
-			printf("JFile: error applying log record\n");
-			goto fatalError;
-		}
-		logNotEmpty = 1;
+		cursor = data_pos + (long)total + 1;
 	}
 
-	if (ftell(self->log) != log_end ||
+	if (cursor != scan.committedEnd ||
 		(logNotEmpty && lastTerminator != JFILE_END_TRANSACTION))
 		goto fatalError;
 
@@ -108,10 +80,9 @@ static int JFile_applyLogToFile_(JFile *self, int clear_log)
 	}
 
 	if (fseek(self->file, 0, SEEK_END) != 0 ||
-		(file_end = ftell(self->file)) < 0 ||
+		(self->maxPos = ftell(self->file)) < 0 ||
 		fseek(self->log, 0, SEEK_END) != 0)
 		goto fatalError;
-	self->maxPos = file_end;
 	if (self->pos > self->maxPos)
 		self->pos = self->maxPos;
 	return 1;
@@ -138,7 +109,8 @@ int JFile_applyLogToFile(JFile *self)
 
 void JFile_begin(JFile *self)
 {
-	// begin is implicit unless we need to mark a rollback point
+	(void)self;
+	/* begin is implicit unless we need to mark a rollback point */
 }
 
 void JFile_commitToFile(JFile *self)
@@ -189,95 +161,36 @@ size_t JFile_logSize(JFile *self)
 
 long JFile_lastCommitPosition(JFile *self)
 {
-	long lastCommitPosition = 0;
-	long end;
-
-	/* Negative means the log could not be inspected; callers must not trim it. */
+	JFileJournalScan scan;
 	if (NULL == self || NULL == self->log ||
-		fseek(self->log, 0, SEEK_END) != 0)
+		JFileJournal_scan_(self, &scan) != 0)
 		return -1;
-	end = ftell(self->log);
-	if (end < 0 || fseek(self->log, 0, SEEK_SET) != 0)
-		return -1;
-
-	while (1) {
-		long pos, data_pos;
-		size_t total;
-		int r, terminator;
-
-		r = fread(&pos, sizeof(pos), 1, self->log);
-		if (r != 1) {
-			if (ferror(self->log))
-				return -1;
-			break;
-		}
-
-		r = fread(&total, sizeof(total), 1, self->log);
-		if (r != 1) {
-			if (ferror(self->log))
-				return -1;
-			break;
-		}
-
-		data_pos = ftell(self->log);
-		if (data_pos < 0)
-			return -1;
-		if (data_pos >= end ||
-			total > (size_t)(end - data_pos - 1) ||
-			pos < 0 || total > (size_t)LONG_MAX ||
-			pos > LONG_MAX - (long)total)
-			break;
-
-		if (fseek(self->log, (long)total, SEEK_CUR) != 0)
-			return -1;
-		terminator = fgetc(self->log);
-		if (terminator == EOF && ferror(self->log))
-			return -1;
-		if (terminator == JFILE_END_TRANSACTION_ITEM)
-			continue;
-		if (terminator == JFILE_END_TRANSACTION) {
-			lastCommitPosition = ftell(self->log);
-			if (lastCommitPosition < 0)
-				return -1;
-			continue;
-		}
-		break;
-	}
-
-	if (fseek(self->log, 0, SEEK_END) != 0)
-		return -1;
-	return lastCommitPosition;
+	return scan.committedEnd;
 }
 
 int JFile_verifyLog(JFile *self)
 {
-	long lastCommitPosition, log_end;
-	if (NULL == self || NULL == self->log)
+	JFileJournalScan scan;
+	if (NULL == self || NULL == self->log ||
+		JFileJournal_scan_(self, &scan) != 0)
 		return 0;
-	lastCommitPosition = JFile_lastCommitPosition(self);
-	if (lastCommitPosition < 0 ||
-		fseek(self->log, 0, SEEK_END) != 0 ||
-		(log_end = ftell(self->log)) < 0)
-		return 0;
-	return lastCommitPosition == log_end;
+	return scan.validEnd == scan.logEnd &&
+		scan.committedEnd == scan.logEnd;
 }
 
 void JFile_clipLogToLastCompletedTransaction(JFile *self)
 {
-	long lastCommitPosition, log_end;
+	JFileJournalScan scan;
 
 	if (NULL == self || NULL == self->log)
 		return;
-	lastCommitPosition = JFile_lastCommitPosition(self);
-	if (fseek(self->log, 0, SEEK_END) != 0 ||
-		(log_end = ftell(self->log)) < 0)
+	if (JFileJournal_scan_(self, &scan) != 0 ||
+		scan.committedEnd < 0 || scan.committedEnd > scan.logEnd)
 		goto fail;
-	if (lastCommitPosition < 0 || lastCommitPosition > log_end)
-		goto fail;
-	if (lastCommitPosition != log_end) {
-		printf("JFile: incomplete transaction found in '%s' - discarding\n", self->logPath);
-		if (ftruncate(fileno(self->log), (off_t)lastCommitPosition) != 0 ||
-			fseek(self->log, 0, SEEK_END) != 0)
+	if (scan.committedEnd != scan.logEnd) {
+		printf("JFile: incomplete transaction found in '%s' - discarding\n",
+			self->logPath);
+		if (JFile_truncateLogTo_(self, scan.committedEnd) != 0)
 			goto fail;
 	}
 	return;

@@ -71,6 +71,34 @@ fail:
 	}
 }
 
+/* Truncate and reposition one already validated, managed journal stream. */
+int JFile_truncateLogTo_(JFile *self, long size)
+{
+	off_t target;
+	int fd;
+
+	if (NULL == self || NULL == self->log || size < 0) {
+		errno = EINVAL;
+		return -1;
+	}
+	target = (off_t)size;
+	if (target < 0 || (long)target != size) {
+		errno = EOVERFLOW;
+		return -1;
+	}
+	if (fflush(self->log) != 0)
+		return -1;
+	fd = fileno(self->log);
+	if (fd < 0 || ftruncate(fd, target) != 0)
+		return -1;
+	if (self->fullSync && JFile_hardSyncFileDescriptor_(self, fd) != 0)
+		return -1;
+	clearerr(self->log);
+	if (fseek(self->log, size, SEEK_SET) != 0)
+		return -1;
+	return 0;
+}
+
 int JFile_clipLog(JFile *self)
 {
 	if (NULL == self || NULL == self->logPath)
@@ -82,9 +110,7 @@ int JFile_clipLog(JFile *self)
 		if (NULL == self->log)
 			return errno == ENOENT ? 0 : -1;
 	}
-	if (fflush(self->log) != 0 ||
-		ftruncate(fileno(self->log), 0) != 0 ||
-		fseek(self->log, 0, SEEK_SET) != 0) {
+	if (JFile_truncateLogTo_(self, 0) != 0) {
 		fclose(self->log);
 		self->log = NULL;
 		return -1;
@@ -94,6 +120,9 @@ int JFile_clipLog(JFile *self)
 
 void JFile_truncate_(JFile *self, off_t size)
 {
+	off_t target;
+	int fd;
+
 	if (NULL == self || NULL == self->file || NULL == self->log ||
 		size < 0 || size > (off_t)LONG_MAX)
 		return;
@@ -103,15 +132,21 @@ void JFile_truncate_(JFile *self, off_t size)
 	JFile_commitToFile(self);
 	if (NULL == self->file || NULL == self->log)
 		return;
-	if (fflush(self->file) != 0 ||
-		ftruncate(fileno(self->file), size) != 0) {
-		/* This API is void; close the stream so UDB's stream checks force
-		 * the transaction to abort instead of committing with stale length. */
-		fclose(self->file);
-		self->file = NULL;
-		return;
-	}
+	target = size;
+	if (fflush(self->file) != 0)
+		goto fail;
+	fd = fileno(self->file);
+	if (fd < 0 || ftruncate(fd, target) != 0)
+		goto fail;
+	if (self->fullSync && JFile_hardSyncFileDescriptor_(self, fd) != 0)
+		goto fail;
 	self->maxPos = (long)size;
 	if (self->pos > self->maxPos)
 		self->pos = self->maxPos;
+	return;
+
+fail:
+	/* This API is void; close the stream so UDB's checks abort the transaction. */
+	fclose(self->file);
+	self->file = NULL;
 }

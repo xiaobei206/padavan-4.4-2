@@ -1,3 +1,40 @@
+## 2026-11-05 — Unify JFile journal scanning and crash-tail recovery
+
+### Baseline and regression state
+- Base commit: `2a55f14707969b3a54fa820dd6a377184f9f41f1` (`Update xy-c1-firmware-validation.yml`).
+- Latest `SkipDBv2 Regression` run `41985451059` built every target successfully, then reported 8/9 CTests passing. The sole failure was `jfile_journal_test`: startup replay rejected the committed prefix after a complete uncommitted record and a one-byte torn trailing header.
+- The latest mainline contains only `main`. Automatic push/pull-request triggers for `XY-C1 Firmware Validation` had already been removed in the base commit; its manual `workflow_dispatch` trigger remains. The host regression workflow remains active.
+
+### Changes
+1. **Single journal boundary scanner — `jfile/JFileJournalScan.c`, `jfile/JFileInternal.h`**
+   - Added a private scan result containing the physical log end, last structurally valid record end, last durable transaction boundary, and record counts.
+   - Replaced stream-position-dependent tail discovery with bounded absolute-offset parsing. Partial headers, incomplete payloads, and invalid terminators are treated as discardable suffixes while previously committed transactions remain addressable.
+   - Kept the journal's native `long + size_t + payload + terminator` layout and legacy zero-length records unchanged.
+2. **Unified validation, clipping, and replay — `jfile/JFileJournal.c`**
+   - Made commit-position lookup, full-log verification, startup clipping, and replay consume the same scan result.
+   - Added a whole-log validation pass before replay so no record is applied until the committed boundary is proven complete.
+   - Replay remains idempotent and retains recovery evidence when called by the UDB two-file recovery sequence.
+3. **Durable physical truncation — `jfile/JFileSync.c`**
+   - Centralized journal truncation, checked `off_t` conversion and descriptor validity, and fsynced truncation when full-sync mode is enabled.
+   - Reused the helper for both incomplete-tail clipping and post-replay log clearing; data-file truncation now also syncs the resulting file length.
+4. **Deterministic build and crash-recovery regression — `CMakeLists.txt`, `tests/jfile_journal.c`, `.github/workflows/skipdbv2-regression.yml`**
+   - Replaced JFile's recursive source glob with an explicit implementation manifest containing the lifecycle, journal, scanner, and sync translation units.
+   - Extended the crash test to verify that the scanner preserves the prior committed offset, then closes the stdio streams and appends a durable one-byte tail through a separate append-only descriptor before reopening.
+   - Strengthened workflow contracts for the scanner API, explicit build manifest, shared scan usage, durable truncate helper, and the regression fixture.
+
+### Validation
+- The first post-push run `41987216040` exposed a stale source-contract comparison string (`scan.logEnd != scan.committedEnd`) before CMake; the implementation correctly uses `scan.committedEnd != scan.logEnd`. Corrected the contract without weakening or skipping any test.
+- The corrected `SkipDBv2 Regression` push run will execute configure, complete host builds, and all CTests. No local compiler or CTest result is claimed.
+- XY-C1 automatic cross-build remains manually dispatchable and is not re-enabled for every iteration.
+
+### Follow-up
+- Keep all journal framing and durable commit-boundary decisions in `JFileJournalScan.c`.
+- Keep replay and transaction orchestration in `JFileJournal.c`.
+- Keep descriptor-level fsync and physical truncation in `JFileSync.c`; do not truncate logs directly from the scanner.
+- Preserve the persistent journal byte format and the UDB marker's verify-both / replay-both / clear-marker ordering.
+
+---
+
 ## 2026-11-05 — Split JFile persistence, journal replay, and durability layers
 
 ### Baseline and regression state
