@@ -1,3 +1,19 @@
+## 2026-11-06 06:28 CST — Honor long IPC deadlines across poll slices
+
+### Baseline and scope
+- Base commit: `b838732290714585dc9a13d686760fb3717951a6`; SkipDBv2 Regression run #42121310880 passed all source contracts, compilation, and CTests.
+- Scope is limited to the monotonic socket-wait helper in `mgr/ipc_io.h` and its existing workflow source contract.
+
+### Changes
+- When a poll timeout is capped at `INT_MAX` milliseconds, a zero result now causes the helper to recalculate the monotonic deadline instead of incorrectly reporting the full wait as timed out.
+- Preserve immediate timeout once the absolute deadline is reached and preserve errors/interruption handling. No new files, declarations, tests, or build registrations.
+
+### Validation
+- Static preflight confirms the loop recomputes monotonic time after every poll timeout, while true deadline expiry still returns zero.
+- Remote SkipDBv2 Regression validates source contracts, compilation, and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 06:25 CST — Fix empty-write argument validation ordering
 
 ### CI finding

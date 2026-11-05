@@ -54,7 +54,9 @@ static int skipdb_wait_socket_until(int fd, short events,
             continue;
         if (result < 0)
             return -1;
-        return result > 0 ? 1 : 0;
+        if (result == 0)
+            continue; /* INT_MAX poll slices may end before the deadline. */
+        return 1;
     }
 }
 

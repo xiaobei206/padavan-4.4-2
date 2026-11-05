@@ -544,6 +544,8 @@ jobs:
                   "clock_gettime(CLOCK_MONOTONIC, &ts)",
                   "skipdb_monotonic_milliseconds(&now)",
                   "static int skipdb_wait_socket_until(int fd, short events,",
+                  "if (result == 0)",
+                  "INT_MAX poll slices may end before the deadline.",
                   "poll(&pfd, 1, poll_timeout)",
                   "if (result < 0 && errno == EINTR)",
               ],
