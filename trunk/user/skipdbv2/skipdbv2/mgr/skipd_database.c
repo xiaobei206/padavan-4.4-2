@@ -32,9 +32,8 @@ static int read_db_switch_marker(const char *path, int *db_id)
         }
         return -1;
     }
-    if (fstat(fd, &marker_stat) != 0 || !S_ISREG(marker_stat.st_mode) ||
-        marker_stat.st_uid != geteuid()) {
-        saved_errno = errno ? errno : EPERM;
+    if (verify_owned_regular_file_(fd, &marker_stat) != 0) {
+        saved_errno = errno;
         close(fd);
         errno = saved_errno;
         return -1;
@@ -43,6 +42,12 @@ static int read_db_switch_marker(const char *path, int *db_id)
     do {
         n = read(fd, buf, sizeof(buf));
     } while (n < 0 && errno == EINTR);
+    if (n < 0) {
+        saved_errno = errno;
+        close(fd);
+        errno = saved_errno;
+        return -1;
+    }
     if (close(fd) != 0)
         return -1;
 
@@ -57,6 +62,22 @@ static int read_db_switch_marker(const char *path, int *db_id)
     }
     errno = EINVAL;
     return -1;
+}
+
+/* Reject special or foreign-owned marker files with a stable policy errno. */
+static int verify_owned_regular_file_(int fd, struct stat *file_stat)
+{
+    if (fd < 0 || NULL == file_stat) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (fstat(fd, file_stat) != 0)
+        return -1;
+    if (!S_ISREG(file_stat->st_mode) || file_stat->st_uid != geteuid()) {
+        errno = EPERM;
+        return -1;
+    }
+    return 0;
 }
 
 /* Return -2 only when rename succeeded but directory fsync failed. */
@@ -96,10 +117,9 @@ static int write_db_switch_marker(const char *db_path, int db_id)
         return -1;
 
     /* Never truncate a symlink, a special file, or a foreign-owned path. */
-    if (fstat(fd, &temp_stat) != 0 || !S_ISREG(temp_stat.st_mode) ||
-        temp_stat.st_uid != geteuid() || fchmod(fd, 0600) != 0 ||
-        ftruncate(fd, 0) != 0) {
-        int saved_errno = errno ? errno : EPERM;
+    if (verify_owned_regular_file_(fd, &temp_stat) != 0 ||
+        fchmod(fd, 0600) != 0 || ftruncate(fd, 0) != 0) {
+        int saved_errno = errno;
         close(fd);
         errno = saved_errno;
         return -1;

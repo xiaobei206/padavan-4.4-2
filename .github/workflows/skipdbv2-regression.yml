@@ -1032,7 +1032,11 @@ jobs:
                   "client_ccr_read_util(",
               ],
               "skipd_database.c": [
+                  "static int verify_owned_regular_file_(",
+                  "verify_owned_regular_file_(fd, &marker_stat)",
+                  "verify_owned_regular_file_(fd, &temp_stat)",
                   "static int read_db_switch_marker(",
+                  "if (n < 0) {",
                   "int server_init(",
                   "void server_switch(",
                   "unix_socket_release_instance_lock();",
@@ -1133,6 +1137,9 @@ jobs:
 
           if cmake_text.count("mgr/skipd_client.c") != 1:
               raise SystemExit("skipd client lifecycle module is not linked exactly once")
+          skipd_database_text = (manager_root / "skipd_database.c").read_text()
+          if skipd_database_text.count("verify_owned_regular_file_(") != 3:
+              raise SystemExit("database marker file validation must have one private owner and two callers")
           for module in ("skipd_command.c", "skipd_client.c", "skipd_database.c",
                          "skipd_scheduler.c", "skipd_socket.c", "skipd_script.c"):
               if f"mgr/{module}" not in cmake_text:

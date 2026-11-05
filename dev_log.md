@@ -1,3 +1,21 @@
+## 2026-11-06 04:08 CST — Unify skipd database marker file validation
+
+### Baseline and scope
+- Base commit: `06cc7d3dccd2a1e1f26c280b2d90260efad95087` (`fix(skipdb): preserve byte spans in prefix queries`); SkipDBv2 Regression run #199 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `mgr/skipd_database.c`; no module boundaries or public interfaces change.
+
+### Changes
+- Unified the regular-file and effective-UID ownership check shared by switch-marker reads and temporary-marker writes in one private helper.
+- Made policy rejection set `EPERM` deterministically instead of leaking a stale `errno`; retained the actual `fstat`, `fchmod`, and `ftruncate` errors.
+- Preserved a failed marker read's original I/O error across descriptor cleanup rather than replacing it with `EINVAL`.
+- Extended CI source contracts to enforce one helper definition, both call sites, and the read-error path. No new files or CMake source registrations.
+
+### Validation
+- Static preflight confirms exactly one private helper definition and two call sites.
+- Remote SkipDBv2 Regression remains authoritative for compilation and tests; no local build result is claimed.
+
+---
+
 ## 2026-11-06 04:03 CST — Preserve raw byte spans in SkipDB prefix scans
 
 ### Baseline and scope
