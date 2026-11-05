@@ -151,6 +151,7 @@ SKIPDB_API void SkipDB_freeObjectCallback_(SkipDB *, SkipDBFreeObjectFunc *func)
 // cursor
 
 SKIPDB_API int SkipDB_count(SkipDB *self);
+SKIPDB_API int SkipDB_maxPos(SkipDB *self);
 
 SKIPDB_API SkipDBRecord *SkipDB_firstRecord(SkipDB *self);
 SKIPDB_API SkipDBRecord *SkipDB_lastRecord(SkipDB *self);
