@@ -1,3 +1,20 @@
+## 2026-11-06 01:32 CST — Centralize UDB record-write state restoration
+
+### Baseline and scope
+- Base commit: `705c0b8482680bafb8beec46f41088257c3d76cf` (`refactor(skipdb): centralize cache pointer validation`); SkipDBv2 Regression run #188 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `udb/UDBRecordWrite.c`.
+
+### Changes
+- Centralized restoration of the JFile logical cursor position and file-size bound after failed header writes and after successful rollback of a partial record append.
+- Reused the helper in record removal, header persistence, and both journal/non-journal rollback paths without changing the existing physical truncate/seek ordering or transaction rollback policy.
+- Extended CI source contracts to enforce one private helper and four call sites. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and four call sites; CI checks the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:31 CST — Centralize SkipDB cache pointer validation
 
 ### Baseline and scope

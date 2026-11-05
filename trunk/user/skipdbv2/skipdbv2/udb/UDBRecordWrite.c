@@ -6,6 +6,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+/* Restore JFile's logical cursor bounds after a failed record mutation. */
+static void UDBRecord_restoreFileState_(JFile *file, long position, long max_position)
+{
+    if (NULL == file)
+        return;
+    file->pos = position;
+    file->maxPos = max_position;
+}
+
 int UDBRecord_remove(UDBRecord *self)
 {
     unsigned char old_tag;
@@ -19,8 +28,7 @@ int UDBRecord_remove(UDBRecord *self)
     self->header.tag = RECORD_TAG_EMPTY;
     if (!UDBRecord_saveHeader(self)) {
         self->header.tag = old_tag;
-        self->file->pos = old_pos;
-        self->file->maxPos = old_max;
+        UDBRecord_restoreFileState_(self->file, old_pos, old_max);
         return 0;
     }
     return 1;
@@ -40,8 +48,7 @@ int UDBRecord_saveHeader(UDBRecord *self)
     if (JFile_fwrite(self->file, (unsigned char *)&self->header,
                      sizeof(UDBRecordHeader), 1) == 1)
         return 1;
-    self->file->pos = old_pos;
-    self->file->maxPos = old_max;
+    UDBRecord_restoreFileState_(self->file, old_pos, old_max);
     return 0;
 }
 
@@ -55,8 +62,7 @@ static int UDBRecord_rollbackSave(UDBRecord *self, long log_start,
             ftruncate(fileno(file->log), (off_t)log_start) == 0 &&
             fseek(file->log, log_start, SEEK_SET) == 0) {
             clearerr(file->log);
-            file->pos = old_file_pos;
-            file->maxPos = old_max_pos;
+            UDBRecord_restoreFileState_(file, old_file_pos, old_max_pos);
             return 1;
         }
         if (file->log) {
@@ -71,8 +77,7 @@ static int UDBRecord_rollbackSave(UDBRecord *self, long log_start,
         ftruncate(fileno(file->file), (off_t)old_max_pos) == 0 &&
         fseek(file->file, old_file_pos, SEEK_SET) == 0) {
         clearerr(file->file);
-        file->pos = old_file_pos;
-        file->maxPos = old_max_pos;
+        UDBRecord_restoreFileState_(file, old_file_pos, old_max_pos);
         return 1;
     }
     if (file->file) {

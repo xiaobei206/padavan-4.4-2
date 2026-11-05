@@ -451,6 +451,9 @@ jobs:
                   "PID_TYPE UDBRecord_totalSize(UDBRecord *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordWrite.c": [
+                  "static void UDBRecord_restoreFileState_(JFile *file, long position, long max_position)",
+                  "UDBRecord_restoreFileState_(self->file, old_pos, old_max)",
+                  "UDBRecord_restoreFileState_(file, old_file_pos, old_max_pos)",
                   "int UDBRecord_remove(UDBRecord *self)",
                   "int UDBRecord_saveHeader(UDBRecord *self)",
                   "static int UDBRecord_rollbackSave(UDBRecord *self, long log_start,",
@@ -794,6 +797,12 @@ jobs:
           ).read_text()
           if record_cache_source.count("SkipDBRecord_hasValidCachePointers_(") != 3:
               raise SystemExit("SkipDB cache pointer metadata validation is not centralized")
+
+          record_write_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordWrite.c"
+          ).read_text()
+          if record_write_source.count("UDBRecord_restoreFileState_(") != 5:
+              raise SystemExit("UDB record-write cursor restoration is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):
