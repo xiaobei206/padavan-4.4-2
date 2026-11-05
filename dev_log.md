@@ -1,3 +1,38 @@
+## 2026-11-05 17:00 CST — Separate UDB record metadata, persistence, validation, and relocation
+
+### Baseline and regression state
+- Base commit: `90a117d79069447bef244dcbcb93be6d417a0cf1` (`refactor(skipdb): split record metadata, cache, links, and storage engines`).
+- Latest `SkipDBv2 Regression` run `41997198592` (#141) passed XY-C1 integration contracts and CMake configure, then failed while compiling `tests/skipdb_core_layers.c`: the test used `SkipDB_list_first` and `SkipDB_list_next`, which were implemented but missing from the public `SkipDB.h` declarations. CTest did not run.
+- The latest regression workflow remains the sole automatic validation gate. No host build/test stage is disabled, and the manual-only firmware build/validation workflows are unchanged.
+
+### Changes
+1. **Public prefix-cursor contract — `skipdb/SkipDB.h`**
+   - Declared the existing prefix first/next cursor functions with the same signatures as their implementations. This repairs the real compile failure without weakening the prefix traversal regression.
+2. **UDB record ownership and metadata — `udb/UDBRecord.c`**
+   - Retained allocation/clone/free, lazy byte-array ownership, JFile/position/PID/size accessors, empty-tag inspection, total-size calculation, and diagnostics.
+3. **Record write and tombstone engine — `udb/UDBRecordWrite.c`**
+   - Isolated tombstone removal, header writes, append serialization, and the journal/non-journal rollback helper. Existing native header bytes, append-only behavior, and rollback rules are preserved.
+4. **Bounded read engine — `udb/UDBRecordRead.c`**
+   - Isolated record-header validation and binary payload loading, preserving tag/PID/size validation, file bounds, and stream-position restoration.
+5. **Compaction relocation engine — `udb/UDBRecordMove.c`**
+   - Isolated full-record buffered relocation with source and destination bounds checks.
+6. **Build, regression, and source contracts — `CMakeLists.txt`, `tests/udb_record_storage.c`, `.github/workflows/skipdbv2-regression.yml`**
+   - Registered the three implementation units and a focused binary payload/header/tombstone regression covering embedded NUL and high-bit bytes, invalid writes, out-of-range relocation, and truncated headers.
+   - Added workflow assertions for module ownership, source registration, test registration, and the public prefix-cursor declaration.
+
+### Validation
+- Static extraction audit confirms the persistence/read/relocation definitions have one implementation owner each and are absent from the metadata facade.
+- The known #141 compile blocker is directly addressed by declaring the already-implemented prefix cursor API; the existing regression test is retained.
+- No local CMake/compiler/CTest run is claimed. The pushed revision triggers the unchanged full host build and complete CTest suite.
+
+### Follow-up
+- Keep object ownership and metadata accessors in `UDBRecord.c`.
+- Keep header writes, append serialization, tombstone changes, and rollback in `UDBRecordWrite.c`.
+- Keep malformed-header bounds checks and payload reads in `UDBRecordRead.c`.
+- Keep physical record relocation in `UDBRecordMove.c`; preserve the native `UDBRecordHeader` layout and on-disk byte representation.
+
+---
+
 ## 2026-11-05 16:47 CST — Split SkipDB record lifetime, cache links, traversal, and persistence
 
 ### Baseline and regression state

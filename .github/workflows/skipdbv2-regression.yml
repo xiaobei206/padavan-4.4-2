@@ -94,6 +94,10 @@ jobs:
                   '#include "UDBCommitMarker.h"',
                   "UDBCommitMarker commitMarker;",
               ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDB.h": [
+                  "SkipDB_list_first(SkipDB *self, Datum key, SkipDBCursor **cursor)",
+                  "SkipDB_list_next(SkipDB *self, Datum key, SkipDBCursor *cursor)",
+              ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBStorage.c": [
                   '#include "UDBInternal.h"',
                   "memcpy(marker_path + n, \".committed\", sizeof(\".committed\"))",
@@ -329,6 +333,31 @@ jobs:
                   "UDBRecord_pid(record) != pid",
                   "failed reading payload for PID",
               ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecord.c": [
+                  "UDBRecord *UDBRecord_new(void)",
+                  "void UDBRecord_free(UDBRecord *self)",
+                  "int UDBRecord_isEmpty(UDBRecord *self)",
+                  "PID_TYPE UDBRecord_totalSize(UDBRecord *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordWrite.c": [
+                  "int UDBRecord_remove(UDBRecord *self)",
+                  "int UDBRecord_saveHeader(UDBRecord *self)",
+                  "static int UDBRecord_rollbackSave(UDBRecord *self, long log_start,",
+                  "int UDBRecord_saveWithDatum_(UDBRecord *self, Datum d)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordRead.c": [
+                  "int UDBRecord_readHeader(UDBRecord *self)",
+                  "Datum UDBRecord_readDatum(UDBRecord *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordMove.c": [
+                  "int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/udb_record_storage.c": [
+                  "UDBRecord_saveWithDatum_(record, input)",
+                  "binary payload round-trip failed",
+                  "truncated record header was accepted",
+                  "record tombstone did not survive commit",
+              ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBWrite.c": [
                   "static int UDB_rollbackJournalAppend(JFile *file, long log_start,",
                   "static int UDB_append_withPid_(UDB *self, Datum d, PID_TYPE pid)",
@@ -405,6 +434,9 @@ jobs:
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
+                  "UDBRecordWrite.c",
+                  "UDBRecordRead.c",
+                  "UDBRecordMove.c",
                   "UDBWrite.c",
                   "UDBStorage.c",
                   "UDBCompact.c",
@@ -417,6 +449,8 @@ jobs:
                   "add_test(NAME udb_index_layers_test COMMAND udb_index_layers_test)",
                   "ADD_EXECUTABLE(udb_record_api_test",
                   "add_test(NAME udb_record_api_test COMMAND udb_record_api_test)",
+                  "udb_record_storage_test",
+                  "add_test(NAME udb_record_storage_test COMMAND udb_record_storage_test)",
                   "ADD_EXECUTABLE(commit_marker_test",
                   "add_test(NAME commit_marker_test COMMAND commit_marker_test)",
                   "ADD_EXECUTABLE(ipc_io_test",
@@ -512,6 +546,16 @@ jobs:
                   raise SystemExit(f"wall-clock IPC timeout remains: {path}")
               if "usleep(5);" in content or "usleep(50);" in content:
                   raise SystemExit(f"busy-poll IPC retry remains: {path}")
+
+
+          udb_record_core = Path("trunk/user/skipdbv2/skipdbv2/udb/UDBRecord.c").read_text()
+          for moved_definition in (
+              "UDBRecord_saveWithDatum_(",
+              "UDBRecord_readHeader(",
+              "UDBRecord_moveToPos_(",
+          ):
+              if moved_definition in udb_record_core:
+                  raise SystemExit("UDBRecord core still owns extracted function: " + moved_definition)
 
           record_core = Path("trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecord.c").read_text()
           for moved_definition in (

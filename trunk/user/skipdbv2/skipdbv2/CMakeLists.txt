@@ -32,6 +32,9 @@ SET(UDB_SRC
     ${PROJECT_SOURCE_DIR}/udb/UDBIndexFreeList.c
     ${PROJECT_SOURCE_DIR}/udb/UDBIndexMap.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecord.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBRecordWrite.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBRecordRead.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBRecordMove.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecords.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecordsStorage.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecordsCursor.c
@@ -113,6 +116,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/udb_record_api.c)
     TARGET_LINK_LIBRARIES(udb_record_api_test skipdb m)
     add_test(NAME udb_record_api_test COMMAND udb_record_api_test)
+
+    ADD_EXECUTABLE(udb_record_storage_test
+        ${PROJECT_SOURCE_DIR}/tests/udb_record_storage.c)
+    TARGET_LINK_LIBRARIES(udb_record_storage_test skipdb m)
+    add_test(NAME udb_record_storage_test COMMAND udb_record_storage_test)
 
     ADD_EXECUTABLE(dbus_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbus_protocol.c
