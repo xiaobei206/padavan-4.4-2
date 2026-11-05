@@ -1,3 +1,19 @@
+## 2026-11-05 23:46 CST — Repair stale SkipDB prefix source contract
+
+### Baseline and failure
+- Base commit: `4bede96fc371f524ddff943d71eacdc66aa2b98a` (`refactor(skipdb): isolate prefix query iteration`).
+- Latest SkipDBv2 Regression run failed in `Verify XY-C1 firmware integration contracts` before CMake configuration. The contract still expected `SkipDB_list_prefix` in `SkipDBQuery.c` after the implementation had moved to `SkipDBPrefix.c`.
+
+### Changes
+- Updated the workflow source-contract table to assert prefix implementation ownership in `SkipDBPrefix.c`, not the query facade.
+- Kept the change limited to the CI contract and this handoff log; no C implementation, public API, or build source registration changed.
+
+### Validation
+- Compared the failing assertion in run `42047509654` with current source-contract entries and confirmed the stale path/symbol expectation.
+- Remote SkipDBv2 Regression is the required post-push validation; no local CMake or compiler result is claimed.
+
+---
+
 ## 2026-11-05 22:26 CST — Isolate SkipDB prefix-query iteration
 
 ### Baseline

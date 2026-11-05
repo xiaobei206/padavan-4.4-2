@@ -271,8 +271,10 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBQuery.c": [
                   "int SkipDB_count(SkipDB *self)",
                   "int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)",
-                  "void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,",
                   "int SkipDB_maxPos(SkipDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBPrefix.c": [
+                  "void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/skipdb_core_layers.c": [
                   "SkipDB_count(source)!=4",
