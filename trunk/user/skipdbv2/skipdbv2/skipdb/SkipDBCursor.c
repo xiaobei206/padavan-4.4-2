@@ -70,30 +70,34 @@ void SkipDBCursor_mark(SkipDBCursor *self)
 	}
 }
 
-SkipDBRecord *SkipDBCursor_goto_(SkipDBCursor *self, Datum key)
+/* Validate the cursor's database and reset direction-local traversal history. */
+static int SkipDBCursor_preparePositioning_(SkipDBCursor *self)
 {
 	if (NULL == self || NULL == self->sdb || !SkipDB_isOpen(self->sdb))
-		return NULL;
+		return 0;
 	self->nextSteps = 0;
 	self->previousSteps = 0;
+	return 1;
+}
+
+SkipDBRecord *SkipDBCursor_goto_(SkipDBCursor *self, Datum key)
+{
+	if (!SkipDBCursor_preparePositioning_(self))
+		return NULL;
 	return (self->record = SkipDB_goto_(self->sdb, key));
 }
 
 SkipDBRecord *SkipDBCursor_first(SkipDBCursor *self)
 {
-	if (NULL == self || NULL == self->sdb || !SkipDB_isOpen(self->sdb))
+	if (!SkipDBCursor_preparePositioning_(self))
 		return NULL;
-	self->nextSteps = 0;
-	self->previousSteps = 0;
 	return (self->record = SkipDB_firstRecord(self->sdb));
 }
 
 SkipDBRecord *SkipDBCursor_last(SkipDBCursor *self)
 {
-	if (NULL == self || NULL == self->sdb || !SkipDB_isOpen(self->sdb))
+	if (!SkipDBCursor_preparePositioning_(self))
 		return NULL;
-	self->nextSteps = 0;
-	self->previousSteps = 0;
 	return (self->record = SkipDB_lastRecord(self->sdb));
 }
 

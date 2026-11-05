@@ -1,3 +1,20 @@
+## 2026-11-06 01:40 CST — Centralize SkipDB cursor positioning resets
+
+### Baseline and scope
+- Base commit: `1eb7abd1c4181000ffd41d279b647bb0b49db0ab` (`refactor(udb): unify verified PID-list insertion`); SkipDBv2 Regression run #191 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `skipdb/SkipDBCursor.c`.
+
+### Changes
+- Centralized the common database-open guard and directional step-counter reset used by `SkipDBCursor_goto_`, `SkipDBCursor_first`, and `SkipDBCursor_last`.
+- Kept each operation's distinct record-selection call and return behavior unchanged.
+- Updated CI source contracts to require one private helper and its three positioning call sites. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and three uses; CI enforces the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:38 CST — Unify verified UDB PID-list insertion
 
 ### Baseline and scope

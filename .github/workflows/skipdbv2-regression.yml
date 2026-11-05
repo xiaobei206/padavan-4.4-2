@@ -246,6 +246,8 @@ jobs:
                   "SkipDBRecord_removeReferencesToUnmarked",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c": [
+                  "static int SkipDBCursor_preparePositioning_(SkipDBCursor *self)",
+                  "SkipDBCursor_preparePositioning_(self)",
                   "static int SkipDBCursor_beginTraversalStep_(SkipDBCursor *self, int reverse)",
                   "SkipDBCursor_beginTraversalStep_(self, 1)",
                   "SkipDBCursor_beginTraversalStep_(self, 0)",
@@ -820,6 +822,12 @@ jobs:
           ).read_text()
           if index_free_source.count("UDBIndex_pushAndVerify_(") != 4:
               raise SystemExit("UDB PID-list append growth checks are not centralized")
+
+          cursor_positioning_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c"
+          ).read_text()
+          if cursor_positioning_source.count("SkipDBCursor_preparePositioning_(") != 4:
+              raise SystemExit("SkipDB cursor positioning resets are not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):
