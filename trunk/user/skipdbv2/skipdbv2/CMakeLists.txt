@@ -49,6 +49,7 @@ SET(SKIPDB_SRC
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBSearch.c
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBWrite.c
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBQuery.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBPrefix.c
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBCursor.c
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecord.c
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecordCache.c
@@ -165,6 +166,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/skipdb_core_layers.c)
     TARGET_LINK_LIBRARIES(skipdb_core_layers_test skipdb m)
     add_test(NAME skipdb_core_layers_test COMMAND skipdb_core_layers_test)
+
+    ADD_EXECUTABLE(skipdb_prefix_test
+        ${PROJECT_SOURCE_DIR}/tests/skipdb_prefix.c)
+    TARGET_LINK_LIBRARIES(skipdb_prefix_test skipdb m)
+    add_test(NAME skipdb_prefix_test COMMAND skipdb_prefix_test)
 
     ADD_EXECUTABLE(skipdb_record_storage_test
         ${PROJECT_SOURCE_DIR}/tests/skipdb_record_storage.c)

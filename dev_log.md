@@ -1,3 +1,31 @@
+## 2026-11-05 22:26 CST — Isolate SkipDB prefix-query iteration
+
+### Baseline
+- Base commit: `4e29094fb6ef99c1ffca7f8ddbcb8687064190dc` (`refactor(skipd): isolate asynchronous client lifecycle`).
+- Mainline source ownership is stable after the recent skipd/IPC extractions. The host-side SkipDBv2 Regression remains the required post-push gate; no local CMake/compiler/CTest result is claimed.
+
+### Changes
+1. **Prefix-query module — `skipdb/SkipDBPrefix.c`**
+   - Moved the shared prefix predicate and the callback scan plus cursor-based `SkipDB_list_first/next` operations out of the mixed ordered-query facade.
+   - Kept the prefix predicate `static` and local to the new translation unit. The three public API declarations already exist in `SkipDB.h`; no new cross-unit extern surface was introduced.
+2. **Ordered-query facade — `skipdb/SkipDBQuery.c`**
+   - Retained record count, first/last/lower-bound navigation, cursor registration/removal, database merge, existence lookup, and maximum-position reporting.
+   - Removed the now-unneeded string/stdlib/assert includes along with the extracted code.
+3. **Regression/build contracts — `tests/skipdb_prefix.c`, `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Added host coverage for ordered prefix cursor iteration, strict prefix-boundary termination, callback scans, empty-string prefix behavior, and no-match cursor results.
+   - Registered the production module in the `skipdb` static library and a dedicated `skipdb_prefix_test` CTest.
+   - Added CI source contracts for implementation ownership, existing public declarations, private predicate visibility, source registration, and test linkage.
+
+### Validation
+- Static source-contract preflight checks that all three moved public functions have one implementation owner, the private helper remains static, and the module/test are registered in CMake and CI.
+- The first remote regression attempt stopped in the source-contract step because its `SkipDB.h` declaration needle used different pointer spacing than the actual public prototype; the contract now matches the header verbatim. CMake/build/CTest had not started on that attempt.
+- No local CMake configure, compiler, or CTest run is claimed. The remote SkipDBv2 Regression workflow is the authoritative post-push validation.
+
+### Follow-up
+- Keep prefix semantics and prefix-bound iteration in `SkipDBPrefix.c`; keep general navigation and cursor registration in `SkipDBQuery.c` and cursor stepping/lifetime in `SkipDBCursor.c`.
+
+---
+
 ## 2026-11-05 21:48 CST — Isolate skipd script execution and secure log ownership
 
 ### Baseline and regression state

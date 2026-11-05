@@ -97,6 +97,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDB.h": [
                   "SkipDB_list_first(SkipDB *self, Datum key, SkipDBCursor **cursor)",
                   "SkipDB_list_next(SkipDB *self, Datum key, SkipDBCursor *cursor)",
+                  "SkipDB_list_prefix(SkipDB* self, Datum k, void* ctx, skipdb_list_callback callback)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBLifecycle.c": [
                   "UDB *UDB_new(void)",
@@ -172,6 +173,29 @@ jobs:
                   "UDBIndex_nextPid(db->index) != first",
                   "UDBIndex_nextPid(db->index) != 3",
                   "index state did not survive a rebuild on reopen",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBQuery.c": [
+                  "int SkipDB_count(",
+                  "SkipDBRecord *SkipDB_firstRecord(",
+                  "int SkipDB_mergeInto_(",
+                  "int SkipDB_exists(",
+                  "int SkipDB_maxPos(",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBPrefix.c": [
+                  '#include "SkipDBInternal.h"',
+                  "static int SkipDB_keyHasPrefix_(",
+                  "void SkipDB_list_prefix(",
+                  "SkipDBRecord *SkipDB_list_next(",
+                  "SkipDBRecord *SkipDB_list_first(",
+              ],
+                            "trunk/user/skipdbv2/skipdbv2/tests/skipdb_prefix.c": [
+                  "SkipDB_list_first(",
+                  "SkipDB_list_next(",
+                  "SkipDB_list_prefix(",
+                  "callback_matches(",
+                  "\"albatross\"",
+                  "Datum_FromCString_(\"\")",
+                  "Datum_FromCString_(\"zz\")",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBInternal.h": [
                   "void SkipDB_dealloc(SkipDB *self);",
@@ -720,6 +744,36 @@ jobs:
           # monolithic implementation or silently omit a module.
           manager_root = Path("trunk/user/skipdbv2/skipdbv2/mgr")
           cmake_text = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          skipdb_root = Path("trunk/user/skipdbv2/skipdbv2/skipdb")
+          skipdb_query_text = (skipdb_root / "SkipDBQuery.c").read_text()
+          skipdb_prefix_text = (skipdb_root / "SkipDBPrefix.c").read_text()
+          prefix_symbols = (
+              "void SkipDB_list_prefix(",
+              "SkipDBRecord *SkipDB_list_next(",
+              "SkipDBRecord *SkipDB_list_first(",
+          )
+          for symbol in prefix_symbols:
+              if symbol in skipdb_query_text:
+                  raise SystemExit("SkipDB prefix implementation remains in query facade: " + symbol)
+              if symbol not in skipdb_prefix_text:
+                  raise SystemExit("SkipDB prefix implementation missing from prefix module: " + symbol)
+          if skipdb_prefix_text.count("static int SkipDB_keyHasPrefix_(") != 1:
+              raise SystemExit("SkipDB prefix predicate does not have a single private owner")
+          if "SkipDBInternal.h" not in skipdb_prefix_text:
+              raise SystemExit("SkipDB prefix module is missing its private implementation contract")
+          if cmake_text.count("skipdb/SkipDBPrefix.c") != 1:
+              raise SystemExit("SkipDB prefix module must be linked exactly once into the library")
+          if "add_test(NAME skipdb_prefix_test COMMAND skipdb_prefix_test)" not in cmake_text:
+              raise SystemExit("SkipDB prefix regression is not registered")
+          prefix_target_start = cmake_text.find("ADD_EXECUTABLE(skipdb_prefix_test")
+          prefix_target_end = cmake_text.find("add_test(", prefix_target_start)
+          if (
+              prefix_target_start < 0 or prefix_target_end < 0 or
+              "tests/skipdb_prefix.c" not in cmake_text[prefix_target_start:prefix_target_end] or
+              "TARGET_LINK_LIBRARIES(skipdb_prefix_test skipdb m)" not in
+              cmake_text[prefix_target_end:prefix_target_end + 120]
+          ):
+              raise SystemExit("SkipDB prefix regression is not wired to the library")
           manager_contracts = {
               "skipd.c": [
                   '#include "skipd_internal.h"',
