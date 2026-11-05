@@ -70,11 +70,25 @@ void SkipDBCursor_mark(SkipDBCursor *self)
 	}
 }
 
+/* Clear record pointers before a cursor loses its backing database state. */
+static void SkipDBCursor_resetPosition_(SkipDBCursor *self)
+{
+	if (NULL == self)
+		return;
+	self->record = NULL;
+	self->nextSteps = 0;
+	self->previousSteps = 0;
+}
+
 /* Validate the cursor's database and reset direction-local traversal history. */
 static int SkipDBCursor_preparePositioning_(SkipDBCursor *self)
 {
-	if (NULL == self || NULL == self->sdb || !SkipDB_isOpen(self->sdb))
+	if (NULL == self)
 		return 0;
+	if (NULL == self->sdb || !SkipDB_isOpen(self->sdb)) {
+		SkipDBCursor_resetPosition_(self);
+		return 0;
+	}
 	self->nextSteps = 0;
 	self->previousSteps = 0;
 	return 1;
@@ -103,7 +117,13 @@ SkipDBRecord *SkipDBCursor_last(SkipDBCursor *self)
 
 SkipDBRecord *SkipDBCursor_current(SkipDBCursor *self)
 {
-	return self ? self->record : NULL;
+	if (NULL == self)
+		return NULL;
+	if (NULL == self->sdb || !SkipDB_isOpen(self->sdb)) {
+		SkipDBCursor_resetPosition_(self);
+		return NULL;
+	}
+	return self->record;
 }
 
 /* Validate and account for one directional traversal step in a shared path. */
@@ -114,8 +134,13 @@ static int SkipDBCursor_beginTraversalStep_(SkipDBCursor *self, int reverse)
 	long *opposite_count;
 	const char *direction;
 
-	if (NULL == self || NULL == self->sdb ||
-		!SkipDB_isOpen(self->sdb) || NULL == self->record)
+	if (NULL == self)
+		return 0;
+	if (NULL == self->sdb || !SkipDB_isOpen(self->sdb)) {
+		SkipDBCursor_resetPosition_(self);
+		return 0;
+	}
+	if (NULL == self->record)
 		return 0;
 
 	if (reverse) {
@@ -130,14 +155,15 @@ static int SkipDBCursor_beginTraversalStep_(SkipDBCursor *self, int reverse)
 
 	max_steps = self->sdb->udb && self->sdb->udb->index
 		? UDBIndex_pidCount(self->sdb->udb->index) : -1;
-	if (max_steps <= 0 || ++*step_count > max_steps) {
+	if (max_steps <= 0 || *step_count >= max_steps) {
 		fprintf(stderr,
 			"SkipDBCursor: invalid PID index length or cycle during %s traversal\n",
 			direction);
 		SkipDB_close(self->sdb);
-		self->record = NULL;
+		SkipDBCursor_resetPosition_(self);
 		return 0;
 	}
+	++*step_count;
 
 	*opposite_count = 0;
 	return 1;

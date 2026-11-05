@@ -256,7 +256,15 @@ jobs:
                   "SkipDBRecord_pointersAreEmpty",
                   "SkipDBRecord_removeReferencesToUnmarked",
               ],
+              "trunk/user/skipdbv2/skipdbv2/tests/skipdb_cursor_previous.c": [
+                  "SkipDBCursor_current(cursor) != NULL",
+                  "cursor retained a record after database close",
+                  "cursor did not recover after database reopen",
+              ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c": [
+                  "static void SkipDBCursor_resetPosition_(SkipDBCursor *self)",
+                  "SkipDBCursor_resetPosition_(self)",
+                  "*step_count >= max_steps",
                   "static int SkipDBCursor_preparePositioning_(SkipDBCursor *self)",
                   "SkipDBCursor_preparePositioning_(self)",
                   "static int SkipDBCursor_beginTraversalStep_(SkipDBCursor *self, int reverse)",

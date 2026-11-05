@@ -1,3 +1,21 @@
+## 2026-11-06 05:55 CST — Invalidate cursor positions when the database closes
+
+### Baseline and scope
+- Base commit: `25558bcc2d6e75f3b138ceafa22bb0925c6043bf` (`fix(jfile): reject zero-length journal records`); SkipDBv2 Regression run #215 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to cursor position and traversal state in `skipdb/SkipDBCursor.c`.
+
+### Changes
+- Centralized cursor-position invalidation so operations on a closed or detached database clear the borrowed record pointer and both traversal counters.
+- `SkipDBCursor_current()` now returns no record while the backing database is closed, rather than exposing a stale logical position.
+- Reworked the step bound to compare before incrementing, avoiding signed overflow at the maximum representable step count while preserving the same traversal limit.
+- Extended the existing cursor regression to close/reopen the database while positioned and verify that the cursor invalidates and can be repositioned. Existing CMake target and source registration are unchanged.
+
+### Validation
+- Static preflight verifies the shared invalidation path, close-state guards, and pre-increment step bound; the existing SkipDBCursor API declarations are sufficient.
+- Remote SkipDBv2 Regression is authoritative for compilation and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 05:50 CST — Reject impossible zero-payload journal records
 
 ### Baseline and scope

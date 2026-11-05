@@ -79,8 +79,28 @@ int main(void)
     }
 
     record = SkipDBCursor_goto_(cursor, Datum_FromCString_("gamma"));
-    if (!record_key_is(record, "gamma")) {
+    if (!record_key_is(record, "gamma") || SkipDBCursor_current(cursor) != record) {
         fprintf(stderr, "cursor failed to locate gamma after reopen\n");
+        goto done;
+    }
+
+    /* Closing the database invalidates every cursor's borrowed record pointer. */
+    SkipDB_close(db);
+    if (SkipDB_isOpen(db) ||
+        SkipDBCursor_current(cursor) != NULL ||
+        SkipDBCursor_next(cursor) != NULL ||
+        SkipDBCursor_previous(cursor) != NULL ||
+        SkipDBCursor_goto_(cursor, Datum_FromCString_("gamma")) != NULL) {
+        fprintf(stderr, "cursor retained a record after database close\n");
+        goto done;
+    }
+    if (!SkipDB_open(db) || !SkipDB_isOpen(db)) {
+        fprintf(stderr, "database failed to reopen after cursor invalidation\n");
+        goto done;
+    }
+    record = SkipDBCursor_goto_(cursor, Datum_FromCString_("gamma"));
+    if (!record_key_is(record, "gamma")) {
+        fprintf(stderr, "cursor did not recover after database reopen\n");
         goto done;
     }
 
