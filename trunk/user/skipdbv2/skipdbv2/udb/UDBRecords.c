@@ -121,7 +121,24 @@ int UDBRecords_finishOpening(UDBRecords *self)
 
 	UDBRecord_setJFile_(self->record, self->file);
 	UDBRecord_setJFile_(self->firstEmptyRecord, self->file);
-	self->firstEmptyPos = UDBRecords_firstEmptyRecordPos(self);
+
+	/* Treat the persisted offset as a hint, never as proof of a record
+	 * boundary. A corrupt offset can land inside payload bytes that happen
+	 * to look like an empty header and cause compaction to overwrite data.
+	 * Walk the validated physical chain to recover the first real hole. */
+	(void)UDBRecords_firstEmptyRecordPos(self);
+	{
+		UDBRecord *first_empty = UDBRecords_findFirstEmptyRecord(self);
+		if (NULL == self->file->file || NULL == self->file->log)
+			return 0;
+		if (first_empty) {
+			self->firstEmptyPos = UDBRecord_pos(first_empty);
+			self->firstEmptyRecord->header = first_empty->header;
+			UDBRecord_setPos_(self->firstEmptyRecord, self->firstEmptyPos);
+		} else {
+			self->firstEmptyPos = 0;
+		}
+	}
 	return self->file->file != NULL && self->file->log != NULL;
 }
 
