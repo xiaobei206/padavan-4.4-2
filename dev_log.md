@@ -1,3 +1,20 @@
+## 2026-11-06 04:52 CST — Harden skipd instance-lock file validation
+
+### Baseline and scope
+- Base commit: `c9c6eb9add881d44dbe92db63baf9b75d41fcc1b` (`ci(skipd): align read buffer ownership contract`); SkipDBv2 Regression run #207 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to the instance-lock descriptor validation in `mgr/skipd_socket.c`.
+
+### Changes
+- Separated `fstat`, policy validation, and `fchmod` so real system-call errors are preserved while policy rejection deterministically reports `EPERM`; stale `errno` can no longer leak from a successful `fstat`.
+- Reject non-regular, foreign-owned, and multiply linked lock files before changing their permissions. The lock file must have exactly one link.
+- Extended the existing CI source contract to enforce descriptor validation, hard-link rejection, and error mapping. No new files, declarations, build targets, or CMake changes.
+
+### Validation
+- Static preflight confirms the order is `fstat` → policy checks → `fchmod`, with a single cleanup path preserving the selected error.
+- Remote SkipDBv2 Regression is authoritative for compilation and CTest; no local compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 04:50 CST — Align skipd client CI contract with failure-safe buffer growth
 
 ### Baseline and failure

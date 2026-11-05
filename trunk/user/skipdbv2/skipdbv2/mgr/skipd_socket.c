@@ -68,13 +68,15 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path,
 #endif
     if (lock_fd < 0)
         return -1;
-    if (fstat(lock_fd, &current) != 0 || !S_ISREG(current.st_mode) ||
-        current.st_uid != geteuid() || fchmod(lock_fd, 0600) != 0) {
-        saved_errno = errno ? errno : EPERM;
-        close(lock_fd);
-        errno = saved_errno;
-        return -1;
+    if (fstat(lock_fd, &current) != 0)
+        goto fail;
+    if (!S_ISREG(current.st_mode) || current.st_uid != geteuid() ||
+        current.st_nlink != 1) {
+        errno = EPERM;
+        goto fail;
     }
+    if (fchmod(lock_fd, 0600) != 0)
+        goto fail;
     if (flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
         saved_errno = errno;
         close(lock_fd);

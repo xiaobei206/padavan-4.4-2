@@ -1073,6 +1073,10 @@ jobs:
                   "static int socket_instance_lock_fd = -1;",
                   "int unix_socket_init(",
                   "void unix_socket_release_instance_lock(void)",
+                  "if (fstat(lock_fd, &current) != 0)",
+                  "current.st_nlink != 1",
+                  "errno = EPERM;",
+                  "if (fchmod(lock_fd, 0600) != 0)",
               ],
               "skipd_script.c": [
                   "static int script_log_fd = -1;",
