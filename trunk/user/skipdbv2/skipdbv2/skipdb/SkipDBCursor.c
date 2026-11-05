@@ -112,7 +112,7 @@ SkipDBRecord *SkipDBCursor_previous(SkipDBCursor *self)
 	max_steps = self->sdb->udb && self->sdb->udb->index
 		? UDBIndex_pidCount(self->sdb->udb->index) : -1;
 	if (max_steps <= 0 || ++self->previousSteps > max_steps) {
-		fprintf(stderr, "SkipDBCursor: invalid PID index length or cycle during reverse traversal\\n");
+		fprintf(stderr, "SkipDBCursor: invalid PID index length or cycle during reverse traversal\n");
 		SkipDB_close(self->sdb);
 		self->record = NULL;
 		return NULL;
@@ -135,7 +135,7 @@ SkipDBRecord *SkipDBCursor_next(SkipDBCursor *self)
 	max_steps = self->sdb->udb && self->sdb->udb->index
 		? UDBIndex_pidCount(self->sdb->udb->index) : -1;
 	if (max_steps <= 0 || ++self->nextSteps > max_steps) {
-		fprintf(stderr, "SkipDBCursor: invalid PID index length or cycle during forward traversal\\n");
+		fprintf(stderr, "SkipDBCursor: invalid PID index length or cycle during forward traversal\n");
 		SkipDB_close(self->sdb);
 		self->record = NULL;
 		return NULL;
