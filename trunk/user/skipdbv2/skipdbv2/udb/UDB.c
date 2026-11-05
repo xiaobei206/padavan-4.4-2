@@ -712,6 +712,13 @@ int UDB_compactStepFor_(UDB *self, double maxSeconds)
 		return 0;
 
 	firstEmptyRecord = UDBRecords_firstEmptyRecord(self->records);
+	/* A corrupt header makes UDBRecords close its streams so that a failed
+	 * scan cannot be mistaken for an empty free list or a truncation target. */
+	if (!self->records->file || !self->records->file->file ||
+		!self->records->file->log) {
+		UDB_close(self);
+		return 0;
+	}
 	if (NULL == firstEmptyRecord || !UDBRecord_isEmpty(firstEmptyRecord))
 		return 0;
 
