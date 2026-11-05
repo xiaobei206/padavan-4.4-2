@@ -39,7 +39,7 @@ static int UDB_syncParentDirectory(const char *path)
 		*slash = '\0';
 	}
 
-	fd = open(directory, O_RDONLY);
+	fd = open(directory, O_RDONLY | O_CLOEXEC);
 	free(directory);
 	if (fd < 0)
 		return -1;
@@ -66,7 +66,7 @@ static FILE *UDB_openCommittedJournal(const char *path)
 #ifdef O_NOFOLLOW
 	if (lstat(path, &before) != 0 || !S_ISREG(before.st_mode))
 		return NULL;
-	fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+	fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
 #else
 	errno = ENOTSUP;
 	return NULL;
@@ -128,10 +128,10 @@ static FILE *UDB_openCommittedFile(const char *path, int create)
 			errno = EINVAL;
 			return NULL;
 		}
-		fd = open(path, O_RDWR | O_NOFOLLOW | O_NONBLOCK);
+		fd = open(path, O_RDWR | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
 	} else if (errno == ENOENT && create) {
 		fd = open(path, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW |
-			O_NONBLOCK, 0600);
+			O_NONBLOCK | O_CLOEXEC, 0600);
 	} else {
 		return NULL;
 	}
