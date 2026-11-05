@@ -298,6 +298,12 @@ jobs:
                   "int SkipDB_count(SkipDB *self)",
                   "int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)",
                   "int SkipDB_maxPos(SkipDB *self)",
+                  "static int SkipDB_queryTraversalLimit_(SkipDB *self, long *max_steps, const char *operation)",
+                  "static int SkipDB_queryTraversalStep_(SkipDB *self, long *steps, long max_steps, const char *context)",
+                  "SkipDB_queryTraversalLimit_(self, &max_steps, \"while counting records\")",
+                  "SkipDB_queryTraversalLimit_(self, &max_steps, \"during merge\")",
+                  "SkipDB_queryTraversalStep_(self, &steps, max_steps, \"in record list\")",
+                  "SkipDB_queryTraversalStep_(self, &steps, max_steps, \"during merge\")",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBPrefix.c": [
                   "void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,",
@@ -726,6 +732,14 @@ jobs:
           ).read_text()
           if index_map_source.count("UDBIndex_offsetForPid_(") != 3:
               raise SystemExit("UDB PID-to-offset overflow validation is not centralized")
+
+          query_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBQuery.c"
+          ).read_text()
+          if query_source.count("SkipDB_queryTraversalLimit_(") != 3:
+              raise SystemExit("SkipDB ordered-query PID traversal limit is not centralized")
+          if query_source.count("SkipDB_queryTraversalStep_(") != 3:
+              raise SystemExit("SkipDB ordered-query bounded-step guard is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

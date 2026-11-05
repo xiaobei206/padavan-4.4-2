@@ -3,6 +3,30 @@
 #include <stdio.h>
 #include <limits.h>
 
+/* Share the PID-index bound used to guard ordered scans against corrupt cycles. */
+static int SkipDB_queryTraversalLimit_(SkipDB *self, long *max_steps, const char *operation)
+{
+	if (NULL == self || NULL == max_steps || NULL == self->udb || NULL == self->udb->index)
+		return 0;
+	*max_steps = UDBIndex_pidCount(self->udb->index);
+	if (*max_steps <= 0) {
+		fprintf(stderr, "SkipDB: invalid PID index length %s\n", operation);
+		SkipDB_close(self);
+		return 0;
+	}
+	return 1;
+}
+
+/* Close the database rather than risk an unbounded walk through a corrupt list. */
+static int SkipDB_queryTraversalStep_(SkipDB *self, long *steps, long max_steps, const char *context)
+{
+	if (++*steps <= max_steps)
+		return 1;
+	fprintf(stderr, "SkipDB: cycle or invalid link %s\n", context);
+	SkipDB_close(self);
+	return 0;
+}
+
 int SkipDB_count(SkipDB *self)
 {
 	int count = 0;
@@ -11,20 +35,13 @@ int SkipDB_count(SkipDB *self)
 	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		NULL == self->udb || NULL == self->udb->index)
 		return 0;
-	max_steps = UDBIndex_pidCount(self->udb->index);
-	if (max_steps <= 0) {
-		fprintf(stderr, "SkipDB: invalid PID index length while counting records\n");
-		SkipDB_close(self);
+	if (!SkipDB_queryTraversalLimit_(self, &max_steps, "while counting records"))
 		return -1;
-	}
 	record = SkipDB_firstRecord(self);
 	while (record) {
 		/* A valid list cannot contain more rows than the PID index. */
-		if (++steps > max_steps) {
-			fprintf(stderr, "SkipDB: cycle or invalid link in record list\n");
-			SkipDB_close(self);
+		if (!SkipDB_queryTraversalStep_(self, &steps, max_steps, "in record list"))
 			return -1;
-		}
 		if (count == INT_MAX)
 			return INT_MAX;
 		count++;
@@ -97,21 +114,14 @@ int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)
 		NULL == self->header || !SkipDB_isOpen(self) || !SkipDB_isOpen(other) ||
 		NULL == self->udb || NULL == self->udb->index)
 		return 0;
-	max_steps = UDBIndex_pidCount(self->udb->index);
-	if (max_steps <= 0) {
-		fprintf(stderr, "SkipDB: invalid PID index length during merge\n");
-		SkipDB_close(self);
+	if (!SkipDB_queryTraversalLimit_(self, &max_steps, "during merge"))
 		return 0;
-	}
 
 	record = self->header;
 	while ((record = SkipDBRecord_nextRecord(record)) != NULL) {
 		Datum key, value;
-		if (++steps > max_steps) {
-			fprintf(stderr, "SkipDB: cycle or invalid link during merge\n");
-			SkipDB_close(self);
+		if (!SkipDB_queryTraversalStep_(self, &steps, max_steps, "during merge"))
 			return 0;
-		}
 		key = SkipDBRecord_keyDatum(record);
 		value = SkipDBRecord_valueDatum(record);
 		if (!SkipDB_at_put_(other, key, value) ||

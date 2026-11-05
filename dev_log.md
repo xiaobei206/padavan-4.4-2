@@ -1,3 +1,20 @@
+## 2026-11-06 01:20 CST — Centralize SkipDB bounded query traversal guards
+
+### Baseline and scope
+- Base commit: `d5d41642100a4f4b7b21dbf46e558b2b9d6c03eb` (`refactor(udb): centralize PID offset validation`).
+- SkipDBv2 Regression run #181 (`42067370478`) passed. This iteration is limited to `skipdb/SkipDBQuery.c`.
+
+### Changes
+- Centralized the PID-index traversal limit lookup and invalid-index failure handling in one private helper shared by `SkipDB_count` and `SkipDB_mergeInto_`.
+- Centralized per-record step counting and cycle/corrupt-link closure handling without changing operation-specific diagnostics, return values, count saturation, or merge start position.
+- Extended the existing CI source contracts to require the private helpers' single ownership and both callers; the existing `skipdb_core_layers_test` exercises both query paths. No new C source, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms each helper has one definition and two call sites, and CI contracts check the same ownership/use counts.
+- The pushed SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 — Centralize UDB PID offset validation
 
 ### Baseline and scope
