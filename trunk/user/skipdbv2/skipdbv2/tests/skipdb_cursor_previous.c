@@ -112,6 +112,31 @@ int main(void)
         goto done;
     }
 
+    /* A non-root row with level zero has no forward-link slot and is
+     * malformed. Persist one deliberately and ensure traversal fails closed. */
+    record = SkipDB_recordAt_(db, Datum_FromCString_("beta"));
+    if (NULL == record) {
+        fprintf(stderr, "failed to load beta for corruption regression test\n");
+        goto done;
+    }
+    SkipDB_beginTransaction(db);
+    SkipDBRecord_level_(record, 0);
+    SkipDBRecord_markAsDirty(record);
+    SkipDB_commitTransaction(db);
+    if (!SkipDB_isOpen(db)) {
+        fprintf(stderr, "failed to persist malformed-row regression fixture\n");
+        goto done;
+    }
+    SkipDB_close(db);
+    if (SkipDB_isOpen(db) || !SkipDB_open(db) || !SkipDB_isOpen(db)) {
+        fprintf(stderr, "database failed to reopen for malformed-row test\n");
+        goto done;
+    }
+    if (SkipDB_count(db) != -1 || SkipDB_isOpen(db)) {
+        fprintf(stderr, "malformed level-zero row was not rejected\n");
+        goto done;
+    }
+
     result = EXIT_SUCCESS;
     puts("skipdb cursor previous test passed");
 
