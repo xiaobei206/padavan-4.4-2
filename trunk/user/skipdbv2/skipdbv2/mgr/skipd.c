@@ -818,6 +818,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
@@ -857,6 +858,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
@@ -885,6 +887,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
@@ -934,6 +937,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
@@ -981,6 +985,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
@@ -1077,6 +1082,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
@@ -1108,6 +1114,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
@@ -1205,6 +1212,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
@@ -1431,6 +1439,7 @@ static int client_run_command(EV_P_ skipd_client* client)
                 ccrStop(ctx, ccr_error_err2);
             }
             ccrReturn(ctx, ccr_error_ok1);
+            ccrStop(ctx, ccr_error_ok1);
         }
         p1 = p2+1;
 
