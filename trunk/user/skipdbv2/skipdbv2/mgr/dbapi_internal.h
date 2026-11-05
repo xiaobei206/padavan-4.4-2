@@ -1,6 +1,10 @@
 #ifndef DBAPI_INTERNAL_H
 #define DBAPI_INTERNAL_H
 
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
+
 #include "skipd.h"
 
 typedef struct _dbclient {
