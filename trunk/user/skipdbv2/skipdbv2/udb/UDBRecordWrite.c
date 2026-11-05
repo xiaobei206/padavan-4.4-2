@@ -26,12 +26,6 @@ int UDBRecord_remove(UDBRecord *self)
     return 1;
 }
 
-int UDBRecord_isEmpty(UDBRecord *self)
-{
-    return (self->header.tag == RECORD_TAG_EMPTY);
-}
-
-
 // save ----------------------------------------- 
 
 int UDBRecord_saveHeader(UDBRecord *self)

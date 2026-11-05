@@ -616,6 +616,71 @@ jobs:
               if moved_definition in record_core:
                   raise SystemExit("SkipDBRecord core still owns extracted function: " + moved_definition)
 
+
+          # Keep skipd's runtime ownership boundaries explicit: its executable
+          # must link every independently compiled subsystem, not include a
+          # monolithic implementation or silently omit a module.
+          manager_root = Path("trunk/user/skipdbv2/skipdbv2/mgr")
+          manager_contracts = {
+              "skipd.c": [
+                  '#include "skipd_internal.h"',
+                  "static void client_read_inner(",
+                  "static void server_cb(",
+                  "int main(int argc, char **argv)",
+              ],
+              "skipd_internal.h": [
+                  "typedef struct _skipd_server",
+                  "typedef struct _skipd_client",
+                  "int client_ccr_process(EV_P_ skipd_client *client);",
+                  "void server_sync(EV_P_ skipd_server *server);",
+                  "void unix_socket_release_instance_lock(void);",
+              ],
+              "skipd_command.c": [
+                  "static int client_run_command(",
+                  "int client_ccr_process(",
+                  "client_ccr_read_util(",
+              ],
+              "skipd_database.c": [
+                  "static int read_db_switch_marker(",
+                  "int server_init(",
+                  "void server_switch(",
+                  "unix_socket_release_instance_lock();",
+              ],
+              "skipd_scheduler.c": [
+                  "void delay_cmd_cb(",
+                  "void server_init_delay(",
+                  "void server_init_time(",
+                  "void server_sync_tick(",
+              ],
+              "skipd_socket.c": [
+                  "static int socket_instance_lock_fd = -1;",
+                  "int unix_socket_init(",
+                  "void unix_socket_release_instance_lock(void)",
+              ],
+          }
+          for module, needles in manager_contracts.items():
+              content = (manager_root / module).read_text()
+              for needle in needles:
+                  if needle not in content:
+                      raise SystemExit(f"skipd ownership contract missing: {module}: {needle}")
+
+          if "static int client_run_command(" in (manager_root / "skipd.c").read_text():
+              raise SystemExit("skipd command engine remains in the event-loop facade")
+          if "int unix_socket_init(" in (manager_root / "skipd.c").read_text():
+              raise SystemExit("skipd socket engine remains in the event-loop facade")
+          cmake_text = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for module in ("skipd_command.c", "skipd_database.c",
+                         "skipd_scheduler.c", "skipd_socket.c"):
+              if f"mgr/{module}" not in cmake_text:
+                  raise SystemExit(f"skipd module missing from executable source list: {module}")
+
+          udb_record_core = Path("trunk/user/skipdbv2/skipdbv2/udb/UDBRecord.c").read_text()
+          udb_record_write = Path("trunk/user/skipdbv2/skipdbv2/udb/UDBRecordWrite.c").read_text()
+          if "int UDBRecord_isEmpty(" not in udb_record_core:
+              raise SystemExit("UDBRecord emptiness predicate lost its metadata owner")
+          if "UDBRecord_isEmpty(" in udb_record_write:
+              raise SystemExit("UDBRecord emptiness predicate has multiple implementation owners")
+
           print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
           PY
 
