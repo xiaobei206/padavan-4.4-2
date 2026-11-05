@@ -95,8 +95,7 @@ char *UDBIndex_path(UDBIndex *self)
 
 int UDBIndex_open(UDBIndex *self)
 {
-	if (NULL == self || NULL == self->file ||
-		NULL == self->holes || NULL == self->reserved)
+	if (!UDBIndex_isValid_(self))
 		return 0;
 	List_removeAll(self->reserved);
 	JFile_open(self->file);
@@ -162,8 +161,7 @@ void UDBIndex_preCommit(UDBIndex *self)
 
 void UDBIndex_commit(UDBIndex *self)
 {
-	if (NULL == self || NULL == self->file ||
-		NULL == self->holes || NULL == self->reserved)
+	if (!UDBIndex_isValid_(self))
 		return;
 
 	/* Reservations must be finalized before the global UDB commit marker. */

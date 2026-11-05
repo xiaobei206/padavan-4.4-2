@@ -156,6 +156,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndex.c": [
                   '#include "UDBIndexInternal.h"',
                   "int UDBIndex_isValid_(UDBIndex *self)",
+                  "if (!UDBIndex_isValid_(self))",
                   "int UDBIndex_hasFile_(UDBIndex *self)",
                   "int UDBIndex_hasStreams_(UDBIndex *self)",
                   "int UDBIndex_finishOpening(UDBIndex *self)",
@@ -851,6 +852,12 @@ jobs:
           ).read_text()
           if commit_marker_source.count("UDBCommitMarker_verifyOpenedFile_(") != 3:
               raise SystemExit("UDB commit marker file identity validation is not centralized")
+
+          index_lifecycle_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBIndex.c"
+          ).read_text()
+          if index_lifecycle_source.count("UDBIndex_isValid_(self)") != 3:
+              raise SystemExit("UDBIndex lifecycle callers bypass shared structural validation")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

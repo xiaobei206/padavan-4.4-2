@@ -1,3 +1,20 @@
+## 2026-11-06 01:57 CST — Reuse UDBIndex structural validation
+
+### Baseline and scope
+- Base commit: `bd538ec29edb90ce6b8a9efdbf5de4ec11b80caa` (`refactor(udb): unify commit marker file verification`); SkipDBv2 Regression run #195 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `udb/UDBIndex.c`.
+
+### Changes
+- Reused the existing `UDBIndex_isValid_` predicate in both the open and commit entry guards instead of duplicating the four-pointer structural check.
+- Kept the entry-specific return value and all file-stream, transaction, reservation, and error-handling logic unchanged.
+- Extended CI source contracts to enforce use of the shared validator at both lifecycle entry points and assert the expected three in-file call sites (including `UDBIndex_hasFile_`). No new source files, helper declarations, or CMake changes.
+
+### Validation
+- Static preflight confirms all three expected calls route through the existing helper; CI checks the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:54 CST — Unify UDB commit-marker file verification
 
 ### Baseline and scope
