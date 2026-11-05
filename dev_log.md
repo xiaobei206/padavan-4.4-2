@@ -1,3 +1,17 @@
+## 2026-11-06 06:25 CST — Fix empty-write argument validation ordering
+
+### CI finding
+- Commit `1f4960460b623bd2077fd7d547cff8c9fe9fc1b8` built successfully, but `ipc_transport_test` failed because the existing NULL-buffer guard ran before the zero-length no-op path.
+
+### Repair
+- Permit a NULL payload only when the requested write length is zero; continue rejecting NULL payloads for non-empty writes and invalid descriptors/negative lengths.
+- Keep the zero-length return ahead of clock access and deadline calculation. No new files, declarations, build targets, or source registrations.
+
+### Validation
+- Static control-flow review confirms invalid fd/length are rejected first, zero-length writes return next, and all non-empty writes retain the non-NULL buffer requirement. The new remote regression run is authoritative.
+
+---
+
 ## 2026-11-06 06:22 CST — Make zero-length IPC writes a no-op
 
 ### Baseline and scope

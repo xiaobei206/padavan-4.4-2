@@ -164,7 +164,7 @@ int skipdb_ipc_write_exact(int fd, const char *buffer, int length,
     int n, written = 0, ready;
     unsigned long long now, timeout;
 
-    if (fd < 0 || NULL == buffer || length < 0)
+    if (fd < 0 || length < 0 || (length > 0 && NULL == buffer))
         return -1;
     if (length == 0)
         return 0;
