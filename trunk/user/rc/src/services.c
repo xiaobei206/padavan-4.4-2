@@ -778,7 +778,9 @@ start_services_once(int is_ap_mode)
 		start_xupnpd(IFNAME_BR);
 #endif
 	}
-doSystem("/usr/sbin/skipd -d /etc/storage/db");
+#if defined(APP_SKIPDBV2)
+	doSystem("/usr/sbin/skipd -d /etc/storage/db");
+#endif
 #if defined(APP_SCUT)
 	start_scutclient();
 #endif
