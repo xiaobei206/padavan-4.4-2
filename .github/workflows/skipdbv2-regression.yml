@@ -110,6 +110,9 @@ jobs:
                   'strcmp(value, "pressed")',
                   'strcmp(value, "released")',
                   'memcmp(field, "BUTTON",',
+                  "CLOCK_MONOTONIC",
+                  "btn_update_press_count(btn);",
+                  "btn_hold_tick();",
               ],
           }
 

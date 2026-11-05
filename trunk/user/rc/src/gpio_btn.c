@@ -9,6 +9,8 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <errno.h>
+#include <limits.h>
+#include <time.h>
 
 #include "rc.h"
 #include "gpio_pins.h"
@@ -43,11 +45,13 @@ static struct btn_entrys_t
 	const int btn_id;
 	const char *btn_name;
 	int count;
+	int pressed;
+	struct timespec pressed_at;
 } btn_entrys[] = {
-	{ BTN_RESET, "reset", 0 },
-	{ BTN_WPS, "wps", 0 },
-	{ BTN_FN1, "fn1", 0 },
-	{ BTN_FN2, "fn2", 0 },
+	{ BTN_RESET, "reset", 0, 0, {0, 0} },
+	{ BTN_WPS, "wps", 0, 0, {0, 0} },
+	{ BTN_FN1, "fn1", 0, 0, {0, 0} },
+	{ BTN_FN2, "fn2", 0, 0, {0, 0} },
 	{ 0, NULL, 0 },
 };
 
@@ -191,41 +195,74 @@ static void btn_released_handle(int btn_id, int count)
 	}
 }
 
+static void btn_update_press_count(struct btn_entrys_t *btn)
+{
+	struct timespec now;
+	long long sec, nsec;
+	unsigned long long ticks;
+	int count, pwr_led;
+
+	if (!btn->pressed || clock_gettime(CLOCK_MONOTONIC, &now) < 0)
+		return;
+	sec = (long long)now.tv_sec - (long long)btn->pressed_at.tv_sec;
+	nsec = (long long)now.tv_nsec - (long long)btn->pressed_at.tv_nsec;
+	if (nsec < 0) { sec--; nsec += 1000000000LL; }
+	if (sec < 0) { sec = 0; nsec = 0; }
+	ticks = (unsigned long long)sec * 10ULL +
+		(unsigned long long)nsec / 100000000ULL + 1ULL;
+	count = ticks > INT_MAX ? INT_MAX : (int)ticks;
+	if (count <= btn->count)
+		return;
+	btn->count = count;
+	if (!(LED_PWR & search_gpio_led()))
+		return;
+	pwr_led = get_state_led_pwr();
+	if ((btn->btn_id == BTN_RESET && count > RESET_COUNT) ||
+	    (btn->btn_id != BTN_RESET && count > LONG_COUNT)) {
+		btn_dbg("you can release btn now!\n");
+		gpio_led_set(LED_PWR, (count % 2) ? !pwr_led : pwr_led);
+	}
+}
+
+static void btn_hold_tick(void)
+{
+	struct btn_entrys_t *btn;
+	for (btn = &btn_entrys[0]; btn->btn_id; btn++)
+		btn_update_press_count(btn);
+}
+
 static void btn_ev_handle(btn_event *ev)
 {
 	struct btn_entrys_t *btn;
 	int cnt;
-	int pwr_led;
-
-	for (btn = &btn_entrys[0]; btn->btn_id; btn++)
-	{
-		if (ev->btn_id == btn->btn_id)
-		{
-			if (ev->event == BTN_PRESSED) {
-				(btn->count)++;
-				if (LED_PWR & search_gpio_led()) {
-					pwr_led = get_state_led_pwr();
-
-					if (btn->btn_id == BTN_RESET && btn->count == 1) {
-						gpio_led_set(LED_PWR, pwr_led);
-					} else if ((btn->btn_id == BTN_RESET && btn->count > RESET_COUNT) ||
-						(btn->btn_id != BTN_RESET && btn->count > LONG_COUNT)) {
-						btn_dbg("you can release btn now!\n");
-						gpio_led_set(LED_PWR, (btn->count % 2) ? !pwr_led : pwr_led);
-					}
+	for (btn = &btn_entrys[0]; btn->btn_id; btn++) {
+		if (ev->btn_id != btn->btn_id)
+			continue;
+		if (ev->event == BTN_PRESSED) {
+			if (!btn->pressed) {
+				if (clock_gettime(CLOCK_MONOTONIC, &btn->pressed_at) < 0) {
+					btn_dbg("failed to read monotonic clock: %s\n", strerror(errno));
+				} else {
+					btn->pressed = 1;
+					btn->count = 1;
+					if (btn->btn_id == BTN_RESET && (LED_PWR & search_gpio_led()))
+						gpio_led_set(LED_PWR, get_state_led_pwr());
 				}
-			} else if (ev->event == BTN_RELEASED) {
+			}
+		} else if (ev->event == BTN_RELEASED) {
+			if (btn->pressed) {
+				btn_update_press_count(btn);
 				cnt = btn->count;
+				btn->pressed = 0;
 				btn->count = 0;
-				ev->event = 0;
-				ev->btn_id = 0;
 				btn_released_handle(btn->btn_id, cnt);
 			}
-			break;
+			ev->event = 0;
+			ev->btn_id = 0;
 		}
+		break;
 	}
 }
-
 int start_gpio_btn(void)
 {
 	if (pids("gpio_btn"))
@@ -276,6 +313,7 @@ int btn_main(int argc, char *argv[])
 			//btn_dbg("btn_ev: btn=0x%x, event=%d\n", btn_ev.btn_id, btn_ev.event);
 			btn_ev_handle(&btn_ev);
 		}
+		btn_hold_tick();
 	}
 
 	close(fd);
