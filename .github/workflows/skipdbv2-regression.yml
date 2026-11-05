@@ -441,14 +441,35 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c": [
                   "#include \"ipc_transport.h\"",
-                  "#include \"ipc_protocol.h\"",
+                  "#include \"dbapi_internal.h\"",
                   "skipdb_ipc_connect_unix(sock_path)",
                   "skipdb_ipc_set_nonblock(fd)",
-                  "skipdb_ipc_ensure_buffer(&client->buf, &client->buf_max,",
+                  "dbapi_check_buf(client,",
+                  "dbapi_ignore_result(client, command, key)",
+                  "dbapi_parse_list_result(client, prefix, o, fn)",
                   "skipdb_ipc_valid_protocol_field(text, allow_empty, (size_t)-1)",
+                  "skipdb_ipc_write_exact(client->remote_fd, client->buf, len, delay)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbapi_internal.h": [
+                  "typedef struct _dbclient",
+                  "typedef int (*fn_db_parse)",
+                  "int dbapi_check_buf(dbclient *client, int len);",
+                  "int dbapi_ignore_result(dbclient *client, const char *command,",
+                  "int dbapi_parse_list_result(dbclient *client, char *prefix, void *o,",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbapi_result.c": [
+                  "#include \"dbapi_internal.h\"",
+                  "#include \"ipc_protocol.h\"",
+                  "static int read_util(dbclient* client, int len, unsigned int delay)",
+                  "dbapi_check_buf(client, len)",
+                  "int dbapi_ignore_result(dbclient *client,",
+                  "int dbapi_parse_list_result(dbclient *client,",
                   "skipdb_ipc_parse_envelope(client->buf,",
                   "skipdb_ipc_read_exact(client->remote_fd, client->buf, len,",
-                  "skipdb_ipc_write_exact(client->remote_fd, client->buf, len, delay)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/dbapi_protocol.c": [
+                  "dbapi_parse_list_result(&client,",
+                  "dbclient_bulk(&client, \"set\", \"alpha\", \"value\")",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_protocol.h": [
                   "typedef struct _skipdb_ipc_frame_view",
@@ -529,6 +550,7 @@ jobs:
                   "ADD_EXECUTABLE(ipc_protocol_test",
                   "add_test(NAME ipc_protocol_test COMMAND ipc_protocol_test)",
                   "mgr/dbus_result.c",
+                  "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
               ],
@@ -612,6 +634,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_io.h",
               "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c",
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c",
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbapi_result.c",
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_transport.c",
           ):
               content = Path(path).read_text()
@@ -734,6 +757,17 @@ jobs:
               raise SystemExit("DBus result parser remains in the CLI facade")
           if "int parse_script_result(dbclient *client)" not in dbus_result_text:
               raise SystemExit("DBus result module lost script-result ownership")
+
+          if cmake_text.count("mgr/dbapi_result.c") != 2:
+              raise SystemExit("DBAPI result module is not linked by the CLI and protocol regression")
+          dbapi_cli_text = (manager_root / "dbapi.c").read_text()
+          dbapi_result_text = (manager_root / "dbapi_result.c").read_text()
+          if "static int parse_list_result(" in dbapi_cli_text:
+              raise SystemExit("DBAPI list parser remains in the CLI facade")
+          if "int dbapi_parse_list_result(" not in dbapi_result_text:
+              raise SystemExit("DBAPI result module lost list-result ownership")
+          if "static int ignore_result(" in dbapi_cli_text:
+              raise SystemExit("DBAPI write-response parser remains in the CLI facade")
 
           print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
           PY
