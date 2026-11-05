@@ -326,8 +326,14 @@ PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)
 	}
 
 	JFile_setPosition_(self->file, 0);
-	if (JFile_fread(self->file, (unsigned char *)&pos, sizeof(PID_TYPE), 1) != 1)
-		pos = 0;
+	if (JFile_fread(self->file, (unsigned char *)&pos, sizeof(PID_TYPE), 1) != 1) {
+		/* The metadata block must exist once finishOpening accepted the file.
+		 * Never downgrade a failed read to the valid 'no free record' value. */
+		fprintf(stderr, "UDBRecords: failed reading first-empty metadata\n");
+		JFile_close(self->file);
+		self->firstEmptyPos = 0;
+		return 0;
+	}
 	if (pos != 0 && ((size_t)pos < sizeof(PID_TYPE) ||
 		(size_t)pos > file_size ||
 		file_size - (size_t)pos < sizeof(UDBRecordHeader)))
