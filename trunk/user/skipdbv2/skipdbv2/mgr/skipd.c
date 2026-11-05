@@ -850,6 +850,15 @@ static int client_run_command(EV_P_ skipd_client* client)
 
         dkey = Datum_FromCString_(client->key);
         dvalue = SkipDB_at_(client->server->db, dkey);
+        if (!SkipDB_isOpen(client->server->db)) {
+            p1 = "database error\n";
+            if (client_send_key(EV_A_ client, "__error__",
+                    client->command, p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         if(NULL == dvalue.data) {
             p1 = "none\n";
             if (client_send(EV_A_ client, p1, strlen(p1)) != 0) {
@@ -952,6 +961,27 @@ static int client_run_command(EV_P_ skipd_client* client)
             ccrReturn(ctx, ccr_error_ok);
 
             CS->record = SkipDB_list_next(client->server->db, CS->skey, CS->cursor);
+        }
+
+        if (!SkipDB_isOpen(client->server->db)) {
+            p1 = "database error\n";
+            if (client_send_key(EV_A_ client, "__error__", "list",
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            if (CS->cursor) {
+                SkipDBCursor_release(CS->cursor);
+                CS->cursor = NULL;
+            }
+            client->cursor = NULL;
+            if (client->in_doing) {
+                if (client->server->in_doing > 0)
+                    client->server->in_doing--;
+                client->in_doing = 0;
+            }
+            ccrReturn(ctx, ccr_error_ok);
+            ccrStop(ctx, ccr_error_ok1);
         }
 
         /*
