@@ -105,3 +105,29 @@
 - Keep transaction ordering and paired-file recovery policy in UDBStorage.c.
 - Keep physical record-space mutations in UDBCompact.c.
 - Keep marker bytes, filesystem security, and durability primitives in UDBCommitMarker.c.
+
+
+## 2026-11-05 — Extract shared SkipDB IPC client transport
+
+### Branch and CI baseline
+- Base commit: `80729573d560fd93384a45734024762a9bbe5e07` (`refactor(skipdb): split UDB storage and compaction layers`).
+- Remote branch inventory showed only `main`; no `codex/...` branch refs remained, so this work is based directly on current mainline without deleting or dropping branch-only commits.
+- The latest SkipDBv2 Regression run stopped before configure/build/CTest because a source-contract assertion expected `UDBCommitMarker_write(&self->commitMarker,0)` while the implementation contains the equivalent call formatted with a space. Updated the assertion; the latest XY-C1 firmware validation had passed.
+
+### Changes
+1. **Shared transport layer — `mgr/ipc_transport.h`, `mgr/ipc_transport.c`**
+   - Centralized Unix-domain socket connection, nonblocking descriptor setup, bounded buffer growth, protocol-token validation, and deadline-based exact reads/writes.
+   - Preserved legacy read result codes, partial-read byte counts, EOF behavior, monotonic deadlines, EINTR retry, and MSG_NOSIGNAL writes.
+2. **CLI integration — `mgr/dbus.c`, `mgr/dbapi.c`**
+   - Replaced duplicated transport helper bodies with thin wrappers over the shared module.
+   - Kept command envelopes, response parsing, per-client token limits, and timeout budgets in their original callers.
+3. **Regression/build integration — `CMakeLists.txt`, `tests/ipc_transport.c`, `.github/workflows/skipdbv2-regression.yml`**
+   - Linked the implementation into both binaries and both existing protocol fixtures.
+   - Added focused tests for Unix-socket path validation/connect, buffer growth/reuse, token validation, nonblocking setup, exact writes, successful reads, partial EOF, and timeout behavior.
+   - Updated CI contracts for the new transport ownership boundary and added the module to the no-wall-clock/no-busy-poll scan.
+   - Corrected the stale UDB marker assertion so the regression job can proceed to compile and execute CTest.
+
+### Validation
+- Pre-commit structural checks confirm that both CLI files delegate socket creation, nonblocking setup, buffer growth, token validation, exact reads, and exact writes to the shared transport module.
+- No local compiler or CTest run is claimed. The pushed revision triggers SkipDBv2 Regression and XY-C1 firmware validation workflows.
+- Follow-up: protocol framing and response parsing remain caller-owned; only transport mechanics belong in `ipc_transport.c`.

@@ -15,7 +15,7 @@
 #include <limits.h> // [LONG|INT][MIN|MAX]
 #include <stddef.h>
 #include "skipd.h"
-#include "ipc_io.h"
+#include "ipc_transport.h"
 
 //"list "
 #define LIST_LEN 5
@@ -34,108 +34,31 @@ static int ignore_result(dbclient *client,
     const char *command, const char *key);
 
 static int write_util(dbclient* client, int len, unsigned int delay) {
-    int n, written = 0;
-    unsigned long long now, timeout;
-
     if (NULL == client || NULL == client->buf || len < 0 ||
         len > client->buf_max || client->remote_fd < 0)
         return -1;
-    if (skipdb_monotonic_milliseconds(&now) != 0 || ULLONG_MAX - now < delay)
-        return -1;
-    timeout = now + delay;
-    while (written < len) {
-#ifdef MSG_NOSIGNAL
-        n = (int)send(client->remote_fd, client->buf + written,
-            (size_t)(len - written), MSG_NOSIGNAL);
-#else
-        n = (int)send(client->remote_fd, client->buf + written,
-            (size_t)(len - written), 0);
-#endif
-        if (n > 0) {
-            written += n;
-            continue;
-        }
-        if (n == 0)
-            return -1;
-        if (errno == EINTR)
-            continue;
-        if (errno != EAGAIN && errno != EWOULDBLOCK)
-            return -1;
-
-        n = skipdb_wait_socket_until(client->remote_fd, POLLOUT, timeout);
-        if (n <= 0)
-            break;
-    }
-    return written == len ? 0 : -1;
+    return skipdb_ipc_write_exact(client->remote_fd, client->buf, len, delay);
 }
 
 //TODO better for code reused
 static int create_client_fd(char* sock_path) {
-    int remote_fd;
-    size_t path_len;
-    socklen_t address_len;
-    struct sockaddr_un remote;
-
-    if (NULL == sock_path)
-        return -1;
-    path_len = strlen(sock_path);
-    if (path_len == 0 || path_len >= sizeof(remote.sun_path))
-        return -1;
-    if ((remote_fd = socket(PF_UNIX, SOCK_STREAM, 0)) < 0)
-        return -1;
-
-    memset(&remote, 0, sizeof(remote));
-    remote.sun_family = AF_UNIX;
-    memcpy(remote.sun_path, sock_path, path_len + 1);
-    address_len = (socklen_t)(offsetof(struct sockaddr_un, sun_path) +
-        path_len + 1);
-    if (connect(remote_fd, (struct sockaddr *)&remote, address_len) < 0) {
-        close(remote_fd);
-        return -1;
-    }
-    return remote_fd;
+    return skipdb_ipc_connect_unix(sock_path);
 }
 
 static int check_buf(dbclient* client, int len) {
-    int capacity;
-    char *new_buf;
-
-    if (NULL == client || len < 0 ||
-        len > READ_MAX + HEADER_PREFIX)
+    if (NULL == client)
         return -1;
-    capacity = _max(len, BUF_MAX);
-    if (capacity > READ_MAX + HEADER_PREFIX || capacity == INT_MAX)
-        return -1;
-    if (client->buf && client->buf_max >= capacity)
-        return 0;
-    new_buf = (char *)realloc(client->buf, (size_t)capacity + 1);
-    if (NULL == new_buf)
-        return -1;
-    client->buf = new_buf;
-    client->buf_max = capacity;
-    return 0;
+    return skipdb_ipc_ensure_buffer(&client->buf, &client->buf_max,
+        len, BUF_MAX, READ_MAX + HEADER_PREFIX);
 }
 
 static int valid_protocol_field(const char *text, int allow_empty)
 {
-    const unsigned char *p = (const unsigned char *)text;
-
-    if (NULL == text || (!allow_empty && *text == '\0'))
-        return 0;
-    for (; *p; ++p) {
-        /* Command and key are space-delimited protocol tokens, not payloads. */
-        if (*p <= 0x20 || *p == 0x7f)
-            return 0;
-    }
-    return 1;
+    return skipdb_ipc_valid_protocol_field(text, allow_empty, (size_t)-1);
 }
 
 static int setnonblock(int fd) {
-    int flags;
-    flags = fcntl(fd, F_GETFL);
-    if (flags < 0)
-        return -1;
-    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    return skipdb_ipc_set_nonblock(fd);
 }
 
 int dbclient_start(dbclient* client) {
@@ -196,48 +119,11 @@ int dbclient_bulk(dbclient* client, char* command, char* key, char* value) {
 }
 
 static int read_util(dbclient* client, int len, unsigned int delay) {
-    int clen, n;
-    unsigned long long now, timeout;
-
-    if (NULL == client || client->remote_fd < 0 ||
-        len <= 0 || len > READ_MAX ||
-        check_buf(client, len) != 0)
+    if (NULL == client || client->remote_fd < 0 || len <= 0 ||
+        len > READ_MAX || check_buf(client, len) != 0)
         return -4;
-    if (skipdb_monotonic_milliseconds(&now) != 0 || ULLONG_MAX - now < delay)
-        return -2;
-    timeout = now + delay;
-    client->buf_pos = 0;
-
-    for(;;) {
-        clen = len - client->buf_pos;
-        n = recv(client->remote_fd, client->buf + client->buf_pos, clen, 0);
-        if(n < 0) {
-            if (errno == EINTR)
-                continue;
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                n = skipdb_wait_socket_until(client->remote_fd, POLLIN, timeout);
-                if (n < 0)
-                    return -2;
-                if (n == 0)
-                    break;
-                continue;
-            }
-            //timeout
-            return -2;
-        } else if(n == 0) {
-            //socket closed
-            return -1;
-        } else {
-            client->buf_pos += n;
-            if(client->buf_pos == len) {
-                //read ok
-                return 0;
-            }
-        }
-    }
-
-    //unkown error
-    return -3;
+    return skipdb_ipc_read_exact(client->remote_fd, client->buf, len,
+        delay, &client->buf_pos);
 }
 
 static int ignore_result(dbclient *client,
