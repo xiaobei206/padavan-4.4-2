@@ -5,9 +5,30 @@ on:
     paths:
       - ".github/workflows/skipdbv2-regression.yml"
       - "trunk/user/skipdbv2/skipdbv2/**"
+      - "trunk/user/skipdbv2/Makefile"
+      - "trunk/user/Makefile"
+      - "trunk/libs/Makefile"
+      - "trunk/configs/templates/XY-C1.config"
+      - "trunk/configs/boards/XY-C1/kernel-4.4.x.config"
+      - "trunk/linux-4.4.x/arch/mips/boot/dts/ralink/xy-c1.dts"
+      - "trunk/linux-4.4.x/drivers/gpio/gpio-button-hotplug.c"
+      - "trunk/linux-4.4.x/drivers/gpio/Makefile"
+      - "trunk/user/rc/src/gpio_btn.c"
+      - "trunk/user/rc/src/services.c"
   pull_request:
     paths:
+      - ".github/workflows/skipdbv2-regression.yml"
       - "trunk/user/skipdbv2/skipdbv2/**"
+      - "trunk/user/skipdbv2/Makefile"
+      - "trunk/user/Makefile"
+      - "trunk/libs/Makefile"
+      - "trunk/configs/templates/XY-C1.config"
+      - "trunk/configs/boards/XY-C1/kernel-4.4.x.config"
+      - "trunk/linux-4.4.x/arch/mips/boot/dts/ralink/xy-c1.dts"
+      - "trunk/linux-4.4.x/drivers/gpio/gpio-button-hotplug.c"
+      - "trunk/linux-4.4.x/drivers/gpio/Makefile"
+      - "trunk/user/rc/src/gpio_btn.c"
+      - "trunk/user/rc/src/services.c"
   workflow_dispatch:
 
 permissions:
@@ -25,6 +46,68 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake gcc g++ libev-dev
+
+      - name: Verify XY-C1 firmware integration contracts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          checks = {
+              "trunk/configs/templates/XY-C1.config": [
+                  "CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS=n",
+                  "CONFIG_FIRMWARE_INCLUDE_SKIPDBV2=y",
+              ],
+              "trunk/user/Makefile": [
+                  "CONFIG_FIRMWARE_INCLUDE_SKIPDBV2",
+                  "dir_y += skipdbv2",
+              ],
+              "trunk/libs/Makefile": [
+                  "ifeq ($(CONFIG_FIRMWARE_INCLUDE_SKIPDBV2),y)",
+                  "LIBS_INCLUDE_LIBEV=y",
+              ],
+              "trunk/user/rc/src/services.c": [
+                  'doSystem("/usr/sbin/skipd -d /etc/storage/db");',
+                  "start_gpio_btn();",
+              ],
+              "trunk/linux-4.4.x/arch/mips/boot/dts/ralink/xy-c1.dts": [
+                  'compatible = "gpio-keys-polled";',
+                  "gpios = <&gpio0 18 GPIO_ACTIVE_LOW>;",
+                  "linux,code = <KEY_RESTART>;",
+              ],
+              "trunk/linux-4.4.x/drivers/gpio/Makefile": [
+                  "obj-y += gpio-button-hotplug.o",
+              ],
+              "trunk/linux-4.4.x/drivers/gpio/gpio-button-hotplug.c": [
+                  '"gpio-keys-polled"',
+                  '"ACTION=%s"',
+                  '"BUTTON=%s"',
+              ],
+              "trunk/configs/boards/XY-C1/kernel-4.4.x.config": [
+                  "CONFIG_GPIOLIB=y",
+                  "# CONFIG_INPUT is not set",
+              ],
+              "trunk/user/rc/src/gpio_btn.c": [
+                  "NETLINK_KOBJECT_UEVENT",
+                  'strcmp(value, "pressed")',
+                  'strcmp(value, "released")',
+                  'memcmp(field, "BUTTON",',
+              ],
+          }
+
+          for path, needles in checks.items():
+              content = Path(path).read_text()
+              for needle in needles:
+                  if needle not in content:
+                      raise SystemExit(f"missing XY-C1 integration contract: {path}: {needle}")
+              print(f"OK: {path}")
+
+          user_makefile = Path("trunk/user/Makefile").read_text()
+          if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:
+              raise SystemExit("SkipDBv2 is still tied exclusively to Shadowsocks")
+
+          print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
+          PY
+
 
       - name: Configure
         run: |

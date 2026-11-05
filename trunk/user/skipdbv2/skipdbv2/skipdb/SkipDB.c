@@ -16,6 +16,8 @@ SkipDB ioDoc(
 // lookups
 
 void SkipDB_clearUpdate(SkipDB *self);
+void SkipDB_dealloc(SkipDB *self);
+void SkipDBCursor_dealloc(SkipDBCursor *self);
 
 // ops
 
@@ -514,7 +516,7 @@ void SkipDB_readRootRecord(SkipDB *self)
 			 UDBIndex_pidCount(self->udb->index) != 1 ||
 			 ferror(self->udb->index->file->file) ||
 			 (self->udb->records && self->udb->records->file &&
-			  self->udb->records->file->maxPos > (long)sizeof(PID_TYPE))) {
+			  self->udb->records->file->maxPos > (long)sizeof(PID_TYPE)))) {
 			fprintf(stderr, "SkipDB: root record %" PID_FORMAT " is missing or unreadable in a non-empty index\n",
 				self->headerPid);
 			return;
