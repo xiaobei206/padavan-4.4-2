@@ -201,33 +201,72 @@ int main(void)
         }
     }
 
-    /* Replaying both already-applied journals must also be idempotent. */
+    /* A missing or truncated commit marker must not silently discard recovery state. */
     {
-        PID_TYPE crash_pid;
-        UDB_beginTransaction(db);
-        crash_pid = UDB_put_(db, Datum_FromCString_("crash-recovery-both"));
-        if (!UDB_isOpen(db) || crash_pid == 0) {
-            fprintf(stderr, "failed to stage the full-replay transaction\n");
+        FILE *marker;
+        char marker_path[160];
+        int marker_path_len = snprintf(marker_path, sizeof(marker_path),
+            "%s.committed", path);
+        if (marker_path_len < 0 || (size_t)marker_path_len >= sizeof(marker_path)) {
+            fprintf(stderr, "unable to construct commit marker path\n");
             goto done;
         }
-        UDBIndex_preCommit(db->index);
-        UDBRecords_preCommit(db->records);
-        if (!UDB_isOpen(db) || !UDBIndex_prepareCommit(db->index) ||
-            UDB_setCommittedFlag_(db, 1) != 0) {
-            fprintf(stderr, "failed to arm the full-replay transaction\n");
-            goto done;
-        }
-        UDBIndex_commit(db->index);
-        UDBRecords_commit(db->records);
-        if (!db->index->file->file || !db->index->file->log ||
-            !db->records->file->file || !db->records->file->log) {
-            fprintf(stderr, "journal apply failed before full-replay simulation\n");
-            goto done;
-        }
+
         UDB_close(db);
+        if (remove(marker_path) != 0) {
+            fprintf(stderr, "unable to remove marker for missing-marker regression\n");
+            goto done;
+        }
         UDB_open(db);
-        if (!UDB_isOpen(db) || !has_value(db, crash_pid, "crash-recovery-both")) {
-            fprintf(stderr, "recovery failed after both journals were already applied\n");
+        if (UDB_isOpen(db)) {
+            fprintf(stderr, "database opened after its commit marker was removed\n");
+            goto done;
+        }
+
+        marker = fopen(marker_path, "w");
+        if (NULL == marker || fputc(0, marker) == EOF) {
+            if (marker) fclose(marker);
+            fprintf(stderr, "unable to restore commit marker after missing-marker check\n");
+            goto done;
+        }
+        if (fclose(marker) != 0) {
+            fprintf(stderr, "unable to close restored commit marker\n");
+            goto done;
+        }
+        UDB_open(db);
+        if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
+            !has_value(db, reused_pid, "reused-after-expiry")) {
+            fprintf(stderr, "valid marker did not reopen data after missing-marker rejection\n");
+            goto done;
+        }
+
+        UDB_close(db);
+        marker = fopen(marker_path, "w");
+        if (NULL == marker || fclose(marker) != 0) {
+            if (marker) fclose(marker);
+            fprintf(stderr, "unable to truncate marker for empty-marker regression\n");
+            goto done;
+        }
+        UDB_open(db);
+        if (UDB_isOpen(db)) {
+            fprintf(stderr, "database opened with an empty marker and committed data\n");
+            goto done;
+        }
+
+        marker = fopen(marker_path, "w");
+        if (NULL == marker || fputc(0, marker) == EOF) {
+            if (marker) fclose(marker);
+            fprintf(stderr, "unable to restore commit marker after empty-marker check\n");
+            goto done;
+        }
+        if (fclose(marker) != 0) {
+            fprintf(stderr, "unable to close final restored commit marker\n");
+            goto done;
+        }
+        UDB_open(db);
+        if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
+            !has_value(db, reused_pid, "reused-after-expiry")) {
+            fprintf(stderr, "database data was damaged by marker-integrity checks\n");
             goto done;
         }
     }
