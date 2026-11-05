@@ -1,3 +1,20 @@
+## 2026-11-06 01:43 CST — Centralize SkipDB write datum validation
+
+### Baseline and scope
+- Base commit: `b7d3ccd5e2964137ca3b119d6e1ad99c78296552` (`refactor(skipdb): centralize cursor positioning resets`); SkipDBv2 Regression run #192 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `skipdb/SkipDBWrite.c`.
+
+### Changes
+- Centralized the rule that a datum is valid when it is empty or has a non-null byte pointer.
+- Reused the predicate for key/value inputs in replace and insert/update paths, and for key input in record removal; the transaction-only restriction on replacement remains independent.
+- Updated CI source contracts to require one private helper and five call sites. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and five uses; CI enforces the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:40 CST — Centralize SkipDB cursor positioning resets
 
 ### Baseline and scope

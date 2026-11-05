@@ -6,13 +6,18 @@
 #include <assert.h>
 #include <limits.h>
 
+/* Validate a datum's byte span before passing it into record operations. */
+static int SkipDB_datumIsValid_(Datum value)
+{
+	return value.size == 0 || value.data != NULL;
+}
+
 int SkipDB_replace_put_(SkipDB *self, Datum k, Datum v)
 {
 	SkipDBRecord *record;
 	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		NULL == self->udb || !self->udb->withinTransaction ||
-		(k.size > 0 && NULL == k.data) ||
-		(v.size > 0 && NULL == v.data))
+		!SkipDB_datumIsValid_(k) || !SkipDB_datumIsValid_(v))
 		return 0;
 	record = SkipDB_recordAt_(self, k);
 	if (NULL == record)
@@ -30,8 +35,7 @@ static int SkipDB_recordAt_put_inner(SkipDB *self, Datum k, Datum v, SkipDBRecor
 		*pp = NULL;
 	/* RAM-only callers may update the in-memory index without a disk transaction. */
 	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
-		(k.size > 0 && NULL == k.data) ||
-		(v.size > 0 && NULL == v.data))
+		!SkipDB_datumIsValid_(k) || !SkipDB_datumIsValid_(v))
 		return 0;
 
 	record = SkipDB_recordAt_(self, k);
@@ -137,7 +141,7 @@ void SkipDB_removeAt_(SkipDB *self, Datum k)
 	int i;
 	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
 		NULL == self->udb || !self->udb->withinTransaction ||
-		(k.size > 0 && NULL == k.data))
+		!SkipDB_datumIsValid_(k))
 		return;
 
 	record = SkipDB_recordAt_(self, k);

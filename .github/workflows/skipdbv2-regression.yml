@@ -829,6 +829,12 @@ jobs:
           if cursor_positioning_source.count("SkipDBCursor_preparePositioning_(") != 4:
               raise SystemExit("SkipDB cursor positioning resets are not centralized")
 
+          skipdb_write_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBWrite.c"
+          ).read_text()
+          if skipdb_write_source.count("SkipDB_datumIsValid_(") != 6:
+              raise SystemExit("SkipDB write input validation is not centralized")
+
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):
               raise SystemExit("release-capable Build Firmware workflow must not accept public watch events")
