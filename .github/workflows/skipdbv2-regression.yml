@@ -60,7 +60,7 @@ jobs:
                   "CONFIG_FIRMWARE_INCLUDE_SKIPDBV2=y",
               ],
               "trunk/Makefile": [
-                  "STAGEDIR := $(ROOTDIR)/stage",
+                  "$(ROOTDIR)/stage",
                   "PROJECT_CONFIG LINUX_CONFIG ROOTDIR LINUXDIR ROMFSDIR STAGEDIR",
               ],
               "trunk/user/skipdbv2/Makefile": [
