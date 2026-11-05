@@ -102,7 +102,6 @@ typedef struct _time_cmd {
 extern char *global_magic;
 extern skipd_server *global_server;
 extern char static_buffer[STATIC_BUF_LEN + 1];
-extern int script_log_fd;
 
 /* Protocol validation, scheduling and script execution helpers. */
 char *find_terminated_value_separator(Datum value);
@@ -112,9 +111,11 @@ int valid_protocol_token_span(const char *text, size_t length,
     int allow_empty);
 int valid_protocol_token(const char *text, int allow_empty);
 int is_valid_script_name(const char *name, size_t len);
-void print_time(char *prefix);
 int is_safe_script_command(const char *cmd, size_t length);
 void sys_script(const char *cmd, size_t cmd_size);
+int skipd_script_init(void);
+void skipd_script_cleanup(void);
+void print_time(char *prefix);
 
 /* Request/response engine shared with the event-loop owner. */
 int client_send_key(EV_P_ skipd_client *client, char *cmd, char *key,

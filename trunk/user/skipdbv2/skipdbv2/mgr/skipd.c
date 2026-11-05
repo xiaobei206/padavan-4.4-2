@@ -38,30 +38,6 @@ skipd_server *global_server;
 ev_signal signal_watcher;
 ev_signal signal_watcher2;
 char static_buffer[STATIC_BUF_LEN + 1];
-int script_log_fd = -1;
-
-static int open_script_log(void)
-{
-#ifdef O_NOFOLLOW
-    struct stat st;
-    int fd = open("/tmp/skipd.log",
-        O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW | O_NONBLOCK, 0600);
-    if (fd < 0)
-        return -1;
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_nlink != 1 ||
-        st.st_uid != geteuid() || fchmod(fd, 0600) != 0) {
-        int saved_errno = errno ? errno : EPERM;
-        close(fd);
-        errno = saved_errno;
-        return -1;
-    }
-    return fd;
-#else
-    /* Never follow a predictable /tmp path without O_NOFOLLOW support. */
-    errno = ENOTSUP;
-    return -1;
-#endif
-}
 
 char *find_terminated_value_separator(Datum value)
 {
@@ -171,27 +147,7 @@ int valid_protocol_token_span(const char *text, size_t length,
         valid_protocol_token_span(text, strlen(text), allow_empty);
 }
 
- int is_valid_script_name(const char *name, size_t len)
-{
-    size_t i;
-
-    if (NULL == name || len == 0 || len >= DELAY_KEY_LEN ||
-        (len == 1 && name[0] == '.') ||
-        (len == 2 && name[0] == '.' && name[1] == '.'))
-        return 0;
-
-    for (i = 0; i < len; ++i) {
-        unsigned char c = (unsigned char)name[i];
-        if (!((c >= 'a' && c <= 'z') ||
-              (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') ||
-              c == '_' || c == '-' || c == '.'))
-            return 0;
-    }
-    return 1;
-}
-
-#if 0
+ #if 0
  void print_time(char* prefix)
 {
     struct timeval tv;
@@ -208,67 +164,7 @@ static void sigint_cb (EV_P_ ev_signal *w, int revents) {
     ev_break(EV_A_ EVBREAK_ALL);
 }
 
- int is_safe_script_command(const char *cmd, size_t length)
-{
-    size_t i, component_start = 0;
-
-    if (NULL == cmd || length == 0)
-        return 0;
-    for (i = 0; i < length; ++i) {
-        unsigned char c = (unsigned char)cmd[i];
-        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') || c == '_' || c == '-' ||
-              c == '.' || c == '/'))
-            return 0;
-        if (c == '/') {
-            if (i == component_start && i != 0)
-                return 0;
-            if (i - component_start == 2 &&
-                cmd[component_start] == '.' && cmd[component_start + 1] == '.')
-                return 0;
-            component_start = i + 1;
-        }
-    }
-    if (length == component_start ||
-        (length - component_start == 2 &&
-         cmd[component_start] == '.' && cmd[component_start + 1] == '.'))
-        return 0;
-    return 1;
-}
-
- void sys_script(const char *cmd, size_t cmd_size)
-{
-    int written;
-    size_t cmd_len;
-
-    if (NULL == cmd || cmd_size == 0 || cmd[cmd_size - 1] != '\0')
-        return;
-    cmd_len = strnlen(cmd, cmd_size);
-    if (cmd_len != cmd_size - 1 || cmd_len == 0 ||
-        !is_safe_script_command(cmd, cmd_len)) {
-        skipd_log(SKIPD_DEBUG, "invalid script path; not executed\n");
-        return;
-    }
-
-    if (script_log_fd >= 0) {
-        written = snprintf(static_buffer, sizeof(static_buffer),
-            "%s >> /proc/self/fd/%d 2>&1 &\n", cmd, script_log_fd);
-    } else {
-        /* Fail closed on logging setup errors rather than redirecting through
-         * a symlinkable pathname in the world-writable /tmp directory. */
-        written = snprintf(static_buffer, sizeof(static_buffer),
-            "%s > /dev/null 2>&1 &\n", cmd);
-    }
-    if (written < 0 || (size_t)written >= sizeof(static_buffer)) {
-        static_buffer[0] = '\0';
-        skipd_log(SKIPD_DEBUG, "script command too long; not executed\n");
-        return;
-    }
-    (void)system(static_buffer);
-    static_buffer[0] = '\0';
-}
-
-int log_level = LOG_ERR;
+  int log_level = LOG_ERR;
 void emit_log(int level, char* line) {
     //TODO for level
     int syslog_level = LOG_ERR;
@@ -760,8 +656,7 @@ int main(int argc, char **argv)
 
     setlogmask(LOG_UPTO (LOG_DEBUG));
     openlog("skipd", syslog_options, LOG_DAEMON);
-    script_log_fd = open_script_log();
-    if (script_log_fd < 0)
+    if (skipd_script_init() != 0)
         skipd_log(SKIPD_DEBUG, "secure script log unavailable; command output disabled\n");
 
     //kill -SIGUSR2 22459
@@ -775,8 +670,10 @@ int main(int argc, char **argv)
     // Create and bind the service before daemonizing. A second invocation
     // must fail the socket-instance lock check before it can overwrite the PID
     // file of an already running daemon.
-    if (server_init(server, max_queue) != 0)
+    if (server_init(server, max_queue) != 0) {
+        skipd_script_cleanup();
         return EXIT_FAILURE;
+    }
 
     if (daemon)
         skipd_daemonize(server->pid_path);
@@ -791,6 +688,7 @@ int main(int argc, char **argv)
         close(server->fd);
         server->fd = -1;
         SkipDB_close(server->db);
+        skipd_script_cleanup();
         return EXIT_FAILURE;
     }
 
@@ -815,8 +713,7 @@ int main(int argc, char **argv)
     skipd_log(SKIPD_DEBUG, "exit..\n");
     // This point is only ever reached if the loop is manually exited
     close(server->fd);
-    if (script_log_fd >= 0)
-        close(script_log_fd);
+    skipd_script_cleanup();
     return EXIT_SUCCESS;
 }
 

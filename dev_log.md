@@ -1,3 +1,30 @@
+## 2026-11-05 21:48 CST — Isolate skipd script execution and secure log ownership
+
+### Baseline and regression state
+- Base commit: `e514439b8e9a8452b36d55f5f174bba30ea77c38` (`fix(ipc): link request formatter in protocol fixtures`).
+- The latest mainline tree includes the IPC request formatter link repair. The host-side SkipDBv2 Regression remains the post-push validation gate; no local CMake/compiler/CTest result is claimed.
+
+### Changes
+1. **Script execution module — `mgr/skipd_script.c`**
+   - Moved secure `/tmp/skipd.log` creation/verification, persisted script-name validation, shell-command path validation, and script launch out of the libev event-loop facade.
+   - Made the script log descriptor private to this module and replaced use of the daemon's shared scratch buffer with a bounded local command buffer.
+   - Added explicit script-log initialization and cleanup entry points; initialization failure retains the existing fail-closed `/dev/null` output behavior.
+2. **Daemon lifecycle — `mgr/skipd.c`, `mgr/skipd_internal.h`**
+   - Kept signal handling, event-loop ownership, client lifecycle, and server startup in `skipd.c`.
+   - Declared the script module's init/cleanup and validation/launch entry points in the private manager contract; removed the exported log-descriptor state.
+   - Ensured the script log descriptor is closed on normal shutdown and both post-initialization startup-failure exits.
+3. **Regression/build contracts — `tests/skipd_script.c`, `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Added host tests for safe/unsafe script names, path components, shell metacharacters, and rejection before execution.
+   - Registered the production script module in the `skipd` executable and a standalone host regression target.
+   - Moved the secure-log source contract to the new implementation owner and added ownership, declaration, CMake-link, and test-registration assertions.
+
+### Validation
+- Static migration audit checks that the moved functions and secure descriptor have one owner, all cross-translation-unit entry points are declared, and the new source/test are linked and registered.
+- The test cases exercise traversal, repeated separators, shell metacharacters, whitespace, malformed termination, and valid script names/paths.
+- No local CMake/compiler/CTest run is claimed. The pushed revision must pass the complete remote SkipDBv2 Regression workflow.
+
+---
+
 ## 2026-11-05 21:24 CST — Repair IPC request formatter regression links
 
 ### Baseline and failure

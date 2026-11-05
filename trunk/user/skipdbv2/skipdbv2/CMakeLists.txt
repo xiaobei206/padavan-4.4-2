@@ -87,6 +87,7 @@ ADD_EXECUTABLE(skipd
     ${PROJECT_SOURCE_DIR}/mgr/skipd_database.c
     ${PROJECT_SOURCE_DIR}/mgr/skipd_scheduler.c
     ${PROJECT_SOURCE_DIR}/mgr/skipd_socket.c
+    ${PROJECT_SOURCE_DIR}/mgr/skipd_script.c
     ${PROJECT_SOURCE_DIR}/mgr/daemonize.c
 )
 TARGET_LINK_LIBRARIES(skipd skipdb m ${LIBEV_LIBRARIES})
@@ -135,6 +136,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/udb_transaction_lifecycle.c)
     TARGET_LINK_LIBRARIES(udb_transaction_lifecycle_test skipdb m)
     add_test(NAME udb_transaction_lifecycle_test COMMAND udb_transaction_lifecycle_test)
+
+    ADD_EXECUTABLE(skipd_script_test
+        ${PROJECT_SOURCE_DIR}/tests/skipd_script.c
+        ${PROJECT_SOURCE_DIR}/mgr/skipd_script.c)
+    add_test(NAME skipd_script_test COMMAND skipd_script_test)
 
     ADD_EXECUTABLE(dbus_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbus_protocol.c

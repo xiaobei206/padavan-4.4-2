@@ -582,7 +582,7 @@ jobs:
                   "skipdb_wait_socket_until(sockets[0], POLLIN, now + 1000ULL)",
                   "skipdb_wait_socket_until(sockets[0], POLLOUT, now + 1000ULL)",
               ],
-              "trunk/user/skipdbv2/skipdbv2/mgr/skipd.c": [
+              "trunk/user/skipdbv2/skipdbv2/mgr/skipd_script.c": [
                   "O_NOFOLLOW",
                   "st_nlink != 1",
                   "fchmod(fd, 0600)",
@@ -723,6 +723,9 @@ jobs:
                   "int client_ccr_process(EV_P_ skipd_client *client);",
                   "void server_sync(EV_P_ skipd_server *server);",
                   "void unix_socket_release_instance_lock(void);",
+                  "int skipd_script_init(void);",
+                  "void skipd_script_cleanup(void);",
+                  "void sys_script(const char *cmd, size_t cmd_size);",
               ],
               "skipd_command.c": [
                   "static int client_run_command(",
@@ -746,6 +749,15 @@ jobs:
                   "int unix_socket_init(",
                   "void unix_socket_release_instance_lock(void)",
               ],
+              "skipd_script.c": [
+                  "static int script_log_fd = -1;",
+                  "static int open_script_log(void)",
+                  "int is_valid_script_name(",
+                  "int is_safe_script_command(",
+                  "void sys_script(",
+                  "O_NOFOLLOW",
+                  "st_nlink != 1",
+              ],
           }
           for module, needles in manager_contracts.items():
               content = (manager_root / module).read_text()
@@ -757,9 +769,43 @@ jobs:
               raise SystemExit("skipd command engine remains in the event-loop facade")
           if "int unix_socket_init(" in (manager_root / "skipd.c").read_text():
               raise SystemExit("skipd socket engine remains in the event-loop facade")
+
+          skipd_facade_text = (manager_root / "skipd.c").read_text()
+          for moved_script_symbol in (
+              "static int open_script_log(",
+              "int is_valid_script_name(",
+              "int is_safe_script_command(",
+              "void sys_script(",
+              "script_log_fd",
+          ):
+              if moved_script_symbol in skipd_facade_text:
+                  raise SystemExit("skipd script implementation remains in facade: " + moved_script_symbol)
+          if skipd_facade_text.count("skipd_script_cleanup();") != 3:
+              raise SystemExit("skipd script log descriptor is not closed on all daemon exit paths")
+
+          script_test = Path("trunk/user/skipdbv2/skipdbv2/tests/skipd_script.c").read_text()
+          for needle in (
+              "is_valid_script_name(",
+              "is_safe_script_command(",
+              "sys_script(",
+              "scripts/../boot.sh",
+              "scripts/boot.sh;reboot",
+          ):
+              if needle not in script_test:
+                  raise SystemExit("skipd script safety regression missing: " + needle)
+          if "add_test(NAME skipd_script_test COMMAND skipd_script_test)" not in cmake_text:
+              raise SystemExit("skipd script safety regression is not registered")
+          script_target_start = cmake_text.find("ADD_EXECUTABLE(skipd_script_test")
+          script_target_end = cmake_text.find("add_test(", script_target_start)
+          if script_target_start < 0 or script_target_end < 0 or \
+             "mgr/skipd_script.c" not in cmake_text[script_target_start:script_target_end]:
+              raise SystemExit("skipd script safety test does not link the extracted implementation")
+          if cmake_text.count("mgr/skipd_script.c") != 2:
+              raise SystemExit("skipd script module is not linked exactly once in production and once in its regression")
+
           cmake_text = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
           for module in ("skipd_command.c", "skipd_database.c",
-                         "skipd_scheduler.c", "skipd_socket.c"):
+                         "skipd_scheduler.c", "skipd_socket.c", "skipd_script.c"):
               if f"mgr/{module}" not in cmake_text:
                   raise SystemExit(f"skipd module missing from executable source list: {module}")
 
