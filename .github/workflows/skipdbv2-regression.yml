@@ -1166,6 +1166,8 @@ jobs:
               "tmpi = (unsigned char*)p1 - dvalue.data;" in scheduler_source_text
           ):
               raise SystemExit("scheduled value prefix length must not narrow before bounds checking")
+          if scheduler_source_text.count("void server_init_delay(EV_P_ skipd_server *server)") != 1:
+              raise SystemExit("scheduled delay startup parser must have exactly one function definition")
           jfile_source_text = Path("trunk/user/skipdbv2/skipdbv2/jfile/JFile.c").read_text()
           if jfile_source_text.count("JFile_verifyManagedFile_(") != 2:
               raise SystemExit("managed JFile descriptor validation must have one owner and one call")

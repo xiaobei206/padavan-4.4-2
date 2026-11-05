@@ -116,7 +116,6 @@
 
  void server_init_delay(EV_P_ skipd_server *server) {
     int n1;
-void server_init_delay(EV_P_ skipd_server *server) {
     size_t delay_len;
     char *p1;
     Datum skey, dkey, dvalue;

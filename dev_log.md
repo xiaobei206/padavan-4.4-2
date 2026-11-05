@@ -1,3 +1,19 @@
+## 2026-11-06 04:31 CST — Repair scheduler startup function boundary
+
+### Baseline and failure
+- Base commit: `c0ec8e7ecbcb31f6e6de067a36e9760a69c5d103` (`fix(skipd): bound scheduled value lengths before copying`); SkipDBv2 Regression run #203 failed while compiling `skipd_scheduler.c`.
+- The compiler reached end-of-file inside `server_init_delay()`. Inspection found a duplicated function signature introduced while adding the `size_t delay_len` declaration.
+
+### Repair
+- Removed the duplicate nested `server_init_delay()` signature; retained the original `int n1` parse result and the new `size_t delay_len` byte-span variable.
+- Added a workflow source contract requiring exactly one startup delay parser definition. No other module or build target changed.
+
+### Validation
+- Static preflight confirms balanced braces and exactly one `server_init_delay()` definition.
+- The next remote SkipDBv2 Regression run is authoritative for compilation and CTest.
+
+---
+
 ## 2026-11-06 04:17 CST — Keep scheduled-value lengths wide until bounded
 
 ### Baseline and scope
