@@ -29,6 +29,8 @@ SET(UDB_SRC
     ${PROJECT_SOURCE_DIR}/udb/UDBCompact.c
     ${PROJECT_SOURCE_DIR}/udb/UDBCommitMarker.c
     ${PROJECT_SOURCE_DIR}/udb/UDBIndex.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBIndexFreeList.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBIndexMap.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecord.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecords.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecordsStorage.c
@@ -89,6 +91,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/udb_reserved_pid.c)
     TARGET_LINK_LIBRARIES(udb_reserved_pid_test skipdb m)
     add_test(NAME udb_reserved_pid_test COMMAND udb_reserved_pid_test)
+
+    ADD_EXECUTABLE(udb_index_layers_test
+        ${PROJECT_SOURCE_DIR}/tests/udb_index_layers.c)
+    TARGET_LINK_LIBRARIES(udb_index_layers_test skipdb m)
+    add_test(NAME udb_index_layers_test COMMAND udb_index_layers_test)
 
     ADD_EXECUTABLE(udb_record_api_test
         ${PROJECT_SOURCE_DIR}/tests/udb_record_api.c)

@@ -1,3 +1,37 @@
+## 2026-11-05 — Separate UDBIndex lifecycle, free-PID pool, and mapping layers
+
+### Baseline and regression state
+- Base commit: `6732021b6172178b3d196546b2b272d544beeee8` (`refactor(jfile): unify journal scanning and durable recovery`); main is the only branch.
+- Latest `SkipDBv2 Regression` run `41987436381` (#137) failed in the integration-contract step before CMake. The checker still expected the old inline `sizeof(long) + sizeof(size_t) + 1` expression although the scanner now names its header size and adds the terminator separately.
+- The previous host regression run `41985451059` reached CTest and reported 8/9 passing, with `jfile_journal_test` exposing the torn-tail replay issue now addressed by the JFile scanner. The latest available XY-C1 firmware validation run `41985449861` succeeded; firmware validation remains manually dispatchable.
+
+### Changes
+1. **Index lifecycle facade — `udb/UDBIndex.c`, `udb/UDBIndexInternal.h`**
+   - Reduced the public implementation unit to allocation/destruction, path configuration, open/recovery lifecycle, and transaction orchestration.
+   - Added private validity, data-stream, and journal-stream predicates shared across the implementation units. Public `UDBIndex.h` declarations and the exposed structure remain unchanged.
+2. **PID reservation/free-list engine — `udb/UDBIndexFreeList.c`**
+   - Moved hole discovery, next/allocate PID selection, transaction reservation finalization, and reserved-PID validation out of the lifecycle facade.
+   - Centralized reserve, release, forget, and duplicate-hole normalization so mapping changes no longer manipulate the free/reserved lists themselves.
+3. **On-disk mapping layer — `udb/UDBIndexMap.c`**
+   - Isolated bounded PID-entry reads/writes, offset validation, mapping count, and diagnostics.
+   - Kept the native `UDBIndexEntry` layout and routed successful map mutations through the free-list ownership helpers.
+4. **Build and regression contracts — `CMakeLists.txt`, `tests/udb_index_layers.c`, `.github/workflows/skipdbv2-regression.yml`**
+   - Registered both new translation units in the explicit UDB source manifest.
+   - Added a focused integration regression for sentinel initialization, consecutive PID reservations, commit-time reservation retirement, hole reuse, and free-list reconstruction after reopen.
+   - Corrected the stale JFile scanner contract and added source-boundary/build/test-registration assertions for all three index layers.
+
+### Validation
+- Static extraction review confirms the former `UDBIndex.c` responsibilities now have one implementation owner each; public call signatures and persisted index-entry structure are retained.
+- The full host workflow remains enabled: integration contracts, CMake configure, all SkipDBv2 targets, and CTest. No host compiler/CTest execution is claimed from this editing session; the pushed commit triggers remote validation.
+- The XY-C1 full firmware workflow remains manual-only; no firmware build trigger was disabled or test skipped.
+
+### Follow-up
+- Keep path/file lifecycle and transaction commit orchestration in `UDBIndex.c`.
+- Keep PID allocation, pending reservations, and reusable-hole list mutation in `UDBIndexFreeList.c`.
+- Keep persisted PID-to-record offset serialization and bounds checks in `UDBIndexMap.c`.
+
+---
+
 ## 2026-11-05 — Unify JFile journal scanning and crash-tail recovery
 
 ### Baseline and regression state

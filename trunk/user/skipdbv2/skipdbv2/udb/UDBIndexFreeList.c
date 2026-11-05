@@ -1,0 +1,180 @@
+/* PID reservation and reusable-hole pool. */
+#include "UDBIndexInternal.h"
+#include <stdio.h>
+
+int UDBIndex_hasReservation_(UDBIndex *self, PID_TYPE pid)
+{
+	size_t i;
+
+	if (!UDBIndex_isValid_(self) || pid == 0 || pid > self->maxPid)
+		return 0;
+	for (i = 0; i < self->reserved->size; ++i) {
+		if (self->reserved->items[i] == (void *)pid)
+			return 1;
+	}
+	return 0;
+}
+
+int UDBIndex_reservePid_(UDBIndex *self, PID_TYPE pid)
+{
+	size_t old_size;
+
+	if (!UDBIndex_isValid_(self) || pid == 0 ||
+		UDBIndex_hasReservation_(self, pid))
+		return 0;
+	old_size = self->reserved->size;
+	List_push_(self->reserved, (void *)pid);
+	return self->reserved->size == old_size + 1;
+}
+
+void UDBIndex_unreservePid_(UDBIndex *self, PID_TYPE pid)
+{
+	if (UDBIndex_isValid_(self))
+		(void)List_remove_(self->reserved, (void *)pid);
+}
+
+void UDBIndex_removeHole_(UDBIndex *self, PID_TYPE pid)
+{
+	if (!UDBIndex_isValid_(self))
+		return;
+	while (List_removeFirst_(self->holes, (void *)pid)) {
+		/* Normalize the free-PID stack before changing ownership. */
+	}
+}
+
+int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)
+{
+	size_t old_size;
+
+	if (!UDBIndex_isValid_(self) || pid == 0)
+		return 0;
+	UDBIndex_unreservePid_(self, pid);
+	UDBIndex_removeHole_(self, pid);
+	old_size = self->holes->size;
+	List_push_(self->holes, (void *)pid);
+	return self->holes->size == old_size + 1;
+}
+
+void UDBIndex_forgetPid_(UDBIndex *self, PID_TYPE pid)
+{
+	UDBIndex_unreservePid_(self, pid);
+	UDBIndex_removeHole_(self, pid);
+}
+
+int UDBIndex_prepareCommit(UDBIndex *self)
+{
+	size_t i;
+
+	if (!UDBIndex_hasStreams_(self))
+		return 0;
+
+	/* Retire unwritten reservations before UDB arms the durable marker. */
+	for (i = 0; i < self->reserved->size; ++i) {
+		PID_TYPE pid = (PID_TYPE)self->reserved->items[i];
+		size_t old_size;
+
+		if (pid == 0)
+			continue;
+		UDBIndex_removeHole_(self, pid);
+		old_size = self->holes->size;
+		List_push_(self->holes, (void *)pid);
+		if (self->holes->size != old_size + 1)
+			return 0;
+	}
+	List_removeAll(self->reserved);
+	return 1;
+}
+
+int UDBIndex_findHoles(UDBIndex *self)
+{
+	PID_TYPE pid;
+	long pid_count;
+
+	if (NULL == self || NULL == self->holes || NULL == self->file ||
+		NULL == self->file->file)
+		return 0;
+	pid_count = UDBIndex_pidCount(self);
+	if (pid_count <= 0)
+		return 0;
+	pid = (PID_TYPE)pid_count;
+	List_removeAll(self->holes);
+
+	/* PID 0 is reserved as the null/sentinel record, not a reusable hole. */
+	while (pid > 1) {
+		size_t old_size;
+		--pid;
+		if (!UDBIndex_posForPid_(self, pid)) {
+			if (ferror(self->file->file))
+				return 0;
+			old_size = self->holes->size;
+			List_push_(self->holes, (void *)pid);
+			if (self->holes->size != old_size + 1)
+				return 0;
+		}
+	}
+	return 1;
+}
+
+
+PID_TYPE UDBIndex_nextPid(UDBIndex *self)
+{
+	PID_TYPE hole;
+	long end_pos;
+
+	if (NULL == self || NULL == self->holes || NULL == self->file ||
+		NULL == self->file->file)
+		return 0;
+	hole = (PID_TYPE)List_top(self->holes);
+	if (hole)
+		return hole;
+
+	end_pos = JFile_setPositionToEnd(self->file);
+	if (end_pos < 0 ||
+		end_pos % (long)sizeof(UDBIndexEntry) != 0)
+		return 0;
+	return (PID_TYPE)(end_pos / (long)sizeof(UDBIndexEntry));
+}
+
+
+PID_TYPE UDBIndex_allocPid(UDBIndex *self)
+{
+	PID_TYPE hole, pid, max;
+	long end_pos;
+
+	if (!UDBIndex_hasFile_(self))
+		return 0;
+
+	hole = (PID_TYPE)List_top(self->holes);
+	if (hole) {
+		if (!UDBIndex_reservePid_(self, hole))
+			return 0;
+		UDBIndex_removeHole_(self, hole);
+		return hole;
+	}
+
+	/* Check the signed seek result before converting it to an unsigned PID. */
+	end_pos = JFile_setPositionToEnd(self->file);
+	if (end_pos < 0 ||
+		end_pos % (long)sizeof(UDBIndexEntry) != 0)
+		return 0;
+	max = (PID_TYPE)(end_pos / (long)sizeof(UDBIndexEntry));
+	if (max <= self->maxPid) {
+		if (self->maxPid == (PID_TYPE)-1)
+			return 0;
+		pid = self->maxPid + 1;
+	} else {
+		pid = max;
+	}
+	if (!UDBIndex_reservePid_(self, pid))
+		return 0;
+	self->maxPid = pid;
+	return pid;
+}
+
+int UDBIndex_isReservedPid_(UDBIndex *self, PID_TYPE pid)
+{
+	if (!UDBIndex_hasFile_(self) || !UDBIndex_hasReservation_(self, pid) ||
+		UDBIndex_posForPid_(self, pid) != 0 || ferror(self->file->file))
+		return 0;
+	return 1;
+}
