@@ -24,6 +24,8 @@ struct SkipDBCursor
     int refCount;
     SkipDB *sdb;
     SkipDBRecord *record;
+    long nextSteps;
+    long previousSteps;
 };
 
 SKIPDB_API SkipDBCursor *SkipDBCursor_new(void);
