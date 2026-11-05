@@ -1,4 +1,4 @@
-## 2026-11-05 17:22 JST — Split SkipDB core lifecycle, cache, transactions, search, writes, and queries
+## 2026-11-05 16:23 CST — Split SkipDB core lifecycle, cache, transactions, search, writes, and queries
 
 ### Baseline and regression state
 - Base commit: `25271f1f0d49c975088b808b5693817fc3283655` (`refactor(udb): split index lifecycle, free-list, and mapping layers`); `main` is the only branch.
@@ -32,7 +32,7 @@
 
 ---
 
-## 2026-11-05 — Separate UDBIndex lifecycle, free-PID pool, and mapping layers
+## 2026-11-05 16:09 CST — Separate UDBIndex lifecycle, free-PID pool, and mapping layers
 
 ### Baseline and regression state
 - Base commit: `6732021b6172178b3d196546b2b272d544beeee8` (`refactor(jfile): unify journal scanning and durable recovery`); main is the only branch.
@@ -66,7 +66,7 @@
 
 ---
 
-## 2026-11-05 — Unify JFile journal scanning and crash-tail recovery
+## 2026-11-05 15:28 CST — Unify JFile journal scanning and crash-tail recovery
 
 ### Baseline and regression state
 - Base commit: `2a55f14707969b3a54fa820dd6a377184f9f41f1` (`Update xy-c1-firmware-validation.yml`).
@@ -103,7 +103,7 @@
 
 ---
 
-## 2026-11-05 — Split JFile persistence, journal replay, and durability layers
+## 2026-11-05 15:11 CST — Split JFile persistence, journal replay, and durability layers
 
 ### Baseline and regression state
 - Base commit: `1cdef91dccdad2f7a9506c08f7937bc4fa372868` (`refactor(udb): split record-store lifecycle, cursor, and free-list layers`).
@@ -143,7 +143,7 @@
 
 # Development handoff log
 
-## 2026-11-05 — Split UDB record-store lifecycle, cursor, and free-list layers
+## 2026-11-05 14:46 CST — Split UDB record-store lifecycle, cursor, and free-list layers
 
 ### Baseline and regression state
 - Base commit: `2ec8f3f2996a319dc88a1c741b3f06d01baf5c7b` (`refactor(udb): split record read/write pipelines and formalize internal contracts`).
@@ -177,7 +177,7 @@
 
 ---
 
-## 2026-11-05 — SkipDB IPC transport deduplication
+## 2026-11-05 13:04 CST — SkipDB IPC transport deduplication
 
 ### Baseline
 - Base commit: `7851a923b4032a2024d261553cb285c003d01d2e` (`fix: harden GPIO signal and event handling`).
@@ -216,7 +216,7 @@
 - Header self-containment review: added `<stddef.h>` directly to `mgr/ipc_io.h` so `NULL` is defined when the helper is included by a translation unit that does not include another standard header first.
 
 
-## 2026-11-05 — Extract UDB durable commit-marker subsystem
+## 2026-11-05 13:33 CST — Extract UDB durable commit-marker subsystem
 
 ### Baseline
 - Base: `93c6ede078ab684a2d43e4845d00d0e8b2d53081` (`refactor: centralize SkipDB IPC readiness handling`).
@@ -248,7 +248,7 @@
 - Keep multi-file transaction decisions in `UDB_open` and `UDB_commitTransaction`; do not move transaction ordering into the marker component.
 
 
-## 2026-11-05 — Split UDB storage lifecycle and compaction modules
+## 2026-11-05 13:46 CST — Split UDB storage lifecycle and compaction modules
 
 ### Baseline
 - Base commit: fd99ecc7385cc64a6f3a5b3a7659d5c658e50bed (UDB commit-marker extraction).
@@ -284,7 +284,7 @@
 - Keep marker bytes, filesystem security, and durability primitives in UDBCommitMarker.c.
 
 
-## 2026-11-05 — Extract shared SkipDB IPC client transport
+## 2026-11-05 14:16 CST — Extract shared SkipDB IPC client transport
 
 ### Branch and CI baseline
 - Base commit: `80729573d560fd93384a45734024762a9bbe5e07` (`refactor(skipdb): split UDB storage and compaction layers`).
@@ -309,7 +309,7 @@
 - No local compiler or CTest run is claimed. The pushed revision triggers SkipDBv2 Regression and XY-C1 firmware validation workflows.
 - Follow-up: protocol framing and response parsing remain caller-owned; only transport mechanics belong in `ipc_transport.c`.
 
-## 2026-11-05 — Separate UDB record read and write pipelines
+## 2026-11-05 14:32 CST — Separate UDB record read and write pipelines
 
 ### Baseline
 - Base commit: `08ba960f5fcb2795ad4e103da099bb014bf70ecb` (`refactor(skipdb): share IPC client transport primitives`).
