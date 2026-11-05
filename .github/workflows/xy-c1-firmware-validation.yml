@@ -1,47 +1,6 @@
 name: XY-C1 Firmware Validation
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/xy-c1-firmware-validation.yml"
-      - "Makefile"
-      - "trunk/Makefile"
-      - "trunk/user/Makefile"
-      - "trunk/libs/Makefile"
-      - "trunk/libs/liblzo/**"
-      - "trunk/include/cmake.mk"
-      - "trunk/user/skipdbv2/Makefile"
-      - "trunk/user/cflags.mk"
-      - "trunk/user/skipdbv2/skipdbv2/**"
-      - "trunk/user/httpd/src/**"
-      - "trunk/configs/templates/XY-C1.config"
-      - "trunk/configs/boards/XY-C1/**"
-      - "trunk/linux-4.4.x/arch/mips/boot/dts/ralink/xy-c1.dts"
-      - "trunk/linux-4.4.x/drivers/gpio/gpio-button-hotplug.c"
-      - "trunk/linux-4.4.x/drivers/gpio/Makefile"
-      - "trunk/user/rc/src/gpio_btn.c"
-      - "trunk/user/rc/src/services.c"
-  pull_request:
-    paths:
-      - ".github/workflows/xy-c1-firmware-validation.yml"
-      - "Makefile"
-      - "trunk/Makefile"
-      - "trunk/user/Makefile"
-      - "trunk/libs/Makefile"
-      - "trunk/libs/liblzo/**"
-      - "trunk/include/cmake.mk"
-      - "trunk/user/skipdbv2/Makefile"
-      - "trunk/user/cflags.mk"
-      - "trunk/user/skipdbv2/skipdbv2/**"
-      - "trunk/user/httpd/src/**"
-      - "trunk/configs/templates/XY-C1.config"
-      - "trunk/configs/boards/XY-C1/**"
-      - "trunk/linux-4.4.x/arch/mips/boot/dts/ralink/xy-c1.dts"
-      - "trunk/linux-4.4.x/drivers/gpio/gpio-button-hotplug.c"
-      - "trunk/linux-4.4.x/drivers/gpio/Makefile"
-      - "trunk/user/rc/src/gpio_btn.c"
-      - "trunk/user/rc/src/services.c"
   workflow_dispatch:
 
 permissions:
