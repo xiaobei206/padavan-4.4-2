@@ -16,6 +16,21 @@ static int SkipDBRecord_hasValidLevel_(SkipDBRecord *self)
 		(self->level == 0 || self->pointers != NULL);
 }
 
+/* Validate the shared PID-population bound before walking forward links. */
+static int SkipDBRecord_pidCountForTraversal_(SkipDB *db, long *max_steps)
+{
+	if (NULL == db || NULL == max_steps || NULL == db->udb ||
+		NULL == db->udb->index || !SkipDB_isOpen(db))
+		return 0;
+	*max_steps = UDBIndex_pidCount(db->udb->index);
+	if (*max_steps <= 0) {
+		/* A usable SkipDB always has at least the reserved PID-0 slot. */
+		UDB_close(db->udb);
+		return 0;
+	}
+	return 1;
+}
+
 static int SkipDBRecord_checkLevel_(SkipDBRecord *self, int level)
 {
 	return SkipDBRecord_hasValidLevel_(self) && self->level > 0 &&
@@ -141,12 +156,8 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 	if (NULL == db || NULL == db->udb || NULL == db->udb->index ||
 		!SkipDB_isOpen(db))
 		return NULL;
-	max_steps = UDBIndex_pidCount(db->udb->index);
-	if (max_steps <= 0) {
-		/* A usable SkipDB always has at least the reserved PID-0 slot. */
-		UDB_close(db->udb);
+	if (!SkipDBRecord_pidCountForTraversal_(db, &max_steps))
 		return NULL;
-	}
 	/* Each live record may require a horizontal step, plus up to one
 	 * downward step per skip-list level. Do not count vertical descents
 	 * against the PID population or valid tail searches can stop early. */
@@ -227,11 +238,8 @@ SkipDBRecord *SkipDBRecord_findLastRecord(SkipDBRecord *self)
 	if (NULL == db || NULL == db->udb || NULL == db->udb->index ||
 		!SkipDB_isOpen(db))
 		return NULL;
-	max_steps = UDBIndex_pidCount(db->udb->index);
-	if (max_steps <= 0) {
-		UDB_close(db->udb);
+	if (!SkipDBRecord_pidCountForTraversal_(db, &max_steps))
 		return NULL;
-	}
 
 	while (current)
 	{

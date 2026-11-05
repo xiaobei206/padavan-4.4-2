@@ -247,6 +247,8 @@ jobs:
                   "static int SkipDBRecord_hasValidLevel_(SkipDBRecord *self)",
                   "SkipDBRecord_hasValidLevel_(current)",
                   "SkipDBRecord_hasValidLevel_(self)",
+                  "static int SkipDBRecord_pidCountForTraversal_(SkipDB *db, long *max_steps)",
+                  "SkipDBRecord_pidCountForTraversal_(db, &max_steps)",
                   "SkipDBRecord_recordAtLevel_",
                   "SkipDBRecord_find_quick_",
                   "SkipDBRecord_willRemove_",
@@ -318,6 +320,7 @@ jobs:
                   "cursor reverse traversal after forward step failed",
                   "cursor forward traversal after reverse step failed",
                   "SkipDB_mergeInto_(source,target)",
+                  "SkipDB_lastRecord(source)",
                   "cache eviction/lazy reload failed",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecords.c": [
@@ -714,6 +717,8 @@ jobs:
           ).read_text()
           if record_links_source.count("SkipDBRecord_hasValidLevel_(") != 6:
               raise SystemExit("SkipDB record level validation is not centralized across all link operations")
+          if record_links_source.count("SkipDBRecord_pidCountForTraversal_(") != 3:
+              raise SystemExit("SkipDB link traversals do not share one PID-count bound helper")
 
           cursor_source = Path(
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c"

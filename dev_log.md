@@ -1,3 +1,20 @@
+## 2026-11-06 01:22 CST — Unify SkipDB record-link traversal bounds
+
+### Baseline and scope
+- Base commit: `140bca22ffc885a2118bac0540a1ad317ef7fa76` (`refactor(skipdb): unify bounded query traversal guards`); SkipDBv2 Regression run #182 (`42073805198`) passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `skipdb/SkipDBRecordLinks.c`.
+
+### Changes
+- Centralized validation of the database/index state and positive PID-population traversal bound in one private helper reused by quick search and last-record discovery.
+- Preserved quick search's additional per-level allowance, last-record's PID-only bound, and the existing failure behavior that closes the underlying UDB on an invalid index length.
+- Added CI source contracts for the helper's single implementation/two call sites and ensured the existing core regression explicitly covers last-record discovery. No new source file, public declaration, or CMake source-registration change.
+
+### Validation
+- Static preflight confirms one helper definition and two calls; the CI contract checks the same count.
+- The pushed SkipDBv2 Regression run remains authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:20 CST — Centralize SkipDB bounded query traversal guards
 
 ### Baseline and scope
