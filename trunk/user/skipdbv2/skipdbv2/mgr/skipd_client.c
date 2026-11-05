@@ -269,14 +269,12 @@ static int client_ccr_write(EV_P_ skipd_client* client) {
 
     buf_len = _max(step_len, BUF_MAX);
     if(buf_len > client->origin_len) {
-        if(NULL != client->origin) {
-            free(client->origin);
-        }
-        client->origin = (char*)malloc((size_t)buf_len + 1);
-        if(NULL == client->origin) {
-            client->origin_len = 0;
+        char *new_origin = (char *)realloc(client->origin,
+            (size_t)buf_len + 1);
+        if (NULL == new_origin) {
             ccrStop(ctx, ccr_error_err2);
         }
+        client->origin = new_origin;
         client->origin_len = buf_len;
         client->origin[client->origin_len] = '\0';
     }

@@ -1172,6 +1172,17 @@ jobs:
               "ccrReturn(ctx, ccr_error_err2);" in read_util_source
           ):
               raise SystemExit("terminal client read errors must reset the read coroutine before returning")
+
+          # Buffer growth must retain the old allocation if realloc fails.
+          if (
+              read_util_source.count("realloc(client->origin") != 1 or
+              "free(client->origin);" in read_util_source or
+              "client->origin_len = 0;" in read_util_source or
+              "if (NULL == new_origin) {\n            ccrStop(ctx, ccr_error_err2);\n        }" not in read_util_source or
+              read_util_source.find("client->origin = new_origin;") <
+                  read_util_source.find("if (NULL == new_origin)")
+          ):
+              raise SystemExit("client read-buffer growth must preserve ownership on allocation failure")
           skipd_database_text = (manager_root / "skipd_database.c").read_text()
           if skipd_database_text.count("verify_owned_regular_file_(") != 3:
               raise SystemExit("database marker file validation must have one private owner and two callers")

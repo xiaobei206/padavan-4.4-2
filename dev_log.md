@@ -1,3 +1,20 @@
+## 2026-11-06 04:47 CST — Preserve skipd client read-buffer ownership on allocation failure
+
+### Baseline and scope
+- Base commit: `582c374c1c7497cfede331044b9134369cd3e18e` (`fix(skipd): stop client read coroutine on terminal errors`); SkipDBv2 Regression run #205 passed source contracts, configuration, build, and all regression tests.
+- Scope is limited to read-buffer growth in `mgr/skipd_client.c`, plus its existing CI source contract.
+
+### Changes
+- Replaced free-then-malloc with a temporary-pointer `realloc` flow. The existing buffer remains owned by the client when growth fails, so terminal error handling and `client_release()` cannot double-free a dangling pointer.
+- Update `client->origin` and its capacity only after successful reallocation; successful reads and frame limits remain unchanged.
+- Extended the existing workflow contract to require failure-safe ownership ordering and reject the former free-before-allocation pattern. No new files, declarations, build targets, or CMake changes.
+
+### Validation
+- Static preflight confirms exactly one buffer-growth path, a single realloc call, and pointer/capacity updates only after the NULL check.
+- Remote SkipDBv2 Regression validates source contracts, compilation, and CTest. No local compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 04:36 CST — Make client read failures terminal
 
 ### Baseline and scope
