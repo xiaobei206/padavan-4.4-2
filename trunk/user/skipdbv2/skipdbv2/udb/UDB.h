@@ -24,6 +24,7 @@ docDescription("An unordered value database. (sort of like malloc for disk space
 #include "UDBRecord.h"
 #include "UDBIndex.h"
 #include "UDBRecords.h"
+#include "UDBCommitMarker.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,8 +37,7 @@ typedef struct
     UDBRecords *records;
     int withinTransaction;
     int isOpen;
-	FILE *committedFile;
-	char *committedPath;
+	UDBCommitMarker commitMarker;
 } UDB;
 
 UDB_API UDB *UDB_new(void);

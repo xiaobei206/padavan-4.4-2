@@ -77,6 +77,42 @@ jobs:
                   '-DCMAKE_TOOLCHAIN_FILE="$(CONFIG_CMAKE_TOOLCHAIN_FILE)"',
                   'LDFLAGS="$(LDFLAGS) -L$(STAGEDIR)/lib"',
               ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBCommitMarker.h": [
+                  "UDBCommitMarker_setPath_(UDBCommitMarker *self, const char *path)",
+                  "UDBCommitMarker_read(UDBCommitMarker *self)",
+                  "UDBCommitMarker_verifyJournal(const char *path)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBCommitMarker.c": [
+                  "O_NOFOLLOW",
+                  "O_NONBLOCK|O_CLOEXEC",
+                  "after.st_uid!=geteuid()",
+                  "fchmod(fd,0600)",
+                  "JFile_verifyLog(&journal)",
+                  "UDBCommitMarker_artifactsAreEmpty",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDB.h": [
+                  '#include "UDBCommitMarker.h"',
+                  "UDBCommitMarker commitMarker;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDB.c": [
+                  "UDBCommitMarker_open(&self->commitMarker,0)",
+                  "UDBCommitMarker_artifactsExist(artifact_paths,4)",
+                  "UDBCommitMarker_verifyJournal(self->index->file->logPath)",
+                  "UDBCommitMarker_write(&self->commitMarker,1)",
+                  "UDBCommitMarker_write(&self->commitMarker,0)",
+                  "UDBCommitMarker_syncParentDirectory(self->commitMarker.path)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/commit_marker.c": [
+                  "UDBCommitMarker_write(&marker,0)",
+                  "UDBCommitMarker_write(&marker,1)",
+                  "symlink followed",
+                  "complete journal rejected",
+                  "incomplete journal accepted",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/CMakeLists.txt": [
+                  "ADD_EXECUTABLE(commit_marker_test",
+                  "add_test(NAME commit_marker_test COMMAND commit_marker_test)",
+              ],
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_io.h": [
                   "static int skipdb_monotonic_milliseconds(",
                   "clock_gettime(CLOCK_MONOTONIC, &ts)",

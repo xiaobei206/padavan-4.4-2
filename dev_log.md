@@ -37,3 +37,35 @@
 - The initial contract-only failure occurred before CMake configure/build/CTest; the corrected workflow is included in the final single mainline commit so the actual build/test stages can run against the refactor.
 
 - Header self-containment review: added `<stddef.h>` directly to `mgr/ipc_io.h` so `NULL` is defined when the helper is included by a translation unit that does not include another standard header first.
+
+
+## 2026-11-05 — Extract UDB durable commit-marker subsystem
+
+### Baseline
+- Base: `93c6ede078ab684a2d43e4845d00d0e8b2d53081` (`refactor: centralize SkipDB IPC readiness handling`).
+- Scope: move the one-byte UDB commit-marker lifecycle and filesystem validation out of transaction orchestration.
+- Marker bytes, data/index journal formats, transaction ordering, and public UDB API remain unchanged.
+
+### Changes
+1. **Dedicated persistence component — `udb/UDBCommitMarker.h`, `udb/UDBCommitMarker.c`**
+   - Encapsulated marker path/stream ownership, secure open/create, state parsing and durable writes, journal verification, parent-directory syncing, and artifact-state inspection.
+   - Retained no-follow, nonblocking, regular-file, owner, inode-identity, and restrictive-mode checks at the descriptor boundary.
+   - Made lifecycle explicit through set-path, open, close, and clear operations.
+
+2. **Transaction coordinator integration — `udb/UDB.h`, `udb/UDB.c`**
+   - Replaced separate marker path/stream fields with one `UDBCommitMarker` member.
+   - Removed marker filesystem helpers and read/write routines from the UDB coordinator.
+   - Kept multi-file recovery policy in UDB: validate both journals before replay, apply both while retaining recovery evidence, durably clear the marker only after both files are applied, then clip journals.
+   - Preserved missing-marker rejection and first-open empty-artifact recovery behavior.
+
+3. **Regression and integration contracts — `tests/commit_marker.c`, `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Added coverage for marker state transitions, invalid and empty marker files, path ownership, symlink rejection, empty/nonempty artifact classification, parent-directory syncing, and complete versus incomplete journals.
+   - Registered the test in the existing `SKIPDB_BUILD_TESTS=ON` CTest path and added source-level CI assertions for the extracted module and coordinator wiring.
+
+### Validation
+- Structural checks: old marker fields and routines removed from `UDB.c`; marker state writes and the multi-file commit sequence remain in their original order.
+- Remote CI is expected to run after push. No local firmware build or completed remote CI run is claimed.
+
+### Follow-up
+- Keep marker-file security and durability primitives inside `UDBCommitMarker.c`.
+- Keep multi-file transaction decisions in `UDB_open` and `UDB_commitTransaction`; do not move transaction ordering into the marker component.

@@ -15,212 +15,6 @@ UDB ioDoc(
 #include <unistd.h>
 #include <sys/stat.h>
 
-static int UDB_syncParentDirectory(const char *path)
-{
-	char *directory, *slash;
-	size_t length;
-	int fd, result, saved_errno;
-
-	if (NULL == path || '\0' == *path)
-		return -1;
-	length = strlen(path);
-	directory = (char *)malloc(length + 1);
-	if (NULL == directory)
-		return -1;
-	memcpy(directory, path, length + 1);
-
-	slash = strrchr(directory, '/');
-	if (NULL == slash) {
-		directory[0] = '.';
-		directory[1] = '\0';
-	} else if (slash == directory) {
-		slash[1] = '\0';
-	} else {
-		*slash = '\0';
-	}
-
-	fd = open(directory, O_RDONLY | O_CLOEXEC);
-	free(directory);
-	if (fd < 0)
-		return -1;
-	result = fsync(fd);
-	saved_errno = errno;
-	if (close(fd) != 0 && result == 0) {
-		result = -1;
-		saved_errno = errno;
-	}
-	errno = saved_errno;
-	return result;
-}
-
-static FILE *UDB_openCommittedJournal(const char *path)
-{
-	struct stat before, after;
-	int fd;
-	FILE *file;
-
-	if (NULL == path || '\0' == *path) {
-		errno = EINVAL;
-		return NULL;
-	}
-#ifdef O_NOFOLLOW
-	if (lstat(path, &before) != 0 || !S_ISREG(before.st_mode))
-		return NULL;
-	fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
-#else
-	errno = ENOTSUP;
-	return NULL;
-#endif
-	if (fd < 0)
-		return NULL;
-	if (fstat(fd, &after) != 0 || !S_ISREG(after.st_mode) ||
-		after.st_uid != geteuid() || before.st_dev != after.st_dev ||
-		before.st_ino != after.st_ino || fchmod(fd, 0600) != 0) {
-		int saved_errno = errno ? errno : EPERM;
-		close(fd);
-		errno = saved_errno;
-		return NULL;
-	}
-	file = fdopen(fd, "rb");
-	if (NULL == file) {
-		int saved_errno = errno;
-		close(fd);
-		errno = saved_errno;
-	}
-	return file;
-}
-
-static int UDB_verifyCommittedJournal(const char *path)
-{
-	FILE *log;
-	JFile journal;
-	int valid;
-
-	if (NULL == path || '\0' == *path)
-		return 0;
-	log = UDB_openCommittedJournal(path);
-	if (NULL == log)
-		return 0;
-
-	memset(&journal, 0, sizeof(journal));
-	journal.log = log;
-	valid = JFile_verifyLog(&journal);
-	if (fclose(log) != 0)
-		valid = 0;
-	return valid;
-}
-
-/* Never follow a symlink or block on a special file for the commit marker. */
-static FILE *UDB_openCommittedFile(const char *path, int create)
-{
-	struct stat before, after;
-	int fd, exists = 0;
-	FILE *file;
-
-	if (NULL == path || '\0' == *path) {
-		errno = EINVAL;
-		return NULL;
-	}
-#ifdef O_NOFOLLOW
-	if (lstat(path, &before) == 0) {
-		exists = 1;
-		if (!S_ISREG(before.st_mode)) {
-			errno = EINVAL;
-			return NULL;
-		}
-		fd = open(path, O_RDWR | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
-	} else if (errno == ENOENT && create) {
-		fd = open(path, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW |
-			O_NONBLOCK | O_CLOEXEC, 0600);
-	} else {
-		return NULL;
-	}
-#else
-	(void)create;
-	errno = ENOTSUP;
-	return NULL;
-#endif
-	if (fd < 0)
-		return NULL;
-	if (fstat(fd, &after) != 0 || !S_ISREG(after.st_mode) ||
-		after.st_uid != geteuid() ||
-		(exists && (before.st_dev != after.st_dev ||
-			before.st_ino != after.st_ino)) ||
-		fchmod(fd, 0600) != 0) {
-		int saved_errno = errno ? errno : EPERM;
-		close(fd);
-		errno = saved_errno;
-		return NULL;
-	}
-	file = fdopen(fd, "r+");
-	if (NULL == file) {
-		int saved_errno = errno;
-		close(fd);
-		errno = saved_errno;
-	}
-	return file;
-}
-
-/* A missing commit marker is only valid for a genuinely new database.
- * Otherwise recreating it as an empty file would make UDB_open discard
- * journals that may be the only copy of an interrupted committed write. */
-static int UDB_pathStatus(const char *path, struct stat *st)
-{
-	if (NULL == path || '\0' == *path || NULL == st) {
-		errno = EINVAL;
-		return -1;
-	}
-	if (lstat(path, st) == 0)
-		return 1;
-	return errno == ENOENT ? 0 : -1;
-}
-
-static int UDB_hasExistingArtifacts(UDB *self)
-{
-	const char *paths[4];
-	struct stat st;
-	size_t i;
-	if (NULL == self || NULL == self->index || NULL == self->records ||
-		NULL == self->index->file || NULL == self->records->file)
-		return -1;
-	paths[0] = self->index->file->path;
-	paths[1] = self->index->file->logPath;
-	paths[2] = self->records->file->path;
-	paths[3] = self->records->file->logPath;
-	for (i = 0; i < sizeof(paths) / sizeof(paths[0]); ++i) {
-		int status = UDB_pathStatus(paths[i], &st);
-		if (status < 0)
-			return -1;
-		if (status > 0)
-			return 1;
-	}
-	return 0;
-}
-
-/* An empty marker can be repaired only when every data/journal artifact
- * is absent or an empty regular file. Nonempty logs may hold recoverable data. */
-static int UDB_artifactsAreEmpty(UDB *self)
-{
-	const char *paths[4];
-	struct stat st;
-	size_t i;
-	if (NULL == self || NULL == self->index || NULL == self->records ||
-		NULL == self->index->file || NULL == self->records->file)
-		return 0;
-	paths[0] = self->index->file->path;
-	paths[1] = self->index->file->logPath;
-	paths[2] = self->records->file->path;
-	paths[3] = self->records->file->logPath;
-	for (i = 0; i < sizeof(paths) / sizeof(paths[0]); ++i) {
-		int status = UDB_pathStatus(paths[i], &st);
-		if (status < 0)
-			return 0;
-		if (status > 0 && (!S_ISREG(st.st_mode) || st.st_size != 0))
-			return 0;
-	}
-	return 1;
-}
-
 UDB *UDB_new(void)
 {
 	UDB *self = (UDB *)calloc(1, sizeof(UDB));
@@ -238,13 +32,13 @@ UDB *UDB_new(void)
 	}
 
 	UDB_setPath_(self, "default");
-	if (NULL == self->path || NULL == self->committedPath ||
+	if (NULL == self->path || NULL == self->commitMarker.path ||
 		NULL == self->index->file->path || NULL == self->index->file->logPath ||
 		NULL == self->records->file->path || NULL == self->records->file->logPath) {
 		UDBIndex_free(self->index);
 		UDBRecords_free(self->records);
 		free(self->path);
-		free(self->committedPath);
+		UDBCommitMarker_clear(&self->commitMarker);
 		free(self);
 		return NULL;
 	}
@@ -257,7 +51,7 @@ void UDB_free(UDB *self)
 		return;
 	UDB_close(self);
 	free(self->path);    
-	free(self->committedPath);    
+	free(self->commitMarker.path);    
 	
 	UDBIndex_free(self->index);   
 	UDBRecords_free(self->records);   
@@ -271,70 +65,37 @@ void UDB_delete(UDB *self)
 	UDB_close(self);
 	UDBIndex_delete(self->index);
 	UDBRecords_delete(self->records);
-	remove(self->committedPath);
+	if (self->commitMarker.path)
+		remove(self->commitMarker.path);
 }
 
 void UDB_setPath_(UDB *self, const char *path)
 {
-	size_t path_len;
-	char *new_path, *new_committed_path;
-	char *index_path, *index_log_path, *records_path, *records_log_path;
-
-	if (NULL == self || NULL == path || self->isOpen ||
-		NULL == self->index || NULL == self->records ||
-		NULL == self->index->file || NULL == self->records->file)
-		return;
-
-	path_len = strlen(path);
-	if (path_len > (size_t)-1 - sizeof(".udbIndex.log") ||
-		path_len > (size_t)-1 - sizeof(".udbData.log") ||
-		path_len > (size_t)-1 - sizeof(".committed"))
-		return;
-
-	new_path = (char *)malloc(path_len + 1);
-	new_committed_path = (char *)malloc(path_len + sizeof(".committed"));
-	index_path = (char *)malloc(path_len + sizeof(".udbIndex"));
-	index_log_path = (char *)malloc(path_len + sizeof(".udbIndex.log"));
-	records_path = (char *)malloc(path_len + sizeof(".udbData"));
-	records_log_path = (char *)malloc(path_len + sizeof(".udbData.log"));
-	if (NULL == new_path || NULL == new_committed_path ||
-		NULL == index_path || NULL == index_log_path ||
-		NULL == records_path || NULL == records_log_path) {
-		free(new_path);
-		free(new_committed_path);
-		free(index_path);
-		free(index_log_path);
-		free(records_path);
-		free(records_log_path);
-		return;
-	}
-
-	memcpy(new_path, path, path_len + 1);
-	memcpy(new_committed_path, path, path_len);
-	memcpy(new_committed_path + path_len, ".committed", sizeof(".committed"));
-	memcpy(index_path, path, path_len);
-	memcpy(index_path + path_len, ".udbIndex", sizeof(".udbIndex"));
-	memcpy(index_log_path, path, path_len);
-	memcpy(index_log_path + path_len, ".udbIndex.log", sizeof(".udbIndex.log"));
-	memcpy(records_path, path, path_len);
-	memcpy(records_path + path_len, ".udbData", sizeof(".udbData"));
-	memcpy(records_log_path, path, path_len);
-	memcpy(records_log_path + path_len, ".udbData.log", sizeof(".udbData.log"));
-
-	free(self->path);
-	free(self->committedPath);
-	free(self->index->file->path);
-	free(self->index->file->logPath);
-	free(self->records->file->path);
-	free(self->records->file->logPath);
-	self->path = new_path;
-	self->committedPath = new_committed_path;
-	self->index->file->path = index_path;
-	self->index->file->logPath = index_log_path;
-	self->records->file->path = records_path;
-	self->records->file->logPath = records_log_path;
+	size_t n;
+	char *main_path,*index_path,*index_log,*data_path,*data_log;
+	if(!self||!path||self->isOpen||!self->index||!self->records||
+		!self->index->file||!self->records->file)return;
+	n=strlen(path);
+	if(n>(size_t)-1-sizeof(".udbIndex.log")||n>(size_t)-1-sizeof(".udbData.log"))return;
+	main_path=(char *)malloc(n+1);
+	index_path=(char *)malloc(n+sizeof(".udbIndex"));
+	index_log=(char *)malloc(n+sizeof(".udbIndex.log"));
+	data_path=(char *)malloc(n+sizeof(".udbData"));
+	data_log=(char *)malloc(n+sizeof(".udbData.log"));
+	if(!main_path||!index_path||!index_log||!data_path||!data_log){
+		free(main_path);free(index_path);free(index_log);free(data_path);free(data_log);return;}
+	memcpy(main_path,path,n+1);
+	memcpy(index_path,path,n);memcpy(index_path+n,".udbIndex",sizeof(".udbIndex"));
+	memcpy(index_log,path,n);memcpy(index_log+n,".udbIndex.log",sizeof(".udbIndex.log"));
+	memcpy(data_path,path,n);memcpy(data_path+n,".udbData",sizeof(".udbData"));
+	memcpy(data_log,path,n);memcpy(data_log+n,".udbData.log",sizeof(".udbData.log"));
+	if(UDBCommitMarker_setPath_(&self->commitMarker,path)!=0){
+		free(main_path);free(index_path);free(index_log);free(data_path);free(data_log);return;}
+	free(self->path);free(self->index->file->path);free(self->index->file->logPath);
+	free(self->records->file->path);free(self->records->file->logPath);
+	self->path=main_path;self->index->file->path=index_path;self->index->file->logPath=index_log;
+	self->records->file->path=data_path;self->records->file->logPath=data_log;
 }
-
 /*
 void UDB_setSecondaryPath_(UDB *self, const char *secondaryPath)
 {
@@ -363,8 +124,6 @@ char *UDB_path(UDB *self)
 	return self ? self->path : NULL;
 }
 
-int UDB_readCommitted(UDB *self);
-int UDB_setCommittedFlag_(UDB *self, int flag);
 
 static int UDB_streamsOpen(UDB *self)
 {
@@ -376,41 +135,40 @@ static int UDB_streamsOpen(UDB *self)
 
 void UDB_open(UDB *self)
 {
+	const char *artifact_paths[4];
 	int marker, recovering, marker_created = 0;
 
-	if (NULL == self || NULL == self->committedPath || self->isOpen ||
+	if (NULL == self || NULL == self->commitMarker.path || self->isOpen ||
 		NULL == self->index || NULL == self->records ||
 		NULL == self->index->file || NULL == self->records->file)
 		return;
 
-	errno = 0;
-	self->committedFile = UDB_openCommittedFile(self->committedPath, 0);
-	if (NULL == self->committedFile) {
+	artifact_paths[0]=self->index->file->path;
+	artifact_paths[1]=self->index->file->logPath;
+	artifact_paths[2]=self->records->file->path;
+	artifact_paths[3]=self->records->file->logPath;
+	errno=0;
+	if(UDBCommitMarker_open(&self->commitMarker,0)!=0){
 		int artifacts;
-		if (errno != ENOENT)
-			return;
-		/* Do not silently bless an existing database after its marker vanishes. */
-		artifacts = UDB_hasExistingArtifacts(self);
-		if (artifacts != 0) {
-			fprintf(stderr, "UDB: commit marker is missing while database artifacts exist\n");
+		if(errno!=ENOENT)return;
+		artifacts=UDBCommitMarker_artifactsExist(artifact_paths,4);
+		if(artifacts!=0){
+			fprintf(stderr,"UDB: commit marker is missing while database artifacts exist\n");
 			return;
 		}
-		self->committedFile = UDB_openCommittedFile(self->committedPath, 1);
-		if (NULL == self->committedFile)
-			return;
-		marker_created = 1;
+		if(UDBCommitMarker_open(&self->commitMarker,1)!=0)return;
+		marker_created=1;
 	}
-
 	/* Establish a durable clean marker before creating any database artifacts. */
-	if (marker_created && UDB_setCommittedFlag_(self, 0) != 0) {
+	if (marker_created && UDBCommitMarker_write(&self->commitMarker, 0) != 0) {
 		UDB_close(self);
 		return;
 	}
-	marker = UDB_readCommitted(self);
-	if (marker == -1 && UDB_artifactsAreEmpty(self)) {
+	marker = UDBCommitMarker_read(&self->commitMarker);
+	if (marker == -1 && UDBCommitMarker_artifactsAreEmpty(artifact_paths,4)) {
 		/* Recover a crash during first-time marker initialization only. */
-		if (UDB_setCommittedFlag_(self, 0) == 0)
-			marker = UDB_readCommitted(self);
+		if (UDBCommitMarker_write(&self->commitMarker, 0) == 0)
+			marker = UDBCommitMarker_read(&self->commitMarker);
 	}
 	if (marker < 0) {
 		fprintf(stderr, "UDB: invalid or empty commit marker; refusing startup\n");
@@ -423,8 +181,8 @@ void UDB_open(UDB *self)
 
 	/* Validate both durable journals before opening either database file. */
 	if (recovering &&
-		(!UDB_verifyCommittedJournal(self->index->file->logPath) ||
-		 !UDB_verifyCommittedJournal(self->records->file->logPath))) {
+		(!UDBCommitMarker_verifyJournal(self->index->file->logPath) ||
+		 !UDBCommitMarker_verifyJournal(self->records->file->logPath))) {
 		fprintf(stderr, "UDB: committed transaction journal is incomplete or corrupt\n");
 		UDB_close(self);
 		return;
@@ -460,7 +218,7 @@ void UDB_open(UDB *self)
 		}
 
 		/* Both files are now durable; disarm recovery before journal cleanup. */
-		if (UDB_setCommittedFlag_(self, 0) != 0) {
+		if (UDBCommitMarker_write(&self->commitMarker, 0) != 0) {
 			UDB_close(self);
 			return;
 		}
@@ -481,10 +239,10 @@ void UDB_open(UDB *self)
 	}
 
 	/* Persist directories containing data, commit marker, and both journals. */
-	if (UDB_syncParentDirectory(self->path) != 0 ||
-		UDB_syncParentDirectory(self->committedPath) != 0 ||
-		UDB_syncParentDirectory(self->index->file->logPath) != 0 ||
-		UDB_syncParentDirectory(self->records->file->logPath) != 0) {
+	if (UDBCommitMarker_syncParentDirectory(self->path) != 0 ||
+		UDBCommitMarker_syncParentDirectory(self->commitMarker.path) != 0 ||
+		UDBCommitMarker_syncParentDirectory(self->index->file->logPath) != 0 ||
+		UDBCommitMarker_syncParentDirectory(self->records->file->logPath) != 0) {
 		UDB_close(self);
 		return;
 	}
@@ -506,10 +264,7 @@ void UDB_close(UDB *self)
 		self->index->file->deferLogReplay = 0;
 	if (self->records && self->records->file)
 		self->records->file->deferLogReplay = 0;
-	if (self->committedFile) {
-		fclose(self->committedFile);
-		self->committedFile = NULL;
-	}
+	UDBCommitMarker_close(&self->commitMarker);
 	self->isOpen = 0;
 	self->withinTransaction = 0;
 }
@@ -537,46 +292,6 @@ void UDB_beginTransaction(UDB *self)
 	self->withinTransaction = 1;
 }
 
-int UDB_readCommitted(UDB *self)
-{
-	int marker, trailing;
-	if (NULL == self || NULL == self->committedFile ||
-		fseek(self->committedFile, 0, SEEK_SET) != 0)
-		return -2;
-	marker = fgetc(self->committedFile);
-	if (marker == EOF)
-		return ferror(self->committedFile) ? -2 : -1;
-	if (marker != 0 && marker != 1)
-		return -2;
-	trailing = fgetc(self->committedFile);
-	if (trailing != EOF || ferror(self->committedFile))
-		return -2;
-	return marker;
-}
-
-int UDB_setCommittedFlag_(UDB *self, int flag)
-{
-	int fd;
-	if (NULL == self || NULL == self->committedFile ||
-		(flag != 0 && flag != 1) ||
-		fseek(self->committedFile, 0, SEEK_SET) != 0 ||
-		fputc(flag, self->committedFile) == EOF ||
-		fflush(self->committedFile) != 0)
-		return -1;
-
-	fd = fileno(self->committedFile);
-	if (fd < 0)
-		return -1;
-#ifdef F_FULLFSYNC
-	if (fcntl(fd, F_FULLFSYNC, 0) != 0)
-		return -1;
-#else
-	if (fsync(fd) != 0)
-		return -1;
-#endif
-	return 0;
-}
-
 void UDB_commitTransaction(UDB *self)
 {
 	if (NULL == self || !self->isOpen || !self->withinTransaction)
@@ -586,7 +301,7 @@ void UDB_commitTransaction(UDB *self)
 	UDBRecords_preCommit(self->records);
 	if (!UDB_streamsOpen(self) ||
 		!UDBIndex_prepareCommit(self->index) ||
-		!UDB_streamsOpen(self) || UDB_setCommittedFlag_(self, 1) != 0) {
+		!UDB_streamsOpen(self) || UDBCommitMarker_write(&self->commitMarker, 1) != 0) {
 		/* Marker 0 discards both complete journals if preparation fails. */
 		UDB_close(self);
 		return;
@@ -605,7 +320,7 @@ void UDB_commitTransaction(UDB *self)
 	}
 
 	/* The data files are durable; only now may recovery be disarmed. */
-	if (UDB_setCommittedFlag_(self, 0) != 0) {
+	if (UDBCommitMarker_write(&self->commitMarker, 0) != 0) {
 		UDB_close(self);
 		return;
 	}

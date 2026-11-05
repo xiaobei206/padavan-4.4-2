@@ -90,4 +90,9 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/ipc_io.c)
     add_test(NAME ipc_io_test COMMAND ipc_io_test)
 
+    ADD_EXECUTABLE(commit_marker_test
+        ${PROJECT_SOURCE_DIR}/tests/commit_marker.c)
+    TARGET_LINK_LIBRARIES(commit_marker_test skipdb m)
+    add_test(NAME commit_marker_test COMMAND commit_marker_test)
+
 endif()
