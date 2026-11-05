@@ -39,10 +39,18 @@ int main(void)
  if(!key_is(record,"alpha")||!key_is(SkipDB_list_next(source,prefix,cursor),"alpine")||
   SkipDB_list_next(source,prefix,cursor)!=NULL){fprintf(stderr,"prefix traversal boundary failed\n");goto done;}
  SkipDBCursor_release(cursor);cursor=NULL;
+ cursor=SkipDB_createCursor(source);
+ if(!cursor||!key_is(SkipDBCursor_goto_(cursor,Datum_FromCString_("alpine")),"alpine")){
+  fprintf(stderr,"active cache cursor setup failed\n");goto done;}
  SkipDB_setCacheHighWaterMark_(source,2);SkipDB_setCacheLowWaterMark_(source,1);
  (void)SkipDB_at_(source,Datum_FromCString_("gamma"));(void)SkipDB_at_(source,Datum_FromCString_("alpha"));
  SkipDB_beginTransaction(source);SkipDB_commitTransaction(source);
- if(!SkipDB_isOpen(source)||!value_is(source,"alpha","1")||!value_is(source,"alpine","2")){
+ if(!SkipDB_isOpen(source)||!key_is(SkipDBCursor_current(cursor),"alpine")){
+  fprintf(stderr,"cache eviction lost active cursor record\n");goto done;}
+ if(!key_is(SkipDBCursor_next(cursor),"beta")){
+  fprintf(stderr,"cache eviction cursor lazy reload failed\n");goto done;}
+ SkipDBCursor_release(cursor);cursor=NULL;
+ if(!value_is(source,"alpha","1")||!value_is(source,"alpine","2")){
   fprintf(stderr,"cache eviction/lazy reload failed\n");goto done;}
  SkipDB_beginTransaction(source);
  if(!SkipDB_at_put_(source,Datum_FromCString_("alpha"),Datum_FromCString_("updated"))){

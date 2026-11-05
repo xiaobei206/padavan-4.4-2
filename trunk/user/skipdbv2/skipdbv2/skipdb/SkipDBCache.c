@@ -139,6 +139,55 @@ int SkipDB_headerIsEmpty(SkipDB *self)
 		? SkipDBRecord_pointersAreEmpty(self->header) : 1;
 }
 
+/* Clear stale protection marks before applying the current live set. */
+static void SkipDB_clearCacheMarks_(SkipDB *self)
+{
+	SkipDBRecord *record;
+
+	for (record = self->youngestRecord; record; record = record->olderRecord)
+		record->mark = 0;
+}
+
+/* Retain the most recently used records in addition to cursor-held records. */
+static void SkipDB_markRecentCacheRecords_(SkipDB *self, size_t lowMark)
+{
+	SkipDBRecord *record;
+	size_t kept = 0;
+
+	for (record = self->youngestRecord; record && kept < lowMark;
+		record = record->olderRecord) {
+		record->mark = 1;
+		kept++;
+	}
+	self->header->mark = 1;
+}
+
+/* Replace cached references into the eviction set with their persistent PIDs. */
+static void SkipDB_preserveMarkedCacheLinks_(SkipDB *self)
+{
+	SkipDBRecord *record;
+
+	for (record = self->youngestRecord; record; record = record->olderRecord) {
+		if (record->mark)
+			SkipDBRecord_removeReferencesToUnmarked(record);
+	}
+}
+
+/* Cache the next age-list node before deallocation unlinks the current node. */
+static void SkipDB_evictUnmarkedCacheRecords_(SkipDB *self)
+{
+	SkipDBRecord *record = self->youngestRecord;
+
+	while (record) {
+		SkipDBRecord *next = record->olderRecord;
+		if (record->mark)
+			record->mark = 0;
+		else
+			SkipDBRecord_dealloc(record);
+		record = next;
+	}
+}
+
 void SkipDB_freeExcessCachedRecords(SkipDB *self)
 {
 	if (NULL == self || NULL == self->cursors || NULL == self->header)
@@ -146,50 +195,17 @@ void SkipDB_freeExcessCachedRecords(SkipDB *self)
 
 	if (self->cachedRecordCount > self->cacheHighWaterMark)
 	{
-		SkipDBRecord *r;
-		size_t kept = 0;
-		size_t lowMark = self->cacheLowWaterMark;
-
 		/* Keep the root in the cache and clear marks left by earlier passes
 		 * before applying the current cursor/recent-record protection set. */
 		SkipDB_noteAccessedRecord_(self, self->header);
-		r = self->youngestRecord;
-		while (r)
-		{
-			r->mark = 0;
-			r = r->olderRecord;
-		}
-
+		SkipDB_clearCacheMarks_(self);
 		List_do_(self->cursors, (ListDoCallback *)SkipDBCursor_mark);
-		r = self->youngestRecord;
-		while (r && kept < lowMark)
-		{
-			r->mark = 1;
-			kept++;
-			r = r->olderRecord;
-		}
-		self->header->mark = 1;
+		SkipDB_markRecentCacheRecords_(self, self->cacheLowWaterMark);
 
-		/* Drop cached links from every record we keep to any record about
-		 * to be evicted; persistent PIDs remain available for lazy reload. */
-		for (r = self->youngestRecord; r; r = r->olderRecord)
-		{
-			if (r->mark)
-				SkipDBRecord_removeReferencesToUnmarked(r);
-		}
-
-		/* Remove unmarked records in-place. Keep marked cursor records linked
-		 * in the age list, even when they are older than an evicted gap. */
-		r = self->youngestRecord;
-		while (r)
-		{
-			SkipDBRecord *next = r->olderRecord;
-			if (r->mark)
-				r->mark = 0;
-			else
-				SkipDBRecord_dealloc(r);
-			r = next;
-		}
+		/* Convert links to records outside the protected set to persistent PIDs
+		 * before those records are evicted from memory. */
+		SkipDB_preserveMarkedCacheLinks_(self);
+		SkipDB_evictUnmarkedCacheRecords_(self);
 	}
 }
 

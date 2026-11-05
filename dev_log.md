@@ -1,3 +1,21 @@
+## 2026-11-06 — Separate SkipDB cache eviction phases
+
+### Baseline and scope
+- Base commit: `02fb3f37bd025c05fd57ccedc0a9540faf6314a4` (`refactor(skipd): centralize scheduled command setup`).
+- The preceding SkipDBv2 Regression run `42064200459` passed source contracts, CMake configuration, compilation, and CTest. This iteration is limited to the cache-age/eviction manager in `skipdb/SkipDBCache.c`.
+
+### Changes
+- Split the monolithic cache eviction pass into private helpers for clearing stale marks, marking the recent-record retention set, preserving links from retained records to persistent PIDs, and evicting unmarked records.
+- Preserved the original phase order and in-place traversal rule: the next age-list node is captured before a record is deallocated.
+- Extended the existing `skipdb_core_layers_test` to keep a live cursor across cache eviction and verify that its current record survives and its next record can be lazily reloaded.
+- Added CI source-contract checks for the private phase helpers and the active-cursor regression assertions. No new source file, public declaration, or CMake registration is needed.
+
+### Validation
+- Static review confirms marks are still cleared before cursor marking, recent records and the header are marked before reference detachment, and eviction occurs only after cached links have been converted to persistent PIDs.
+- The pushed SkipDBv2 Regression is authoritative; no local CMake/compiler result is claimed.
+
+---
+
 ## 2026-11-06 — Consolidate delay/time command scheduling in skipd_command
 
 ### Baseline and scope
