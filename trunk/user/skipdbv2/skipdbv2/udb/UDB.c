@@ -13,6 +13,7 @@ UDB ioDoc(
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 static int UDB_syncParentDirectory(const char *path)
 {
@@ -70,6 +71,64 @@ static int UDB_verifyCommittedJournal(const char *path)
 	if (fclose(log) != 0)
 		valid = 0;
 	return valid;
+}
+
+/* A missing commit marker is only valid for a genuinely new database.
+ * Otherwise recreating it as an empty file would make UDB_open discard
+ * journals that may be the only copy of an interrupted committed write. */
+static int UDB_pathStatus(const char *path, struct stat *st)
+{
+	if (NULL == path || '\0' == *path || NULL == st) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (lstat(path, st) == 0)
+		return 1;
+	return errno == ENOENT ? 0 : -1;
+}
+
+static int UDB_hasExistingArtifacts(UDB *self)
+{
+	const char *paths[4];
+	struct stat st;
+	size_t i;
+	if (NULL == self || NULL == self->index || NULL == self->records ||
+		NULL == self->index->file || NULL == self->records->file)
+		return -1;
+	paths[0] = self->index->file->path;
+	paths[1] = self->index->file->logPath;
+	paths[2] = self->records->file->path;
+	paths[3] = self->records->file->logPath;
+	for (i = 0; i < sizeof(paths) / sizeof(paths[0]); ++i) {
+		int status = UDB_pathStatus(paths[i], &st);
+		if (status < 0)
+			return -1;
+		if (status > 0)
+			return 1;
+	}
+	return 0;
+}
+
+/* Empty marker files are tolerated only while both primary files are empty.
+ * A nonempty or non-regular data file requires an intact one-byte marker. */
+static int UDB_primaryFilesEmpty(UDB *self)
+{
+	const char *paths[2];
+	struct stat st;
+	size_t i;
+	if (NULL == self || NULL == self->index || NULL == self->records ||
+		NULL == self->index->file || NULL == self->records->file)
+		return 0;
+	paths[0] = self->index->file->path;
+	paths[1] = self->records->file->path;
+	for (i = 0; i < sizeof(paths) / sizeof(paths[0]); ++i) {
+		int status = UDB_pathStatus(paths[i], &st);
+		if (status < 0)
+			return 0;
+		if (status > 0 && (!S_ISREG(st.st_mode) || st.st_size != 0))
+			return 0;
+	}
+	return 1;
 }
 
 UDB *UDB_new(void)
@@ -238,8 +297,15 @@ void UDB_open(UDB *self)
 	self->committedFile = fopen(self->committedPath, "r+");
 	if (NULL == self->committedFile) {
 		FILE *created;
+		int artifacts;
 		if (errno != ENOENT)
 			return;
+		/* Do not silently bless an existing database after its marker vanishes. */
+		artifacts = UDB_hasExistingArtifacts(self);
+		if (artifacts != 0) {
+			fprintf(stderr, "UDB: commit marker is missing while database artifacts exist\\n");
+			return;
+		}
 		created = fopen(self->committedPath, "w+");
 		if (NULL == created)
 			return;
@@ -252,6 +318,11 @@ void UDB_open(UDB *self)
 
 	marker = UDB_readCommitted(self);
 	if (marker == -2) {
+		UDB_close(self);
+		return;
+	}
+	if (marker == -1 && !UDB_primaryFilesEmpty(self)) {
+		fprintf(stderr, "UDB: empty commit marker with nonempty or invalid database files\\n");
 		UDB_close(self);
 		return;
 	}
