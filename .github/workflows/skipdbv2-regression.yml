@@ -1140,6 +1140,8 @@ jobs:
           skipd_database_text = (manager_root / "skipd_database.c").read_text()
           if skipd_database_text.count("verify_owned_regular_file_(") != 3:
               raise SystemExit("database marker file validation must have one private owner and two callers")
+          if skipd_database_text.find("static int verify_owned_regular_file_(") > skipd_database_text.find("static int read_db_switch_marker("):
+              raise SystemExit("database marker validator must be declared before its first call")
           for module in ("skipd_command.c", "skipd_client.c", "skipd_database.c",
                          "skipd_scheduler.c", "skipd_socket.c", "skipd_script.c"):
               if f"mgr/{module}" not in cmake_text:

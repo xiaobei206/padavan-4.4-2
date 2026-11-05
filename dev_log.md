@@ -1,3 +1,19 @@
+## 2026-11-06 04:10 CST — Repair skipd marker validator declaration order
+
+### Baseline and scope
+- Base commit: `b39c5a78b8c8d30bb275134defe3d054d0933cbd` (`refactor(skipd): unify database marker validation`); SkipDBv2 Regression run #200 stopped at compilation.
+- The compiler reported an implicit declaration at the first call to `verify_owned_regular_file_()`, followed by a conflicting static declaration.
+
+### Repair
+- Moved the private validator definition above `read_db_switch_marker()`, retaining its single static owner and two existing call sites.
+- Added a CI source-order contract so the helper must appear before the first caller. No behavioral changes, new files, or CMake updates.
+
+### Validation
+- Static preflight confirms one helper definition, two uses, and definition-before-call ordering.
+- The next remote SkipDBv2 Regression run is authoritative.
+
+---
+
 ## 2026-11-06 04:08 CST — Unify skipd database marker file validation
 
 ### Baseline and scope

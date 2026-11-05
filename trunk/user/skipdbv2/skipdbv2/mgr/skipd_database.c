@@ -10,6 +10,22 @@
 #include <unistd.h>
 
 /* Database marker durability, startup, and copy-on-switch lifecycle. */
+/* Reject special or foreign-owned marker files with a stable policy errno. */
+static int verify_owned_regular_file_(int fd, struct stat *file_stat)
+{
+    if (fd < 0 || NULL == file_stat) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (fstat(fd, file_stat) != 0)
+        return -1;
+    if (!S_ISREG(file_stat->st_mode) || file_stat->st_uid != geteuid()) {
+        errno = EPERM;
+        return -1;
+    }
+    return 0;
+}
+
 static int read_db_switch_marker(const char *path, int *db_id)
 {
     char buf[4];
@@ -62,22 +78,6 @@ static int read_db_switch_marker(const char *path, int *db_id)
     }
     errno = EINVAL;
     return -1;
-}
-
-/* Reject special or foreign-owned marker files with a stable policy errno. */
-static int verify_owned_regular_file_(int fd, struct stat *file_stat)
-{
-    if (fd < 0 || NULL == file_stat) {
-        errno = EINVAL;
-        return -1;
-    }
-    if (fstat(fd, file_stat) != 0)
-        return -1;
-    if (!S_ISREG(file_stat->st_mode) || file_stat->st_uid != geteuid()) {
-        errno = EPERM;
-        return -1;
-    }
-    return 0;
 }
 
 /* Return -2 only when rename succeeded but directory fsync failed. */
