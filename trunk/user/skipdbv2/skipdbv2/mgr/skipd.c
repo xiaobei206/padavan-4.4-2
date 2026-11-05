@@ -1722,16 +1722,29 @@ static int read_db_switch_marker(const char *path, int *db_id)
 {
     char buf[4];
     ssize_t n;
-    int fd;
+    int fd, saved_errno;
+    struct stat marker_stat;
 
     if (NULL == path || NULL == db_id)
         return -1;
-    fd = open(path, O_RDONLY);
+#ifdef O_NOFOLLOW
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+#else
+    errno = ENOTSUP;
+    return -1;
+#endif
     if (fd < 0) {
         if (errno == ENOENT) {
             *db_id = 0;
             return 0;
         }
+        return -1;
+    }
+    if (fstat(fd, &marker_stat) != 0 || !S_ISREG(marker_stat.st_mode) ||
+        marker_stat.st_uid != geteuid()) {
+        saved_errno = errno ? errno : EPERM;
+        close(fd);
+        errno = saved_errno;
         return -1;
     }
 
