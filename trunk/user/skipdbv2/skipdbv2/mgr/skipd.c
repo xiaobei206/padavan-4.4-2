@@ -1594,7 +1594,8 @@ int setnonblock(int fd) {
 
 static int socket_instance_lock_fd = -1;
 
-int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_queue) {
+int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path,
+    const char *lock_dir, int max_queue) {
     int fd = -1, lock_fd = -1, probe_fd = -1, saved_errno;
     size_t path_len;
     char lock_path[SK_PATH_MAX];
@@ -1604,7 +1605,8 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_que
     int n;
 
     (void)max_queue;
-    if (NULL == socket_un || NULL == sock_path) {
+    if (NULL == socket_un || NULL == sock_path ||
+        NULL == lock_dir || '\0' == *lock_dir) {
         errno = EINVAL;
         return -1;
     }
@@ -1618,7 +1620,10 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path, int max_que
         return -1;
     }
 
-    n = snprintf(lock_path, sizeof(lock_path), "%s.lock", sock_path);
+    /* Keep the instance lock in the validated, non-writable DB directory.
+     * A user must not be able to pre-create a predictable /tmp lock and
+     * permanently prevent the root-owned service from starting. */
+    n = snprintf(lock_path, sizeof(lock_path), "%s/.skipd.sock.lock", lock_dir);
     if (n < 0 || (size_t)n >= sizeof(lock_path)) {
         errno = ENAMETOOLONG;
         return -1;
@@ -2005,7 +2010,8 @@ int server_init(skipd_server* server, int max_queue) {
     }
     skipd_log(SKIPD_DEBUG, "Load count=%d maxPos=%d\n", count, SkipDB_maxPos(server->db));
 
-    server->fd = unix_socket_init(&server->socket, server->sock_path, max_queue);
+    server->fd = unix_socket_init(&server->socket, server->sock_path,
+        server->db_path, max_queue);
     if (server->fd < 0) {
         perror("invalid server socket path");
         return -1;
