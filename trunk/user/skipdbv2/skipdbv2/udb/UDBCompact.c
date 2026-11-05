@@ -37,6 +37,15 @@ int UDB_compactStep(UDB *self)
 	return UDB_compactStepFor_(self, 0.0);
 }
 
+/* Require both compaction data and journal streams to remain open. */
+static int UDB_compactionStreamsAreOpen_(UDB *self)
+{
+	return self != NULL && self->records != NULL &&
+		self->records->file != NULL &&
+		self->records->file->file != NULL &&
+		self->records->file->log != NULL;
+}
+
 int UDB_compactStepFor_(UDB *self, double maxSeconds)
 {
 	UDBRecord *firstEmptyRecord, *record;
@@ -50,8 +59,7 @@ int UDB_compactStepFor_(UDB *self, double maxSeconds)
 	firstEmptyRecord = UDBRecords_firstEmptyRecord(self->records);
 	/* A corrupt header makes UDBRecords close its streams so that a failed
 	 * scan cannot be mistaken for an empty free list or a truncation target. */
-	if (!self->records->file || !self->records->file->file ||
-		!self->records->file->log) {
+	if (!UDB_compactionStreamsAreOpen_(self)) {
 		UDB_close(self);
 		return 0;
 	}
@@ -80,8 +88,7 @@ int UDB_compactStepFor_(UDB *self, double maxSeconds)
 			return 0;
 		/* The trailing hole contains no live rows, so truncation is now safe. */
 		if (!UDBRecords_truncate_(self->records, (off_t)tail_pos) ||
-			self->records->file->file == NULL ||
-			self->records->file->log == NULL) {
+			!UDB_compactionStreamsAreOpen_(self)) {
 			UDB_close(self);
 			return 0;
 		}

@@ -1,3 +1,20 @@
+## 2026-11-06 01:52 CST — Centralize UDB compaction stream checks
+
+### Baseline and scope
+- Base commit: `9bce5689ad3856c552e415a99a1be530a19b903d` (`refactor(skipdb): centralize write datum validation`); SkipDBv2 Regression run #193 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `udb/UDBCompact.c`.
+
+### Changes
+- Centralized the paired data/journal stream readiness predicate used after the free-space scan and after truncating a trailing hole.
+- Preserved the compactor's existing close-on-corrupt-stream behavior and the short-circuit on truncate failure; the helper also safely rejects missing intermediate records/file pointers.
+- Updated CI contracts to require one private helper and two call sites. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and two uses; CI enforces the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:43 CST — Centralize SkipDB write datum validation
 
 ### Baseline and scope

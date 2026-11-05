@@ -420,6 +420,8 @@ jobs:
                   "JFile_logSize(file)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBCompact.c": [
+                  "static int UDB_compactionStreamsAreOpen_(UDB *self)",
+                  "UDB_compactionStreamsAreOpen_(self)",
                   "int UDB_compactStepFor_(UDB *self, double maxSeconds)",
                   "UDBRecord_totalSize(record) > UDBRecord_totalSize(firstEmptyRecord)",
                   "UDBRecords_truncate_(self->records, (off_t)tail_pos)",
@@ -834,6 +836,12 @@ jobs:
           ).read_text()
           if skipdb_write_source.count("SkipDB_datumIsValid_(") != 6:
               raise SystemExit("SkipDB write input validation is not centralized")
+
+          compact_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBCompact.c"
+          ).read_text()
+          if compact_source.count("UDB_compactionStreamsAreOpen_(") != 3:
+              raise SystemExit("UDB compaction stream readiness is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):
