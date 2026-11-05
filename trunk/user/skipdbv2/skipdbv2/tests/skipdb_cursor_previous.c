@@ -92,7 +92,23 @@ int main(void)
 
     record = SkipDBCursor_previous(cursor);
     if (!record_key_is(record, "alpha")) {
-        fprintf(stderr, "previous(beta) did not return alpha after reopen\n");
+        Datum actual_key = SkipDBRecord_keyDatum(record);
+        SkipDBRecord *update0 = db->update[0];
+        Datum update_key = SkipDBRecord_keyDatum(update0);
+        fprintf(stderr,
+            "previous(beta) did not return alpha after reopen: "
+            "open=%d returned=%p pid=%lu key=%.*s level=%d "
+            "update0=%p pid=%lu key=%.*s header=%p headerPid=%lu\n",
+            SkipDB_isOpen(db), (void *)record,
+            (unsigned long)SkipDBRecord_pid(record),
+            (int)actual_key.size,
+            actual_key.data ? (const char *)actual_key.data : "",
+            SkipDBRecord_level(record), (void *)update0,
+            (unsigned long)SkipDBRecord_pid(update0),
+            (int)update_key.size,
+            update_key.data ? (const char *)update_key.data : "",
+            (void *)SkipDB_headerRecord(db),
+            (unsigned long)SkipDB_headerPid(db));
         goto done;
     }
 
