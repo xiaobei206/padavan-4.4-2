@@ -57,16 +57,24 @@ void skipd_daemonize(char * path)
         }
 
         /* Reject symlinks, hard links, non-regular, or foreign-owned paths. */
-        if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_nlink != 1 ||
-            st.st_uid != geteuid() || fchmod(fd, 0600) != 0 ||
-            ftruncate(fd, 0) != 0) {
-            if (errno == 0)
-                errno = EPERM;
-            fprintf(stderr, "Unsafe pid file: %s\n", strerror(errno));
-            close(fd);
-            kill(pid, SIGTERM);
-            exit(EXIT_FAILURE);
+        if (fstat(fd, &st) != 0)
+            goto unsafe_pid_file;
+        if (!S_ISREG(st.st_mode) || st.st_nlink != 1 ||
+            st.st_uid != geteuid()) {
+            errno = EPERM;
+            goto unsafe_pid_file;
         }
+        if (fchmod(fd, 0600) != 0 || ftruncate(fd, 0) != 0)
+            goto unsafe_pid_file;
+        goto pid_file_ready;
+
+unsafe_pid_file:
+        fprintf(stderr, "Unsafe pid file: %s\n", strerror(errno));
+        close(fd);
+        kill(pid, SIGTERM);
+        exit(EXIT_FAILURE);
+
+pid_file_ready:
 
         pid_len = snprintf(pid_text, sizeof(pid_text), "%ld\n", (long)pid);
         if (pid_len < 0 || (size_t)pid_len >= sizeof(pid_text)) {

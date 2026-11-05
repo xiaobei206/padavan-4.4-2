@@ -720,7 +720,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/daemonize.c": [
                   "O_NOFOLLOW",
+                  "if (fstat(fd, &st) != 0)",
                   "st_nlink != 1",
+                  "errno = EPERM;",
+                  "if (fchmod(fd, 0600) != 0 || ftruncate(fd, 0) != 0)",
                   "ftruncate(fd, 0)",
               ],
               "trunk/user/Makefile": [

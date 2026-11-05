@@ -1,3 +1,20 @@
+## 2026-11-06 04:58 CST — Preserve skipd PID-file validation errors
+
+### Baseline and scope
+- Base commit: `26f2384807a5bc5223e8d01decf3df71d8c43fd7` (`fix(skipd): preserve script log validation errors`); SkipDBv2 Regression run #210 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to the parent-process PID-file descriptor validation in `mgr/daemonize.c`.
+
+### Changes
+- Split `fstat`, file-policy checks, and permission/truncation syscalls. A genuine `fstat`, `fchmod`, or `ftruncate` failure keeps its system errno; a successfully inspected but unsafe file deterministically reports `EPERM`.
+- Retained the existing symlink, regular-file, single-link, and effective-UID policy, plus the existing child termination and parent exit behavior.
+- Updated the existing firmware source contract to enforce the explicit error boundary. No new files, declarations, CMake targets, or build-script changes.
+
+### Validation
+- Static preflight confirms every failure reaches one cleanup path, while successful validation alone proceeds to truncate and write the PID.
+- Remote SkipDBv2 Regression validates source contracts, compilation, and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 04:56 CST — Make skipd script-log validation errors deterministic
 
 ### Baseline and scope
