@@ -46,6 +46,9 @@ SET(SKIPDB_SRC
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBQuery.c
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBCursor.c
     ${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecord.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecordCache.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecordLinks.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecordStorage.c
 )
 FILE(GLOB_RECURSE MGR_SRC ${PROJECT_SOURCE_DIR}/mgr/*.c)
 FILE(GLOB_RECURSE CLIENT_SRC ${PROJECT_SOURCE_DIR}/client/*.c)
@@ -127,6 +130,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/skipdb_core_layers.c)
     TARGET_LINK_LIBRARIES(skipdb_core_layers_test skipdb m)
     add_test(NAME skipdb_core_layers_test COMMAND skipdb_core_layers_test)
+
+    ADD_EXECUTABLE(skipdb_record_storage_test
+        ${PROJECT_SOURCE_DIR}/tests/skipdb_record_storage.c)
+    TARGET_LINK_LIBRARIES(skipdb_record_storage_test skipdb m)
+    add_test(NAME skipdb_record_storage_test COMMAND skipdb_record_storage_test)
 
     ADD_EXECUTABLE(skipdb_cursor_previous_test
         ${PROJECT_SOURCE_DIR}/tests/skipdb_cursor_previous.c)

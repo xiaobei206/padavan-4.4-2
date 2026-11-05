@@ -5,6 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+void SkipDB_dealloc(SkipDB *self);
 void SkipDB_readRootRecord(SkipDB *self);
 void SkipDB_freeExcessCachedRecords(SkipDB *self);
 int SkipDB_level(SkipDB *self);

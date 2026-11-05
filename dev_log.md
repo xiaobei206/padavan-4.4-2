@@ -1,3 +1,41 @@
+## 2026-11-05 16:47 CST — Split SkipDB record lifetime, cache links, traversal, and persistence
+
+### Baseline and regression state
+- Base commit: `37ed202c94521550176dc2eeee66f1f0adeafd69` (`docs: add Beijing commit times to dev log headings`); current work is based on the latest `main` head.
+- Latest `SkipDBv2 Regression` run `41994089069` (#139), on parent implementation `52ff74f0e63f15e984ca30f882e5216ef1bd992e`, passed XY-C1 source contracts and CMake configure, then failed compiling `SkipDB.c`: `SkipDB_dealloc` was called before a private declaration. The build stopped before CTest. Earlier run `41992385670` (#138) passed on the preceding UDB-index baseline.
+- Preliminary host run `41996717318` (#140) on candidate `64eb81b0ee0c2892c9a30b30f42c08b266ba6326` reached compilation and exposed translation-unit include leaks: the cache unit lacked the SkipDB API/constants context, and the storage unit needed an explicit private declaration for the suffix setter. Both boundaries are repaired in this replacement tree; an unused static pointer accessor was removed.
+- The host regression remains the only automatic validation loop. Firmware validation remains manual-only; no regression stage or test is disabled.
+
+### Changes
+1. **Private lifecycle contract and baseline compile repair — `skipdb/SkipDBInternal.h`**
+   - Declared `SkipDB_dealloc` in the private implementation contract before `SkipDB_new` uses it, eliminating the implicit-declaration error without changing public API or object lifetime behavior.
+2. **Record core ownership — `skipdb/SkipDBRecord.c`**
+   - Retained record allocation/destruction, database/PID ownership, dirty state, key/value access, level-array allocation, and user-object accessors.
+   - Kept the debug-only freed-record tracker with the deallocator that owns its state.
+3. **Cache metadata — `skipdb/SkipDBRecordCache.c`**
+   - Isolated age-list linking/unlinking, pointer emptiness inspection, and stale-cache reference detachment before eviction.
+4. **Skip-list links and traversal — `skipdb/SkipDBRecordLinks.c`**
+   - Moved validated pointer-slot access, PID/prefix linkage, lazy record resolution, bounded forward search, last-record traversal, unlink repair, reverse predecessor reconstruction, and diagnostics into one link engine.
+   - Promoted only the slot accessor, PID materializer, and suffix-aware PID setter to private cross-unit helpers in `SkipDBRecordInternal.h`; public record structures and API remain unchanged.
+5. **Tagged record persistence — `skipdb/SkipDBRecordStorage.c`**
+   - Isolated tagged serialization, strict bounded deserialization, and UDB persistence. Existing key/value encoding, level/PID/suffix order, signed-PID compatibility, and trailing-byte rejection are preserved.
+6. **Build and regression contracts — `CMakeLists.txt`, `tests/skipdb_record_storage.c`, `.github/workflows/skipdbv2-regression.yml`**
+   - Registered the three new implementation units and a round-trip regression using embedded NUL/high-bit bytes, skip-list PID/suffix links, truncated input, trailing data, and invalid tags.
+   - Extended CI source-boundary assertions and retained the full host build plus complete CTest invocation.
+
+### Validation
+- Structural extraction audit: all 57 original `SkipDBRecord.c` definitions were classified: 56 retained implementations are assigned once across the core, cache, links, and storage units, and the one unreferenced static pointer accessor was removed. All cross-unit helpers are declared in the private header.
+- The prior compiler failure is directly addressed. No local compiler/CTest execution is claimed; the pushed revision triggers the unchanged full host regression workflow.
+- No persistent UDB/JFile/SkipDB binary representation, firmware trigger, test, or CI validation stage is removed or bypassed.
+
+### Follow-up
+- Keep record allocation, ownership, dirty state, and user object metadata in `SkipDBRecord.c`.
+- Keep age links and cache-reference cleanup in `SkipDBRecordCache.c`.
+- Keep all skip-list pointer and predecessor semantics in `SkipDBRecordLinks.c`.
+- Keep BStream wire-format and UDB writes in `SkipDBRecordStorage.c`; any future format change must retain round-trip and malformed-stream coverage.
+
+---
+
 ## 2026-11-05 16:23 CST — Split SkipDB core lifecycle, cache, transactions, search, writes, and queries
 
 ### Baseline and regression state

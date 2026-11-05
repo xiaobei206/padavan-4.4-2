@@ -143,6 +143,7 @@ jobs:
                   "index state did not survive a rebuild on reopen",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBInternal.h": [
+                  "void SkipDB_dealloc(SkipDB *self);",
                   "void SkipDB_readRootRecord(SkipDB *self);",
                   "void SkipDB_freeExcessCachedRecords(SkipDB *self);",
                   "int SkipDB_pickRandomRecordLevel(SkipDB *self);",
@@ -153,6 +154,41 @@ jobs:
                   "SKIPDB_API int SkipDB_open(SkipDB *self)",
                   "void SkipDB_dealloc(SkipDB *self)",
                   "int SkipDB_isOpen(SkipDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordInternal.h": [
+                  '#include "SkipDB.h"',
+                  "SkipDBRecord_pointerAtLevel_(SkipDBRecord *self, int level)",
+                  "SkipDBRecord_atLevel_setPid_setSuffix_(SkipDBRecord *self, int level, PID_TYPE pid, uint8_t sMatch)",
+                  "SkipDBRecord_allocedPidAtLevel_(SkipDBRecord *self, int level)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecord.c": [
+                  '#include "SkipDBRecordInternal.h"',
+                  "SkipDBRecord *SkipDBRecord_new(void)",
+                  "void SkipDBRecord_dealloc(SkipDBRecord *self)",
+                  "void SkipDBRecord_markAsDirty(SkipDBRecord *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordCache.c": [
+                  "SkipDBRecord_removeFromAgeList",
+                  "SkipDBRecord_pointersAreEmpty",
+                  "SkipDBRecord_removeReferencesToUnmarked",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordLinks.c": [
+                  "SkipDBRecord_recordAtLevel_",
+                  "SkipDBRecord_find_quick_",
+                  "SkipDBRecord_willRemove_",
+                  "SkipDBRecord_previousRecord(SkipDBRecord *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordStorage.c": [
+                  "SkipDBRecord_toStream_(SkipDBRecord *self, BStream *s)",
+                  "SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)",
+                  "SkipDBRecord_save(SkipDBRecord *self)",
+                  "s->index != stream_size",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/skipdb_record_storage.c": [
+                  "SkipDBRecord_toStream_(source, writer)",
+                  "SkipDBRecord_fromStream_(restored, reader)",
+                  "truncated record stream accepted",
+                  "stream trailing data accepted",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c": [
                   "void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)",
@@ -358,6 +394,11 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/jfile/JFileJournal.c",
                   "${PROJECT_SOURCE_DIR}/jfile/JFileJournalScan.c",
                   "${PROJECT_SOURCE_DIR}/jfile/JFileSync.c",
+                  "${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecordCache.c",
+                  "${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecordLinks.c",
+                  "${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecordStorage.c",
+                  "skipdb_record_storage_test",
+                  "add_test(NAME skipdb_record_storage_test COMMAND skipdb_record_storage_test)",
                   "ADD_LIBRARY(skipdb STATIC ${BASEKIT_SRC} ${JFILE_SRC} ${UDB_SRC} ${SKIPDB_SRC})",
                   "jfile_journal_test",
                   "add_test(NAME jfile_journal_test COMMAND jfile_journal_test)",
@@ -471,6 +512,16 @@ jobs:
                   raise SystemExit(f"wall-clock IPC timeout remains: {path}")
               if "usleep(5);" in content or "usleep(50);" in content:
                   raise SystemExit(f"busy-poll IPC retry remains: {path}")
+
+          record_core = Path("trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecord.c").read_text()
+          for moved_definition in (
+              "SkipDBRecord_toStream_(",
+              "SkipDBRecord_fromStream_(",
+              "SkipDBRecord_find_quick_(",
+              "SkipDBRecord_removeReferencesToUnmarked(",
+          ):
+              if moved_definition in record_core:
+                  raise SystemExit("SkipDBRecord core still owns extracted function: " + moved_definition)
 
           print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
           PY
