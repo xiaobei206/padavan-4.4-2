@@ -122,6 +122,20 @@ static int check_buf(dbclient* client, int len) {
     return 0;
 }
 
+static int valid_protocol_field(const char *text, int allow_empty)
+{
+    const unsigned char *p = (const unsigned char *)text;
+
+    if (NULL == text || (!allow_empty && *text == '\0'))
+        return 0;
+    for (; *p; ++p) {
+        /* Command and key are space-delimited protocol tokens, not payloads. */
+        if (*p <= 0x20 || *p == 0x7f)
+            return 0;
+    }
+    return 1;
+}
+
 static int setnonblock(int fd) {
     int flags;
     flags = fcntl(fd, F_GETFL);
@@ -160,7 +174,9 @@ int dbclient_bulk(dbclient* client, char* command, char* key, char* value) {
     int written;
 
     if (NULL == client || NULL == command || NULL == key || NULL == value ||
-        client->remote_fd < 0)
+        client->remote_fd < 0 ||
+        !valid_protocol_field(command, 0) ||
+        !valid_protocol_field(key, 1))
         return -1;
     body_len = strlen(command);
     if (body_len > (size_t)READ_MAX - 3)
@@ -394,7 +410,7 @@ int dbclient_list(dbclient* client, char* prefix, void* o, fn_db_parse fn) {
     int written;
 
     if (NULL == client || NULL == prefix || NULL == fn ||
-        client->remote_fd < 0)
+        client->remote_fd < 0 || !valid_protocol_field(prefix, 1))
         return -1;
     body_len = strlen(prefix) + 6; /* "list " + newline */
     if (body_len > READ_MAX ||
