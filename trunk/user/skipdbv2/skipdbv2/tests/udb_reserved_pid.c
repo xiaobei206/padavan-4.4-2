@@ -82,6 +82,15 @@ int main(void)
         goto done;
     }
 
+    /* "second" is one byte larger than the preceding "first" row. The
+     * compactor must not overwrite it when the first hole is too small. */
+    if (UDB_compactStep(db) != 0 || !UDB_isOpen(db) ||
+        !has_value(db, first_pid, "updated") ||
+        !has_value(db, second_pid, "second")) {
+        fprintf(stderr, "compaction damaged a row larger than the free extent\n");
+        goto done;
+    }
+
     /* A freed PID can be reserved and written again in a later transaction. */
     UDB_beginTransaction(db);
     UDB_removeAt_(db, second_pid);
