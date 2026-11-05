@@ -95,6 +95,7 @@ jobs:
                   "UDBCommitMarker commitMarker;",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBStorage.c": [
+                  '#include "UDBInternal.h"',
                   "void UDB_open(UDB *self)",
                   "UDBCommitMarker_open(&self->commitMarker,0)",
                   "UDBCommitMarker_artifactsExist(artifact_paths,4)",
@@ -114,11 +115,36 @@ jobs:
                   "UDBCommitMarker_write(&db->commitMarker, 1)",
                   "UDB_compactStep(db)",
               ],
+              "trunk/user/skipdbv2/skipdbv2/tests/udb_record_api.c": [
+                  "invalid.size = 1",
+                  "UDB_put_(db, invalid)",
+                  "UDB_at_put_(db, pid",
+                  "UDB_removeAt_(db, pid)",
+                  "removed record reappeared after reopen",
+              ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDB.c": [
+                  "PID_TYPE UDB_nextPid(UDB *self)",
+                  "PID_TYPE UDB_allocPid(UDB *self)",
+                  "void UDB_show(UDB *self)",
+                  "void UDB_showIndex(UDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBInternal.h": [
+                  "int UDB_isInTransaction(UDB *self);",
+                  "UDBRecord *UDB_recordAtPid_(UDB *self, PID_TYPE pid);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRead.c": [
+                  "UDBRecord *UDB_recordAtPid_(UDB *self, PID_TYPE pid)",
+                  "Datum UDB_at_(UDB *self, PID_TYPE pid)",
+                  "UDBRecord_pid(record) != pid",
+                  "failed reading payload for PID",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBWrite.c": [
                   "static int UDB_rollbackJournalAppend(JFile *file, long log_start,",
                   "static int UDB_append_withPid_(UDB *self, Datum d, PID_TYPE pid)",
                   "PID_TYPE UDB_put_(UDB *self, Datum d)",
                   "void UDB_at_put_(UDB *self, PID_TYPE pid, Datum d)",
+                  "void UDB_removeAt_(UDB *self, PID_TYPE pid)",
+                  "UDBIndex_isReservedPid_(self->index, pid)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/commit_marker.c": [
                   "UDBCommitMarker_write(&marker,0)",
@@ -173,8 +199,12 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/CMakeLists.txt": [
                   "SET(UDB_SRC",
+                  "UDBRead.c",
+                  "UDBWrite.c",
                   "UDBStorage.c",
                   "UDBCompact.c",
+                  "ADD_EXECUTABLE(udb_record_api_test",
+                  "add_test(NAME udb_record_api_test COMMAND udb_record_api_test)",
                   "ADD_EXECUTABLE(commit_marker_test",
                   "add_test(NAME commit_marker_test COMMAND commit_marker_test)",
                   "ADD_EXECUTABLE(ipc_io_test",

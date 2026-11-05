@@ -131,3 +131,34 @@
 - Pre-commit structural checks confirm that both CLI files delegate socket creation, nonblocking setup, buffer growth, token validation, exact reads, and exact writes to the shared transport module.
 - No local compiler or CTest run is claimed. The pushed revision triggers SkipDBv2 Regression and XY-C1 firmware validation workflows.
 - Follow-up: protocol framing and response parsing remain caller-owned; only transport mechanics belong in `ipc_transport.c`.
+
+## 2026-11-05 — Separate UDB record read and write pipelines
+
+### Baseline
+- Base commit: `08ba960f5fcb2795ad4e103da099bb014bf70ecb` (`refactor(skipdb): share IPC client transport primitives`).
+- Latest `SkipDBv2 Regression` run `41979358813` failed in `Build all SkipDBv2 targets`: `UDB.c` called `UDB_isInTransaction` without a declaration after lifecycle code had been split into `UDBStorage.c`. The integration-contract and CMake configure steps passed; CTest was skipped because compilation stopped.
+- Only `main` was present in the branch inventory; no branch-only work was omitted.
+
+### Changes
+1. **Private cross-module contract — `udb/UDBInternal.h`**
+   - Declares the transaction-state predicate implemented by `UDBStorage.c` and the validated PID-to-record lookup shared by read and write operations.
+   - Keeps these implementation details out of the public `UDB.h` API surface.
+2. **Read pipeline — `udb/UDBRead.c`**
+   - Owns PID lookup validation, record/PID consistency checks, payload reading, and read-failure handling.
+3. **Write pipeline — `udb/UDBWrite.c`**
+   - Owns append rollback, record append/index mapping, transactional replacement, and record removal.
+   - Preserves append ordering, reserved-PID validation, rollback behavior, and close-on-uncertain-write semantics.
+4. **Facade/build/regression — `udb/UDB.c`, `udb/UDBStorage.c`, `CMakeLists.txt`, `tests/udb_record_api.c`, `.github/workflows/skipdbv2-regression.yml`**
+   - Reduced `UDB.c` to PID allocation facade and diagnostics; wired the storage implementation to the private declarations.
+   - Added both source files to the explicit UDB manifest and a focused CTest for transaction-only writes, invalid-datum rejection, insert/update/remove persistence, and reopen behavior.
+   - Updated source-boundary assertions so the regression job follows the new ownership split instead of looking for moved functions in `UDB.c`.
+
+### Validation
+- Pre-push structural validation checks that extracted function bodies are preserved byte-for-byte and that the workflow contract needles match the resulting sources and test registration.
+- Remote `SkipDBv2 Regression` is the authoritative compiler/CTest validation after push. No local C build or CTest run is claimed.
+- The XY-C1 firmware workflow remains enabled; no CI job or firmware trigger was disabled.
+
+### Follow-up
+- Keep PID-to-record consistency and payload read failures in `UDBRead.c`.
+- Keep journal append rollback and multi-step record mutations in `UDBWrite.c`; transaction ordering across both storage files remains in `UDBStorage.c`.
+

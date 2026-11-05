@@ -18,6 +18,8 @@ FILE(GLOB_RECURSE BASEKIT_SRC ${PROJECT_SOURCE_DIR}/basekit/*.c)
 FILE(GLOB_RECURSE FILE_SRC ${PROJECT_SOURCE_DIR}/jfile/*.c)
 SET(UDB_SRC
     ${PROJECT_SOURCE_DIR}/udb/UDB.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBRead.c
+    ${PROJECT_SOURCE_DIR}/udb/UDBWrite.c
     ${PROJECT_SOURCE_DIR}/udb/UDBStorage.c
     ${PROJECT_SOURCE_DIR}/udb/UDBCompact.c
     ${PROJECT_SOURCE_DIR}/udb/UDBCommitMarker.c
@@ -79,6 +81,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/udb_reserved_pid.c)
     TARGET_LINK_LIBRARIES(udb_reserved_pid_test skipdb m)
     add_test(NAME udb_reserved_pid_test COMMAND udb_reserved_pid_test)
+
+    ADD_EXECUTABLE(udb_record_api_test
+        ${PROJECT_SOURCE_DIR}/tests/udb_record_api.c)
+    TARGET_LINK_LIBRARIES(udb_record_api_test skipdb m)
+    add_test(NAME udb_record_api_test COMMAND udb_record_api_test)
 
     ADD_EXECUTABLE(dbus_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbus_protocol.c
