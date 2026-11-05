@@ -904,13 +904,17 @@ int SkipDB_count(SkipDB *self)
 		NULL == self->udb || NULL == self->udb->index)
 		return 0;
 	max_steps = UDBIndex_pidCount(self->udb->index);
-	if (max_steps < 0)
+	if (max_steps <= 0) {
+		fprintf(stderr, "SkipDB: invalid PID index length while counting records\n");
+		SkipDB_close(self);
 		return -1;
+	}
 	record = SkipDB_firstRecord(self);
 	while (record) {
 		/* A valid list cannot contain more rows than the PID index. */
 		if (++steps > max_steps) {
 			fprintf(stderr, "SkipDB: cycle or invalid link in record list\n");
+			SkipDB_close(self);
 			return -1;
 		}
 		if (count == INT_MAX)
@@ -993,14 +997,20 @@ int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)
 		NULL == self->udb || NULL == self->udb->index)
 		return 0;
 	max_steps = UDBIndex_pidCount(self->udb->index);
-	if (max_steps < 0)
+	if (max_steps <= 0) {
+		fprintf(stderr, "SkipDB: invalid PID index length during merge\n");
+		SkipDB_close(self);
 		return 0;
+	}
 
 	record = self->header;
 	while ((record = SkipDBRecord_nextRecord(record)) != NULL) {
 		Datum key, value;
-		if (++steps > max_steps)
+		if (++steps > max_steps) {
+			fprintf(stderr, "SkipDB: cycle or invalid link during merge\n");
+			SkipDB_close(self);
 			return 0;
+		}
 		key = SkipDBRecord_keyDatum(record);
 		value = SkipDBRecord_valueDatum(record);
 		if (!SkipDB_at_put_(other, key, value) ||
@@ -1042,7 +1052,9 @@ void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,
 	if (NULL == cursor)
 		return;
 	max_steps = UDBIndex_pidCount(self->udb->index);
-	if (max_steps < 0) {
+	if (max_steps <= 0) {
+		fprintf(stderr, "SkipDB: invalid PID index length during prefix scan\n");
+		SkipDB_close(self);
 		SkipDBCursor_release(cursor);
 		return;
 	}
@@ -1051,6 +1063,7 @@ void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,
 		Datum key;
 		if (++steps > max_steps) {
 			fprintf(stderr, "SkipDB: cycle or invalid link during prefix scan\n");
+			SkipDB_close(self);
 			break;
 		}
 		key = SkipDBRecord_keyDatum(record);
