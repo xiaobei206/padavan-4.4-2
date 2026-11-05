@@ -667,23 +667,31 @@ SkipDBRecord *SkipDBRecord_findLastRecord(SkipDBRecord *self)
 	int level;
 	size_t steps = 0;
 
-	if (NULL == db || NULL == db->udb || NULL == db->udb->index)
+	if (NULL == db || NULL == db->udb || NULL == db->udb->index ||
+		!SkipDB_isOpen(db))
 		return NULL;
 	max_steps = UDBIndex_pidCount(db->udb->index);
-	if (max_steps <= 0)
+	if (max_steps <= 0) {
+		UDB_close(db->udb);
 		return NULL;
+	}
 
 	while (current)
 	{
 		if (++steps > (size_t)max_steps ||
 			current->level < 0 || current->level > SKIPDB_MAX_LEVEL ||
-			(current->level > 0 && NULL == current->pointers))
+			(current->level > 0 && NULL == current->pointers)) {
+			fprintf(stderr, "SkipDB: invalid linkage while finding last record\n");
+			UDB_close(db->udb);
 			return NULL;
+		}
 
 		next = NULL;
 		for (level = current->level - 1; level >= 0; --level)
 		{
 			next = SkipDBRecord_recordAtLevel_(current, level);
+			if (!SkipDB_isOpen(db))
+				return NULL;
 			if (next)
 				break;
 		}
