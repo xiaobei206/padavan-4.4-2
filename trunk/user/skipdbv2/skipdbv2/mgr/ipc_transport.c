@@ -12,9 +12,18 @@
 #include "ipc_io.h"
 #include "ipc_transport.h"
 
+/* Set close-on-exec even when SOCK_CLOEXEC is unavailable at runtime. */
+static int skipdb_ipc_set_cloexec_(int fd)
+{
+    int flags = fcntl(fd, F_GETFD);
+    if (flags < 0)
+        return -1;
+    return fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+}
+
 int skipdb_ipc_connect_unix(const char *sock_path)
 {
-    int fd;
+    int fd, saved_errno;
     size_t path_len;
     socklen_t address_len;
     struct sockaddr_un remote;
@@ -24,9 +33,21 @@ int skipdb_ipc_connect_unix(const char *sock_path)
     path_len = strlen(sock_path);
     if (path_len == 0 || path_len >= sizeof(remote.sun_path))
         return -1;
+#ifdef SOCK_CLOEXEC
+    fd = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd < 0 && errno == EINVAL)
+        fd = socket(PF_UNIX, SOCK_STREAM, 0);
+#else
     fd = socket(PF_UNIX, SOCK_STREAM, 0);
+#endif
     if (fd < 0)
         return -1;
+    if (skipdb_ipc_set_cloexec_(fd) < 0) {
+        saved_errno = errno;
+        close(fd);
+        errno = saved_errno;
+        return -1;
+    }
 
     memset(&remote, 0, sizeof(remote));
     remote.sun_family = AF_UNIX;
@@ -34,7 +55,9 @@ int skipdb_ipc_connect_unix(const char *sock_path)
     address_len = (socklen_t)(offsetof(struct sockaddr_un, sun_path) +
         path_len + 1);
     if (connect(fd, (struct sockaddr *)&remote, address_len) < 0) {
+        saved_errno = errno;
         close(fd);
+        errno = saved_errno;
         return -1;
     }
     return fd;

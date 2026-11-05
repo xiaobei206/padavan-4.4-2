@@ -86,6 +86,13 @@ static int test_unix_connect(void)
     client = skipdb_ipc_connect_unix(path);
     if (client < 0)
         goto fail;
+    {
+        int flags = fcntl(client, F_GETFD);
+        if (flags < 0 || (flags & FD_CLOEXEC) == 0) {
+            fprintf(stderr, "Unix socket descriptor is not close-on-exec\\n");
+            goto fail;
+        }
+    }
     accepted = accept(listener, NULL, NULL);
     if (accepted < 0)
         goto fail;

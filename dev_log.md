@@ -1,3 +1,21 @@
+## 2026-11-06 06:00 CST — Make IPC client sockets close-on-exec
+
+### Baseline and scope
+- Base commit: `45d7cd39884c1bbb496b60fe038796f6911591a5` (`fix(skipdb): invalidate cursor state on close`); SkipDBv2 Regression run #216 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to Unix-socket descriptor lifecycle in `mgr/ipc_transport.c`.
+
+### Changes
+- Create client sockets with `SOCK_CLOEXEC` atomically when supported, falling back on `EINVAL` to a plain socket and an explicit `FD_CLOEXEC` update.
+- Close the descriptor if setting close-on-exec fails, while preserving the primary `errno`.
+- Preserve the original `connect()` failure across descriptor cleanup.
+- Extend the existing Unix-socket regression and CI source contract to assert that returned client descriptors carry `FD_CLOEXEC`. Existing CMake target and source registration are unchanged.
+
+### Validation
+- Static preflight confirms the atomic/fallback paths, checked `fcntl` result, error-preserving close paths, and regression assertion.
+- Remote SkipDBv2 Regression is authoritative for compilation and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 05:55 CST — Invalidate cursor positions when the database closes
 
 ### Baseline and scope
