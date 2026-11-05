@@ -102,6 +102,16 @@ int main(void)
         goto done;
     }
 
+    /* Forward traversal also remains bounded and usable after repositioning. */
+    record = SkipDBCursor_first(cursor);
+    if (!record_key_is(record, "alpha") ||
+        !record_key_is(SkipDBCursor_next(cursor), "beta") ||
+        !record_key_is(SkipDBCursor_next(cursor), "gamma") ||
+        SkipDBCursor_next(cursor) != NULL) {
+        fprintf(stderr, "forward cursor traversal failed after repositioning\n");
+        goto done;
+    }
+
     result = EXIT_SUCCESS;
     puts("skipdb cursor previous test passed");
 
