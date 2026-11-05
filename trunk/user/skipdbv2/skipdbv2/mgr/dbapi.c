@@ -14,25 +14,12 @@
 #include <poll.h>
 #include <limits.h> // [LONG|INT][MIN|MAX]
 #include <stddef.h>
-#include "skipd.h"
+#include "dbapi_internal.h"
 #include "ipc_transport.h"
-#include "ipc_protocol.h"
 
 //"list "
 #define LIST_LEN 5
 
-typedef struct _dbclient {
-    int remote_fd;
-
-    char* buf;
-    int buf_max;
-    int buf_len;
-    int buf_pos;
-} dbclient;
-
-typedef int (*fn_db_parse)(dbclient* client, void* o, char* prefix, char* key, char* value);
-static int ignore_result(dbclient *client,
-    const char *command, const char *key);
 
 static int write_util(dbclient* client, int len, unsigned int delay) {
     if (NULL == client || NULL == client->buf || len < 0 ||
@@ -46,7 +33,7 @@ static int create_client_fd(char* sock_path) {
     return skipdb_ipc_connect_unix(sock_path);
 }
 
-static int check_buf(dbclient* client, int len) {
+int dbapi_check_buf(dbclient* client, int len) {
     if (NULL == client)
         return -1;
     return skipdb_ipc_ensure_buffer(&client->buf, &client->buf_max,
@@ -106,7 +93,7 @@ int dbclient_bulk(dbclient* client, char* command, char* key, char* value) {
         return -1;
     body_len += strlen(value) + 3; /* spaces and newline */
     if (body_len == 0 || body_len > READ_MAX ||
-        check_buf(client, (int)body_len + HEADER_PREFIX) != 0)
+        dbapi_check_buf(client, (int)body_len + HEADER_PREFIX) != 0)
         return -1;
 
     written = snprintf(client->buf, (size_t)client->buf_max + 1,
@@ -116,123 +103,8 @@ int dbclient_bulk(dbclient* client, char* command, char* key, char* value) {
         return -1;
     if (write_util(client, written, 200) != 0)
         return -1;
-    return ignore_result(client, command, key);
+    return dbapi_ignore_result(client, command, key);
 }
-
-static int read_util(dbclient* client, int len, unsigned int delay) {
-    if (NULL == client || client->remote_fd < 0 || len <= 0 ||
-        len > READ_MAX || check_buf(client, len) != 0)
-        return -4;
-    return skipdb_ipc_read_exact(client->remote_fd, client->buf, len,
-        delay, &client->buf_pos);
-}
-
-static int ignore_result(dbclient *client,
-    const char *command, const char *key)
-{
-    int n1, n2;
-    skipdb_ipc_frame_view frame;
-    size_t command_len, key_len;
-
-    if (NULL == client || NULL == command || NULL == key)
-        return -1;
-    n1 = read_util(client, HEADER_PREFIX, 110);
-    if (n1 < 0)
-        return n1;
-    if (0 != memcmp(client->buf, MAGIC, MAGIC_LEN))
-        return -3;
-    client->buf[HEADER_PREFIX - 1] = '\0';
-    if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
-        n2 <= 0 || n2 > READ_MAX)
-        return -4;
-    n1 = read_util(client, n2, 110);
-    if (n1 < 0)
-        return n1;
-    client->buf[n2] = '\0';
-    if (skipdb_ipc_parse_envelope(client->buf, (size_t)n2, &frame) != 0)
-        return -4;
-
-    command_len = strlen(command);
-    key_len = strlen(key);
-    if (frame.command_len == 9 &&
-        memcmp(frame.command, "__error__", 9) == 0) {
-        if (frame.key_len != command_len ||
-            memcmp(frame.key, command, command_len) != 0)
-            return -4;
-        return -5;
-    }
-    if (frame.command_len != command_len ||
-        memcmp(frame.command, command, command_len) != 0 ||
-        frame.key_len != key_len ||
-        memcmp(frame.key, key, key_len) != 0)
-        return -4;
-
-    if (strcmp(command, "set") == 0 || strcmp(command, "ram") == 0) {
-        if (frame.payload_len != 3 ||
-            memcmp(frame.payload, "ok\n", 3) != 0)
-            return -5;
-    }
-    return 0;
-}
-
-
-static int parse_list_result(dbclient *client, char* prefix, void* o, fn_db_parse fn) {
-    int n1, n2;
-    skipdb_ipc_frame_view frame;
-    size_t value_len;
-
-    for (;;) {
-        n1 = read_util(client, HEADER_PREFIX, 110);
-        if (n1 < 0)
-            return n1;
-        if (0 != memcmp(client->buf, MAGIC, MAGIC_LEN))
-            return -3;
-        client->buf[HEADER_PREFIX - 1] = '\0';
-        if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
-            n2 <= 0 || n2 > READ_MAX)
-            return -4;
-        n1 = read_util(client, n2, 510);
-        if (n1 < 0)
-            return n1;
-        client->buf[n2] = '\0';
-        if (skipdb_ipc_parse_envelope(client->buf, (size_t)n2, &frame) != 0)
-            return -4;
-
-        if (frame.command_len == 9 &&
-            memcmp(frame.command, "__error__", 9) == 0)
-            return (frame.key_len == 4 && memcmp(frame.key, "list", 4) == 0)
-                ? -5 : -4;
-
-        if (frame.command_len == 7 &&
-            memcmp(frame.command, "__end__", 7) == 0) {
-            if (frame.key_len == 4 && memcmp(frame.key, "list", 4) == 0 &&
-                frame.payload_len == 8 &&
-                memcmp(frame.payload, "__end__\n", 8) == 0)
-                break;
-            return -4;
-        }
-        if (frame.command_len != 4 ||
-            memcmp(frame.command, "list", 4) != 0)
-            return -4;
-
-        frame.key[frame.key_len] = '\0';
-        value_len = frame.payload_len;
-        if (value_len > 0) {
-            if (frame.payload[value_len - 1] == '\0' ||
-                frame.payload[value_len - 1] == '\n')
-                --value_len;
-            else
-                return -4;
-        }
-        if (memchr(frame.payload, '\0', value_len) != NULL)
-            return -4;
-        frame.payload[value_len] = '\0';
-        if (0 != (*fn)(client, o, prefix, frame.key, frame.payload))
-            return -5;
-    }
-    return 0;
-}
-
 
 int dbclient_list(dbclient* client, char* prefix, void* o, fn_db_parse fn) {
     size_t body_len;
@@ -243,7 +115,7 @@ int dbclient_list(dbclient* client, char* prefix, void* o, fn_db_parse fn) {
         return -1;
     body_len = strlen(prefix) + 6; /* "list " + newline */
     if (body_len > READ_MAX ||
-        check_buf(client, (int)body_len + HEADER_PREFIX) != 0)
+        dbapi_check_buf(client, (int)body_len + HEADER_PREFIX) != 0)
         return -1;
     written = snprintf(client->buf, (size_t)client->buf_max + 1,
         "%s%07lu list %s\n", MAGIC, (unsigned long)body_len, prefix);
@@ -251,7 +123,7 @@ int dbclient_list(dbclient* client, char* prefix, void* o, fn_db_parse fn) {
         return -1;
     if (write_util(client, written, 100) != 0)
         return -1;
-    return parse_list_result(client, prefix, o, fn);
+    return dbapi_parse_list_result(client, prefix, o, fn);
 }
 
 int dbclient_end(dbclient* client) {
