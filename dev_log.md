@@ -1,3 +1,20 @@
+## 2026-11-06 01:26 CST — Centralize UDB record payload extent checks
+
+### Baseline and scope
+- Base commit: `e5b143842e7c1e4a4b0154239c8144881d1b287e` (`refactor(udb): unify record cursor position bounds`); SkipDBv2 Regression run #184 (`42074324193`) passed all checks.
+- This iteration is limited to `udb/UDBRecordRead.c`.
+
+### Changes
+- Centralized file-boundary checks ensuring a record header and its declared payload fit in the records file.
+- Reused the private helper before reading the header, after decoding its declared payload size, and before loading the payload.
+- Updated existing CI source contracts to verify the helper has one definition and three call sites. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and three call sites; the CI contract checks the same invariant.
+- The remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:23 CST — Unify UDB record-cursor position bounds
 
 ### Baseline and scope

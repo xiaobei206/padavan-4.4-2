@@ -131,6 +131,10 @@ jobs:
                   "UArray *UDBRecord_data(UDBRecord *self);",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordRead.c": [
+                  "static int UDBRecord_payloadFitsFile_(UDBRecord *self, size_t file_size, PID_TYPE payload_size)",
+                  "UDBRecord_payloadFitsFile_(self, file_size, 0)",
+                  "UDBRecord_payloadFitsFile_(self, file_size, self->header.size)",
+                  "UDBRecord_payloadFitsFile_(self, (size_t)self->file->maxPos, size)",
                   "ba = UDBRecord_data(self);",
                   "d.data = (unsigned char *)UArray_bytes(ba);",
               ],
@@ -755,6 +759,12 @@ jobs:
           ).read_text()
           if records_cursor_source.count("UDBRecords_nextPosition_(") != 3:
               raise SystemExit("UDB sequential/relative cursor offsets are not centralized")
+
+          record_read_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordRead.c"
+          ).read_text()
+          if record_read_source.count("UDBRecord_payloadFitsFile_(") != 4:
+              raise SystemExit("UDB record extents are not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

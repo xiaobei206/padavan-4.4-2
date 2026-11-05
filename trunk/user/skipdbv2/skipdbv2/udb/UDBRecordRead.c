@@ -4,6 +4,16 @@
 #include <stdlib.h>
 #include <limits.h>
 
+/* Shared extent check for a fixed header plus its declared payload. */
+static int UDBRecord_payloadFitsFile_(UDBRecord *self, size_t file_size, PID_TYPE payload_size)
+{
+    if (NULL == self || self->pos > file_size)
+        return 0;
+    if (file_size - self->pos < sizeof(UDBRecordHeader))
+        return 0;
+    return payload_size <= file_size - self->pos - sizeof(UDBRecordHeader);
+}
+
 int UDBRecord_readHeader(UDBRecord *self)
 {
     int objectsRead;
@@ -13,8 +23,7 @@ int UDBRecord_readHeader(UDBRecord *self)
         return 0;
 
     file_size = (size_t)self->file->maxPos;
-    if (self->pos > file_size ||
-        file_size - self->pos < sizeof(UDBRecordHeader)) {
+    if (!UDBRecord_payloadFitsFile_(self, file_size, 0)) {
         self->header.tag = RECORD_TAG_EMPTY;
         self->header.pid = 0;
         self->header.size = 0;
@@ -30,7 +39,7 @@ int UDBRecord_readHeader(UDBRecord *self)
         (self->header.tag != RECORD_TAG_NORMAL &&
          self->header.tag != RECORD_TAG_EMPTY) ||
         self->header.pid == 0 ||
-        self->header.size > file_size - self->pos - sizeof(UDBRecordHeader)) {
+        !UDBRecord_payloadFitsFile_(self, file_size, self->header.size)) {
         self->header.tag = RECORD_TAG_EMPTY;
         self->header.pid = 0;
         self->header.size = 0;
@@ -53,9 +62,7 @@ Datum UDBRecord_readDatum(UDBRecord *self)
         return d;
 
     size = self->header.size;
-    if (self->pos > (size_t)self->file->maxPos ||
-        (size_t)self->file->maxPos - self->pos < sizeof(UDBRecordHeader) ||
-        size > (size_t)self->file->maxPos - self->pos - sizeof(UDBRecordHeader))
+    if (!UDBRecord_payloadFitsFile_(self, (size_t)self->file->maxPos, size))
         return d;
 
     ba = UDBRecord_data(self);
