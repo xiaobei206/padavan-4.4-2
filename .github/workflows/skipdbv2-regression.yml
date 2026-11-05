@@ -337,6 +337,10 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsCursor.c": [
                   "UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)",
                   "UDBRecord *UDBRecords_nextRecord(UDBRecords *self)",
+                  "UDBRecord *UDBRecords_recordAfter_(UDBRecords *self, UDBRecord *record)",
+                  "static int UDBRecords_nextPosition_(UDBRecord *record, PID_TYPE *next_pos)",
+                  "UDBRecords_nextPosition_(self->record, &nextPos)",
+                  "UDBRecords_nextPosition_(record, &nextPos)",
                   "int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsFreeList.c": [
@@ -745,6 +749,12 @@ jobs:
               raise SystemExit("SkipDB ordered-query PID traversal limit is not centralized")
           if query_source.count("SkipDB_queryTraversalStep_(") != 3:
               raise SystemExit("SkipDB ordered-query bounded-step guard is not centralized")
+
+          records_cursor_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsCursor.c"
+          ).read_text()
+          if records_cursor_source.count("UDBRecords_nextPosition_(") != 3:
+              raise SystemExit("UDB sequential/relative cursor offsets are not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

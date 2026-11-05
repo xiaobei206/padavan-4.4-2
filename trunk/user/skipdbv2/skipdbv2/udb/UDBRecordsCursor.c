@@ -23,29 +23,37 @@ UDBRecord *UDBRecords_newRecord(UDBRecords *self)
 	return self->record;
 }
 
+/* Compute a representable next-record offset for either cursor operation. */
+static int UDBRecords_nextPosition_(UDBRecord *record, PID_TYPE *next_pos)
+{
+	PID_TYPE size;
+	if (NULL == record || NULL == next_pos)
+		return 0;
+	size = UDBRecord_totalSize(record);
+	if (size == 0 || size > (PID_TYPE)LONG_MAX ||
+		record->pos > (PID_TYPE)LONG_MAX - size)
+		return 0;
+	*next_pos = record->pos + size;
+	return 1;
+}
+
 UDBRecord *UDBRecords_nextRecord(UDBRecords *self)
 {
-	PID_TYPE size, nextPos;
+	PID_TYPE nextPos;
 	if (NULL == self || NULL == self->record)
 		return NULL;
-	size = UDBRecord_totalSize(self->record);
-	if (size == 0 || size > (PID_TYPE)LONG_MAX ||
-		self->record->pos > (PID_TYPE)LONG_MAX - size)
+	if (!UDBRecords_nextPosition_(self->record, &nextPos))
 		return NULL;
-	nextPos = self->record->pos + size;
 	return UDBRecords_recordAtPos_(self, nextPos);
 }
 
 UDBRecord *UDBRecords_recordAfter_(UDBRecords *self, UDBRecord *record)
 {
-	PID_TYPE size, nextPos;
+	PID_TYPE nextPos;
 	if (NULL == self || NULL == record || NULL == self->record)
 		return NULL;
-	size = UDBRecord_totalSize(record);
-	if (size == 0 || size > (PID_TYPE)LONG_MAX ||
-		record->pos > (PID_TYPE)LONG_MAX - size)
+	if (!UDBRecords_nextPosition_(record, &nextPos))
 		return NULL;
-	nextPos = record->pos + size;
 	return UDBRecords_recordAtPos_(self, nextPos);
 }
 

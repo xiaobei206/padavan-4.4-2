@@ -1,3 +1,20 @@
+## 2026-11-06 01:23 CST — Unify UDB record-cursor position bounds
+
+### Baseline and scope
+- Base commit: `4f51e6b398fcb1581873ea51641a380e6ac92507` (`refactor(skipdb): centralize record-link traversal bounds`); SkipDBv2 Regression run #183 (`42074088012`) passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `udb/UDBRecordsCursor.c`.
+
+### Changes
+- Centralized record-size and signed file-offset overflow checks for advancing from the current record and advancing relative to a supplied record.
+- Kept the existing caller-specific null guards and EOF/corruption handling in `UDBRecords_recordAtPos_`; only duplicate next-position arithmetic moved into one private helper.
+- Added CI contracts for the helper's single definition/two callers. No new source file, public declaration, or CMake source-registration change.
+
+### Validation
+- Static preflight confirms one helper definition and exactly two call sites; the CI contract checks the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:22 CST — Unify SkipDB record-link traversal bounds
 
 ### Baseline and scope
