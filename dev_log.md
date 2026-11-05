@@ -1,3 +1,19 @@
+## 2026-11-06 04:50 CST — Align skipd client CI contract with failure-safe buffer growth
+
+### Baseline and failure
+- Base commit: `4d49f6a341e67e184a28477631f36e2d8153d91a` (`fix(skipd): preserve client buffer on realloc failure`).
+- SkipDBv2 Regression run #206 failed in the initial XY-C1 source-contract scan before configure/build/CTest. The legacy needle `client->origin_len = 0;` described the removed free-before-allocation path and correctly no longer existed after the ownership fix.
+
+### Repair
+- Replaced the stale positive source needle with checks for the new `realloc(client->origin, ...)` flow and its post-success pointer assignment.
+- Retained the separate negative contract that rejects resetting capacity or freeing the old allocation before reallocation succeeds. Runtime C code is unchanged.
+
+### Validation
+- Static preflight confirms the obsolete needle is removed from the positive contract and the new ownership anchors are present.
+- The next remote SkipDBv2 Regression run must pass the source-contract stage before compilation and CTest.
+
+---
+
 ## 2026-11-06 04:47 CST — Preserve skipd client read-buffer ownership on allocation failure
 
 ### Baseline and scope
