@@ -410,14 +410,34 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c": [
                   "#include \"ipc_transport.h\"",
-                  "#include \"ipc_protocol.h\"",
+                  "#include \"dbus_internal.h\"",
                   "skipdb_ipc_connect_unix(sock_path)",
                   "skipdb_ipc_set_nonblock(fd)",
                   "skipdb_ipc_ensure_buffer(&client->buf, &client->buf_max,",
                   "skipdb_ipc_valid_protocol_field(text, allow_empty,",
-                  "skipdb_ipc_parse_envelope(client->buf,",
-                  "skipdb_ipc_read_exact(client->remote_fd, client->buf, len,",
                   "skipdb_ipc_write_exact(client->remote_fd, client->buf, len, 20)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbus_internal.h": [
+                  "typedef struct _dbclient {",
+                  "int dbus_read_util(dbclient *client, int len, unsigned int delay);",
+                  "int parse_common_result(dbclient *client);",
+                  "int parse_get_result(dbclient *client);",
+                  "int parse_list_result(dbclient *client);",
+                  "int parse_script_result(dbclient *client);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbus_result.c": [
+                  "#include \"ipc_protocol.h\"",
+                  "#include \"dbus_internal.h\"",
+                  "static int read_response_payload(",
+                  "int parse_common_result(dbclient *client)",
+                  "int parse_get_result(dbclient *client)",
+                  "static int split_list_frame(",
+                  "int parse_list_result(dbclient *client)",
+                  "static int valid_shell_identifier(",
+                  "static void print_shell_quoted(",
+                  "int parse_script_result(dbclient *client)",
+                  "skipdb_ipc_parse_envelope(",
+                  "dbus_read_util(client,",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c": [
                   "#include \"ipc_transport.h\"",
@@ -508,6 +528,7 @@ jobs:
                   "add_test(NAME ipc_transport_test COMMAND ipc_transport_test)",
                   "ADD_EXECUTABLE(ipc_protocol_test",
                   "add_test(NAME ipc_protocol_test COMMAND ipc_protocol_test)",
+                  "mgr/dbus_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
               ],
@@ -704,6 +725,15 @@ jobs:
 
           if cmake_text.count("mgr/ipc_protocol.c") < 5:
               raise SystemExit("IPC protocol parser is not linked by both CLIs and every protocol test")
+
+          if cmake_text.count("mgr/dbus_result.c") != 2:
+              raise SystemExit("DBus result module is not linked by the CLI and protocol regression")
+          dbus_cli_text = (manager_root / "dbus.c").read_text()
+          dbus_result_text = (manager_root / "dbus_result.c").read_text()
+          if "int parse_script_result(dbclient *client)" in dbus_cli_text:
+              raise SystemExit("DBus result parser remains in the CLI facade")
+          if "int parse_script_result(dbclient *client)" not in dbus_result_text:
+              raise SystemExit("DBus result module lost script-result ownership")
 
           print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
           PY

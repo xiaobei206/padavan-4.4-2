@@ -1,3 +1,31 @@
+## 2026-11-05 20:19 CST — Extract DBus response processing from CLI facade
+
+### Baseline and regression state
+- Base commit: `70f0e9df2b3ed03c76dd0fcac951e17d451c7acf` (`fix(ipc): resolve parser header in standalone test`).
+- Latest SkipDBv2 Regression run #151 (`42022572550`) passed on the baseline commit. This is the pre-change result; the new commit relies on the same workflow for post-push validation.
+
+### Changes
+1. **DBus response-result module — `mgr/dbus_result.c`, `mgr/dbus_internal.h`**
+   - Moved length-delimited response-frame validation, common/get result handling, list-frame splitting and streaming, shell identifier validation, quoting, and script export rendering out of the CLI translation unit.
+   - Moved the private `dbclient` layout into one internal header. Declared the cross-unit `dbus_read_util()` helper and all four result-parser entry points there; frame-specific helpers remain `static`.
+2. **CLI facade — `mgr/dbus.c`**
+   - Retained socket connection, nonblocking setup, buffer ownership/allocation, command validation, request framing, command routing, and writes.
+   - Kept the transport read helper as the sole bounded-buffer owner and exposed only its narrow internal entry point to the result module.
+3. **Build and CI contracts — `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Linked `dbus_result.c` into the DBus executable and the existing standalone DBus protocol regression target.
+   - Updated source ownership contracts for the CLI, internal header, result module, and CMake source list; added explicit checks preventing result-parser ownership from drifting back into `dbus.c`.
+
+### Validation
+- Static extraction audit confirms each moved parser/helper body has one owner, the shared client layout is defined once, every cross-translation-unit function used by the result module is declared, and CMake links the result module in both required targets.
+- Existing `dbus_protocol_test` cases remain enabled, including binary get payloads, server error frames, malformed envelope/command cases, list terminal-frame collision, and shell exports with empty values.
+- No local compiler/CMake/CTest run is claimed. The pushed revision triggers the unchanged SkipDBv2 Regression workflow.
+
+### Follow-up
+- Keep command argument validation, request construction, socket setup, buffer ownership, and request writes in `dbus.c`.
+- Keep response envelope validation, list/script stream handling, and terminal/export formatting in `dbus_result.c`; keep cross-unit declarations in `dbus_internal.h`.
+
+---
+
 ## 2026-11-05 19:31 CST — Centralize SkipDB IPC response-envelope parsing
 
 ### Baseline and regression state
