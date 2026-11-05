@@ -587,11 +587,12 @@ SkipDBRecord *SkipDB_recordAtPid_(SkipDB *self, PID_TYPE pid)
 		if (NULL == record)
 			return NULL;
 		BStream_setData_length_(self->stream, data.data, data.size);
-		if (!SkipDBRecord_fromStream_(record, self->stream)) {
+		if (!SkipDBRecord_fromStream_(record, self->stream) ||
+			(record->level == 0 && pid != self->headerPid)) {
 			fprintf(stderr, "SkipDB: invalid serialized record for PID %" PID_FORMAT "\n", pid);
 			SkipDBRecord_dealloc(record);
-			/* A mapped PID whose payload cannot be decoded is corruption,
-			 * not a cache miss; prevent callers from treating it as EOF. */
+			/* A mapped PID whose payload cannot be decoded, or a non-root
+			 * row without a level-0 link slot, is corruption rather than EOF. */
 			UDB_close(self->udb);
 			return NULL;
 		}
