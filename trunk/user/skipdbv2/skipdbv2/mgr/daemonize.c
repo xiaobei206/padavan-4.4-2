@@ -56,8 +56,8 @@ void skipd_daemonize(char * path)
             exit(EXIT_FAILURE);
         }
 
-        /* Never truncate a non-regular, foreign-owned, or symlinked path. */
-        if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
+        /* Reject symlinks, hard links, non-regular, or foreign-owned paths. */
+        if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_nlink != 1 ||
             st.st_uid != geteuid() || fchmod(fd, 0600) != 0 ||
             ftruncate(fd, 0) != 0) {
             if (errno == 0)

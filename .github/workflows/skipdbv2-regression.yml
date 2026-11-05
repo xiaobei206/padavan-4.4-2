@@ -84,6 +84,16 @@ jobs:
                   "monotonic_milliseconds(&now)",
                   "timeout = now + delay;",
               ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/skipd.c": [
+                  "O_NOFOLLOW",
+                  "st_nlink != 1",
+                  "fchmod(fd, 0600)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/daemonize.c": [
+                  "O_NOFOLLOW",
+                  "st_nlink != 1",
+                  "ftruncate(fd, 0)",
+              ],
               "trunk/user/Makefile": [
                   "ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS) $(CONFIG_FIRMWARE_INCLUDE_SKIPDBV2)),)",
                   "dir_y += skipdbv2",

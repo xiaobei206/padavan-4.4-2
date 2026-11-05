@@ -146,7 +146,7 @@ static int open_script_log(void)
         O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW | O_NONBLOCK, 0600);
     if (fd < 0)
         return -1;
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_nlink != 1 ||
         st.st_uid != geteuid() || fchmod(fd, 0600) != 0) {
         int saved_errno = errno ? errno : EPERM;
         close(fd);
