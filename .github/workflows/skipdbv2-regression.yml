@@ -705,6 +705,9 @@ jobs:
                   "static void client_read_inner(",
                   "int client_send_key(",
                   "int client_ccr_read_util(",
+                  "if(step_len <= 0 || step_len > READ_MAX)",
+                  "ccrStop(ctx, ccr_error_err2);",
+                  "client->origin_len = 0;",
                   "static skipd_client* client_new(",
                   "void skipd_server_accept_cb(",
                   "accept(server->fd, NULL, NULL)",
@@ -1155,6 +1158,20 @@ jobs:
 
           if cmake_text.count("mgr/skipd_client.c") != 1:
               raise SystemExit("skipd client lifecycle module is not linked exactly once")
+          skipd_client_source = (manager_root / "skipd_client.c").read_text()
+          read_util_start = skipd_client_source.find("int client_ccr_read_util(")
+          read_util_end = skipd_client_source.find("static skipd_client* client_new(", read_util_start)
+          read_util_source = (
+              skipd_client_source[read_util_start:read_util_end]
+              if read_util_start >= 0 and read_util_end > read_util_start
+              else ""
+          )
+          if (
+              not read_util_source or
+              read_util_source.count("ccrStop(ctx, ccr_error_err2);") != 2 or
+              "ccrReturn(ctx, ccr_error_err2);" in read_util_source
+          ):
+              raise SystemExit("terminal client read errors must reset the read coroutine before returning")
           skipd_database_text = (manager_root / "skipd_database.c").read_text()
           if skipd_database_text.count("verify_owned_regular_file_(") != 3:
               raise SystemExit("database marker file validation must have one private owner and two callers")

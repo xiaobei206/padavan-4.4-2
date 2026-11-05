@@ -1,3 +1,20 @@
+## 2026-11-06 04:36 CST — Make client read failures terminal
+
+### Baseline and scope
+- Base commit: `30375b11034ee0b1bcf3b65e6102d553f001d516` (`fix(skipd): restore scheduler startup function boundary`); SkipDBv2 Regression run #204 passed source contracts, configuration, build, and CTest.
+- Scope is limited to the read-buffer coroutine in `mgr/skipd_client.c`.
+
+### Changes
+- Changed invalid frame-length and read-buffer allocation failures from `ccrReturn` to `ccrStop`.
+- These paths are terminal errors handled by the parent request coroutine; yielding them left resumable labels inside a failed operation and allowed automatic locals such as `buf_len` to appear live after the stack frame had returned.
+- Extended the existing source and semantic contracts to require exactly two terminal error stops and no resumable error return in `client_ccr_read_util()`. No new files or CMake targets.
+
+### Validation
+- Static preflight confirms both terminal error branches reset the child coroutine and the dynamic contract isolates the intended function body.
+- Remote SkipDBv2 Regression is authoritative for compilation and CTest.
+
+---
+
 ## 2026-11-06 04:31 CST — Repair scheduler startup function boundary
 
 ### Baseline and failure

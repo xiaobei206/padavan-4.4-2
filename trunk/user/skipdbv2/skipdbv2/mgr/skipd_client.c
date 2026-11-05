@@ -264,7 +264,7 @@ static int client_ccr_write(EV_P_ skipd_client* client) {
 
     /* A negative payload length becomes a huge size_t in recv(). */
     if(step_len <= 0 || step_len > READ_MAX) {
-        ccrReturn(ctx, ccr_error_err2);
+        ccrStop(ctx, ccr_error_err2);
     }
 
     buf_len = _max(step_len, BUF_MAX);
@@ -275,7 +275,7 @@ static int client_ccr_write(EV_P_ skipd_client* client) {
         client->origin = (char*)malloc((size_t)buf_len + 1);
         if(NULL == client->origin) {
             client->origin_len = 0;
-            ccrReturn(ctx, ccr_error_err2);
+            ccrStop(ctx, ccr_error_err2);
         }
         client->origin_len = buf_len;
         client->origin[client->origin_len] = '\0';
