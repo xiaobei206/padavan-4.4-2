@@ -32,7 +32,7 @@
 #define LONG_COUNT		30			/* 3s */
 #define RESET_COUNT		50			/* 5s */
 
-static int running = 1;
+static volatile sig_atomic_t running = 1;
 
 typedef struct _btn_event
 {
@@ -324,6 +324,7 @@ int btn_main(int argc, char *argv[])
 		msglen = recv(fd, buf, sizeof(buf), 0);
 
 		if (msglen > 0) {
+			memset(&btn_ev, 0, sizeof(btn_ev));
 			nlmsg_handle(buf, msglen, &btn_ev);
 		} else if (msglen < 0 && errno != EINTR &&
 			   errno != EAGAIN && errno != EWOULDBLOCK) {

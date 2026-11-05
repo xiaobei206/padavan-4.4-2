@@ -139,6 +139,8 @@ jobs:
                   'strcmp(value, "pressed")',
                   'strcmp(value, "released")',
                   'memcmp(field, "BUTTON",',
+                  "static volatile sig_atomic_t running = 1;",
+                  "memset(&btn_ev, 0, sizeof(btn_ev));\n\t\t\tnlmsg_handle(buf, msglen, &btn_ev);",
                   "CLOCK_MONOTONIC",
                   "btn_update_press_count(btn);",
                   "btn_hold_tick();",

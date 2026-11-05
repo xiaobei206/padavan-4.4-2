@@ -345,3 +345,6 @@ f5d24b85  skipd.c: route script output through a verified descriptor, with a saf
 - build.yml: remove the public watch:started trigger from the release-capable workflow (contents/actions write); retain manual workflow_dispatch.
 - skipdbv2-regression.yml: include build.yml in path filters and guard against reintroducing the watch trigger.
 - Current pre-change main: 60abc95e; SkipDBv2 Regression and XY-C1 Firmware Validation were green. Workflow guard is intended to run on this commit; firmware validation was not triggered by these workflow-only changes.
+2026-11-05 GPIO signal/event audit:
+- gpio_btn.c: make the signal-loop flag volatile sig_atomic_t; clear the decoded event before parsing each received datagram so unrelated/malformed uevents cannot replay stale state.
+- SkipDBv2 Regression now checks both invariants. Firmware/host CI must revalidate this source-level batch.
