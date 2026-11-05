@@ -197,28 +197,6 @@ static int UDB_hasExistingArtifacts(UDB *self)
 	return 0;
 }
 
-/* Empty marker files are tolerated only while both primary files are empty.
- * A nonempty or non-regular data file requires an intact one-byte marker. */
-static int UDB_primaryFilesEmpty(UDB *self)
-{
-	const char *paths[2];
-	struct stat st;
-	size_t i;
-	if (NULL == self || NULL == self->index || NULL == self->records ||
-		NULL == self->index->file || NULL == self->records->file)
-		return 0;
-	paths[0] = self->index->file->path;
-	paths[1] = self->records->file->path;
-	for (i = 0; i < sizeof(paths) / sizeof(paths[0]); ++i) {
-		int status = UDB_pathStatus(paths[i], &st);
-		if (status < 0)
-			return 0;
-		if (status > 0 && (!S_ISREG(st.st_mode) || st.st_size != 0))
-			return 0;
-	}
-	return 1;
-}
-
 UDB *UDB_new(void)
 {
 	UDB *self = (UDB *)calloc(1, sizeof(UDB));
@@ -374,7 +352,7 @@ static int UDB_streamsOpen(UDB *self)
 
 void UDB_open(UDB *self)
 {
-	int marker, recovering;
+	int marker, recovering, marker_created = 0;
 
 	if (NULL == self || NULL == self->committedPath || self->isOpen ||
 		NULL == self->index || NULL == self->records ||
@@ -396,15 +374,17 @@ void UDB_open(UDB *self)
 		self->committedFile = UDB_openCommittedFile(self->committedPath, 1);
 		if (NULL == self->committedFile)
 			return;
+		marker_created = 1;
 	}
 
-	marker = UDB_readCommitted(self);
-	if (marker == -2) {
+	/* Establish a durable clean marker before creating any database artifacts. */
+	if (marker_created && UDB_setCommittedFlag_(self, 0) != 0) {
 		UDB_close(self);
 		return;
 	}
-	if (marker == -1 && !UDB_primaryFilesEmpty(self)) {
-		fprintf(stderr, "UDB: empty commit marker with nonempty or invalid database files\n");
+	marker = UDB_readCommitted(self);
+	if (marker < 0) {
+		fprintf(stderr, "UDB: invalid or empty commit marker; refusing startup\n");
 		UDB_close(self);
 		return;
 	}
