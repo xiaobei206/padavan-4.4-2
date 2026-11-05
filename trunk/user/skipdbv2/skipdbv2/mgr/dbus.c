@@ -18,6 +18,22 @@
 #include <unistd.h>
 #include "skipd.h"
 
+static int monotonic_milliseconds(unsigned long long *milliseconds)
+{
+    struct timespec ts;
+
+    if (NULL == milliseconds ||
+        clock_gettime(CLOCK_MONOTONIC, &ts) != 0 ||
+        ts.tv_sec < 0 || ts.tv_nsec < 0 || ts.tv_nsec >= 1000000000L)
+        return -1;
+    if ((unsigned long long)ts.tv_sec > (ULLONG_MAX - 999ULL) / 1000ULL)
+        return -1;
+
+    *milliseconds = (unsigned long long)ts.tv_sec * 1000ULL +
+        (unsigned long long)ts.tv_nsec / 1000000ULL;
+    return 0;
+}
+
 //"list "
 #define LIST_LEN 5
 
@@ -121,17 +137,15 @@ static int check_buf(dbclient* client, int len) {
 static int read_util(dbclient* client, int len, unsigned int delay) {
     int clen, n;
     unsigned long long now, timeout;
-    struct timeval tv, tv2;
 
     if (NULL == client || client->remote_fd < 0 ||
         len < 0 || len > READ_MAX || check_buf(client, len) != 0)
         return -4;
     if (len == 0)
         return 0;
-    if (gettimeofday(&tv2, NULL) != 0)
+    if (monotonic_milliseconds(&now) != 0 || ULLONG_MAX - now < delay)
         return -2;
-    timeout = (unsigned long long)tv2.tv_sec * 1000ULL +
-        (unsigned long long)tv2.tv_usec / 1000ULL + delay;
+    timeout = now + delay;
     client->buf_pos = 0;
 
     for(;;) {
@@ -141,10 +155,8 @@ static int read_util(dbclient* client, int len, unsigned int delay) {
             if (errno == EINTR)
                 continue;
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                if (gettimeofday(&tv, NULL) != 0)
+                if (monotonic_milliseconds(&now) != 0)
                     return -2;
-                now = (unsigned long long)tv.tv_sec * 1000ULL +
-                    (unsigned long long)tv.tv_usec / 1000ULL;
                 if(now > timeout) {
                     break;
                 }
@@ -514,15 +526,13 @@ int parse_script_result(dbclient *client) {
 static int write_util(dbclient* client, int len) {
     int n, written = 0;
     unsigned long long now, timeout;
-    struct timeval tv, tv2;
 
     if (NULL == client || NULL == client->buf ||
         client->remote_fd < 0 || len < 0 || len > client->buf_max)
         return -1;
-    if (gettimeofday(&tv2, NULL) != 0)
+    if (monotonic_milliseconds(&now) != 0 || ULLONG_MAX - now < 20ULL)
         return -1;
-    timeout = (unsigned long long)tv2.tv_sec * 1000ULL +
-        (unsigned long long)tv2.tv_usec / 1000ULL + 20ULL;
+    timeout = now + 20ULL;
 
     while (written < len) {
 #ifdef MSG_NOSIGNAL
@@ -543,10 +553,8 @@ static int write_util(dbclient* client, int len) {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
             return -1;
 
-        if (gettimeofday(&tv, NULL) != 0)
+        if (monotonic_milliseconds(&now) != 0)
             return -1;
-        now = (unsigned long long)tv.tv_sec * 1000ULL +
-            (unsigned long long)tv.tv_usec / 1000ULL;
         if (now > timeout)
             break;
         usleep(5);

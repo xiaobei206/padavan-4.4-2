@@ -74,6 +74,16 @@ jobs:
                   '-DCMAKE_TOOLCHAIN_FILE="$(CONFIG_CMAKE_TOOLCHAIN_FILE)"',
                   'LDFLAGS="$(LDFLAGS) -L$(STAGEDIR)/lib"',
               ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c": [
+                  "clock_gettime(CLOCK_MONOTONIC, &ts)",
+                  "monotonic_milliseconds(&now)",
+                  "timeout = now + delay;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c": [
+                  "clock_gettime(CLOCK_MONOTONIC, &ts)",
+                  "monotonic_milliseconds(&now)",
+                  "timeout = now + delay;",
+              ],
               "trunk/user/Makefile": [
                   "ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS) $(CONFIG_FIRMWARE_INCLUDE_SKIPDBV2)),)",
                   "dir_y += skipdbv2",
@@ -126,6 +136,13 @@ jobs:
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:
               raise SystemExit("SkipDBv2 is still tied exclusively to Shadowsocks")
+
+          for path in (
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c",
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c",
+          ):
+              if "gettimeofday(&tv2, NULL)" in Path(path).read_text():
+                  raise SystemExit(f"wall-clock IPC timeout remains: {path}")
 
           print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
           PY
