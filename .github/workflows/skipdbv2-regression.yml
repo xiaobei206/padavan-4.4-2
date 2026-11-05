@@ -83,6 +83,9 @@ jobs:
                   "UDBCommitMarker_verifyJournal(const char *path)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBCommitMarker.c": [
+                  "static int UDBCommitMarker_verifyOpenedFile_(int fd, const struct stat *before, int existed)",
+                  "UDBCommitMarker_verifyOpenedFile_(fd, exists ? &before : NULL, exists)",
+                  "UDBCommitMarker_verifyOpenedFile_(fd,&before,1)",
                   "O_NOFOLLOW",
                   "O_NONBLOCK|O_CLOEXEC",
                   "after.st_uid!=geteuid()",
@@ -842,6 +845,12 @@ jobs:
           ).read_text()
           if compact_source.count("UDB_compactionStreamsAreOpen_(") != 3:
               raise SystemExit("UDB compaction stream readiness is not centralized")
+
+          commit_marker_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBCommitMarker.c"
+          ).read_text()
+          if commit_marker_source.count("UDBCommitMarker_verifyOpenedFile_(") != 3:
+              raise SystemExit("UDB commit marker file identity validation is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

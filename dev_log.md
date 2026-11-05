@@ -1,3 +1,20 @@
+## 2026-11-06 01:54 CST — Unify UDB commit-marker file verification
+
+### Baseline and scope
+- Base commit: `33a27eb14aefd351dde01ab82020f5c91dcff211` (`refactor(udb): centralize compaction stream checks`); SkipDBv2 Regression run #194 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `udb/UDBCommitMarker.c`.
+
+### Changes
+- Centralized the post-open verification shared by the writable commit marker and read-only journal paths: successful `fstat`, regular-file type, effective-UID ownership, pre-open device/inode identity where applicable, and mode 0600.
+- Kept path-specific open flags, create-vs-existing handling, fdopen modes, and caller return conventions unchanged; the helper closes the file descriptor on failure and preserves the original system error except for policy rejection (`EPERM`).
+- Updated CI contracts to require one private helper and two call sites while retaining checks for no-follow/nonblocking flags and permission hardening. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and two uses; CI enforces the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:52 CST — Centralize UDB compaction stream checks
 
 ### Baseline and scope

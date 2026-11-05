@@ -27,9 +27,22 @@ void UDBCommitMarker_clear(UDBCommitMarker *self)
     if (!self) return;
     UDBCommitMarker_close(self); free(self->path); self->path=NULL;
 }
+/* Validate an opened path still names the expected regular, owned file. */
+static int UDBCommitMarker_verifyOpenedFile_(int fd, const struct stat *before, int existed)
+{
+    struct stat after;
+    if (fstat(fd,&after)!=0) { int e=errno; close(fd); errno=e; return -1; }
+    if (!S_ISREG(after.st_mode) || after.st_uid!=geteuid() ||
+        (existed && (!before || before->st_dev!=after.st_dev || before->st_ino!=after.st_ino))) {
+        close(fd); errno=EPERM; return -1;
+    }
+    if (fchmod(fd,0600)!=0) { int e=errno; close(fd); errno=e; return -1; }
+    return 0;
+}
+
 int UDBCommitMarker_open(UDBCommitMarker *self, int create)
 {
-    struct stat before,after; int fd=-1,exists=0; FILE *file;
+    struct stat before; int fd=-1,exists=0; FILE *file;
     if (!self || !self->path || !self->path[0] || self->file) { errno=EINVAL; return -1; }
 #ifdef O_NOFOLLOW
     if (lstat(self->path,&before)==0) {
@@ -43,12 +56,8 @@ int UDBCommitMarker_open(UDBCommitMarker *self, int create)
     (void)create; errno=ENOTSUP; return -1;
 #endif
     if (fd<0) return -1;
-    if (fstat(fd,&after)!=0) { int e=errno; close(fd); errno=e; return -1; }
-    if (!S_ISREG(after.st_mode) || after.st_uid!=geteuid() ||
-        (exists && (before.st_dev!=after.st_dev || before.st_ino!=after.st_ino))) {
-        close(fd); errno=EPERM; return -1;
-    }
-    if (fchmod(fd,0600)!=0) { int e=errno; close(fd); errno=e; return -1; }
+    if (UDBCommitMarker_verifyOpenedFile_(fd, exists ? &before : NULL, exists)!=0)
+        return -1;
     file=fdopen(fd,"r+");
     if (!file) { int e=errno; close(fd); errno=e; return -1; }
     self->file=file; return 0;
@@ -78,7 +87,7 @@ int UDBCommitMarker_write(UDBCommitMarker *self, int flag)
 }
 static FILE *UDBCommitMarker_openJournal_(const char *path)
 {
-    struct stat before,after; int fd; FILE *file;
+    struct stat before; int fd; FILE *file;
     if (!path || !path[0]) { errno=EINVAL; return NULL; }
 #ifdef O_NOFOLLOW
     if (lstat(path,&before)!=0)return NULL;
@@ -88,12 +97,7 @@ static FILE *UDBCommitMarker_openJournal_(const char *path)
     errno=ENOTSUP; return NULL;
 #endif
     if(fd<0)return NULL;
-    if(fstat(fd,&after)!=0){int e=errno;close(fd);errno=e;return NULL;}
-    if(!S_ISREG(after.st_mode)||after.st_uid!=geteuid()||
-       before.st_dev!=after.st_dev||before.st_ino!=after.st_ino){
-        close(fd);errno=EPERM;return NULL;
-    }
-    if(fchmod(fd,0600)!=0){int e=errno;close(fd);errno=e;return NULL;}
+    if(UDBCommitMarker_verifyOpenedFile_(fd,&before,1)!=0)return NULL;
     file=fdopen(fd,"rb");
     if(!file){int e=errno;close(fd);errno=e;}
     return file;
