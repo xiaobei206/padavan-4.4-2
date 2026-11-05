@@ -24,6 +24,7 @@ int main(void)
     UDB *db;
     PID_TYPE first_pid, second_pid, reused_pid, abandoned_pid;
     char path[128];
+    char marker_path[160];
     int result = EXIT_FAILURE;
     int path_len;
 
@@ -336,7 +337,6 @@ int main(void)
     /* A missing or truncated commit marker must not silently discard recovery state. */
     {
         FILE *marker;
-        char marker_path[160];
         int marker_path_len = snprintf(marker_path, sizeof(marker_path),
             "%s.committed", path);
         if (marker_path_len < 0 || (size_t)marker_path_len >= sizeof(marker_path)) {

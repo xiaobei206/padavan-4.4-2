@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE
+#define _GNU_SOURCE
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -127,6 +127,7 @@ void skipd_daemonize(char * path);
 static int setnonblock(int fd);
 static int client_ccr_process(EV_P_ skipd_client* client);
 static int client_ccr_write(EV_P_ skipd_client* client);
+void skipd_log(int filter, const char *format, ...);
 
 char* global_magic = MAGIC;
 skipd_server* global_server;
