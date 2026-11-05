@@ -84,6 +84,7 @@ ADD_LIBRARY(skipdb STATIC ${BASEKIT_SRC} ${JFILE_SRC} ${UDB_SRC} ${SKIPDB_SRC})
 ADD_EXECUTABLE(skipd
     ${PROJECT_SOURCE_DIR}/mgr/skipd.c
     ${PROJECT_SOURCE_DIR}/mgr/skipd_command.c
+    ${PROJECT_SOURCE_DIR}/mgr/skipd_client.c
     ${PROJECT_SOURCE_DIR}/mgr/skipd_database.c
     ${PROJECT_SOURCE_DIR}/mgr/skipd_scheduler.c
     ${PROJECT_SOURCE_DIR}/mgr/skipd_socket.c

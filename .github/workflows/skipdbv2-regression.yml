@@ -582,6 +582,15 @@ jobs:
                   "skipdb_wait_socket_until(sockets[0], POLLIN, now + 1000ULL)",
                   "skipdb_wait_socket_until(sockets[0], POLLOUT, now + 1000ULL)",
               ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/skipd_client.c": [
+                  "static void client_release(",
+                  "static void client_read_inner(",
+                  "int client_send_key(",
+                  "int client_ccr_read_util(",
+                  "static skipd_client* client_new(",
+                  "void skipd_server_accept_cb(",
+                  "accept(server->fd, NULL, NULL)",
+              ],
               "trunk/user/skipdbv2/skipdbv2/mgr/skipd_script.c": [
                   "O_NOFOLLOW",
                   "st_nlink != 1",
@@ -710,17 +719,30 @@ jobs:
           # must link every independently compiled subsystem, not include a
           # monolithic implementation or silently omit a module.
           manager_root = Path("trunk/user/skipdbv2/skipdbv2/mgr")
+          cmake_text = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
           manager_contracts = {
               "skipd.c": [
                   '#include "skipd_internal.h"',
-                  "static void client_read_inner(",
-                  "static void server_cb(",
+                  "ev_io_init(&server->io, skipd_server_accept_cb, server->fd, EV_READ);",
                   "int main(int argc, char **argv)",
+              ],
+              "skipd_client.c": [
+                  "static void client_release(",
+                  "static void client_read_inner(",
+                  "static void client_read(",
+                  "static void client_write(",
+                  "int client_send_key(",
+                  "int client_send(",
+                  "static int client_ccr_write(",
+                  "int client_ccr_read_util(",
+                  "static skipd_client* client_new(",
+                  "void skipd_server_accept_cb(",
               ],
               "skipd_internal.h": [
                   "typedef struct _skipd_server",
                   "typedef struct _skipd_client",
                   "int client_ccr_process(EV_P_ skipd_client *client);",
+                  "void skipd_server_accept_cb(EV_P_ ev_io *w, int revents);",
                   "void server_sync(EV_P_ skipd_server *server);",
                   "void unix_socket_release_instance_lock(void);",
                   "int skipd_script_init(void);",
@@ -783,6 +805,21 @@ jobs:
           if skipd_facade_text.count("skipd_script_cleanup();") != 3:
               raise SystemExit("skipd script log descriptor is not closed on all daemon exit paths")
 
+          for moved_client_symbol in (
+              "static void client_release(",
+              "static void client_read_inner(",
+              "static void client_read(",
+              "static void client_write(",
+              "int client_send_key(",
+              "int client_send(",
+              "static int client_ccr_write(",
+              "int client_ccr_read_util(",
+              "static skipd_client* client_new(",
+              "static void server_cb(",
+          ):
+              if moved_client_symbol in skipd_facade_text:
+                  raise SystemExit("skipd client lifecycle remains in facade: " + moved_client_symbol)
+
           script_test = Path("trunk/user/skipdbv2/skipdbv2/tests/skipd_script.c").read_text()
           for needle in (
               "is_valid_script_name(",
@@ -803,8 +840,9 @@ jobs:
           if cmake_text.count("mgr/skipd_script.c") != 2:
               raise SystemExit("skipd script module is not linked exactly once in production and once in its regression")
 
-          cmake_text = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
-          for module in ("skipd_command.c", "skipd_database.c",
+          if cmake_text.count("mgr/skipd_client.c") != 1:
+              raise SystemExit("skipd client lifecycle module is not linked exactly once")
+          for module in ("skipd_command.c", "skipd_client.c", "skipd_database.c",
                          "skipd_scheduler.c", "skipd_socket.c", "skipd_script.c"):
               if f"mgr/{module}" not in cmake_text:
                   raise SystemExit(f"skipd module missing from executable source list: {module}")

@@ -650,3 +650,34 @@
 - Keep PID-to-record consistency and payload read failures in `UDBRead.c`.
 - Keep journal append rollback and multi-step record mutations in `UDBWrite.c`; transaction ordering across both storage files remains in `UDBStorage.c`.
 
+
+## 2026-11-05 22:13 CST — Extract skipd asynchronous client lifecycle
+
+### Baseline
+- Base commit: `f0ab31f34ea01c8cbeb4273aa9da67cec45316a8` (`refactor(skipd): isolate script execution and log lifecycle`).
+- The latest `SkipDBv2 Regression` run (`42041114446`) failed before CMake configuration: the workflow read `cmake_text` before assigning it. The failure was in the Python source-contract script; no C compilation or CTest result was produced.
+- Scope: skipd's accepted-client lifecycle, libev readiness callbacks, coroutine socket I/O, and response-frame writes. Command dispatch, database switching, scheduling, Unix-socket setup, and script execution remain outside this module.
+
+### Changes
+1. **Client connection subsystem — `mgr/skipd_client.c`**
+   - Moved client allocation/cleanup, accept handling, read/write watchers, coroutine read/write loops, output buffering, and response-frame size validation out of the event-loop facade.
+   - Kept internal event callbacks and write-coroutine state private to this translation unit.
+   - Exported only the server accept callback and the existing send/read helpers consumed by the command dispatcher.
+   - Preserved nonblocking behavior, EINTR/EAGAIN handling, partial-write offsets, MSG_NOSIGNAL, frame limits, cursor cleanup, and per-server in-flight accounting.
+
+2. **Private interface and facade — `mgr/skipd_internal.h`, `mgr/skipd.c`**
+   - Added the explicit accept-callback declaration and registered it from `main`.
+   - Removed the moved implementation and its obsolete forward declaration from `skipd.c`; command coroutine and all request semantics remain unchanged.
+
+3. **Build and regression contracts — `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Added `skipd_client.c` to the production `skipd` executable source list.
+   - Added source-path and ownership assertions for the extracted module and a check that the facade no longer owns client lifecycle functions.
+   - Fixed the regression workflow's `cmake_text` initialization order so the existing script-safety CMake assertions execute instead of raising `NameError`.
+
+### Validation
+- Structural preflight: confirmed the moved client functions have a single implementation owner, all cross-module functions are declared in `skipd_internal.h`, the accept callback is wired from `main`, and CMake/CI source contracts include the new module.
+- No local compiler, CMake configure, firmware build, or CTest result is claimed. Remote `SkipDBv2 Regression` is the authoritative build/test check after this commit.
+
+### Follow-up
+- Keep accepted-client ownership and event-driven socket I/O in `mgr/skipd_client.c`.
+- Keep command framing semantics and persistence decisions in their current command/database modules; do not move command dispatch into the event-loop facade.

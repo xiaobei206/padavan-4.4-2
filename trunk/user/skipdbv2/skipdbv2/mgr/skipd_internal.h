@@ -122,6 +122,7 @@ int client_send_key(EV_P_ skipd_client *client, char *cmd, char *key,
     char *buf, int len);
 int client_send(EV_P_ skipd_client *client, char *buf, int len);
 int client_ccr_read_util(skipd_client *client, int step_len);
+void skipd_server_accept_cb(EV_P_ ev_io *w, int revents);
 int client_ccr_process(EV_P_ skipd_client *client);
 
 /* Timer and persistence orchestration. */
