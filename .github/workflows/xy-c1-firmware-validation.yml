@@ -73,6 +73,17 @@ jobs:
             bison flex gperf help2man libtool-bin texinfo python3-docutils autopoint gettext ccache \
             autoconf automake liblzma-dev libltdl-dev liblzo2-dev
 
+          # Older vendored release tarballs hard-code versioned Autotools
+          # helpers. ubuntu-latest may provide only a newer versioned name.
+          for tool in aclocal automake; do
+            tool_path="$(command -v "$tool")"
+            for version in 1.8 1.16; do
+              if ! command -v "${tool}-${version}" >/dev/null 2>&1; then
+                sudo ln -s "$tool_path" "/usr/local/bin/${tool}-${version}"
+              fi
+            done
+          done
+
       - name: Build XY-C1
         run: |
           set -e
