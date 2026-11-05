@@ -150,7 +150,7 @@ static int response_frame_fits(const char *command,
     return *delay > 0.0;
 }
 
-static int valid_protocol_token_span(const char *text, size_t length,
+int valid_protocol_token_span(const char *text, size_t length,
     int allow_empty)
 {
     size_t i;

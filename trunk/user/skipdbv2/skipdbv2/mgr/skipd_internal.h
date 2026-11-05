@@ -108,6 +108,8 @@ extern int script_log_fd;
 char *find_terminated_value_separator(Datum value);
 int value_fits_list_frame(const char *key, size_t value_len);
 int next_daily_delay(const char *time_text, time_t now, double *delay);
+int valid_protocol_token_span(const char *text, size_t length,
+    int allow_empty);
 int valid_protocol_token(const char *text, int allow_empty);
 int is_valid_script_name(const char *name, size_t len);
 void print_time(char *prefix);

@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 /* Command parsing and coroutine-driven request dispatch. */
 static int client_run_command(EV_P_ skipd_client* client)
