@@ -108,6 +108,23 @@ int main(void)
         goto done;
     }
 
+    /* Compacting adjacent old versions must not clear PIDs that now map
+     * to the newer, live records. */
+    UDB_beginTransaction(db);
+    UDB_at_put_(db, second_pid, Datum_FromCString_("second-updated"));
+    UDB_commitTransaction(db);
+    if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
+        !has_value(db, second_pid, "second-updated")) {
+        fprintf(stderr, "updating the second PID failed before compaction\n");
+        goto done;
+    }
+    if (UDB_compactStep(db) != 1 || !UDB_isOpen(db) ||
+        !has_value(db, first_pid, "updated") ||
+        !has_value(db, second_pid, "second-updated")) {
+        fprintf(stderr, "compaction cleared a PID still mapped to live data\n");
+        goto done;
+    }
+
     /* A freed PID can be reserved and written again in a later transaction. */
     UDB_beginTransaction(db);
     UDB_removeAt_(db, second_pid);
