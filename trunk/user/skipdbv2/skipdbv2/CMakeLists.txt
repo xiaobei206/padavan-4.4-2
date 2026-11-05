@@ -86,4 +86,8 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/skipdb_cursor_previous.c)
     TARGET_LINK_LIBRARIES(skipdb_cursor_previous_test skipdb m)
     add_test(NAME skipdb_cursor_previous_test COMMAND skipdb_cursor_previous_test)
+    ADD_EXECUTABLE(ipc_io_test
+        ${PROJECT_SOURCE_DIR}/tests/ipc_io.c)
+    add_test(NAME ipc_io_test COMMAND ipc_io_test)
+
 endif()

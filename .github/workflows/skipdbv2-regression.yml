@@ -77,21 +77,34 @@ jobs:
                   '-DCMAKE_TOOLCHAIN_FILE="$(CONFIG_CMAKE_TOOLCHAIN_FILE)"',
                   'LDFLAGS="$(LDFLAGS) -L$(STAGEDIR)/lib"',
               ],
-              "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c": [
+              "trunk/user/skipdbv2/skipdbv2/mgr/ipc_io.h": [
+                  "static int skipdb_monotonic_milliseconds(",
                   "clock_gettime(CLOCK_MONOTONIC, &ts)",
-                  "monotonic_milliseconds(&now)",
-                  "timeout = now + delay;",
+                  "skipdb_monotonic_milliseconds(&now)",
+                  "static int skipdb_wait_socket_until(int fd, short events,",
                   "poll(&pfd, 1, poll_timeout)",
-                  "wait_socket_until(client->remote_fd, POLLIN, timeout)",
-                  "wait_socket_until(client->remote_fd, POLLOUT, timeout)",
+                  "if (result < 0 && errno == EINTR)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c": [
+                  '#include "ipc_io.h"',
+                  "skipdb_monotonic_milliseconds(&now)",
+                  "skipdb_wait_socket_until(client->remote_fd, POLLIN, timeout)",
+                  "skipdb_wait_socket_until(client->remote_fd, POLLOUT, timeout)",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c": [
-                  "clock_gettime(CLOCK_MONOTONIC, &ts)",
-                  "monotonic_milliseconds(&now)",
-                  "timeout = now + delay;",
-                  "poll(&pfd, 1, poll_timeout)",
-                  "wait_socket_until(client->remote_fd, POLLIN, timeout)",
-                  "wait_socket_until(client->remote_fd, POLLOUT, timeout)",
+                  '#include "ipc_io.h"',
+                  "skipdb_monotonic_milliseconds(&now)",
+                  "skipdb_wait_socket_until(client->remote_fd, POLLIN, timeout)",
+                  "skipdb_wait_socket_until(client->remote_fd, POLLOUT, timeout)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/CMakeLists.txt": [
+                  "ADD_EXECUTABLE(ipc_io_test",
+                  "add_test(NAME ipc_io_test COMMAND ipc_io_test)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/ipc_io.c": [
+                  "skipdb_wait_socket_until(sockets[0], POLLIN, now + 10ULL)",
+                  "skipdb_wait_socket_until(sockets[0], POLLIN, now + 1000ULL)",
+                  "skipdb_wait_socket_until(sockets[0], POLLOUT, now + 1000ULL)",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/skipd.c": [
                   "O_NOFOLLOW",
@@ -165,6 +178,7 @@ jobs:
               raise SystemExit("SkipDBv2 is still tied exclusively to Shadowsocks")
 
           for path in (
+              "trunk/user/skipdbv2/skipdbv2/mgr/ipc_io.h",
               "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c",
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c",
           ):
