@@ -206,6 +206,7 @@ static int run_invalid_request_field_case(void)
     client.remote_fd = sockets[0];
 
     if (dbclient_bulk(&client, "set", "bad key", "value") != -1 ||
+        dbclient_bulk(&client, "set", "", "value") != -1 ||
         dbclient_bulk(&client, "set\n", "alpha", "value") != -1 ||
         dbclient_list(&client, "bad prefix", NULL, capture_pair) != -1)
         goto fail;
