@@ -4,14 +4,20 @@
 #include <limits.h>
 #include <sys/types.h>
 
+/* Shared readiness check for the records data stream and its journal. */
+static int UDBRecords_hasReadyStreams_(UDBRecords *self)
+{
+	return self != NULL && self->file != NULL &&
+		self->file->file != NULL && self->file->log != NULL;
+}
+
 void UDBRecords_open(UDBRecords *self)
 {
 	if (NULL == self || NULL == self->file ||
 		NULL == self->record || NULL == self->firstEmptyRecord)
 		return;
 	JFile_open(self->file);
-	if (NULL == self->file->file || NULL == self->file->log ||
-		self->file->deferLogReplay)
+	if (!UDBRecords_hasReadyStreams_(self) || self->file->deferLogReplay)
 		return;
 	(void)UDBRecords_finishOpening(self);
 }
@@ -19,8 +25,7 @@ void UDBRecords_open(UDBRecords *self)
 int UDBRecords_finishOpening(UDBRecords *self)
 {
 	long data_size;
-	if (NULL == self || NULL == self->file ||
-		NULL == self->file->file || NULL == self->file->log ||
+	if (NULL == self || !UDBRecords_hasReadyStreams_(self) ||
 		NULL == self->record || NULL == self->firstEmptyRecord)
 		return 0;
 
@@ -43,7 +48,7 @@ int UDBRecords_finishOpening(UDBRecords *self)
 		/* Materialize the initial metadata header before it is read below;
 		 * the normal journal replay only runs during the next open. */
 		JFile_commitToFile(self->file);
-		if (NULL == self->file->file || NULL == self->file->log)
+		if (!UDBRecords_hasReadyStreams_(self))
 			return 0;
 	}
 
@@ -57,7 +62,7 @@ int UDBRecords_finishOpening(UDBRecords *self)
 	(void)UDBRecords_firstEmptyRecordPos(self);
 	{
 		UDBRecord *first_empty = UDBRecords_findFirstEmptyRecord(self);
-		if (NULL == self->file->file || NULL == self->file->log)
+		if (!UDBRecords_hasReadyStreams_(self))
 			return 0;
 		if (first_empty) {
 			self->firstEmptyPos = UDBRecord_pos(first_empty);
@@ -67,7 +72,7 @@ int UDBRecords_finishOpening(UDBRecords *self)
 			self->firstEmptyPos = 0;
 		}
 	}
-	return self->file->file != NULL && self->file->log != NULL;
+	return UDBRecords_hasReadyStreams_(self);
 }
 
 int UDBRecords_isUncommitted(UDBRecords *self)
@@ -85,7 +90,7 @@ void UDBRecords_close(UDBRecords *self)
 
 void UDBRecords_begin(UDBRecords *self)
 {
-	if (self && self->file && self->file->file && self->file->log)
+	if (UDBRecords_hasReadyStreams_(self))
 		JFile_begin(self->file);
 }
 
@@ -107,6 +112,6 @@ int UDBRecords_truncate_(UDBRecords *self, off_t size)
 		size > (off_t)LONG_MAX)
 		return 0;
 	JFile_truncate_(self->file, size);
-	return self->file->file != NULL && self->file->log != NULL &&
+	return UDBRecords_hasReadyStreams_(self) &&
 		self->file->maxPos == (long)size;
 }

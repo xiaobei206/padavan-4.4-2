@@ -339,6 +339,8 @@ jobs:
                   "void UDBRecords_setPath_(UDBRecords *self, const char *path)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsStorage.c": [
+                  "static int UDBRecords_hasReadyStreams_(UDBRecords *self)",
+                  "UDBRecords_hasReadyStreams_(self)",
                   "void UDBRecords_open(UDBRecords *self)",
                   "int UDBRecords_finishOpening(UDBRecords *self)",
                   "void UDBRecords_commit(UDBRecords *self)",
@@ -803,6 +805,12 @@ jobs:
           ).read_text()
           if record_write_source.count("UDBRecord_restoreFileState_(") != 5:
               raise SystemExit("UDB record-write cursor restoration is not centralized")
+
+          records_storage_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsStorage.c"
+          ).read_text()
+          if records_storage_source.count("UDBRecords_hasReadyStreams_(") != 8:
+              raise SystemExit("UDB record and journal stream readiness is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

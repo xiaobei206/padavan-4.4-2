@@ -1,3 +1,20 @@
+## 2026-11-06 01:35 CST — Centralize UDB records stream readiness
+
+### Baseline and scope
+- Base commit: `84c8d0b580508445975a0db68b8a588627b63972` (`refactor(udb): centralize record-write state restoration`); SkipDBv2 Regression run #189 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `udb/UDBRecordsStorage.c`.
+
+### Changes
+- Centralized the repeated check that both the records data stream and its journal stream remain open.
+- Reused the predicate after open/replay operations, during startup validation, when beginning transactions, and after truncation, while preserving the separate deferred-replay and file-size checks.
+- Updated CI contracts to enforce one private predicate and seven call sites. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and seven call sites; CI checks the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:32 CST — Centralize UDB record-write state restoration
 
 ### Baseline and scope
