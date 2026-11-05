@@ -205,17 +205,36 @@ UDBRecord *UDBRecords_recordAfter_(UDBRecords *self, UDBRecord *record)
 
 UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)
 {
+	long file_size;
+
 	if (NULL == self || NULL == self->record || NULL == self->file ||
 		NULL == self->file->file || pos > (PID_TYPE)LONG_MAX)
 		return NULL;
+	file_size = self->file->maxPos;
+	if (file_size < 0 || pos > (PID_TYPE)file_size) {
+		fprintf(stderr, "UDBRecords: record position is beyond end of file\n");
+		JFile_close(self->file);
+		return NULL;
+	}
+	/* Exactly EOF is a normal end-of-records sentinel. Any other failed
+	 * header read means the record chain is truncated or corrupt. */
+	if (pos == (PID_TYPE)file_size)
+		return NULL;
+	if ((PID_TYPE)file_size - pos < sizeof(UDBRecordHeader)) {
+		fprintf(stderr, "UDBRecords: truncated record header\n");
+		JFile_close(self->file);
+		return NULL;
+	}
+
 	UDBRecord_setJFile_(self->record, self->file);
 	UDBRecord_setPos_(self->record, pos);
-	
+
 	if (UDBRecord_readHeader(self->record))
-	{
 		return self->record;
-	}
-	
+
+	fprintf(stderr, "UDBRecords: invalid record header at position %lu\n",
+		(unsigned long)pos);
+	JFile_close(self->file);
 	return NULL;
 }
 
