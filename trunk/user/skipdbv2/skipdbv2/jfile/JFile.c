@@ -171,12 +171,14 @@ void JFile_remove(JFile *self)
 
 /* Open only regular files owned by this process. O_EXCL protects the
  * create path from races, while O_NOFOLLOW rejects pre-existing symlinks. */
-static FILE *JFile_openManagedFile_(const char *path)
+static FILE *JFile_openManagedFile_(const char *path, int *created)
 {
 	struct stat before, after;
 	int exists, fd = -1, flags = O_RDWR | O_NONBLOCK;
 	FILE *stream;
 
+	if (created)
+		*created = 0;
 	if (NULL == path || '\0' == *path) {
 		errno = EINVAL;
 		return NULL;
@@ -201,7 +203,10 @@ static FILE *JFile_openManagedFile_(const char *path)
 		fd = open(path, flags);
 	} else {
 		fd = open(path, flags | O_CREAT | O_EXCL, 0600);
-		if (fd < 0 && errno == EEXIST) {
+		if (fd >= 0) {
+			if (created)
+				*created = 1;
+		} else if (errno == EEXIST) {
 			/* A concurrent creator won; revalidate its inode below. */
 			if (lstat(path, &before) != 0 || !S_ISREG(before.st_mode))
 				return NULL;
@@ -248,7 +253,7 @@ void JFile_open(JFile *self)
 	self->pos = 0;
 	self->maxPos = 0;
 
-	self->file = JFile_openManagedFile_(self->path);
+	self->file = JFile_openManagedFile_(self->path, NULL);
 	if (NULL == self->file)
 		goto fail;
 
@@ -258,21 +263,9 @@ void JFile_open(JFile *self)
 	self->maxPos = file_end;
 	self->pos = 0;
 
-	self->log = JFile_openManagedFile_(self->logPath);
+	self->log = JFile_openManagedFile_(self->logPath, &created_log);
 	if (NULL == self->log)
 		goto fail;
-	if (file_end >= 0) {
-		struct stat log_stat;
-		if (fstat(fileno(self->log), &log_stat) != 0)
-			goto fail;
-	}
-	/* New empty journals need no replay or trimming. */
-	{
-		struct stat log_stat;
-		if (fstat(fileno(self->log), &log_stat) != 0)
-			goto fail;
-		created_log = (log_stat.st_size == 0);
-	}
 
 	if (created_log) {
 #ifdef F_PREALLOCATE
