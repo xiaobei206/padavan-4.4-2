@@ -1,3 +1,20 @@
+## 2026-11-06 04:56 CST — Make skipd script-log validation errors deterministic
+
+### Baseline and scope
+- Base commit: `cdb69a2496bc3d4ee3aeed8ec695ef66a6057ec0` (`fix(skipd): reject hard-linked database markers`); SkipDBv2 Regression run #209 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to opening and validating the existing script log descriptor in `mgr/skipd_script.c`.
+
+### Changes
+- Split `fstat`, file-policy checks, and `fchmod` so a genuine syscall failure preserves its errno while a successful inspection that rejects file type, link count, or ownership always reports `EPERM`.
+- Retained descriptor-based cleanup and the existing fail-closed logging behavior; no path-based reopen or fallback log file was introduced.
+- Extended the existing source contract to require the syscall/error boundary and hard-link/ownership policy. No new files, declarations, CMake targets, or build-script changes.
+
+### Validation
+- Static preflight confirms the descriptor is closed on every validation failure and the original failure errno is restored after cleanup.
+- Remote SkipDBv2 Regression validates source contracts, compilation, and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 04:54 CST — Reject hard-linked skipd database marker files
 
 ### Baseline and scope

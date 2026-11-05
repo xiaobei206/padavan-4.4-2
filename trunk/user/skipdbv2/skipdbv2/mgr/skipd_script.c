@@ -19,14 +19,24 @@ static int open_script_log(void)
         O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW | O_NONBLOCK, 0600);
     if (fd < 0)
         return -1;
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_nlink != 1 ||
-        st.st_uid != geteuid() || fchmod(fd, 0600) != 0) {
-        int saved_errno = errno ? errno : EPERM;
+    if (fstat(fd, &st) != 0)
+        goto fail;
+    if (!S_ISREG(st.st_mode) || st.st_nlink != 1 ||
+        st.st_uid != geteuid()) {
+        errno = EPERM;
+        goto fail;
+    }
+    if (fchmod(fd, 0600) != 0)
+        goto fail;
+    return fd;
+
+fail:
+    {
+        int saved_errno = errno;
         close(fd);
         errno = saved_errno;
-        return -1;
     }
-    return fd;
+    return -1;
 #else
     /* Never follow a predictable /tmp path without O_NOFOLLOW support. */
     errno = ENOTSUP;
