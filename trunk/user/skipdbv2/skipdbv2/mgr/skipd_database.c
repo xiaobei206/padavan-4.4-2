@@ -19,7 +19,8 @@ static int verify_owned_regular_file_(int fd, struct stat *file_stat)
     }
     if (fstat(fd, file_stat) != 0)
         return -1;
-    if (!S_ISREG(file_stat->st_mode) || file_stat->st_uid != geteuid()) {
+    if (!S_ISREG(file_stat->st_mode) || file_stat->st_uid != geteuid() ||
+        file_stat->st_nlink != 1) {
         errno = EPERM;
         return -1;
     }

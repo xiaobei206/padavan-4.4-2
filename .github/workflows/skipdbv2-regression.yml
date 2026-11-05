@@ -1048,6 +1048,8 @@ jobs:
                   "static int verify_owned_regular_file_(",
                   "verify_owned_regular_file_(fd, &marker_stat)",
                   "verify_owned_regular_file_(fd, &temp_stat)",
+                  "file_stat->st_nlink != 1",
+                  "errno = EPERM;",
                   "static int read_db_switch_marker(",
                   "if (n < 0) {",
                   "int server_init(",

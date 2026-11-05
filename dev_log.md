@@ -1,3 +1,21 @@
+## 2026-11-06 04:54 CST — Reject hard-linked skipd database marker files
+
+### Baseline and scope
+- Base commit: `dec3b897a26038d1587126a44fbe7c46c8318663` (`fix(skipd): harden instance lock file validation`); SkipDBv2 Regression run #208 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to the existing marker-file validator in `mgr/skipd_database.c`, shared by marker reads and temporary marker writes.
+
+### Changes
+- Reject descriptors whose link count is not exactly one, in addition to the existing regular-file and effective-UID checks.
+- This prevents a hard-linked `switch.tmp` path from allowing `ftruncate` or permission changes to affect another pathname. The same policy also applies to the durable `switch` marker.
+- Policy failures continue to return deterministic `EPERM`; actual `fstat` errors remain untouched.
+- Extended the existing manager source contract to require the hard-link guard. No new files, declarations, CMake targets, or build-script changes.
+
+### Validation
+- Static preflight confirms the shared validator checks file type, owner, and link count before callers can chmod or truncate.
+- Remote SkipDBv2 Regression validates source contracts, compilation, and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 04:52 CST — Harden skipd instance-lock file validation
 
 ### Baseline and scope
