@@ -5,6 +5,13 @@
 
 // first empty record ------------------------------------ 
 
+/* Validate nonzero free-list pointers as complete physical record headers. */
+static int UDBRecords_isValidEmptyPosition_(PID_TYPE pos, size_t file_size)
+{
+	return pos >= sizeof(PID_TYPE) && (size_t)pos <= file_size &&
+		file_size - (size_t)pos >= sizeof(UDBRecordHeader);
+}
+
 UDBRecord *UDBRecords_findFirstEmptyRecord(UDBRecords *self)
 {
 	UDBRecord *record;
@@ -57,9 +64,7 @@ PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)
 		self->firstEmptyPos = 0;
 		return 0;
 	}
-	if (pos != 0 && ((size_t)pos < sizeof(PID_TYPE) ||
-		(size_t)pos > file_size ||
-		file_size - (size_t)pos < sizeof(UDBRecordHeader)))
+	if (pos != 0 && !UDBRecords_isValidEmptyPosition_(pos, file_size))
 		pos = 0;
 
 	self->firstEmptyPos = pos;
@@ -74,10 +79,8 @@ int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)
 	if (NULL == self || NULL == self->file || self->file->file == NULL ||
 		self->file->log == NULL || pos > (PID_TYPE)LONG_MAX)
 		return 0;
-	if (pos != 0 &&
-		(pos < sizeof(PID_TYPE) || self->file->maxPos < 0 ||
-		 pos > (PID_TYPE)self->file->maxPos ||
-		 (PID_TYPE)self->file->maxPos - pos < sizeof(UDBRecordHeader)))
+	if (pos != 0 && (self->file->maxPos < 0 ||
+		!UDBRecords_isValidEmptyPosition_(pos, (size_t)self->file->maxPos)))
 		return 0;
 
 	old_empty = self->firstEmptyPos;

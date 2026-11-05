@@ -348,6 +348,9 @@ jobs:
                   "int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsFreeList.c": [
+                  "static int UDBRecords_isValidEmptyPosition_(PID_TYPE pos, size_t file_size)",
+                  "UDBRecords_isValidEmptyPosition_(pos, file_size)",
+                  "UDBRecords_isValidEmptyPosition_(pos, (size_t)self->file->maxPos)",
                   "UDBRecord *UDBRecords_findFirstEmptyRecord(UDBRecords *self)",
                   "PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)",
                   "int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)",
@@ -765,6 +768,12 @@ jobs:
           ).read_text()
           if record_read_source.count("UDBRecord_payloadFitsFile_(") != 4:
               raise SystemExit("UDB record extents are not centralized")
+
+          records_free_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsFreeList.c"
+          ).read_text()
+          if records_free_source.count("UDBRecords_isValidEmptyPosition_(") != 3:
+              raise SystemExit("UDB free-list position bounds are not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

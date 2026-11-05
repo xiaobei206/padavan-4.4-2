@@ -1,3 +1,20 @@
+## 2026-11-06 01:28 CST — Unify UDB free-list position validation
+
+### Baseline and scope
+- Base commit: `2fb5465112d8b5ee677b636cadb1150447c5a53f` (`refactor(udb): centralize record payload extent checks`); SkipDBv2 Regression run #185 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `udb/UDBRecordsFreeList.c`.
+
+### Changes
+- Centralized the physical-boundary predicate for persisted first-empty offsets, requiring a nonzero offset to start after metadata, remain within the file, and contain a complete record header.
+- Reused it when recovering a persisted offset and when writing an updated free-list offset; recovery still downgrades invalid stored hints to zero, while explicit invalid writes are rejected.
+- Updated source contracts to enforce a single private helper and two call sites. No new source file, public API declaration, or CMake source registration was added.
+
+### Validation
+- Static preflight confirms one helper definition and two call sites; CI verifies the same ownership/count invariant.
+- Remote SkipDBv2 Regression is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:26 CST — Centralize UDB record payload extent checks
 
 ### Baseline and scope
