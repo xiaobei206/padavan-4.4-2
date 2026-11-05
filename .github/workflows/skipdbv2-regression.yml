@@ -1202,6 +1202,20 @@ jobs:
               raise SystemExit("database marker file validation must have one private owner and two callers")
           if skipd_database_text.find("static int verify_owned_regular_file_(") > skipd_database_text.find("static int read_db_switch_marker("):
               raise SystemExit("database marker validator must be declared before its first call")
+          marker_write_start = skipd_database_text.find("static int write_db_switch_marker(")
+          marker_write_end = skipd_database_text.find("static int server_open_database(", marker_write_start)
+          marker_write_source = (
+              skipd_database_text[marker_write_start:marker_write_end]
+              if marker_write_start >= 0 and marker_write_end > marker_write_start
+              else ""
+          )
+          if (
+              not marker_write_source or
+              "if (written == 0)\n            errno = EIO;" not in marker_write_source or
+              "fail:\n    {\n        int saved_errno = errno;" not in marker_write_source or
+              "errno = saved_errno;" not in marker_write_source
+          ):
+              raise SystemExit("database marker writes must report zero-byte I/O as EIO and preserve the primary error during cleanup")
           scheduler_source_text = (manager_root / "skipd_scheduler.c").read_text()
           if (
               "(int)(p1 - (char*)dvalue.data)" in scheduler_source_text or

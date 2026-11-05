@@ -1,3 +1,20 @@
+## 2026-11-06 05:35 CST — Preserve SkipDB marker-write failure causes
+
+### Baseline and scope
+- Base commit: `2029471d4edd73402cceffcba7e9acddc6c70207` (`fix(skipd): preserve pid file validation errors`); SkipDBv2 Regression run #211 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to temporary commit-marker write/error cleanup in `mgr/skipd_database.c`.
+
+### Changes
+- A zero-byte marker write now reports `EIO` deterministically instead of leaking a stale `errno`.
+- The failure cleanup retains the original write, file-sync, close, or rename error while closing the descriptor and removing the temporary marker.
+- Extended the existing CI source contract to enforce the zero-write mapping and error-preserving cleanup. No new files, declarations, CMake targets, or source registrations.
+
+### Validation
+- Static preflight confirms one marker-write branch, explicit zero-byte error mapping, and restoration of the primary error after cleanup.
+- The next remote SkipDBv2 Regression run is authoritative for source contracts, compilation, and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 04:58 CST — Preserve skipd PID-file validation errors
 
 ### Baseline and scope

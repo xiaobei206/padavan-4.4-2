@@ -130,7 +130,12 @@ static int write_db_switch_marker(const char *db_path, int db_id)
     do {
         written = write(fd, &value, 1);
     } while (written < 0 && errno == EINTR);
-    if (written != 1 || fsync(fd) != 0)
+    if (written != 1) {
+        if (written == 0)
+            errno = EIO;
+        goto fail;
+    }
+    if (fsync(fd) != 0)
         goto fail;
     if (close(fd) != 0) {
         fd = -1;
@@ -153,10 +158,14 @@ static int write_db_switch_marker(const char *db_path, int db_id)
     return 0;
 
 fail:
-    if (fd >= 0)
-        close(fd);
-    if (!renamed)
-        unlink(temp_path);
+    {
+        int saved_errno = errno;
+        if (fd >= 0)
+            close(fd);
+        if (!renamed)
+            unlink(temp_path);
+        errno = saved_errno;
+    }
     return -1;
 }
 
