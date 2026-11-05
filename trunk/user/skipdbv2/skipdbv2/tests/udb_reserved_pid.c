@@ -292,9 +292,14 @@ int main(void)
             fprintf(stderr, "unable to create marker sentinel\n");
             goto done;
         }
-        if (fputs("untouched", sentinel_file) < 0 ||
-            fclose(sentinel_file) != 0) {
+        if (fputs("untouched", sentinel_file) < 0) {
+            fclose(sentinel_file);
             fprintf(stderr, "unable to write marker sentinel\n");
+            remove(sentinel_path);
+            goto done;
+        }
+        if (fclose(sentinel_file) != 0) {
+            fprintf(stderr, "unable to close marker sentinel after writing\n");
             remove(sentinel_path);
             goto done;
         }
