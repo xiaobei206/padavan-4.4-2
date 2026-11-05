@@ -78,8 +78,12 @@ jobs:
           for tool in aclocal automake; do
             tool_path="$(command -v "$tool")"
             for version in 1.8 1.16; do
-              if ! command -v "${tool}-${version}" >/dev/null 2>&1; then
-                sudo ln -s "$tool_path" "/usr/local/bin/${tool}-${version}"
+              versioned_tool="${tool}-${version}"
+              versioned_path="$(command -v "$versioned_tool" 2>/dev/null || true)"
+              # command -v can report a dangling versioned symlink as present.
+              # Test executability and repair the shim when the target is broken.
+              if [ -z "$versioned_path" ] || [ ! -x "$versioned_path" ]; then
+                sudo ln -sfn "$tool_path" "/usr/local/bin/$versioned_tool"
               fi
             done
           done
