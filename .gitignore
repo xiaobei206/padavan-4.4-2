@@ -5,3 +5,6 @@ toolchain/mipsel-linux-*/
 
 # MacOS
 .DS_Store
+
+# Editor backup files
+*~

@@ -107,8 +107,24 @@ static int btn_uevent_init(void)
 		exit(1);
 	}
 
-	setsockopt(fd, SOL_SOCKET, SO_RCVBUFFORCE, &nlbufsize, sizeof(nlbufsize));
-	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+	/* The receive timeout drives the 100ms hold-duration update loop. */
+	if (setsockopt(fd, SOL_SOCKET, SO_RCVBUFFORCE,
+		&nlbufsize, sizeof(nlbufsize)) != 0) {
+		/* SO_RCVBUF is unprivileged and still provides a useful burst queue. */
+		if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
+			&nlbufsize, sizeof(nlbufsize)) != 0)
+			logmessage("gpio_btn", "Failed to enlarge hotplug receive buffer: %s",
+				strerror(errno));
+	}
+	if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) != 0) {
+		int saved_errno = errno;
+		logmessage("gpio_btn", "Failed to configure hotplug receive timeout: %s",
+			strerror(saved_errno));
+		close(fd);
+		errno = saved_errno;
+		
+		exit(EXIT_FAILURE);
+	}
 
 	return fd;
 }
@@ -276,6 +292,7 @@ int btn_main(int argc, char *argv[])
 	char buf[UEVENT_MSG_LEN] = {0};
 	int msglen = 0;
 	int fd;
+	int exit_status = EXIT_SUCCESS;
 	btn_event btn_ev;
 	struct sigaction sa;
 	pid_t pid;
@@ -304,10 +321,16 @@ int btn_main(int argc, char *argv[])
 
 	while (running)
 	{
-		msglen = recv(fd, buf, UEVENT_MSG_LEN, 0);
+		msglen = recv(fd, buf, sizeof(buf), 0);
 
-		if (msglen > 0)
+		if (msglen > 0) {
 			nlmsg_handle(buf, msglen, &btn_ev);
+		} else if (msglen < 0 && errno != EINTR &&
+			   errno != EAGAIN && errno != EWOULDBLOCK) {
+			logmessage("gpio_btn", "Failed to receive hotplug event: %s", strerror(errno));
+			exit_status = EXIT_FAILURE;
+			break;
+		}
 
 		if (btn_ev.btn_id && btn_ev.event) {
 			//btn_dbg("btn_ev: btn=0x%x, event=%d\n", btn_ev.btn_id, btn_ev.event);
@@ -318,5 +341,5 @@ int btn_main(int argc, char *argv[])
 
 	close(fd);
 
-	return 0;
+	return exit_status;
 }

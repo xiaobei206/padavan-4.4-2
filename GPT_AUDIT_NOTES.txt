@@ -333,8 +333,11 @@ Verification: source-level review only. No local firmware build or CTest executi
 cbebf5d5  skipd.c: handle -h as success and reject unknown command-line options.
 Verification: source inspection and GitHub commit-diff inspection only; no firmware build or runtime tests were run.
 1285e942  skipd.c: reject unexpected positional arguments after option parsing.
-f5d24b85  skipd.c: replace unsafe /tmp/skipd.log shell redirection with a checked no-follow log descriptor; fall back to /dev/null if unavailable.
-1285e942  skipd.c: reject unexpected positional arguments after option parsing.
 f5d24b85  skipd.c: route script output through a verified descriptor, with a safe fallback when secure logging is unavailable.
 501f074c  daemonize.c: create and validate PID files with no-follow semantics and checked writes before truncation.
 27b90b59  skipd.c: add nonblocking open to secure log-file setup so an attacker-controlled FIFO cannot stall startup.
+2026-11-05 audit batch:
+- Pin all workflow actions to verified full commit SHAs (checkout/setup-go/upload-artifact/ccache/release/cleanup).
+- gpio_btn.c: require SO_RCVTIMEO for the hold-tick loop, fall back to SO_RCVBUF, and fail on unexpected recv errors instead of spinning.
+- Remove the tracked stale skipd.c~ editor backup; ignore future *~ files.
+- Baseline immediately before this batch: SkipDBv2 Regression and XY-C1 Firmware Validation both green at e6daf8410ee41f32dcdd1b8ac68da6616889aa4d. This batch was not locally built; CI must revalidate.

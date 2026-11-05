@@ -15,7 +15,7 @@ jobs:
         target: [mipsel-linux-musl, mipsel-linux-uclibc]
 
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Build Dependencies
         run: |
@@ -28,12 +28,12 @@ jobs:
           tar cJf "../${{ matrix.target }}.tar.xz" .
         working-directory: toolchain
 
-      - uses: actions/upload-artifact@main
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.target }}
           path: toolchain/${{ matrix.target }}.tar.xz
 
-      - uses: ncipollo/release-action@main
+      - uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           tag: toolchain
           artifacts: toolchain/${{ matrix.target }}.tar.xz
