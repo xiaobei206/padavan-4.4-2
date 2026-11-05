@@ -329,7 +329,7 @@ int UDBIndex_isReservedPid_(UDBIndex *self, PID_TYPE pid)
 int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 {
 	UDBIndexEntry entry;
-		long previous_file_pos, previous_max_pos;
+	long previous_file_pos, previous_max_pos;
 	size_t offset;
 
 	if (NULL == self || NULL == self->file ||
