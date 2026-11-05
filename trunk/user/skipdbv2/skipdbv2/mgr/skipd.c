@@ -2120,22 +2120,31 @@ int server_init(skipd_server* server, int max_queue) {
     mode_t old_umask;
 
     server->switch_mark = 8*1024*1024;//default 8M
-    server_open(server);
 
-    count = SkipDB_count(server->db);
-    if (count < 0) {
-        skipd_log(SKIPD_DEBUG, "SkipDB record chain is corrupt; refusing startup\n");
-        SkipDB_close(server->db);
-        return -1;
-    }
-    skipd_log(SKIPD_DEBUG, "Load count=%d maxPos=%d\n", count, SkipDB_maxPos(server->db));
-
+    /* Acquire the single-instance lock before touching journals or commit
+     * markers. Two simultaneous starts must never recover the same database. */
     server->fd = unix_socket_init(&server->socket, server->sock_path,
         server->db_path, max_queue);
     if (server->fd < 0) {
         perror("invalid server socket path");
         return -1;
     }
+
+    server_open(server);
+    count = SkipDB_count(server->db);
+    if (count < 0) {
+        skipd_log(SKIPD_DEBUG, "SkipDB record chain is corrupt; refusing startup\n");
+        SkipDB_close(server->db);
+        close(server->fd);
+        server->fd = -1;
+        if (socket_instance_lock_fd >= 0) {
+            close(socket_instance_lock_fd);
+            socket_instance_lock_fd = -1;
+        }
+        return -1;
+    }
+    skipd_log(SKIPD_DEBUG, "Load count=%d maxPos=%d\n", count, SkipDB_maxPos(server->db));
+
     server->socket_len = (int)(sizeof(server->socket.sun_family) +
         strlen(server->socket.sun_path) + 1);
 
