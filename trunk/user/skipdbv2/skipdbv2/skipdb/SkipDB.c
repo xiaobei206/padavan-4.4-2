@@ -590,6 +590,9 @@ SkipDBRecord *SkipDB_recordAtPid_(SkipDB *self, PID_TYPE pid)
 		if (!SkipDBRecord_fromStream_(record, self->stream)) {
 			fprintf(stderr, "SkipDB: invalid serialized record for PID %" PID_FORMAT "\n", pid);
 			SkipDBRecord_dealloc(record);
+			/* A mapped PID whose payload cannot be decoded is corruption,
+			 * not a cache miss; prevent callers from treating it as EOF. */
+			UDB_close(self->udb);
 			return NULL;
 		}
 		SkipDBRecord_pid_(record, pid);
