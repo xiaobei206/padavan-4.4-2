@@ -7,11 +7,27 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+/* Close a failed persistence stream without masking its primary error. */
+static void JFile_closeFailedStream_(FILE **stream)
+{
+	int saved_errno = errno;
+
+	if (saved_errno == 0)
+		saved_errno = EIO;
+	if (NULL != stream && NULL != *stream) {
+		(void)fclose(*stream);
+		*stream = NULL;
+	}
+	errno = saved_errno;
+}
+
 int JFile_hardSyncFileDescriptor_(JFile *self, int fd)
 {
 	(void)self;
-	if (fd < 0)
+	if (fd < 0) {
+		errno = EBADF;
 		return -1;
+	}
 #ifdef F_FULLFSYNC
 	return fcntl(fd, F_FULLFSYNC, 0);
 #else
@@ -22,15 +38,29 @@ int JFile_hardSyncFileDescriptor_(JFile *self, int fd)
 
 void JFile_syncFileWritesToDisk(JFile *self)
 {
+	int fd;
+
 	if (NULL == self || NULL == self->file)
 		return;
-	if (fflush(self->file) != 0 ||
-		(self->fullSync &&
-		 (fileno(self->file) < 0 ||
-		  JFile_hardSyncFileDescriptor_(self, fileno(self->file)) != 0))) {
-		fclose(self->file);
-		self->file = NULL;
+	errno = 0;
+	if (fflush(self->file) != 0)
+		goto fail;
+	if (self->fullSync) {
+		errno = 0;
+		fd = fileno(self->file);
+		if (fd < 0) {
+			if (errno == 0)
+				errno = EBADF;
+			goto fail;
+		}
+		errno = 0;
+		if (JFile_hardSyncFileDescriptor_(self, fd) != 0)
+			goto fail;
 	}
+	return;
+
+fail:
+	JFile_closeFailedStream_(&self->file);
 }
 
 void JFile_syncLogWritesToDisk(JFile *self)
@@ -40,35 +70,78 @@ void JFile_syncLogWritesToDisk(JFile *self)
 
 	if (NULL == self || NULL == self->log)
 		return;
+	errno = 0;
 	if (fflush(self->log) != 0)
 		goto fail;
-	fd = fileno(self->log);
-	if (self->fullSync &&
-		(fd < 0 || JFile_hardSyncFileDescriptor_(self, fd) != 0))
-		goto fail;
+	if (self->fullSync) {
+		errno = 0;
+		fd = fileno(self->log);
+		if (fd < 0) {
+			if (errno == 0)
+				errno = EBADF;
+			goto fail;
+		}
+		errno = 0;
+		if (JFile_hardSyncFileDescriptor_(self, fd) != 0)
+			goto fail;
+	}
 
-	if (fseek(self->log, 0, SEEK_END) != 0 ||
-		(end = ftell(self->log)) <= 0 ||
-		fseek(self->log, -1, SEEK_END) != 0)
+	errno = 0;
+	if (fseek(self->log, 0, SEEK_END) != 0)
 		goto fail;
+	errno = 0;
+	end = ftell(self->log);
+	if (end < 0) {
+		if (errno == 0)
+			errno = EIO;
+		goto fail;
+	}
+	if (end == 0) {
+		errno = EINVAL;
+		goto fail;
+	}
+	errno = 0;
+	if (fseek(self->log, -1, SEEK_END) != 0)
+		goto fail;
+	errno = 0;
 	last = fgetc(self->log);
-	if (last != JFILE_END_TRANSACTION_ITEM)
+	if (last == EOF) {
+		if (errno == 0)
+			errno = EIO;
 		goto fail;
-	if (fseek(self->log, -1, SEEK_END) != 0 ||
-		fputc(JFILE_END_TRANSACTION, self->log) == EOF ||
-		fflush(self->log) != 0)
+	}
+	if (last != JFILE_END_TRANSACTION_ITEM) {
+		errno = EINVAL;
 		goto fail;
-	fd = fileno(self->log);
-	if (self->fullSync &&
-		(fd < 0 || JFile_hardSyncFileDescriptor_(self, fd) != 0))
+	}
+	errno = 0;
+	if (fseek(self->log, -1, SEEK_END) != 0)
 		goto fail;
+	errno = 0;
+	if (fputc(JFILE_END_TRANSACTION, self->log) == EOF) {
+		if (errno == 0)
+			errno = EIO;
+		goto fail;
+	}
+	errno = 0;
+	if (fflush(self->log) != 0)
+		goto fail;
+	if (self->fullSync) {
+		errno = 0;
+		fd = fileno(self->log);
+		if (fd < 0) {
+			if (errno == 0)
+				errno = EBADF;
+			goto fail;
+		}
+		errno = 0;
+		if (JFile_hardSyncFileDescriptor_(self, fd) != 0)
+			goto fail;
+	}
 	return;
 
 fail:
-	if (self && self->log) {
-		fclose(self->log);
-		self->log = NULL;
-	}
+	JFile_closeFailedStream_(&self->log);
 }
 
 /* Truncate and reposition one already validated, managed journal stream. */
@@ -86,16 +159,40 @@ int JFile_truncateLogTo_(JFile *self, long size)
 		errno = EOVERFLOW;
 		return -1;
 	}
-	if (fflush(self->log) != 0)
+	errno = 0;
+	if (fflush(self->log) != 0) {
+		if (errno == 0)
+			errno = EIO;
 		return -1;
+	}
+	errno = 0;
 	fd = fileno(self->log);
-	if (fd < 0 || ftruncate(fd, target) != 0)
+	if (fd < 0) {
+		if (errno == 0)
+			errno = EBADF;
 		return -1;
-	if (self->fullSync && JFile_hardSyncFileDescriptor_(self, fd) != 0)
+	}
+	errno = 0;
+	if (ftruncate(fd, target) != 0) {
+		if (errno == 0)
+			errno = EIO;
 		return -1;
+	}
+	if (self->fullSync) {
+		errno = 0;
+		if (JFile_hardSyncFileDescriptor_(self, fd) != 0) {
+			if (errno == 0)
+				errno = EIO;
+			return -1;
+		}
+	}
 	clearerr(self->log);
-	if (fseek(self->log, size, SEEK_SET) != 0)
+	errno = 0;
+	if (fseek(self->log, size, SEEK_SET) != 0) {
+		if (errno == 0)
+			errno = EIO;
 		return -1;
+	}
 	return 0;
 }
 
@@ -111,8 +208,7 @@ int JFile_clipLog(JFile *self)
 			return errno == ENOENT ? 0 : -1;
 	}
 	if (JFile_truncateLogTo_(self, 0) != 0) {
-		fclose(self->log);
-		self->log = NULL;
+		JFile_closeFailedStream_(&self->log);
 		return -1;
 	}
 	return 0;
@@ -133,13 +229,24 @@ void JFile_truncate_(JFile *self, off_t size)
 	if (NULL == self->file || NULL == self->log)
 		return;
 	target = size;
+	errno = 0;
 	if (fflush(self->file) != 0)
 		goto fail;
+	errno = 0;
 	fd = fileno(self->file);
-	if (fd < 0 || ftruncate(fd, target) != 0)
+	if (fd < 0) {
+		if (errno == 0)
+			errno = EBADF;
 		goto fail;
-	if (self->fullSync && JFile_hardSyncFileDescriptor_(self, fd) != 0)
+	}
+	errno = 0;
+	if (ftruncate(fd, target) != 0)
 		goto fail;
+	if (self->fullSync) {
+		errno = 0;
+		if (JFile_hardSyncFileDescriptor_(self, fd) != 0)
+			goto fail;
+	}
 	self->maxPos = (long)size;
 	if (self->pos > self->maxPos)
 		self->pos = self->maxPos;
@@ -147,6 +254,5 @@ void JFile_truncate_(JFile *self, off_t size)
 
 fail:
 	/* This API is void; close the stream so UDB's checks abort the transaction. */
-	fclose(self->file);
-	self->file = NULL;
+	JFile_closeFailedStream_(&self->file);
 }

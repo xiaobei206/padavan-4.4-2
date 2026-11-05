@@ -1,4 +1,5 @@
-#include "JFile.h"
+#include "JFileInternal.h"
+#include <errno.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +62,11 @@ int main(void)
 	if (NULL == file) {
 		fprintf(stderr, "JFile_new failed\n");
 		return EXIT_FAILURE;
+	}
+	errno = 0;
+	if (JFile_hardSyncFileDescriptor_(file, -1) != -1 || errno != EBADF) {
+		fprintf(stderr, "invalid sync descriptor did not report EBADF\n");
+		goto done;
 	}
 	path_len = snprintf(path, sizeof(path), "jfile_journal_test_%ld", (long)getpid());
 	if (path_len < 0 || (size_t)path_len >= sizeof(path)) {

@@ -1,3 +1,23 @@
+## 2026-11-06 05:45 CST — Preserve JFile durability failure causes
+
+### Baseline and scope
+- Base commit: `1d191bb7f7da0c2141e68ef92383fff4b859dd35` (`fix(skipd): distinguish increment read errors`); SkipDBv2 Regression run #213 passed source contracts, configuration, compilation, and all CTests.
+- Scope is limited to descriptor validation and failed-stream cleanup in `jfile/JFileSync.c`, using the existing `jfile_journal_test`.
+
+### Changes
+- Invalid descriptors in the hard-sync primitive now report `EBADF` deterministically.
+- File and journal sync failures close the affected stream through one private cleanup helper that preserves the primary errno across `fclose`.
+- Journal terminator corruption reports `EINVAL`; an unexpected EOF during the final-byte read reports `EIO`.
+- Journal truncation now clears stale errno before each failing operation, classifies invalid descriptors, and preserves the truncate error during stream cleanup.
+- Extended the existing journal regression to check the invalid-descriptor error and strengthened its existing CI source contract. No new files or CMake targets.
+
+### Validation
+- Static preflight confirms file, journal, and truncation failure paths use the shared close helper, and that error classification precedes cleanup.
+- The existing `JFile.hardSyncFileDescriptor_` declaration in `JFileInternal.h` is reused; the current test target already links the SkipDB library and exposes the jfile include directory.
+- Remote SkipDBv2 Regression is authoritative for compilation and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 05:40 CST — Distinguish inc/desc database failures from missing keys
 
 ### Baseline and scope
