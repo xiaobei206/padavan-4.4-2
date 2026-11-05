@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/skipdbv2-regression.yml"
+      - ".github/workflows/build.yml"
       - "trunk/user/skipdbv2/skipdbv2/**"
       - "trunk/user/skipdbv2/Makefile"
       - "trunk/user/cflags.mk"
@@ -20,6 +21,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/skipdbv2-regression.yml"
+      - ".github/workflows/build.yml"
       - "trunk/user/skipdbv2/skipdbv2/**"
       - "trunk/user/skipdbv2/Makefile"
       - "trunk/user/cflags.mk"
@@ -55,6 +57,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           checks = {
               "trunk/configs/templates/XY-C1.config": [
@@ -141,6 +144,12 @@ jobs:
                   "btn_hold_tick();",
               ],
           }
+
+          build_workflow = Path(".github/workflows/build.yml").read_text()
+          if re.search(r"(?m)^  watch:\s*$", build_workflow):
+              raise SystemExit("release-capable Build Firmware workflow must not accept public watch events")
+          if not re.search(r"(?m)^  workflow_dispatch:\s*$", build_workflow):
+              raise SystemExit("Build Firmware must retain its authorized manual trigger")
 
           for path, needles in checks.items():
               content = Path(path).read_text()

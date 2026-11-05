@@ -341,3 +341,7 @@ f5d24b85  skipd.c: route script output through a verified descriptor, with a saf
 - gpio_btn.c: require SO_RCVTIMEO for the hold-tick loop, fall back to SO_RCVBUF, and fail on unexpected recv errors instead of spinning.
 - Remove the tracked stale skipd.c~ editor backup; ignore future *~ files.
 - Baseline immediately before this batch: SkipDBv2 Regression and XY-C1 Firmware Validation both green at e6daf8410ee41f32dcdd1b8ac68da6616889aa4d. This batch was not locally built; CI must revalidate.
+2026-11-05 follow-up audit:
+- build.yml: remove the public watch:started trigger from the release-capable workflow (contents/actions write); retain manual workflow_dispatch.
+- skipdbv2-regression.yml: include build.yml in path filters and guard against reintroducing the watch trigger.
+- Current pre-change main: 60abc95e; SkipDBv2 Regression and XY-C1 Firmware Validation were green. Workflow guard is intended to run on this commit; firmware validation was not triggered by these workflow-only changes.
