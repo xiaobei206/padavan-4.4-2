@@ -1,3 +1,41 @@
+## 2026-11-05 — Split JFile persistence, journal replay, and durability layers
+
+### Baseline and regression state
+- Base commit: `1cdef91dccdad2f7a9506c08f7937bc4fa372868` (`refactor(udb): split record-store lifecycle, cursor, and free-list layers`).
+- Baseline `SkipDBv2 Regression` run `41982709173` completed successfully: integration contracts, CMake configure, all SkipDBv2 targets, and CTest passed.
+- Baseline XY-C1 firmware cross-build `41982709153` also completed successfully, including TRX verification. The branch contains only `main`.
+- The regression workflow compiles the host-side implementation and runs CTest; the separate XY-C1 cross-build remains enabled.
+
+### Changes
+1. **Private persistence contracts — `jfile/JFileInternal.h`**
+   - Centralized transaction terminator constants and private cross-translation-unit declarations.
+   - Exposed the managed-file opener only to implementation units; the public `JFile.h` API and persisted record format remain unchanged.
+2. **Journal engine — `jfile/JFileJournal.c`**
+   - Moved journal parsing/replay, durable transaction completion, commit orchestration, log validation, last-commit scanning, and interrupted-tail clipping out of the original monolith.
+   - Preserved the native journal layout, legacy zero-length record handling, terminator rules, replay order, and recovery-evidence retention.
+3. **Durability and file maintenance — `jfile/JFileSync.c`**
+   - Isolated fsync barriers, log commit-marker sync, managed journal reopen/truncation, and data-file truncation.
+   - Kept file ownership and symlink checks in the single managed-file opener and reused it when the journal must be reopened.
+4. **Lifecycle and call-site facade — `jfile/JFile.c`**
+   - Left path configuration, secure file opening, close/delete, raw read/write, and logical cursor movement in the core translation unit.
+   - Routed cross-module helpers through the private header without changing caller-visible behavior.
+5. **Regression/build/CI integration — `tests/jfile_journal.c`, `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Added coverage for commit-before-replay, retained recovery evidence, repeatable replay, safe clipping, crash-style startup replay, and truncation of an interrupted trailing record.
+   - Registered the test in the existing host regression CTest path and added source-boundary/build-registration contracts.
+   - Kept the XY-C1 firmware cross-build enabled.
+
+### Validation
+- Structural extraction checks verify single ownership for every moved definition and preserve the lifecycle call sites in `JFile.c`.
+- The new test is wired into the same `SKIPDB_BUILD_TESTS=ON` workflow as the existing UDB and IPC tests.
+- No local compiler/CTest result is claimed. The commit triggers the host regression and XY-C1 firmware validation workflows.
+
+### Follow-up
+- Keep transaction format, parser, and replay behavior in `JFileJournal.c`.
+- Keep fsync, durable journal terminators, safe clipping, and physical truncation in `JFileSync.c`.
+- Keep file paths, secure open, and stream lifecycle in `JFile.c`.
+
+---
+
 # Development handoff log
 
 ## 2026-11-05 — Split UDB record-store lifecycle, cursor, and free-list layers

@@ -130,6 +130,38 @@ jobs:
                   "int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)",
                   "UDBRecord *UDBRecords_firstEmptyRecord(UDBRecords *self)",
               ],
+              "trunk/user/skipdbv2/skipdbv2/jfile/JFileInternal.h": [
+                  "#define JFILE_END_TRANSACTION_ITEM 1",
+                  "FILE *JFile_openManagedFile_(const char *path, int *created);",
+                  "void JFile_writeLogToFile(JFile *self);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/jfile/JFile.c": [
+                  '#include "JFileInternal.h"',
+                  "FILE *JFile_openManagedFile_(const char *path, int *created)",
+                  "JFile_clipLogToLastCompletedTransaction(self);",
+                  "JFile_writeLogToFile(self);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/jfile/JFileJournal.c": [
+                  "static int JFile_applyLogToFile_(JFile *self, int clear_log)",
+                  "int JFile_applyLogToFile(JFile *self)",
+                  "long JFile_lastCommitPosition(JFile *self)",
+                  "int JFile_verifyLog(JFile *self)",
+                  "void JFile_clipLogToLastCompletedTransaction(JFile *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/jfile/JFileSync.c": [
+                  "int JFile_hardSyncFileDescriptor_(JFile *self, int fd)",
+                  "void JFile_syncLogWritesToDisk(JFile *self)",
+                  "int JFile_clipLog(JFile *self)",
+                  "void JFile_truncate_(JFile *self, off_t size)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/jfile_journal.c": [
+                  "JFile_verifyLog(file)",
+                  "JFile_applyLogToFile(file)",
+                  "JFile_clipLog(file)",
+                  "JFile_close(file);",
+                  "JFile_open(file);",
+                  "JFile_logSize(file)",
+              ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBCompact.c": [
                   "int UDB_compactStepFor_(UDB *self, double maxSeconds)",
                   "UDBRecord_totalSize(record) > UDBRecord_totalSize(firstEmptyRecord)",
@@ -222,6 +254,10 @@ jobs:
                   "test_read_success_eof_and_timeout",
               ],
               "trunk/user/skipdbv2/skipdbv2/CMakeLists.txt": [
+                  "FILE(GLOB_RECURSE FILE_SRC ${PROJECT_SOURCE_DIR}/jfile/*.c)",
+                  "jfile_journal_test",
+                  "add_test(NAME jfile_journal_test COMMAND jfile_journal_test)",
+
                   "SET(UDB_SRC",
                   "UDBRead.c",
                   "UDBWrite.c",

@@ -120,4 +120,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(commit_marker_test skipdb m)
     add_test(NAME commit_marker_test COMMAND commit_marker_test)
 
+    ADD_EXECUTABLE(jfile_journal_test
+        ${PROJECT_SOURCE_DIR}/tests/jfile_journal.c)
+    TARGET_LINK_LIBRARIES(jfile_journal_test skipdb m)
+    add_test(NAME jfile_journal_test COMMAND jfile_journal_test)
+
 endif()
