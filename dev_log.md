@@ -1,3 +1,21 @@
+## 2026-11-06 04:03 CST — Preserve raw byte spans in SkipDB prefix scans
+
+### Baseline and scope
+- Base commit: `d6118034ee0a9e78be608a894597b9ac3ccda023` (`refactor(skipdb): centralize record datum validation`); SkipDBv2 Regression run #198 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `skipdb/SkipDBPrefix.c`; the existing prefix regression and its CI source contract are extended in place.
+
+### Changes
+- Fixed prefix-length interpretation: a trailing NUL is removed only for C-string datums; a non-terminated byte datum now uses its full declared length.
+- Kept empty-string prefix behavior, ordered cursor traversal, callback iteration, and public signatures unchanged.
+- Added cursor and callback regressions using a two-byte `al` prefix plus an adjacent `apple` key, proving the byte scan does not widen to every key beginning with `a`.
+- Updated the existing CI source contract to enforce the byte-span rule. No new files or CMake source registrations.
+
+### Validation
+- Static preflight verifies the helper's bounded prefix length logic and both raw-byte regression paths.
+- Remote SkipDBv2 Regression is authoritative for compilation and CTest; no local compiler/build result is claimed.
+
+---
+
 ## 2026-11-06 02:01 CST — Centralize SkipDB record datum validation
 
 ### Baseline and scope

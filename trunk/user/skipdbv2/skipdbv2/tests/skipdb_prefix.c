@@ -59,6 +59,28 @@ static int insert_key(SkipDB *db, const char *key)
         Datum_FromCString_(key));
 }
 
+static int cursor_matches(SkipDB *db, Datum prefix,
+    const char *const *expected, size_t expected_count)
+{
+    SkipDBCursor *cursor = NULL;
+    SkipDBRecord *record = SkipDB_list_first(db, prefix, &cursor);
+    size_t i;
+    int matches;
+
+    if (NULL == cursor)
+        return 0;
+    for (i = 0; i < expected_count; ++i) {
+        if (!record_has_key(record, expected[i])) {
+            SkipDBCursor_release(cursor);
+            return 0;
+        }
+        record = SkipDB_list_next(db, prefix, cursor);
+    }
+    matches = record == NULL;
+    SkipDBCursor_release(cursor);
+    return matches;
+}
+
 static int fail(const char *message)
 {
     fprintf(stderr, "skipdb_prefix_test: %s\n", message);
@@ -71,15 +93,17 @@ int main(void)
         "al", "albatross", "alpha", "alphabet", "alpine"
     };
     static const char *const all_keys[] = {
-        "al", "albatross", "alpha", "alphabet", "alpine", "beta", "gamma"
+        "al", "albatross", "alpha", "alphabet", "alpine", "apple", "beta", "gamma"
     };
     static const char *const inserted_keys[] = {
-        "alpha", "alpine", "beta", "al", "alphabet", "albatross", "gamma"
+        "alpha", "alpine", "beta", "al", "alphabet", "albatross", "gamma", "apple"
     };
+    unsigned char byte_prefix_data[] = { 'a', 'l' };
     SkipDB *db = NULL;
     SkipDBCursor *cursor = NULL;
     SkipDBRecord *record;
     Datum prefix = Datum_FromCString_("al");
+    Datum byte_prefix = Datum_FromData_length_(byte_prefix_data, sizeof(byte_prefix_data));
     Datum empty_prefix = Datum_FromCString_("");
     Datum missing_prefix = Datum_FromCString_("zz");
     char path[128];
@@ -113,33 +137,30 @@ int main(void)
         }
     }
     SkipDB_commitTransaction(db);
-    if (!SkipDB_isOpen(db) || SkipDB_count(db) != 7) {
+    if (!SkipDB_isOpen(db) || SkipDB_count(db) != 8) {
         result = fail("fixture commit/count failed");
         goto done;
     }
 
-    record = SkipDB_list_first(db, prefix, &cursor);
-    if (NULL == cursor) {
-        result = fail("prefix cursor was not created");
+    if (!cursor_matches(db, prefix, prefix_keys,
+        sizeof(prefix_keys) / sizeof(prefix_keys[0]))) {
+        result = fail("string prefix cursor order or boundary mismatch");
         goto done;
     }
-    for (i = 0; i < sizeof(prefix_keys) / sizeof(prefix_keys[0]); ++i) {
-        if (!record_has_key(record, prefix_keys[i])) {
-            result = fail("cursor prefix order or boundary mismatch");
-            goto done;
-        }
-        record = SkipDB_list_next(db, prefix, cursor);
-    }
-    if (record != NULL) {
-        result = fail("cursor prefix scan crossed its boundary");
+    if (!cursor_matches(db, byte_prefix, prefix_keys,
+        sizeof(prefix_keys) / sizeof(prefix_keys[0]))) {
+        result = fail("binary prefix cursor mismatch");
         goto done;
     }
-    SkipDBCursor_release(cursor);
-    cursor = NULL;
 
     if (!callback_matches(db, prefix, prefix_keys,
         sizeof(prefix_keys) / sizeof(prefix_keys[0]))) {
         result = fail("callback prefix scan mismatch");
+        goto done;
+    }
+    if (!callback_matches(db, byte_prefix, prefix_keys,
+        sizeof(prefix_keys) / sizeof(prefix_keys[0]))) {
+        result = fail("binary prefix callback mismatch");
         goto done;
     }
     if (!callback_matches(db, empty_prefix, all_keys,

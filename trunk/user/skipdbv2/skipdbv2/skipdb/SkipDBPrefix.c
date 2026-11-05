@@ -6,12 +6,18 @@
 static int SkipDB_keyHasPrefix_(Datum key, Datum prefix)
 {
 	size_t prefix_len;
-	if (prefix.size == 0 || NULL == prefix.data ||
-		NULL == key.data || key.size < prefix.size)
+	if (prefix.size == 0 || NULL == prefix.data)
 		return 0;
-	/* Datums from the string API include the terminating NUL in size. */
-	prefix_len = prefix.size - 1;
-	return prefix_len == 0 || memcmp(key.data, prefix.data, prefix_len) == 0;
+
+	/* CString datums include NUL; byte datums use their complete span. */
+	prefix_len = prefix.size;
+	if (prefix.data[prefix.size - 1] == 0)
+		prefix_len--;
+
+	if (key.size < prefix_len)
+		return 0;
+	return prefix_len == 0 ||
+		(key.data != NULL && memcmp(key.data, prefix.data, prefix_len) == 0);
 }
 
 void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,

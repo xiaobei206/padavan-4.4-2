@@ -216,6 +216,10 @@ jobs:
                   "\"albatross\"",
                   "Datum_FromCString_(\"\")",
                   "Datum_FromCString_(\"zz\")",
+                  "Datum_FromData_length_(",
+                  "\"apple\"",
+                  "binary prefix cursor mismatch",
+                  "binary prefix callback mismatch",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBInternal.h": [
                   "void SkipDB_dealloc(SkipDB *self);",
@@ -966,6 +970,11 @@ jobs:
                   raise SystemExit("SkipDB prefix implementation missing from prefix module: " + symbol)
           if skipdb_prefix_text.count("static int SkipDB_keyHasPrefix_(") != 1:
               raise SystemExit("SkipDB prefix predicate does not have a single private owner")
+          if (
+              "prefix_len = prefix.size;" not in skipdb_prefix_text or
+              "prefix.data[prefix.size - 1] == 0" not in skipdb_prefix_text
+          ):
+              raise SystemExit("SkipDB prefix length must preserve raw byte datums")
           if "SkipDBInternal.h" not in skipdb_prefix_text:
               raise SystemExit("SkipDB prefix module is missing its private implementation contract")
           if cmake_text.count("skipdb/SkipDBPrefix.c") != 1:
