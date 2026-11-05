@@ -2262,6 +2262,14 @@ int main(int argc, char **argv)
      * command created during a delayed startup scan would be scheduled twice. */
     server_init_delay(EV_A_ server);
     server_init_time(EV_A_ server);
+    if (!SkipDB_isOpen(server->db)) {
+        skipd_log(SKIPD_DEBUG,
+            "database became invalid while restoring scheduled tasks; refusing startup\n");
+        close(server->fd);
+        server->fd = -1;
+        SkipDB_close(server->db);
+        return EXIT_FAILURE;
+    }
 
     // Get notified whenever the socket is ready to read
     ev_io_init(&server->io, server_cb, server->fd, EV_READ);
