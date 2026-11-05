@@ -238,6 +238,9 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecord.c": [
                   '#include "SkipDBRecordInternal.h"',
+                  "static int SkipDBRecord_datumIsValid_(Datum value)",
+                  "SkipDBRecord_datumIsValid_(k)",
+                  "SkipDBRecord_datumIsValid_(v)",
                   "SkipDBRecord *SkipDBRecord_new(void)",
                   "void SkipDBRecord_dealloc(SkipDBRecord *self)",
                   "void SkipDBRecord_markAsDirty(SkipDBRecord *self)",
@@ -866,6 +869,12 @@ jobs:
           ).read_text()
           if search_source.count("SkipDBSearch_canReadKey_(") != 3:
               raise SystemExit("SkipDB read-key readiness validation is not centralized")
+
+          record_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecord.c"
+          ).read_text()
+          if record_source.count("SkipDBRecord_datumIsValid_(") != 3:
+              raise SystemExit("SkipDB record key/value datum validation is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

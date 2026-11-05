@@ -146,9 +146,15 @@ uint8_t SkipDBRecord_isDirty(SkipDBRecord *self)
 	return self ? self->isDirty : 0;
 }
 
+/* Accept empty datums or non-empty byte spans with a valid pointer. */
+static int SkipDBRecord_datumIsValid_(Datum value)
+{
+	return value.size == 0 || value.data != NULL;
+}
+
 void SkipDBRecord_keyDatum_(SkipDBRecord *self, Datum k)
 {
-	if (self && self->key && (k.size == 0 || k.data != NULL))
+	if (self && self->key && SkipDBRecord_datumIsValid_(k))
 		UArray_setData_type_size_copy_(self->key, k.data, CTYPE_uint8_t, k.size, 1);
 }
 
@@ -164,7 +170,7 @@ UArray *SkipDBRecord_key(SkipDBRecord *self)
 
 void SkipDBRecord_valueDatum_(SkipDBRecord *self, Datum v)
 {
-	if (self && self->value && (v.size == 0 || v.data != NULL))
+	if (self && self->value && SkipDBRecord_datumIsValid_(v))
 		UArray_setData_type_size_copy_(self->value, v.data, CTYPE_uint8_t, v.size, 1);
 }
 

@@ -1,3 +1,20 @@
+## 2026-11-06 02:01 CST — Centralize SkipDB record datum validation
+
+### Baseline and scope
+- Base commit: `5805dc4a2b2c1b651953ab59d14779e6afa1fefd` (`refactor(skipdb): centralize read-key validation`); SkipDBv2 Regression run #197 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `skipdb/SkipDBRecord.c`.
+
+### Changes
+- Centralized the shared validity rule for datum byte spans used by the record key and value setters: empty data is allowed, but non-empty data requires a non-null pointer.
+- Preserved each setter's separate record/member checks and left copy ownership, dirty tracking, and accessor behavior unchanged.
+- Extended CI source contracts to require one private helper and both setter call sites. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and two uses; CI enforces the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:59 CST — Centralize SkipDB read-key validation
 
 ### Baseline and scope
