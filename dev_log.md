@@ -1,3 +1,20 @@
+## 2026-11-06 04:14 CST — Harden JFile managed-file validation
+
+### Baseline and scope
+- Base commit: `463dee5ba382635e9b6dc0fa57bd7f0fa3a8a310` (`fix(skipd): order marker validator before callers`); SkipDBv2 Regression run #201 passed source contracts, configuration, build, and CTest.
+- Scope is limited to managed file opening in `jfile/JFile.c` and its existing journal regression.
+
+### Changes
+- Centralized post-open inode validation: actual `fstat` failures retain their system error, while non-regular, foreign-owned, or inode-swapped files deterministically return `EPERM`.
+- Corrected the concurrent-create revalidation path to return `EINVAL` for a successfully inspected non-regular path instead of leaking stale `EEXIST`.
+- Extended the existing journal test to verify both managed files are owned regular files with mode 0600 and that a symlink data path is rejected.
+- Added CI ownership/order contracts for the private validator and regression assertions. No new files or CMake source registrations.
+
+### Validation
+- Static preflight confirms one private validator definition and one caller; the existing remote regression run will validate compilation and behavior.
+
+---
+
 ## 2026-11-06 04:10 CST — Repair skipd marker validator declaration order
 
 ### Baseline and scope

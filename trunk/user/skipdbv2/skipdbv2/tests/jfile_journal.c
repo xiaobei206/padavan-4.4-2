@@ -1,4 +1,5 @@
 #include "JFile.h"
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +15,15 @@ static int file_contains(JFile *file, long offset, const char *expected)
 		fread(actual, 1, size, file->file) != size)
 		return 0;
 	return memcmp(actual, expected, size) == 0;
+}
+
+static int file_is_private_owned_regular(const char *path)
+{
+	struct stat file_stat;
+
+	return path != NULL && lstat(path, &file_stat) == 0 &&
+		S_ISREG(file_stat.st_mode) && file_stat.st_uid == geteuid() &&
+		(file_stat.st_mode & 0777) == 0600;
 }
 
 static int append_crash_tail(const char *path)
@@ -35,12 +45,14 @@ static int append_crash_tail(const char *path)
 int main(void)
 {
 	JFile *file = NULL;
+	JFile *linked_file = NULL;
 	const char *first = "first-committed-value";
 	const char *second = "second-committed-value";
 	const char *pending = "uncommitted-tail";
 	size_t first_size = strlen(first) + 1;
 	size_t second_size = strlen(second) + 1;
 	char path[128];
+	char link_path[128];
 	long committed_log_end;
 	int path_len;
 	int result = EXIT_FAILURE;
@@ -55,6 +67,11 @@ int main(void)
 		fprintf(stderr, "unable to construct journal test path\n");
 		goto done;
 	}
+	path_len = snprintf(link_path, sizeof(link_path), "%s.link", path);
+	if (path_len < 0 || (size_t)path_len >= sizeof(link_path)) {
+		fprintf(stderr, "unable to construct symlink test path\n");
+		goto done;
+	}
 	JFile_setPath_(file, path);
 	JFile_remove(file);
 	JFile_open(file);
@@ -62,6 +79,32 @@ int main(void)
 		fprintf(stderr, "journal fixture failed to open\n");
 		goto done;
 	}
+	if (!file_is_private_owned_regular(file->path) ||
+		!file_is_private_owned_regular(file->logPath)) {
+		fprintf(stderr, "managed data or journal file is not private and owned\n");
+		goto done;
+	}
+
+	/* A pre-existing symlink must never be followed as a managed data file. */
+	if (symlink(path, link_path) != 0) {
+		fprintf(stderr, "unable to create managed-file symlink fixture\n");
+		goto done;
+	}
+	linked_file = JFile_new();
+	if (NULL == linked_file) {
+		fprintf(stderr, "unable to allocate symlink rejection fixture\n");
+		goto done;
+	}
+	JFile_setPath_(linked_file, link_path);
+	JFile_open(linked_file);
+	if (linked_file->file != NULL || linked_file->log != NULL) {
+		fprintf(stderr, "managed file open followed a symlink\n");
+		goto done;
+	}
+	JFile_remove(linked_file);
+	JFile_free(linked_file);
+	linked_file = NULL;
+
 	if (JFile_fwrite(file, (void *)first, first_size, 1) != 1) {
 		fprintf(stderr, "failed to append the first journal record\n");
 		goto done;
@@ -139,6 +182,10 @@ int main(void)
 	result = EXIT_SUCCESS;
 
 done:
+	if (linked_file) {
+		JFile_remove(linked_file);
+		JFile_free(linked_file);
+	}
 	JFile_remove(file);
 	JFile_free(file);
 	return result;

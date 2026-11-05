@@ -162,6 +162,26 @@ void JFile_remove(JFile *self)
 		remove(self->logPath);
 }
 
+/* Verify the opened inode, not just the path checked before open. */
+static int JFile_verifyManagedFile_(int fd, const struct stat *before, int existed)
+{
+	struct stat after;
+
+	if (fd < 0) {
+		errno = EBADF;
+		return -1;
+	}
+	if (fstat(fd, &after) != 0)
+		return -1;
+	if (!S_ISREG(after.st_mode) || after.st_uid != geteuid() ||
+		(existed && (NULL == before || before->st_dev != after.st_dev ||
+			before->st_ino != after.st_ino))) {
+		errno = EPERM;
+		return -1;
+	}
+	return 0;
+}
+
 /* Open only regular files owned by this process. O_EXCL protects the
  * create path from races, while O_NOFOLLOW rejects pre-existing symlinks. */
 FILE *JFile_openManagedFile_(const char *path, int *created)
@@ -201,8 +221,12 @@ FILE *JFile_openManagedFile_(const char *path, int *created)
 				*created = 1;
 		} else if (errno == EEXIST) {
 			/* A concurrent creator won; revalidate its inode below. */
-			if (lstat(path, &before) != 0 || !S_ISREG(before.st_mode))
+			if (lstat(path, &before) != 0)
 				return NULL;
+			if (!S_ISREG(before.st_mode)) {
+				errno = EINVAL;
+				return NULL;
+			}
 			exists = 1;
 			fd = open(path, flags);
 		}
@@ -210,11 +234,8 @@ FILE *JFile_openManagedFile_(const char *path, int *created)
 	if (fd < 0)
 		return NULL;
 
-	if (fstat(fd, &after) != 0 || !S_ISREG(after.st_mode) ||
-		after.st_uid != geteuid() ||
-		(exists && (before.st_dev != after.st_dev ||
-			before.st_ino != after.st_ino))) {
-		int saved_errno = errno ? errno : EPERM;
+	if (JFile_verifyManagedFile_(fd, &before, exists) != 0) {
+		int saved_errno = errno;
 		close(fd);
 		errno = saved_errno;
 		return NULL;

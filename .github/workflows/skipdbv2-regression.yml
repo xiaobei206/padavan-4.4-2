@@ -392,6 +392,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/jfile/JFile.c": [
                   '#include "JFileInternal.h"',
+                  "static int JFile_verifyManagedFile_(int fd, const struct stat *before, int existed)",
+                  "JFile_verifyManagedFile_(fd, &before, exists)",
+                  "errno = EPERM;",
+                  "if (!S_ISREG(before.st_mode)) {",
                   "FILE *JFile_openManagedFile_(const char *path, int *created)",
                   "JFile_clipLogToLastCompletedTransaction(self);",
                   "JFile_writeLogToFile(self);",
@@ -423,6 +427,11 @@ jobs:
                   "void JFile_truncate_(JFile *self, off_t size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/jfile_journal.c": [
+                  "file_is_private_owned_regular(file->path)",
+                  "file_is_private_owned_regular(file->logPath)",
+                  "symlink(path, link_path)",
+                  "managed file open followed a symlink",
+                  "(file_stat.st_mode & 0777) == 0600",
                   "append_crash_tail(file->logPath)",
                   "JFile_lastCommitPosition(file) != committed_log_end",
                   "JFile_verifyLog(file)",
@@ -1142,6 +1151,11 @@ jobs:
               raise SystemExit("database marker file validation must have one private owner and two callers")
           if skipd_database_text.find("static int verify_owned_regular_file_(") > skipd_database_text.find("static int read_db_switch_marker("):
               raise SystemExit("database marker validator must be declared before its first call")
+          jfile_source_text = Path("trunk/user/skipdbv2/skipdbv2/jfile/JFile.c").read_text()
+          if jfile_source_text.count("JFile_verifyManagedFile_(") != 2:
+              raise SystemExit("managed JFile descriptor validation must have one owner and one call")
+          if jfile_source_text.find("static int JFile_verifyManagedFile_(") > jfile_source_text.find("FILE *JFile_openManagedFile_("):
+              raise SystemExit("managed JFile validator must be declared before its caller")
           for module in ("skipd_command.c", "skipd_client.c", "skipd_database.c",
                          "skipd_scheduler.c", "skipd_socket.c", "skipd_script.c"):
               if f"mgr/{module}" not in cmake_text:
