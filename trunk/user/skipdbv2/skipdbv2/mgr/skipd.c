@@ -247,35 +247,42 @@ static int next_daily_delay(const char *time_text, time_t now, double *delay)
     return *delay > 0.0;
 }
 
-static int valid_protocol_token(const char *text, int allow_empty)
+static int valid_protocol_token_span(const char *text, size_t length,
+    int allow_empty)
 {
-    const unsigned char *p = (const unsigned char *)text;
+    size_t i;
 
-    if (NULL == text || (!allow_empty && *text == '\0'))
+    if (NULL == text || (!allow_empty && length == 0))
         return 0;
-    for (; *p; ++p) {
-        if (*p <= 0x20 || *p == 0x7f)
+    for (i = 0; i < length; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        if (c == '\0' || c <= 0x20 || c == 0x7f)
             return 0;
     }
     return 1;
 }
 
-static int is_valid_script_name(const char *name)
+static int valid_protocol_token(const char *text, int allow_empty)
 {
-    const unsigned char *p;
-    size_t len;
+    return text != NULL &&
+        valid_protocol_token_span(text, strlen(text), allow_empty);
+}
 
-    if(NULL == name || '\0' == *name)
-        return 0;
-    len = strlen(name);
-    if(len >= DELAY_KEY_LEN || 0 == strcmp(name, ".") || 0 == strcmp(name, ".."))
+static int is_valid_script_name(const char *name, size_t len)
+{
+    size_t i;
+
+    if (NULL == name || len == 0 || len >= DELAY_KEY_LEN ||
+        (len == 1 && name[0] == '.') ||
+        (len == 2 && name[0] == '.' && name[1] == '.'))
         return 0;
 
-    for(p = (const unsigned char*)name; *p; ++p) {
-        if(!((*p >= 'a' && *p <= 'z') ||
-             (*p >= 'A' && *p <= 'Z') ||
-             (*p >= '0' && *p <= '9') ||
-             *p == '_' || *p == '-' || *p == '.'))
+    for (i = 0; i < len; ++i) {
+        unsigned char c = (unsigned char)name[i];
+        if (!((c >= 'a' && c <= 'z') ||
+              (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') ||
+              c == '_' || c == '-' || c == '.'))
             return 0;
     }
     return 1;
@@ -879,7 +886,8 @@ static int client_run_command(EV_P_ skipd_client* client)
     } else if(!strcmp(client->command, "get")) {
         p1 = p2+1;
         client->key = p1;
-        if (!valid_protocol_token(client->key, 0)) {
+        if (!valid_protocol_token_span(client->key,
+                (size_t)((client->origin + client->data_len - 1) - client->key), 0)) {
             p1 = "invalid key\n";
             if (client_send_key(EV_A_ client, "__error__", client->command,
                     p1, strlen(p1)) != 0) {
@@ -977,7 +985,8 @@ static int client_run_command(EV_P_ skipd_client* client)
     } else if(!strcmp(client->command, "list")) {
         p1 = p2+1;
         client->key = p1;
-        if (!valid_protocol_token(client->key, 1)) {
+        if (!valid_protocol_token_span(client->key,
+                (size_t)((client->origin + client->data_len - 1) - client->key), 1)) {
             p1 = "invalid key\n";
             if (client_send_key(EV_A_ client, "__error__", client->command,
                     p1, strlen(p1)) != 0) {
@@ -1074,7 +1083,8 @@ static int client_run_command(EV_P_ skipd_client* client)
     } else if(!strcmp(client->command, "remove")) {
         p1 = p2+1;
         client->key = p1;
-        if (!valid_protocol_token(client->key, 0)) {
+        if (!valid_protocol_token_span(client->key,
+                (size_t)((client->origin + client->data_len - 1) - client->key), 0)) {
             p1 = "invalid key\n";
             if (client_send_key(EV_A_ client, "__error__", client->command,
                     p1, strlen(p1)) != 0) {
@@ -1302,7 +1312,8 @@ static int client_run_command(EV_P_ skipd_client* client)
         int path_len;
         p1 = p2+1;
         /* This argument becomes both a filesystem path and a shell command. */
-        if(!is_valid_script_name(p1)) {
+        if(!is_valid_script_name(p1,
+                (size_t)((client->origin + client->data_len - 1) - p1))) {
             p1 = "invalid script name\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
