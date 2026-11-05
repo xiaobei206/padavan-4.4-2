@@ -166,6 +166,8 @@ int skipdb_ipc_write_exact(int fd, const char *buffer, int length,
 
     if (fd < 0 || NULL == buffer || length < 0)
         return -1;
+    if (length == 0)
+        return 0;
     if (skipdb_monotonic_milliseconds(&now) != 0 ||
         ULLONG_MAX - now < timeout_ms)
         return -1;

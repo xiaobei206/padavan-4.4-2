@@ -132,6 +132,8 @@ static int test_nonblocking_and_write(void)
     flags = fcntl(sockets[0], F_GETFL);
     if (flags < 0 || !(flags & O_NONBLOCK))
         goto fail;
+    if (skipdb_ipc_write_exact(sockets[0], NULL, 0, 50) != 0)
+        goto fail;
     if (skipdb_ipc_write_exact(sockets[0], payload,
         (int)(sizeof(payload) - 1), 50) != 0)
         goto fail;

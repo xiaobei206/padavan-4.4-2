@@ -1,3 +1,20 @@
+## 2026-11-06 06:22 CST — Make zero-length IPC writes a no-op
+
+### Baseline and scope
+- Base commit: `94c4ef34c278c1cdf4cae5101ffd1b0acbd1ccef`; the latest SkipDBv2 Regression run #42117226127 passed on `main`.
+- Scope is limited to zero-length writes in `mgr/ipc_transport.c`, its existing IPC transport regression, and the matching workflow source contracts.
+
+### Changes
+- Return success for a valid zero-length write before reading the monotonic clock or constructing a deadline. Empty writes now match the existing exact-read no-op behavior and cannot fail due to an irrelevant clock error.
+- Extend the existing socketpair regression to cover a zero-length write with a NULL payload; strengthen the existing source contract for both implementation and test.
+- No new files, declarations, build targets, or source registrations.
+
+### Validation
+- Static preflight confirms argument validation remains before the zero-length fast path, and the fast path precedes all clock/deadline work. Existing CMake registration is unchanged.
+- Remote SkipDBv2 Regression will validate source contracts, compilation, and CTest; no local build result is claimed.
+
+---
+
 ## 2026-11-06 06:00 CST — Make IPC client sockets close-on-exec
 
 ### Baseline and scope
