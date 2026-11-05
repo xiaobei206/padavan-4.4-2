@@ -364,9 +364,9 @@ static int split_list_frame(dbclient *client, int body_len,
         return (key_size == 4 && memcmp(key_start, "list", 4) == 0)
             ? -5 : -4;
 
-    if (command_len == 6 && memcmp(body, "__end__", 6) == 0) {
+    if (command_len == 7 && memcmp(body, "__end__", 7) == 0) {
         if (key_size == 4 && memcmp(key_start, "list", 4) == 0 &&
-            payload_size == 7 && memcmp(payload, "__end__\n", 7) == 0)
+            payload_size == 8 && memcmp(payload, "__end__\n", 8) == 0)
             return 1;
         return -4;
     }

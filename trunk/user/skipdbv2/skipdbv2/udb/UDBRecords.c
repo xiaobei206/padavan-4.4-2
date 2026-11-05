@@ -114,8 +114,10 @@ int UDBRecords_finishOpening(UDBRecords *self)
 			self->file->log = NULL;
 			return 0;
 		}
-		JFile_commitToLog(self->file);
-		if (NULL == self->file->log)
+		/* Materialize the initial metadata header before it is read below;
+		 * the normal journal replay only runs during the next open. */
+		JFile_commitToFile(self->file);
+		if (NULL == self->file->file || NULL == self->file->log)
 			return 0;
 	}
 
