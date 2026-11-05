@@ -247,6 +247,19 @@ static int next_daily_delay(const char *time_text, time_t now, double *delay)
     return *delay > 0.0;
 }
 
+static int valid_protocol_token(const char *text, int allow_empty)
+{
+    const unsigned char *p = (const unsigned char *)text;
+
+    if (NULL == text || (!allow_empty && *text == '\0'))
+        return 0;
+    for (; *p; ++p) {
+        if (*p <= 0x20 || *p == 0x7f)
+            return 0;
+    }
+    return 1;
+}
+
 static int is_valid_script_name(const char *name)
 {
     const unsigned char *p;
@@ -797,6 +810,15 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
         *p2 = '\0';
         client->key = p1;
+        if (!valid_protocol_token(client->key, 0)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         dkey = Datum_FromCString_(client->key);
@@ -827,6 +849,15 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
         *p2 = '\0';
         client->key = p1;
+        if (!valid_protocol_token(client->key, 0)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         dkey = Datum_FromCString_(client->key);
@@ -846,6 +877,15 @@ static int client_run_command(EV_P_ skipd_client* client)
     } else if(!strcmp(client->command, "get")) {
         p1 = p2+1;
         client->key = p1;
+        if (!valid_protocol_token(client->key, 0)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         dkey = Datum_FromCString_(client->key);
@@ -886,6 +926,15 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
         *p2 = '\0';
         client->key = p1;
+        if (!valid_protocol_token(client->key, 0)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         dkey = Datum_FromCString_(client->key);
@@ -924,6 +973,15 @@ static int client_run_command(EV_P_ skipd_client* client)
     } else if(!strcmp(client->command, "list")) {
         p1 = p2+1;
         client->key = p1;
+        if (!valid_protocol_token(client->key, 1)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         client->server->in_doing++;
@@ -1011,6 +1069,15 @@ static int client_run_command(EV_P_ skipd_client* client)
     } else if(!strcmp(client->command, "remove")) {
         p1 = p2+1;
         client->key = p1;
+        if (!valid_protocol_token(client->key, 0)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         dkey = Datum_FromCString_(client->key);
@@ -1033,6 +1100,15 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
         *p2 = '\0';
         client->key = p1;
+        if (!valid_protocol_token(client->key, 0)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         if(strlen(client->key) >= DELAY_KEY_LEN) {
@@ -1121,6 +1197,15 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
         *p2 = '\0';
         client->key = p1;
+        if (!valid_protocol_token(client->key, 0)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         if(strlen(client->key) >= DELAY_KEY_LEN) {
@@ -1338,6 +1423,15 @@ static int client_run_command(EV_P_ skipd_client* client)
         }
         *p2 = '\0';
         client->key = p1;
+        if (!valid_protocol_token(client->key, 0)) {
+            p1 = "invalid key\n";
+            if (client_send_key(EV_A_ client, "__error__", client->command,
+                    p1, strlen(p1)) != 0) {
+                client->break_level = ccr_break_killed;
+                ccrStop(ctx, ccr_error_err2);
+            }
+            ccrReturn(ctx, ccr_error_ok1);
+        }
         p1 = p2+1;
 
         dkey = Datum_FromCString_(client->key);
