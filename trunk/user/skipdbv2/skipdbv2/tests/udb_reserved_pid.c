@@ -242,9 +242,12 @@ int main(void)
 
         UDB_close(db);
         marker = fopen(marker_path, "w");
-        if (NULL == marker || fclose(marker) != 0) {
-            if (marker) fclose(marker);
+        if (NULL == marker) {
             fprintf(stderr, "unable to truncate marker for empty-marker regression\n");
+            goto done;
+        }
+        if (fclose(marker) != 0) {
+            fprintf(stderr, "unable to close truncated commit marker\n");
             goto done;
         }
         UDB_open(db);
