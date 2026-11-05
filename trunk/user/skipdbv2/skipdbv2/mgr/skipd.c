@@ -679,8 +679,14 @@ static int client_ccr_write(EV_P_ skipd_client* client) {
 
     ccrBegin(ctx);
     while(client->send_pos < client->send_len) {
+#ifdef MSG_NOSIGNAL
+        CS->n = send(client->fd, client->send + client->send_pos,
+                      (size_t)(client->send_len - client->send_pos),
+                      MSG_NOSIGNAL);
+#else
         CS->n = write(client->fd, client->send + client->send_pos,
                       client->send_len - client->send_pos);
+#endif
         if(CS->n < 0) {
             if(errno == EINTR)
                 continue;
