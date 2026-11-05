@@ -1014,12 +1014,25 @@ int main(int argc, char **argv, char * envp[])
             if (n1 < 0)
                 err = n1;
         } else if(!strcmp("event", argv[1])) {
+            size_t key_len, value_len, body_len;
             if(argc < 4) {
                 err = -18;
                 break;
             }
+            if (!valid_protocol_field(argv[2], 0)) {
+                err = -16;
+                break;
+            }
+            key_len = strlen(argv[2]);
+            value_len = strlen(argv[3]);
+            if (value_len > (size_t)READ_MAX - 15 ||
+                key_len > (size_t)READ_MAX - 15 - value_len) {
+                err = -16;
+                break;
+            }
+            body_len = 15 + key_len + value_len;
+            n1 = (int)body_len;
             strcpy(client->command, "set");
-            n1 = strlen(client->command) + strlen(argv[2]) + strlen(argv[3]) + 3 + 9;
             if (check_buf(client, n1 + HEADER_PREFIX) != 0) {
                 err = -23;
                 break;
@@ -1041,6 +1054,11 @@ int main(int argc, char **argv, char * envp[])
         } else if(!strcmp("delay", argv[1])) {
             if(argc < 5) {
                 err = -19;
+                break;
+            }
+            if (!valid_protocol_field(argv[2], 0) ||
+                !valid_protocol_field(argv[4], 0)) {
+                err = -16;
                 break;
             }
             if(S2ISUCCESS != str2int(&n2, argv[3], 10) || n2 < 0) {
@@ -1071,6 +1089,11 @@ int main(int argc, char **argv, char * envp[])
         } else if(!strcmp("time", argv[1])) {
             if(argc < 5) {
                 err = -21;
+                break;
+            }
+            if (!valid_protocol_field(argv[2], 0) ||
+                !valid_protocol_field(argv[4], 0)) {
+                err = -16;
                 break;
             }
 
