@@ -63,7 +63,7 @@ static int open_script_log(void)
 #endif
 }
 
-static char *find_terminated_value_separator(Datum value)
+char *find_terminated_value_separator(Datum value)
 {
     if (NULL == value.data || value.size < 2 ||
         ((char*)value.data)[value.size - 1] != '\0' ||
