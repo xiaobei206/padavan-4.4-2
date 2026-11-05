@@ -1700,16 +1700,19 @@ static void server_cb(EV_P_ ev_io *w, int revents) {
     }
 }
 
-// Simply adds O_NONBLOCK to the file descriptor of choice
+// Mark sockets nonblocking and prevent them leaking into timer scripts.
 int setnonblock(int fd) {
-    int flags;
+    int flags, descriptor_flags;
 
     if (fd < 0)
         return -1;
     flags = fcntl(fd, F_GETFL);
-    if (flags < 0)
+    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
         return -1;
-    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    descriptor_flags = fcntl(fd, F_GETFD);
+    if (descriptor_flags < 0)
+        return -1;
+    return fcntl(fd, F_SETFD, descriptor_flags | FD_CLOEXEC);
 }
 
 static int socket_instance_lock_fd = -1;
@@ -1749,7 +1752,8 @@ int unix_socket_init(struct sockaddr_un* socket_un, char* sock_path,
         return -1;
     }
 #ifdef O_NOFOLLOW
-    lock_fd = open(lock_path, O_RDWR | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600);
+    lock_fd = open(lock_path, O_RDWR | O_CREAT | O_NOFOLLOW |
+        O_NONBLOCK | O_CLOEXEC, 0600);
 #else
     errno = ENOTSUP;
     return -1;
@@ -1853,7 +1857,7 @@ static int read_db_switch_marker(const char *path, int *db_id)
     if (NULL == path || NULL == db_id)
         return -1;
 #ifdef O_NOFOLLOW
-    fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
 #else
     errno = ENOTSUP;
     return -1;
@@ -1919,7 +1923,8 @@ static int write_db_switch_marker(const char *db_path, int db_id)
     }
 
 #ifdef O_NOFOLLOW
-    fd = open(temp_path, O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600);
+    fd = open(temp_path, O_WRONLY | O_CREAT | O_NOFOLLOW |
+        O_NONBLOCK | O_CLOEXEC, 0600);
 #else
     errno = ENOTSUP;
     return -1;
@@ -1953,7 +1958,7 @@ static int write_db_switch_marker(const char *db_path, int db_id)
         goto fail;
     renamed = 1;
 
-    dir_fd = open(db_path, O_RDONLY);
+    dir_fd = open(db_path, O_RDONLY | O_CLOEXEC);
     if (dir_fd < 0 || fsync(dir_fd) != 0) {
         if (dir_fd >= 0)
             close(dir_fd);
