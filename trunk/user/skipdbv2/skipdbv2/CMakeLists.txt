@@ -94,7 +94,7 @@ TARGET_LINK_LIBRARIES(skipd skipdb m ${LIBEV_LIBRARIES})
 ADD_EXECUTABLE(dbus ${PROJECT_SOURCE_DIR}/mgr/dbus.c ${PROJECT_SOURCE_DIR}/mgr/dbus_result.c ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
 TARGET_LINK_LIBRARIES(dbus ${LIBEV_LIBRARIES})
 
-ADD_EXECUTABLE(dbapi ${PROJECT_SOURCE_DIR}/mgr/dbapi.c ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
+ADD_EXECUTABLE(dbapi ${PROJECT_SOURCE_DIR}/mgr/dbapi.c ${PROJECT_SOURCE_DIR}/mgr/dbapi_result.c ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
 TARGET_LINK_LIBRARIES(dbapi ${LIBEV_LIBRARIES})
 
 #ADD_EXECUTABLE(env ${PROJECT_SOURCE_DIR}/tests/env.c)
@@ -146,6 +146,7 @@ if(SKIPDB_BUILD_TESTS)
 
     ADD_EXECUTABLE(dbapi_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbapi_protocol.c
+        ${PROJECT_SOURCE_DIR}/mgr/dbapi_result.c
         ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c
         ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
     TARGET_LINK_LIBRARIES(dbapi_protocol_test skipdb m ${LIBEV_LIBRARIES})

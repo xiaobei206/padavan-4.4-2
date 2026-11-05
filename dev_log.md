@@ -1,3 +1,33 @@
+## 2026-11-05 20:42 CST — Extract DBAPI response processing from CLI facade
+
+### Baseline and regression state
+- Base commit: `ee3706212e901f2d035ba89ff4bd1da8e3b6c74e` (`refactor(dbus): isolate response result handling`).
+- The combined status endpoint returned no status records for this baseline; no CI pass/fail is inferred. The pull-request run of SkipDBv2 Regression is the pre-merge validation gate.
+
+### Changes
+1. **DBAPI response-result module — `mgr/dbapi_result.c`, `mgr/dbapi_internal.h`**
+   - Extracted bounded response-frame reads, write acknowledgement/error matching, list-frame validation, terminal/error frame handling, Datum terminator validation, and callback dispatch from the CLI translation unit.
+   - Centralized the private `dbclient` layout and `fn_db_parse` callback type in one internal header. Declared the buffer-growth bridge and both cross-unit result entry points; frame reader remains `static`.
+2. **CLI facade — `mgr/dbapi.c`**
+   - Retained UNIX socket startup, nonblocking setup, request-field validation, request serialization/writes, buffer ownership and allocation, lifecycle cleanup, and JSON output.
+   - Exposes only `dbapi_check_buf()` for shared buffer growth and delegates the write response and list response paths to the result module.
+3. **Protocol regression — `tests/dbapi_protocol.c`**
+   - Kept the existing socketpair coverage for list values equal to the terminal payload, empty values, explicit terminal frames, list errors, write success/error responses, and invalid request fields; redirected direct parser calls to the declared result-module entry point.
+4. **Build and CI contracts — `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
+   - Linked `dbapi_result.c` into both the DBAPI executable and its protocol regression target.
+   - Updated source ownership contracts to require the private declarations and parser implementation in their new owners, prevent result parsing from drifting back into `dbapi.c`, and assert both CMake links.
+
+### Validation
+- Static extraction audit confirms each moved response function has one source owner, all cross-translation-unit functions are declared, and both DBAPI targets include the new translation unit.
+- Existing DBAPI protocol test cases remain enabled; the workflow still configures, builds every host target, and runs the complete CTest suite.
+- No local compiler/CMake/CTest run is claimed. The PR regression workflow must pass before the squash commit is applied to `main`.
+
+### Follow-up
+- Keep request framing, command/key validation, socket setup, writes, buffer ownership, and JSON rendering in `dbapi.c`.
+- Keep response envelope validation, write acknowledgements, list streaming, and callback dispatch in `dbapi_result.c`; keep private cross-unit declarations in `dbapi_internal.h`.
+
+---
+
 ## 2026-11-05 20:19 CST — Extract DBus response processing from CLI facade
 
 ### Baseline and regression state

@@ -93,7 +93,7 @@ static int run_error_frame_case(void)
         write_frame(sockets[1], error_frame, sizeof(error_frame) - 1) != 0)
         goto fail;
 
-    parse_result = parse_list_result(&client, "alpha", &state, capture_pair);
+    parse_result = dbapi_parse_list_result(&client, "alpha", &state, capture_pair);
     if (parse_result != -5 || state.failed || state.calls != 0) {
         fprintf(stderr,
             "dbapi error-frame test failed: result=%d, failed=%d, calls=%d\n",
@@ -253,7 +253,7 @@ int main(void)
             sizeof(list_end_frame) - 1) != 0)
         goto done;
 
-    result = parse_list_result(&client, "alpha", &state, capture_pair);
+    result = dbapi_parse_list_result(&client, "alpha", &state, capture_pair);
     if (result != 0 || state.failed || state.calls != 2) {
         fprintf(stderr,
             "dbapi list parser failed: result=%d, failed=%d, calls=%d\n",
