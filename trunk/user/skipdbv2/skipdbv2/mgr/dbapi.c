@@ -11,6 +11,7 @@
 #include <sys/un.h>
 #include <sys/time.h>
 #include <time.h>
+#include <poll.h>
 #include <limits.h> // [LONG|INT][MIN|MAX]
 #include <stddef.h>
 #include <errno.h>  // errno
@@ -32,6 +33,37 @@ static int monotonic_milliseconds(unsigned long long *milliseconds)
         (unsigned long long)ts.tv_nsec / 1000000ULL;
     return 0;
 }
+
+static int wait_socket_until(int fd, short events,
+    unsigned long long deadline)
+{
+    struct pollfd pfd;
+    unsigned long long now, remaining;
+    int poll_timeout, result;
+
+    if (fd < 0)
+        return -1;
+    pfd.fd = fd;
+    pfd.events = events;
+    pfd.revents = 0;
+
+    for (;;) {
+        if (monotonic_milliseconds(&now) != 0)
+            return -1;
+        if (now >= deadline)
+            return 0;
+        remaining = deadline - now;
+        poll_timeout = remaining > INT_MAX ? INT_MAX : (int)remaining;
+        pfd.revents = 0;
+        result = poll(&pfd, 1, poll_timeout);
+        if (result < 0 && errno == EINTR)
+            continue;
+        if (result < 0)
+            return -1;
+        return result > 0 ? 1 : 0;
+    }
+}
+
 
 //"list "
 #define LIST_LEN 5
@@ -78,11 +110,9 @@ static int write_util(dbclient* client, int len, unsigned int delay) {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
             return -1;
 
-        if (monotonic_milliseconds(&now) != 0)
-            return -1;
-        if (now > timeout)
+        n = wait_socket_until(client->remote_fd, POLLOUT, timeout);
+        if (n <= 0)
             break;
-        usleep(50);
     }
     return written == len ? 0 : -1;
 }
@@ -233,13 +263,11 @@ static int read_util(dbclient* client, int len, unsigned int delay) {
             if (errno == EINTR)
                 continue;
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                if (monotonic_milliseconds(&now) != 0)
+                n = wait_socket_until(client->remote_fd, POLLIN, timeout);
+                if (n < 0)
                     return -2;
-                if(now > timeout) {
+                if (n == 0)
                     break;
-                }
-
-                usleep(50);
                 continue;
             }
             //timeout

@@ -78,11 +78,17 @@ jobs:
                   "clock_gettime(CLOCK_MONOTONIC, &ts)",
                   "monotonic_milliseconds(&now)",
                   "timeout = now + delay;",
+                  "poll(&pfd, 1, poll_timeout)",
+                  "wait_socket_until(client->remote_fd, POLLIN, timeout)",
+                  "wait_socket_until(client->remote_fd, POLLOUT, timeout)",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c": [
                   "clock_gettime(CLOCK_MONOTONIC, &ts)",
                   "monotonic_milliseconds(&now)",
                   "timeout = now + delay;",
+                  "poll(&pfd, 1, poll_timeout)",
+                  "wait_socket_until(client->remote_fd, POLLIN, timeout)",
+                  "wait_socket_until(client->remote_fd, POLLOUT, timeout)",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/skipd.c": [
                   "O_NOFOLLOW",
@@ -151,8 +157,11 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c",
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c",
           ):
-              if "gettimeofday(&tv2, NULL)" in Path(path).read_text():
+              content = Path(path).read_text()
+              if "gettimeofday(&tv2, NULL)" in content:
                   raise SystemExit(f"wall-clock IPC timeout remains: {path}")
+              if "usleep(5);" in content or "usleep(50);" in content:
+                  raise SystemExit(f"busy-poll IPC retry remains: {path}")
 
           print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
           PY
