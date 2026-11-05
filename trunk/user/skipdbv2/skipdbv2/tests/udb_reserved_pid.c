@@ -250,7 +250,7 @@ int main(void)
     UDB_close(db);
     UDB_open(db);
     if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
-        !has_value(db, reused_pid, "reused-after-expiry")) {
+        !has_value(db, reused_pid, "reused-before-first-write")) {
         fprintf(stderr, "rejected PID release damaged committed rows\n");
         goto done;
     }
@@ -266,7 +266,7 @@ int main(void)
     /* The rejected transaction must not damage previously committed rows. */
     UDB_open(db);
     if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
-        !has_value(db, reused_pid, "reused-after-expiry")) {
+        !has_value(db, reused_pid, "reused-before-first-write")) {
         fprintf(stderr, "committed data was damaged by rejected PID write\n");
         goto done;
     }
@@ -335,7 +335,7 @@ int main(void)
         }
         UDB_open(db);
         if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
-            !has_value(db, reused_pid, "reused-after-expiry")) {
+            !has_value(db, reused_pid, "reused-before-first-write")) {
             fprintf(stderr, "valid marker did not reopen data after missing-marker rejection\n");
             goto done;
         }
@@ -368,7 +368,7 @@ int main(void)
         }
         UDB_open(db);
         if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
-            !has_value(db, reused_pid, "reused-after-expiry")) {
+            !has_value(db, reused_pid, "reused-before-first-write")) {
             fprintf(stderr, "database data was damaged by marker-integrity checks\n");
             goto done;
         }
@@ -452,7 +452,7 @@ int main(void)
         }
         UDB_open(db);
         if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
-            !has_value(db, reused_pid, "reused-after-expiry")) {
+            !has_value(db, reused_pid, "reused-before-first-write")) {
             fprintf(stderr, "data was damaged by symlinked-marker rejection\n");
             remove(sentinel_path);
             goto done;
