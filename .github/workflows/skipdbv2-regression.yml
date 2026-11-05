@@ -236,6 +236,8 @@ jobs:
                   "void SkipDBRecord_markAsDirty(SkipDBRecord *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordCache.c": [
+                  "static int SkipDBRecord_hasValidCachePointers_(SkipDBRecord *self)",
+                  "SkipDBRecord_hasValidCachePointers_(self)",
                   "SkipDBRecord_removeFromAgeList",
                   "SkipDBRecord_pointersAreEmpty",
                   "SkipDBRecord_removeReferencesToUnmarked",
@@ -786,6 +788,12 @@ jobs:
               raise SystemExit("SkipDB record stream preconditions are not centralized")
           if record_storage_source.count("SkipDBRecord_levelIsSupported_(") != 3:
               raise SystemExit("SkipDB record stream level bounds are not centralized")
+
+          record_cache_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordCache.c"
+          ).read_text()
+          if record_cache_source.count("SkipDBRecord_hasValidCachePointers_(") != 3:
+              raise SystemExit("SkipDB cache pointer metadata validation is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

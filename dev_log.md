@@ -1,3 +1,20 @@
+## 2026-11-06 01:31 CST — Centralize SkipDB cache pointer validation
+
+### Baseline and scope
+- Base commit: `2ef9d32d877b2ffd52ce9617c3df169a00bce020` (`refactor(skipdb): unify record serialization preconditions`); SkipDBv2 Regression run #187 passed all steps.
+- This iteration is limited to `skipdb/SkipDBRecordCache.c`.
+
+### Changes
+- Centralized the duplicated level-range and pointer-array consistency checks used before cache pointer iteration and reference cleanup.
+- Preserved the distinct public behavior for a null record: `SkipDBRecord_pointersAreEmpty(NULL)` still reports empty, while reference cleanup remains a no-op.
+- Updated CI source contracts to enforce one private helper definition and two uses. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and two call sites; CI asserts the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:30 CST — Unify SkipDB record serialization preconditions
 
 ### Baseline and scope

@@ -55,13 +55,20 @@ void SkipDBRecord_showAgeList(SkipDBRecord *self)
 	}
 }
 
+/* Validate pointer metadata before any cache-maintenance loop indexes it. */
+static int SkipDBRecord_hasValidCachePointers_(SkipDBRecord *self)
+{
+	return self != NULL && self->level >= 0 &&
+		self->level <= SKIPDB_MAX_LEVEL &&
+		(self->level == 0 || self->pointers != NULL);
+}
+
 int SkipDBRecord_pointersAreEmpty(SkipDBRecord *self)
 {
 	SkipDBPointer *pointers;
 	if (NULL == self)
 		return 1;
-	if (self->level < 0 || self->level > SKIPDB_MAX_LEVEL ||
-		(self->level > 0 && NULL == self->pointers))
+	if (!SkipDBRecord_hasValidCachePointers_(self))
 		return 0;
 	pointers = self->pointers;
 
@@ -84,9 +91,7 @@ int SkipDBRecord_pointersAreEmpty(SkipDBRecord *self)
 void SkipDBRecord_removeReferencesToUnmarked(SkipDBRecord *self)
 {
 	SkipDBPointer *pointers;
-	if (NULL == self || self->level < 0 ||
-		self->level > SKIPDB_MAX_LEVEL ||
-		(self->level > 0 && NULL == self->pointers))
+	if (!SkipDBRecord_hasValidCachePointers_(self))
 		return;
 	pointers = self->pointers;
 
