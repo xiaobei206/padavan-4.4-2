@@ -526,7 +526,10 @@ void SkipDB_readRootRecord(SkipDB *self)
 			return;
 		SkipDBRecord_keyDatum_(record, Datum_Empty());
 		SkipDBRecord_markAsDirty(record);
-		self->headerPid = SkipDBRecord_pid(record);
+		/* A new root has no PID until its first transactional save. Keep
+		 * the reserved root PID rather than replacing it with the zero sentinel. */
+		if (SkipDBRecord_pid(record) != 0)
+			self->headerPid = SkipDBRecord_pid(record);
 	}
 	self->header = record;
 }
