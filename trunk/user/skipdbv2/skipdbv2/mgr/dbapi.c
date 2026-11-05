@@ -176,7 +176,7 @@ int dbclient_bulk(dbclient* client, char* command, char* key, char* value) {
     if (NULL == client || NULL == command || NULL == key || NULL == value ||
         client->remote_fd < 0 ||
         !valid_protocol_field(command, 0) ||
-        !valid_protocol_field(key, 1))
+        !valid_protocol_field(key, 0))
         return -1;
     body_len = strlen(command);
     if (body_len > (size_t)READ_MAX - 3)
