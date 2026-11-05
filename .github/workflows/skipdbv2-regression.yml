@@ -410,21 +410,39 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c": [
                   "#include \"ipc_transport.h\"",
+                  "#include \"ipc_protocol.h\"",
                   "skipdb_ipc_connect_unix(sock_path)",
                   "skipdb_ipc_set_nonblock(fd)",
                   "skipdb_ipc_ensure_buffer(&client->buf, &client->buf_max,",
                   "skipdb_ipc_valid_protocol_field(text, allow_empty,",
+                  "skipdb_ipc_parse_envelope(client->buf,",
                   "skipdb_ipc_read_exact(client->remote_fd, client->buf, len,",
                   "skipdb_ipc_write_exact(client->remote_fd, client->buf, len, 20)",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/dbapi.c": [
                   "#include \"ipc_transport.h\"",
+                  "#include \"ipc_protocol.h\"",
                   "skipdb_ipc_connect_unix(sock_path)",
                   "skipdb_ipc_set_nonblock(fd)",
                   "skipdb_ipc_ensure_buffer(&client->buf, &client->buf_max,",
                   "skipdb_ipc_valid_protocol_field(text, allow_empty, (size_t)-1)",
+                  "skipdb_ipc_parse_envelope(client->buf,",
                   "skipdb_ipc_read_exact(client->remote_fd, client->buf, len,",
                   "skipdb_ipc_write_exact(client->remote_fd, client->buf, len, delay)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/ipc_protocol.h": [
+                  "typedef struct _skipdb_ipc_frame_view",
+                  "int skipdb_ipc_parse_envelope(char *body, size_t body_len,",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/mgr/ipc_protocol.c": [
+                  "int skipdb_ipc_parse_envelope(char *body, size_t body_len,",
+                  "memchr(body, ' ', body_len)",
+                  "memchr(key, '\\0', key_len)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/ipc_protocol.c": [
+                  "skipdb_ipc_parse_envelope(binary_body, sizeof(binary_body), &frame)",
+                  "ipc envelope binary payload was not preserved",
+                  "ipc envelope accepted malformed case",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_transport.h": [
                   "int skipdb_ipc_connect_unix(const char *sock_path);",
@@ -488,6 +506,9 @@ jobs:
                   "add_test(NAME ipc_io_test COMMAND ipc_io_test)",
                   "ADD_EXECUTABLE(ipc_transport_test",
                   "add_test(NAME ipc_transport_test COMMAND ipc_transport_test)",
+                  "ADD_EXECUTABLE(ipc_protocol_test",
+                  "add_test(NAME ipc_protocol_test COMMAND ipc_protocol_test)",
+                  "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/ipc_io.c": [
@@ -680,6 +701,9 @@ jobs:
               raise SystemExit("UDBRecord emptiness predicate lost its metadata owner")
           if "UDBRecord_isEmpty(" in udb_record_write:
               raise SystemExit("UDBRecord emptiness predicate has multiple implementation owners")
+
+          if cmake_text.count("mgr/ipc_protocol.c") < 5:
+              raise SystemExit("IPC protocol parser is not linked by both CLIs and every protocol test")
 
           print("XY-C1 SkipDBv2 and GPIO hotplug integration contracts passed.")
           PY

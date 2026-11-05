@@ -1,3 +1,36 @@
+## 2026-11-05 19:31 CST — Centralize SkipDB IPC response-envelope parsing
+
+### Baseline and regression state
+- Base commit: \`47e63934c960a96d30714bec1132037b22ca8dfa\` (\`fix: commit index bootstrap and preserve delete predecessor\`).
+- The SkipDBv2 host regression remains the validation gate. The baseline commit had no combined status checks reported by the repository status endpoint; no CI result is inferred from that empty response.
+
+### Changes
+1. **Shared IPC envelope parser — \`mgr/ipc_protocol.c\`, \`mgr/ipc_protocol.h\`**
+   - Added one bounded parser for the common command/key/payload response envelope used by both CLI clients.
+   - Returns non-owning slices with explicit lengths, rejects missing separators, empty command/key tokens, and embedded NUL bytes in command/key tokens, while preserving arbitrary binary payload bytes including embedded NUL.
+2. **dbus response/list parsing — \`mgr/dbus.c\`**
+   - Routed ordinary response envelopes and list/script frames through the shared parser.
+   - Kept command matching, dedicated \`__error__\`/\`__end__\` handling, raw Datum output, shell identifier validation, and shell quoting in the dbus caller.
+3. **dbapi response/list parsing — \`mgr/dbapi.c\`**
+   - Reused the same envelope split for write acknowledgements and callback-based list results.
+   - Preserved dbapi's stricter string-Datum terminator rules and callback/error semantics.
+4. **Regression and build contracts — \`tests/ipc_protocol.c\`, \`CMakeLists.txt\`, \`.github/workflows/skipdbv2-regression.yml\`**
+   - Added isolated parser coverage for binary payloads, empty values, terminal frames, malformed separators, and NUL-bearing command/key tokens.
+   - Linked the new module into both CLI executables and both existing protocol harnesses, and registered a dedicated CTest.
+   - Extended source contracts to verify declarations, implementation ownership, client delegation, all five CMake source links, and the regression test registration.
+
+### Validation
+- Static source audit confirms both clients call the same parser, while command-specific output and callback policies remain in their original callers.
+- The CMake manifest has explicit links for dbus, dbapi, dbus protocol tests, dbapi protocol tests, and the standalone IPC parser test.
+- No local CMake/compiler/CTest run is claimed. The pushed revision triggers the unchanged SkipDBv2 Regression workflow.
+
+### Follow-up
+- Keep wire-envelope tokenization in \`ipc_protocol.c\`; do not move command-specific response policies or text rendering back into the shared transport.
+- Keep socket readiness, deadlines, exact I/O and buffer allocation in \`ipc_transport.c\`.
+- Keep dbus shell/export and raw-value presentation behavior in \`dbus.c\`; keep dbapi callback and string-Datum validation in \`dbapi.c\`.
+
+---
+
 ## 2026-11-05 18:20 CST — Split skipd runtime engines and repair UDB record symbol ownership
 
 ### Baseline and regression state

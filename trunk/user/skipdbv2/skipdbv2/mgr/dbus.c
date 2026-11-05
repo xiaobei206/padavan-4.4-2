@@ -17,6 +17,7 @@
 #include <limits.h> // [LONG|INT][MIN|MAX]
 #include "skipd.h"
 #include "ipc_transport.h"
+#include "ipc_protocol.h"
 
 //"list "
 #define LIST_LEN 5
@@ -85,66 +86,51 @@ static int read_response_payload(dbclient *client, unsigned int delay,
     size_t *key_offset, size_t *key_len, int *error_response)
 {
     int n1, n2;
-    size_t command_len, key_start, response_command_len;
-    char *command_end, *key_end;
+    size_t command_len;
     int is_error = 0;
+    skipdb_ipc_frame_view frame;
     const char *magic = MAGIC;
 
-    if (NULL == client || NULL == client->command ||
-        NULL == payload_offset || NULL == body_len)
+    if (NULL == client || NULL == payload_offset || NULL == body_len)
         return -4;
-
     n1 = read_util(client, HEADER_PREFIX, delay);
     if (n1 < 0)
         return n1;
     if (0 != memcmp(client->buf, magic, MAGIC_LEN))
         return -3;
-
     client->buf[HEADER_PREFIX - 1] = '\0';
     if (S2ISUCCESS != str2int(&n2, client->buf + MAGIC_LEN, 10) ||
-        n2 < 0 || n2 > READ_MAX)
+        n2 <= 0 || n2 > READ_MAX)
         return -4;
-
     n1 = read_util(client, n2, delay);
     if (n1 < 0)
         return n1;
-
+    if (skipdb_ipc_parse_envelope(client->buf, (size_t)n2, &frame) != 0)
+        return -4;
     command_len = strlen(client->command);
-    command_end = (char *)memchr(client->buf, ' ', (size_t)n2);
-    if (command_len == 0 || NULL == command_end || command_end == client->buf)
+    if (command_len == 0)
         return -4;
-
-    response_command_len = (size_t)(command_end - client->buf);
-    if (response_command_len == 9 &&
-        memcmp(client->buf, "__error__", 9) == 0)
+    if (frame.command_len == 9 &&
+        memcmp(frame.command, "__error__", 9) == 0)
         is_error = 1;
-    else if (response_command_len != command_len ||
-        memcmp(client->buf, client->command, command_len) != 0)
+    else if (frame.command_len != command_len ||
+        memcmp(frame.command, client->command, command_len) != 0)
         return -4;
-
-    key_start = response_command_len + 1;
-    key_end = (char *)memchr(client->buf + key_start, ' ',
-        (size_t)n2 - key_start);
-    if (NULL == key_end || key_end == client->buf + key_start ||
-        memchr(client->buf + key_start, '\0',
-            (size_t)(key_end - (client->buf + key_start))) != NULL)
-        return -4;
-
     if (is_error &&
-        ((size_t)(key_end - (client->buf + key_start)) != command_len ||
-         memcmp(client->buf + key_start, client->command, command_len) != 0))
+        (frame.key_len != command_len ||
+         memcmp(frame.key, client->command, command_len) != 0))
         return -4;
-
     if (NULL != key_offset)
-        *key_offset = key_start;
+        *key_offset = (size_t)(frame.key - client->buf);
     if (NULL != key_len)
-        *key_len = (size_t)(key_end - (client->buf + key_start));
+        *key_len = frame.key_len;
     if (NULL != error_response)
         *error_response = is_error;
-    *payload_offset = (size_t)(key_end - client->buf) + 1;
+    *payload_offset = (size_t)(frame.payload - client->buf);
     *body_len = n2;
     return 0;
 }
+
 
 int parse_common_result(dbclient *client) {
     int n1, body_len;
@@ -241,52 +227,35 @@ int parse_get_result(dbclient *client) {
 static int split_list_frame(dbclient *client, int body_len,
     char **key, size_t *key_len, char **value, size_t *value_len)
 {
-    char *body, *command_end, *key_start, *key_end, *payload;
-    size_t command_len, key_size, payload_size;
+    skipdb_ipc_frame_view frame;
 
     if (NULL == client || NULL == client->buf || body_len <= 0 ||
-        NULL == key || NULL == key_len || NULL == value || NULL == value_len)
+        NULL == key || NULL == key_len || NULL == value || NULL == value_len ||
+        skipdb_ipc_parse_envelope(client->buf, (size_t)body_len, &frame) != 0)
         return -4;
-
-    body = client->buf;
-    command_end = (char *)memchr(body, ' ', (size_t)body_len);
-    if (NULL == command_end || command_end == body)
-        return -4;
-
-    command_len = (size_t)(command_end - body);
-    key_start = command_end + 1;
-    key_end = (char *)memchr(key_start, ' ',
-        (size_t)(body + body_len - key_start));
-    if (NULL == key_end || key_end == key_start)
-        return -4;
-
-    key_size = (size_t)(key_end - key_start);
-    payload = key_end + 1;
-    payload_size = (size_t)(body + body_len - payload);
-    if (memchr(key_start, '\0', key_size) != NULL)
-        return -4;
-
-    if (command_len == 9 && memcmp(body, "__error__", 9) == 0)
-        return (key_size == 4 && memcmp(key_start, "list", 4) == 0)
+    if (frame.command_len == 9 &&
+        memcmp(frame.command, "__error__", 9) == 0)
+        return (frame.key_len == 4 && memcmp(frame.key, "list", 4) == 0)
             ? -5 : -4;
-
-    if (command_len == 7 && memcmp(body, "__end__", 7) == 0) {
-        if (key_size == 4 && memcmp(key_start, "list", 4) == 0 &&
-            payload_size == 8 && memcmp(payload, "__end__\n", 8) == 0)
+    if (frame.command_len == 7 &&
+        memcmp(frame.command, "__end__", 7) == 0) {
+        if (frame.key_len == 4 && memcmp(frame.key, "list", 4) == 0 &&
+            frame.payload_len == 8 &&
+            memcmp(frame.payload, "__end__\n", 8) == 0)
             return 1;
         return -4;
     }
-
-    if (command_len != 4 || memcmp(body, "list", 4) != 0)
+    if (frame.command_len != 4 ||
+        memcmp(frame.command, "list", 4) != 0)
         return -4;
-
-    *key_end = '\0';
-    *key = key_start;
-    *key_len = key_size;
-    *value = payload;
-    *value_len = payload_size;
+    frame.key[frame.key_len] = '\0';
+    *key = frame.key;
+    *key_len = frame.key_len;
+    *value = frame.payload;
+    *value_len = frame.payload_len;
     return 0;
 }
+
 
 int parse_list_result(dbclient *client) {
     int n1, n2, parsed;

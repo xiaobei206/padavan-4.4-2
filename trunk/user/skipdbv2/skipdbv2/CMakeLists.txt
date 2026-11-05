@@ -91,10 +91,10 @@ ADD_EXECUTABLE(skipd
 )
 TARGET_LINK_LIBRARIES(skipd skipdb m ${LIBEV_LIBRARIES})
 
-ADD_EXECUTABLE(dbus ${PROJECT_SOURCE_DIR}/mgr/dbus.c ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c)
+ADD_EXECUTABLE(dbus ${PROJECT_SOURCE_DIR}/mgr/dbus.c ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
 TARGET_LINK_LIBRARIES(dbus ${LIBEV_LIBRARIES})
 
-ADD_EXECUTABLE(dbapi ${PROJECT_SOURCE_DIR}/mgr/dbapi.c ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c)
+ADD_EXECUTABLE(dbapi ${PROJECT_SOURCE_DIR}/mgr/dbapi.c ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
 TARGET_LINK_LIBRARIES(dbapi ${LIBEV_LIBRARIES})
 
 #ADD_EXECUTABLE(env ${PROJECT_SOURCE_DIR}/tests/env.c)
@@ -138,13 +138,15 @@ if(SKIPDB_BUILD_TESTS)
 
     ADD_EXECUTABLE(dbus_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbus_protocol.c
-        ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c)
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
     TARGET_LINK_LIBRARIES(dbus_protocol_test skipdb m ${LIBEV_LIBRARIES})
     add_test(NAME dbus_protocol_test COMMAND dbus_protocol_test)
 
     ADD_EXECUTABLE(dbapi_protocol_test
         ${PROJECT_SOURCE_DIR}/tests/dbapi_protocol.c
-        ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c)
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
     TARGET_LINK_LIBRARIES(dbapi_protocol_test skipdb m ${LIBEV_LIBRARIES})
     add_test(NAME dbapi_protocol_test COMMAND dbapi_protocol_test)
 
@@ -170,6 +172,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/ipc_transport.c
         ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c)
     add_test(NAME ipc_transport_test COMMAND ipc_transport_test)
+
+    ADD_EXECUTABLE(ipc_protocol_test
+        ${PROJECT_SOURCE_DIR}/tests/ipc_protocol.c
+        ${PROJECT_SOURCE_DIR}/mgr/ipc_protocol.c)
+    add_test(NAME ipc_protocol_test COMMAND ipc_protocol_test)
 
     ADD_EXECUTABLE(commit_marker_test
         ${PROJECT_SOURCE_DIR}/tests/commit_marker.c)
