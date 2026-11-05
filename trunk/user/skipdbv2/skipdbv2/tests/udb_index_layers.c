@@ -37,6 +37,12 @@ int main(void)
         fprintf(stderr, "fresh index did not establish its sentinel slot\n");
         goto done;
     }
+    if (UDBIndex_posForPid_(db->index, (PID_TYPE)-1) != 0 ||
+        UDBIndex_setPos_forPid_(db->index, 1, (PID_TYPE)-1) != 0 ||
+        UDBIndex_nextPid(db->index) != 1) {
+        fprintf(stderr, "overflow PID offset was accepted\n");
+        goto done;
+    }
 
     UDB_beginTransaction(db);
     first = UDB_allocPid(db);

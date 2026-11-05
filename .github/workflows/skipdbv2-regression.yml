@@ -164,6 +164,8 @@ jobs:
                   "UDBIndex_removeHole_(self, pid);",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexMap.c": [
+                  "static int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)",
+                  "UDBIndex_offsetForPid_(pid, &offset)",
                   "PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)",
                   "int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)",
                   "UDBIndex_releasePid_(self, pid)",
@@ -171,6 +173,9 @@ jobs:
                   "file_size - offset < sizeof(UDBIndexEntry)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_index_layers.c": [
+                  "UDBIndex_posForPid_(db->index, (PID_TYPE)-1)",
+                  "UDBIndex_setPos_forPid_(db->index, 1, (PID_TYPE)-1)",
+                  "overflow PID offset was accepted",
                   "UDBIndex_isReservedPid_(db->index, first)",
                   "UDBIndex_isReservedPid_(db->index, abandoned)",
                   "unwritten reservation was not reclaimed at commit",
@@ -715,6 +720,12 @@ jobs:
           ).read_text()
           if freelist_source.count("UDBIndex_pushHole_(") != 3:
               raise SystemExit("UDB free-PID insertion is not centralized across release and commit")
+
+          index_map_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexMap.c"
+          ).read_text()
+          if index_map_source.count("UDBIndex_offsetForPid_(") != 3:
+              raise SystemExit("UDB PID-to-offset overflow validation is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

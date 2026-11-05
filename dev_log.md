@@ -1,3 +1,21 @@
+## 2026-11-06 — Centralize UDB PID offset validation
+
+### Baseline and scope
+- Base commit: `b40bca57ec639be8cb8f1c68884510df3912dc36` (`refactor(udb): centralize free PID insertion`).
+- SkipDBv2 Regression run `42066950505` passed source contracts, CMake configuration, compilation, and CTest. This iteration is limited to PID-to-file offset mapping in `udb/UDBIndexMap.c`.
+
+### Changes
+- Added one private `static` offset calculator that checks PID multiplication overflow and `LONG_MAX` seekability before producing a byte offset.
+- Reused it in both PID lookup and PID mapping writes; file-size containment and record-width checks remain specific to lookup, while reservation and write-rollback behavior remain in the existing write path.
+- Extended `udb_index_layers_test` to verify the maximum PID is rejected by both mapping APIs and leaves the sentinel/next PID unchanged.
+- Added CI contracts for the single private helper owner and overflow regression. No new files, public declarations, or CMake source registration.
+
+### Validation
+- Static review confirms the shared helper preserves the existing multiplication bound and signed seek limit, and the lookup still checks the complete fixed-width entry lies inside the index file.
+- The pushed SkipDBv2 Regression is authoritative; no local CMake/compiler result is claimed.
+
+---
+
 ## 2026-11-06 — Centralize UDB free-PID insertion
 
 ### Baseline and scope

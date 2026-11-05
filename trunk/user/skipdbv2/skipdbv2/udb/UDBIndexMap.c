@@ -3,19 +3,27 @@
 #include <stdio.h>
 #include <limits.h>
 
+/* Compute a seek-safe byte offset for one fixed-width PID slot. */
+static int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)
+{
+	if (NULL == offset ||
+		pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry))
+		return 0;
+	*offset = (size_t)pid * sizeof(UDBIndexEntry);
+	return *offset <= (size_t)LONG_MAX;
+}
+
 PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 {
 	UDBIndexEntry entry;
 	size_t file_size, offset;
 
-	if (NULL == self || NULL == self->file || self->file->maxPos < 0)
+	if (NULL == self || NULL == self->file || self->file->maxPos < 0 ||
+		!UDBIndex_offsetForPid_(pid, &offset))
 		return 0;
 
 	file_size = (size_t)self->file->maxPos;
-	if (pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry))
-		return 0;
-	offset = (size_t)pid * sizeof(UDBIndexEntry);
-	if (offset > (size_t)LONG_MAX || offset > file_size ||
+	if (offset > file_size ||
 		file_size - offset < sizeof(UDBIndexEntry))
 		return 0;
 
@@ -37,11 +45,8 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	int was_reserved = 0;
 
 	if (!UDBIndex_hasStreams_(self) ||
-		pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry) ||
+		!UDBIndex_offsetForPid_(pid, &offset) ||
 		pos > (PID_TYPE)LONG_MAX || (pid == 0 && pos != 0))
-		return 0;
-	offset = (size_t)pid * sizeof(UDBIndexEntry);
-	if (offset > (size_t)LONG_MAX)
 		return 0;
 
 	if (pos == 0) {
