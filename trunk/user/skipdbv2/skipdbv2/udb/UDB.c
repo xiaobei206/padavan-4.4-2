@@ -648,7 +648,20 @@ Datum UDB_at_(UDB *self, PID_TYPE pid)
 		return d;
 	}
 	
-	return UDBRecord_readDatum(record);
+	{
+		JFile *file = self->records->file;
+		d = UDBRecord_readDatum(record);
+		/* A failed payload read must not masquerade as a missing/empty value. */
+		if ((file && file->file && ferror(file->file)) ||
+			(record->header.size > 0 && NULL == d.data)) {
+			fprintf(stderr, "UDB: failed reading payload for PID %lu; closing database\n",
+				(unsigned long)pid);
+			UDB_close(self);
+			d.size = 0;
+			d.data = NULL;
+		}
+		return d;
+	}
 }
 
 void UDB_removeAt_(UDB *self, PID_TYPE pid)
