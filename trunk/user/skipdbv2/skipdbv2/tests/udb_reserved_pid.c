@@ -95,6 +95,15 @@ int main(void)
         goto done;
     }
 
+    /* The first two physical records are now adjacent empty extents.
+     * Compaction must merge them without trying to free their PIDs twice. */
+    if (UDB_compactStep(db) != 1 || !UDB_isOpen(db) ||
+        !has_value(db, first_pid, "updated") ||
+        UDB_at_(db, second_pid).data != NULL) {
+        fprintf(stderr, "compaction failed to merge adjacent empty records\n");
+        goto done;
+    }
+
     UDB_beginTransaction(db);
     reused_pid = UDB_allocPid(db);
     if (!UDB_isOpen(db) || reused_pid != second_pid) {
