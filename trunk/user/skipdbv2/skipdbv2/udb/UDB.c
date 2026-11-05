@@ -898,6 +898,13 @@ int UDB_compactStepFor_(UDB *self, double maxSeconds)
 		return 0;
 
 	record = UDBRecords_recordAfter_(self->records, firstEmptyRecord);
+	/* Sliding the hole over the next live record is safe only when the hole
+	 * can contain the whole record; otherwise the destination write overlaps
+	 * the record header/data that follows it. Leave this hole untouched. */
+	if (record && !UDBRecord_isEmpty(record) &&
+		UDBRecord_totalSize(record) > UDBRecord_totalSize(firstEmptyRecord))
+		return 0;
+
 	if (NULL == record) {
 		/* Remove a trailing free block; no live records follow it. */
 		if (!UDBRecords_truncate_(self->records,
