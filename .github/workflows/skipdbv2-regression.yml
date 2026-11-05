@@ -305,6 +305,8 @@ jobs:
                   "SkipDB_commitTransaction(SkipDB *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBSearch.c": [
+                  "static int SkipDBSearch_canReadKey_(SkipDB *self, Datum key)",
+                  "SkipDBSearch_canReadKey_(self, k)",
                   "SkipDBRecord *SkipDB_recordAt_(SkipDB *self, Datum k)",
                   "SkipDBRecord *SkipDB_recordAtPid_(SkipDB *self, PID_TYPE pid)",
                   "Datum SkipDB_at_(SkipDB *self, Datum k)",
@@ -858,6 +860,12 @@ jobs:
           ).read_text()
           if index_lifecycle_source.count("UDBIndex_isValid_(self)") != 3:
               raise SystemExit("UDBIndex lifecycle callers bypass shared structural validation")
+
+          search_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBSearch.c"
+          ).read_text()
+          if search_source.count("SkipDBSearch_canReadKey_(") != 3:
+              raise SystemExit("SkipDB read-key readiness validation is not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

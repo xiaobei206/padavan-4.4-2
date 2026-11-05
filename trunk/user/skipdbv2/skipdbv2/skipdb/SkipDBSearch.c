@@ -94,10 +94,16 @@ void SkipDB_clearUpdate(SkipDB *self)
 		self->update[i] = NULL;
 }
 
+/* Share database readiness and key byte-span validation across read paths. */
+static int SkipDBSearch_canReadKey_(SkipDB *self, Datum key)
+{
+	return self != NULL && self->header != NULL && SkipDB_isOpen(self) &&
+		(key.size == 0 || key.data != NULL);
+}
+
 SkipDBRecord *SkipDB_recordAt_(SkipDB *self, Datum k)
 {
-	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
-		(k.size > 0 && NULL == k.data))
+	if (!SkipDBSearch_canReadKey_(self, k))
 		return NULL;
 	SkipDB_clearUpdate(self);
 	/* Use the full walk so every level's predecessor is populated. */
@@ -107,8 +113,7 @@ SkipDBRecord *SkipDB_recordAt_(SkipDB *self, Datum k)
 Datum SkipDB_at_(SkipDB *self, Datum k)
 {
 	SkipDBRecord *record;
-	if (NULL == self || NULL == self->header || !SkipDB_isOpen(self) ||
-		(k.size > 0 && NULL == k.data))
+	if (!SkipDBSearch_canReadKey_(self, k))
 		return Datum_Empty();
 	SkipDB_clearUpdate(self);
 	record = SkipDBRecord_find_quick_(self->header, k, 1);

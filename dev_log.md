@@ -1,3 +1,20 @@
+## 2026-11-06 01:59 CST — Centralize SkipDB read-key validation
+
+### Baseline and scope
+- Base commit: `cfe282609933a93dfd5a06ed494c3ac0e5f76ba1` (`refactor(udb): reuse index structural validation`); SkipDBv2 Regression run #196 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `skipdb/SkipDBSearch.c`.
+
+### Changes
+- Centralized the common database/header readiness and key byte-span validation used by `SkipDB_recordAt_` and `SkipDB_at_`.
+- Kept caller-specific failure results unchanged (`NULL` for record lookup, `Datum_Empty()` for value lookup); successful search and update-chain handling remain unchanged.
+- Updated CI source contracts to require one private helper and two call sites. No new source files, public declarations, or CMake source-registration changes.
+
+### Validation
+- Static preflight confirms one helper definition and two uses; CI enforces the same count.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:57 CST — Reuse UDBIndex structural validation
 
 ### Baseline and scope
