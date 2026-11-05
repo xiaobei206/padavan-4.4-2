@@ -142,6 +142,7 @@ if(SKIPDB_BUILD_TESTS)
     ADD_EXECUTABLE(skipd_script_test
         ${PROJECT_SOURCE_DIR}/tests/skipd_script.c
         ${PROJECT_SOURCE_DIR}/mgr/skipd_script.c)
+    TARGET_INCLUDE_DIRECTORIES(skipd_script_test PRIVATE ${PROJECT_SOURCE_DIR}/mgr)
     add_test(NAME skipd_script_test COMMAND skipd_script_test)
 
     ADD_EXECUTABLE(dbus_protocol_test

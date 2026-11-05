@@ -894,9 +894,17 @@ jobs:
               raise SystemExit("skipd script safety regression is not registered")
           script_target_start = cmake_text.find("ADD_EXECUTABLE(skipd_script_test")
           script_target_end = cmake_text.find("add_test(", script_target_start)
-          if script_target_start < 0 or script_target_end < 0 or \
-             "mgr/skipd_script.c" not in cmake_text[script_target_start:script_target_end]:
-              raise SystemExit("skipd script safety test does not link the extracted implementation")
+          script_target = (
+              cmake_text[script_target_start:script_target_end]
+              if script_target_start >= 0 and script_target_end > script_target_start
+              else ""
+          )
+          if (
+              not script_target or
+              "mgr/skipd_script.c" not in script_target or
+              "TARGET_INCLUDE_DIRECTORIES(skipd_script_test PRIVATE ${PROJECT_SOURCE_DIR}/mgr)" not in script_target
+          ):
+              raise SystemExit("skipd script safety test must link the implementation and expose its private header")
           if cmake_text.count("mgr/skipd_script.c") != 2:
               raise SystemExit("skipd script module is not linked exactly once in production and once in its regression")
 

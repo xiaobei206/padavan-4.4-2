@@ -1,3 +1,20 @@
+## 2026-11-06 — Repair skipd script regression include path
+
+### Baseline and failure
+- Base commit: `4916e3289da06244ec0a5815336e5dce2e6aacc7` (`fix(ci): correct SkipDB prefix target contract`).
+- SkipDBv2 Regression run `42061060499` passed the integration source contracts, Prefix ownership/wiring assertions, and CMake configure. The build then failed while compiling `tests/skipd_script.c`: `skipd_internal.h: No such file or directory`.
+
+### Changes
+- Added a target-scoped `${PROJECT_SOURCE_DIR}/mgr` include directory to `skipd_script_test`, allowing the test to include the private manager header used by `mgr/skipd_script.c` without broadening include paths for unrelated targets.
+- Strengthened the workflow CMake contract to require both the extracted implementation source and its private-header include path in the script-test target block.
+- No new files or production C behavior changes.
+
+### Validation
+- Confirmed `skipd_internal.h` exists under `mgr/` and is directly included by both the test and extracted implementation; the failing compile lacked only that include search path.
+- The next remote SkipDBv2 Regression run is authoritative. No local CMake/compiler result is claimed.
+
+---
+
 ## 2026-11-06 00:50 CST — Correct SkipDB prefix regression target contract
 
 ### Baseline and failure
