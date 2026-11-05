@@ -259,6 +259,10 @@ jobs:
                   "SkipDBRecord_previousRecord(SkipDBRecord *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordStorage.c": [
+                  "static int SkipDBRecord_streamIsReady_(SkipDBRecord *self, BStream *s)",
+                  "SkipDBRecord_streamIsReady_(self, s)",
+                  "static int SkipDBRecord_levelIsSupported_(int level)",
+                  "SkipDBRecord_levelIsSupported_(max)",
                   "SkipDBRecord_toStream_(SkipDBRecord *self, BStream *s)",
                   "SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)",
                   "SkipDBRecord_save(SkipDBRecord *self)",
@@ -774,6 +778,14 @@ jobs:
           ).read_text()
           if records_free_source.count("UDBRecords_isValidEmptyPosition_(") != 3:
               raise SystemExit("UDB free-list position bounds are not centralized")
+
+          record_storage_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordStorage.c"
+          ).read_text()
+          if record_storage_source.count("SkipDBRecord_streamIsReady_(") != 3:
+              raise SystemExit("SkipDB record stream preconditions are not centralized")
+          if record_storage_source.count("SkipDBRecord_levelIsSupported_(") != 3:
+              raise SystemExit("SkipDB record stream level bounds are not centralized")
 
           build_workflow = Path(".github/workflows/build.yml").read_text()
           if re.search(r"(?m)^  watch:\s*$", build_workflow):

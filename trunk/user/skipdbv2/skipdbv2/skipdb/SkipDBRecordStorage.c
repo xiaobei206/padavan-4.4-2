@@ -2,14 +2,26 @@
 #include "SkipDB.h"
 #include "SkipDBRecordInternal.h"
 
+/* Shared readiness contract for record serialization and deserialization. */
+static int SkipDBRecord_streamIsReady_(SkipDBRecord *self, BStream *s)
+{
+	return self != NULL && s != NULL && self->key != NULL &&
+		self->value != NULL && s->ba != NULL && s->errorBa != NULL;
+}
+
+/* Both directions must honor the same supported skip-list level range. */
+static int SkipDBRecord_levelIsSupported_(int level)
+{
+	return level >= 0 && level <= SKIPDB_MAX_LEVEL;
+}
+
 int SkipDBRecord_toStream_(SkipDBRecord *self, BStream *s)
 {
 	int level, max;
-	if (NULL == self || NULL == s || NULL == self->key ||
-		NULL == self->value || NULL == s->ba || NULL == s->errorBa)
+	if (!SkipDBRecord_streamIsReady_(self, s))
 		return 0;
 	max = self->level;
-	if (max < 0 || max > SKIPDB_MAX_LEVEL ||
+	if (!SkipDBRecord_levelIsSupported_(max) ||
 		(max > 0 && self->pointers == NULL))
 		return 0;
 
@@ -37,8 +49,7 @@ int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
 	int level, max;
 	size_t stream_size;
 
-	if (NULL == self || NULL == s || NULL == s->ba ||
-		NULL == self->key || NULL == self->value || NULL == s->errorBa)
+	if (!SkipDBRecord_streamIsReady_(self, s))
 		return 0;
 	UArray_setSize_(s->errorBa, 0);
 	stream_size = UArray_size(s->ba);
@@ -52,8 +63,8 @@ int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
 	if (UArray_size(s->errorBa) != 0)
 		return 0;
 	max = BStream_readTaggedInt32(s);
-	if (UArray_size(s->errorBa) != 0 || max < 0 ||
-		max > SKIPDB_MAX_LEVEL)
+	if (UArray_size(s->errorBa) != 0 ||
+		!SkipDBRecord_levelIsSupported_(max))
 		return 0;
 
 	SkipDBRecord_level_(self, max);

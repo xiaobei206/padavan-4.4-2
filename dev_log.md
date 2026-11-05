@@ -1,3 +1,20 @@
+## 2026-11-06 01:30 CST — Unify SkipDB record serialization preconditions
+
+### Baseline and scope
+- Base commit: `9b14a9d635b42f54738279b8e4fba6ae7d182213` (`refactor(udb): unify free-list position validation`); SkipDBv2 Regression run #186 passed source contracts, configuration, build, and CTest.
+- This iteration is limited to `skipdb/SkipDBRecordStorage.c`.
+
+### Changes
+- Centralized the common record/stream readiness checks used by serialization and deserialization.
+- Unified the supported skip-list level range check in both directions while retaining the serializer's separate pointer-array validation and the deserializer's allocation verification.
+- Expanded CI contracts for one private implementation and two call sites per helper. Existing `skipdb_record_storage_test` covers round-trip data, invalid levels, truncated streams, and trailing bytes. No new source files or CMake registration changes.
+
+### Validation
+- Static preflight confirms each private helper has one definition and two call sites.
+- The next remote SkipDBv2 Regression run is authoritative; no local CMake/compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-06 01:28 CST — Unify UDB free-list position validation
 
 ### Baseline and scope
