@@ -9,6 +9,71 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Shared key parsing and persistence for the delay/time command pair. */
+enum scheduled_key_result {
+    SCHEDULED_KEY_OK = 0,
+    SCHEDULED_KEY_MALFORMED,
+    SCHEDULED_KEY_INVALID,
+    SCHEDULED_KEY_TOO_LONG
+};
+
+static int parse_scheduled_key_(skipd_client *client, char *arguments,
+    char **value_start)
+{
+    char *key_end;
+    size_t key_length;
+
+    if (NULL == client || NULL == client->origin || NULL == arguments ||
+        NULL == value_start || client->data_len <= 0)
+        return SCHEDULED_KEY_MALFORMED;
+
+    key_end = strchr(arguments, ' ');
+    if (NULL == key_end)
+        return SCHEDULED_KEY_MALFORMED;
+
+    key_length = (size_t)(key_end - arguments);
+    *key_end = '\0';
+    client->key = arguments;
+    if (!valid_protocol_token(client->key, 0))
+        return SCHEDULED_KEY_INVALID;
+    if (key_length >= DELAY_KEY_LEN)
+        return SCHEDULED_KEY_TOO_LONG;
+
+    *value_start = key_end + 1;
+    return SCHEDULED_KEY_OK;
+}
+
+static int format_scheduled_key_(char *buffer, size_t capacity,
+    const char *prefix, const char *key)
+{
+    int length;
+
+    if (NULL == buffer || capacity == 0 || NULL == prefix || NULL == key)
+        return -1;
+    length = snprintf(buffer, capacity, "%s%s", prefix, key);
+    return length < 0 || (size_t)length >= capacity ? -1 : 0;
+}
+
+/* Return 1 for a duplicate task, 0 for a durable write, and -1 on DB error. */
+static int save_scheduled_value_(EV_P_ skipd_server *server,
+    const char *key, Datum value)
+{
+    Datum dkey;
+    int write_ok;
+
+    if (NULL == server || NULL == server->db || NULL == key)
+        return -1;
+
+    dkey = Datum_FromCString_((char *)key);
+    if (SkipDB_exists(server->db, dkey))
+        return 1;
+
+    SkipDB_beginTransaction(server->db);
+    write_ok = SkipDB_at_put_(server->db, dkey, value);
+    server_sync(EV_A_ server);
+    return write_ok && SkipDB_isOpen(server->db) ? 0 : -1;
+}
+
 /* Command parsing and coroutine-driven request dispatch. */
 static int client_run_command(EV_P_ skipd_client* client)
 {
@@ -339,14 +404,14 @@ static int client_run_command(EV_P_ skipd_client* client)
         client_send(EV_A_ client, p1, strlen(p1));
         ccrReturn(ctx, ccr_error_ok1);
     } else if(!strcmp(client->command, "delay")) {
+        int parse_result, save_result;
+        char *value_start, *value_separator;
+
         p1 = p2+1;
-        p2 = strstr(p1, " ");
-        if(NULL == p2) {
+        parse_result = parse_scheduled_key_(client, p1, &value_start);
+        if (parse_result == SCHEDULED_KEY_MALFORMED)
             ccrStop(ctx, ccr_error_err2);
-        }
-        *p2 = '\0';
-        client->key = p1;
-        if (!valid_protocol_token(client->key, 0)) {
+        if (parse_result == SCHEDULED_KEY_INVALID) {
             p1 = "invalid key\n";
             if (client_send_key(EV_A_ client, "__error__", client->command,
                     p1, strlen(p1)) != 0) {
@@ -356,53 +421,44 @@ static int client_run_command(EV_P_ skipd_client* client)
             ccrReturn(ctx, ccr_error_ok1);
             ccrStop(ctx, ccr_error_ok1);
         }
-        p1 = p2+1;
-
-        if(strlen(client->key) >= DELAY_KEY_LEN) {
+        if (parse_result == SCHEDULED_KEY_TOO_LONG) {
             p1 = "key too big\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
 
-        dvalue = Datum_FromData_length_((unsigned char*)p1, client->data_len - (p1 - client->origin));
-        if (NULL == find_terminated_value_separator(dvalue)) {
+        p1 = value_start;
+        dvalue = Datum_FromData_length_((unsigned char *)p1,
+            client->data_len - (p1 - client->origin));
+        value_separator = find_terminated_value_separator(dvalue);
+        if (NULL == value_separator) {
             p1 = "value param error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
-        //dvalue.data[dvalue.size-1] = '\0';
-        //FIXEM hard code hear
-        if(strlen((char*)dvalue.data) >= 300) {
+        if (strlen((char *)dvalue.data) >= 300) {
             p1 = "value too big\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
 
-        p2  = strstr(p1, " ");
-        if(NULL == p2) {
-            p1 = "value param error\n";
-            client_send(EV_A_ client, p1, strlen(p1));
-            ccrReturn(ctx, ccr_error_ok1);
-        }
-        tmpi = (int)(p2 - p1);
-        memcpy(static_buffer, p1, tmpi);
+        tmpi = (int)(value_separator - p1);
+        memcpy(static_buffer, p1, (size_t)tmpi);
         static_buffer[tmpi] = '\0';
-        if(S2ISUCCESS != str2int(&tmpi, static_buffer, 10) || tmpi < 0) {
+        if (S2ISUCCESS != str2int(&tmpi, static_buffer, 10) || tmpi < 0) {
             p1 = "delay tick error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
 
-        //All ok, we create a delay object
         delay_obj = calloc(1, sizeof(delay_cmd));
-        if(NULL == delay_obj) {
+        if (NULL == delay_obj) {
             p1 = "memory error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
-        tmp2 = snprintf(delay_obj->key, sizeof(delay_obj->key),
-            "__delay__%s", client->key);
-        if (tmp2 < 0 || (size_t)tmp2 >= sizeof(delay_obj->key)) {
+        if (format_scheduled_key_(delay_obj->key, sizeof(delay_obj->key),
+                "__delay__", client->key) != 0) {
             free(delay_obj);
             p1 = "key too big\n";
             client_send(EV_A_ client, p1, strlen(p1));
@@ -412,39 +468,37 @@ static int client_run_command(EV_P_ skipd_client* client)
         delay_obj->tick = tmpi;
         delay_obj->server = client->server;
 
-        dkey = Datum_FromCString_(client->key);
-        /* Do not overwrite an existing scheduled command on duplicate add. */
-        if (SkipDB_exists(client->server->db, dkey)) {
+        save_result = save_scheduled_value_(EV_A_ client->server,
+            client->key, dvalue);
+        if (save_result == 1) {
             p1 = "exists\n";
             client_send(EV_A_ client, p1, strlen(p1));
             free(delay_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        SkipDB_beginTransaction(client->server->db);
-        write_ok = SkipDB_at_put_(client->server->db, dkey, dvalue);
-        server_sync(EV_A_ client->server);
-        if (!write_ok || !SkipDB_isOpen(client->server->db)) {
+        if (save_result < 0) {
             p1 = "database error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             free(delay_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        ev_timer_init(&delay_obj->watcher, delay_cmd_cb, delay_obj->tick, delay_obj->tick);
-        ev_timer_start(EV_A_ &delay_obj->watcher);
 
+        ev_timer_init(&delay_obj->watcher, delay_cmd_cb,
+            delay_obj->tick, delay_obj->tick);
+        ev_timer_start(EV_A_ &delay_obj->watcher);
         p1 = "delay_ok\n";
         client_send(EV_A_ client, p1, strlen(p1));
-
         ccrReturn(ctx, ccr_error_ok1);
+
     } else if(!strcmp(client->command, "time")) {
+        int parse_result, save_result;
+        char *value_start;
+
         p1 = p2+1;
-        p2 = strstr(p1, " ");
-        if(NULL == p2) {
+        parse_result = parse_scheduled_key_(client, p1, &value_start);
+        if (parse_result == SCHEDULED_KEY_MALFORMED)
             ccrStop(ctx, ccr_error_err2);
-        }
-        *p2 = '\0';
-        client->key = p1;
-        if (!valid_protocol_token(client->key, 0)) {
+        if (parse_result == SCHEDULED_KEY_INVALID) {
             p1 = "invalid key\n";
             if (client_send_key(EV_A_ client, "__error__", client->command,
                     p1, strlen(p1)) != 0) {
@@ -454,83 +508,76 @@ static int client_run_command(EV_P_ skipd_client* client)
             ccrReturn(ctx, ccr_error_ok1);
             ccrStop(ctx, ccr_error_ok1);
         }
-        p1 = p2+1;
-
-        if(strlen(client->key) >= DELAY_KEY_LEN) {
+        if (parse_result == SCHEDULED_KEY_TOO_LONG) {
             p1 = "key too big\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
 
+        p1 = value_start;
         p2 = strstr(p1, " ");
-        if(NULL == p2) {
+        if (NULL == p2) {
             p1 = "value error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
         tmpi = (int)(p2 - p1);
-        if(tmpi <= 0 || (size_t)tmpi >= sizeof(static_buffer)) {
+        if (tmpi <= 0 || (size_t)tmpi >= sizeof(static_buffer)) {
             p1 = "time value too long\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
         memcpy(static_buffer, p1, (size_t)tmpi);
         static_buffer[tmpi] = '\0';
-
         if (!next_daily_delay(static_buffer, time(NULL), &timer_delay)) {
             p1 = "time schedule error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
 
-        dvalue = Datum_FromData_length_((unsigned char*)p1, client->data_len - (p1 - client->origin));
+        dvalue = Datum_FromData_length_((unsigned char *)p1,
+            client->data_len - (p1 - client->origin));
         if (NULL == find_terminated_value_separator(dvalue)) {
             p1 = "value param error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
-        //dvalue.data[dvalue.size-1] = '\0';
-        //FIXEM hard code hear
-        if(strlen((char*)dvalue.data) >= 300) {
+        if (strlen((char *)dvalue.data) >= 300) {
             p1 = "value too big\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
 
         time_obj = calloc(1, sizeof(time_cmd));
-        if(NULL == time_obj) {
+        if (NULL == time_obj) {
             p1 = "memory error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
-        tmp2 = snprintf(time_obj->key, sizeof(time_obj->key),
-            "__time__%s", client->key);
-        if (tmp2 < 0 || (size_t)tmp2 >= sizeof(time_obj->key)) {
+        if (format_scheduled_key_(time_obj->key, sizeof(time_obj->key),
+                "__time__", client->key) != 0) {
             free(time_obj);
             p1 = "key too big\n";
             client_send(EV_A_ client, p1, strlen(p1));
             ccrReturn(ctx, ccr_error_ok1);
         }
         client->key = time_obj->key;
-        dkey = Datum_FromCString_(client->key);
-        /* Do not overwrite an existing scheduled command on duplicate add. */
-        if (SkipDB_exists(client->server->db, dkey)) {
+
+        save_result = save_scheduled_value_(EV_A_ client->server,
+            client->key, dvalue);
+        if (save_result == 1) {
             p1 = "exists\n";
             client_send(EV_A_ client, p1, strlen(p1));
             free(time_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
-        /* The delay was validated above, before writing the task. */
-
-        SkipDB_beginTransaction(client->server->db);
-        write_ok = SkipDB_at_put_(client->server->db, dkey, dvalue);
-        server_sync(EV_A_ client->server);
-        if (!write_ok || !SkipDB_isOpen(client->server->db)) {
+        if (save_result < 0) {
             p1 = "database error\n";
             client_send(EV_A_ client, p1, strlen(p1));
             free(time_obj);
             ccrReturn(ctx, ccr_error_ok1);
         }
+
         time_obj->server = client->server;
         ev_timer_init(&time_obj->watcher, time_cmd_cb, timer_delay, 0.0);
         ev_timer_start(EV_A_ &time_obj->watcher);

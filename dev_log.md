@@ -1,3 +1,21 @@
+## 2026-11-06 — Consolidate delay/time command scheduling in skipd_command
+
+### Baseline and scope
+- Base commit: `2694b1da32150ce340e96ea104316dcaaa257ade` (`fix(test): expose skipd private headers to safety test`).
+- SkipDBv2 Regression run `42061962339` passed all source contracts, CMake configuration, compilation, and CTest. The single-module target is the command engine's duplicated `delay`/`time` scheduling path in `mgr/skipd_command.c`.
+
+### Changes
+- Centralized shared schedule-key parsing, prefixed-key formatting, duplicate-task detection, and database transaction/write/sync behavior in private `static` helpers within `skipd_command.c`.
+- Kept command-specific payload validation order intact: `delay` validates its NUL-terminated command payload before parsing the tick; `time` validates the time token and computes its next daily run before checking the complete stored payload.
+- All `ccrReturn`/`ccrStop` control flow remains in `client_run_command`; no coroutine suspension was moved across function boundaries.
+- No cross-translation-unit symbol, public header, CMake source registration, or new source file was introduced. CI source contracts require the helpers and enforce one owner for scheduled-task persistence.
+
+### Validation
+- Static review retained the original length-delimited request bounds, terminating-NUL checks, key validation, error responses, duplicate detection, transaction ordering, and timer configuration.
+- Remote SkipDBv2 Regression is the required post-push validation. No local compiler/CMake result is claimed.
+
+---
+
 ## 2026-11-06 — Repair skipd script regression include path
 
 ### Baseline and failure

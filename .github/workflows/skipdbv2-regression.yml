@@ -810,6 +810,9 @@ jobs:
                   "void sys_script(const char *cmd, size_t cmd_size);",
               ],
               "skipd_command.c": [
+                  "static int parse_scheduled_key_(",
+                  "static int format_scheduled_key_(",
+                  "static int save_scheduled_value_(",
                   "static int client_run_command(",
                   "int client_ccr_process(",
                   "client_ccr_read_util(",
@@ -846,6 +849,12 @@ jobs:
               for needle in needles:
                   if needle not in content:
                       raise SystemExit(f"skipd ownership contract missing: {module}: {needle}")
+
+          command_source = (manager_root / "skipd_command.c").read_text()
+          if command_source.count("SkipDB_beginTransaction(server->db);") != 1 or \
+             command_source.count("SkipDB_at_put_(server->db, dkey, value)") != 1 or \
+             command_source.count("SkipDB_exists(server->db, dkey)") != 1:
+              raise SystemExit("delay/time task persistence is not centralized in one private helper")
 
           if "static int client_run_command(" in (manager_root / "skipd.c").read_text():
               raise SystemExit("skipd command engine remains in the event-loop facade")
