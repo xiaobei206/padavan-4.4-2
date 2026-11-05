@@ -274,6 +274,87 @@ int main(void)
         }
     }
 
+    /* A symlinked commit marker must not redirect writes into its target. */
+    {
+        FILE *sentinel_file, *marker_file;
+        char sentinel_path[160];
+        char sentinel_contents[32];
+        int sentinel_path_len = snprintf(sentinel_path, sizeof(sentinel_path),
+            "%s.sentinel", path);
+
+        if (sentinel_path_len < 0 ||
+            (size_t)sentinel_path_len >= sizeof(sentinel_path)) {
+            fprintf(stderr, "unable to construct marker sentinel path\n");
+            goto done;
+        }
+        sentinel_file = fopen(sentinel_path, "w");
+        if (NULL == sentinel_file) {
+            fprintf(stderr, "unable to create marker sentinel\n");
+            goto done;
+        }
+        if (fputs("untouched", sentinel_file) < 0 ||
+            fclose(sentinel_file) != 0) {
+            fprintf(stderr, "unable to write marker sentinel\n");
+            remove(sentinel_path);
+            goto done;
+        }
+
+        UDB_close(db);
+        if (remove(marker_path) != 0 ||
+            symlink(sentinel_path, marker_path) != 0) {
+            fprintf(stderr, "unable to install symlinked commit marker\n");
+            remove(sentinel_path);
+            goto done;
+        }
+        UDB_open(db);
+        if (UDB_isOpen(db)) {
+            fprintf(stderr, "database opened with a symlinked commit marker\n");
+            remove(sentinel_path);
+            goto done;
+        }
+
+        sentinel_file = fopen(sentinel_path, "r");
+        if (NULL == sentinel_file ||
+            NULL == fgets(sentinel_contents, sizeof(sentinel_contents), sentinel_file) ||
+            strcmp(sentinel_contents, "untouched") != 0) {
+            if (sentinel_file) fclose(sentinel_file);
+            fprintf(stderr, "symlinked marker changed its target\n");
+            remove(sentinel_path);
+            goto done;
+        }
+        if (fclose(sentinel_file) != 0) {
+            fprintf(stderr, "unable to close marker sentinel\n");
+            remove(sentinel_path);
+            goto done;
+        }
+
+        if (remove(marker_path) != 0) {
+            fprintf(stderr, "unable to remove symlinked commit marker\n");
+            remove(sentinel_path);
+            goto done;
+        }
+        marker_file = fopen(marker_path, "w");
+        if (NULL == marker_file || fputc(0, marker_file) == EOF) {
+            if (marker_file) fclose(marker_file);
+            fprintf(stderr, "unable to restore commit marker after symlink check\n");
+            remove(sentinel_path);
+            goto done;
+        }
+        if (fclose(marker_file) != 0) {
+            fprintf(stderr, "unable to close restored marker after symlink check\n");
+            remove(sentinel_path);
+            goto done;
+        }
+        UDB_open(db);
+        if (!UDB_isOpen(db) || !has_value(db, first_pid, "updated") ||
+            !has_value(db, reused_pid, "reused-after-expiry")) {
+            fprintf(stderr, "data was damaged by symlinked-marker rejection\n");
+            remove(sentinel_path);
+            goto done;
+        }
+        remove(sentinel_path);
+    }
+
     result = EXIT_SUCCESS;
 
 done:
