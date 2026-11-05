@@ -431,13 +431,18 @@ void SkipDB_sync(SkipDB *self)
 		NULL == self->udb || !self->udb->withinTransaction)
 		return;
 
-	if (!self->headerPid) {
-		if (NULL == self->header)
-			return;
+	/*
+	 * The in-memory root can have no PID even though headerPid is preseeded
+	 * to the reserved root ID (1). Reserve the root before saving any dirty
+	 * record so insertion order cannot let the first user record claim PID 1.
+	 */
+	if (NULL == self->header)
+		return;
+	self->headerPid = SkipDBRecord_pid(self->header);
+	if (self->headerPid == 0)
 		self->headerPid = SkipDBRecord_pidAllocIfNeeded(self->header);
-		if (self->headerPid == 0)
-			return;
-	}
+	if (self->headerPid == 0)
+		return;
 
 	SkipDB_saveDirtyRecords(self);
 	/* A low-level write failure closes UDB to force rollback/recovery. */
