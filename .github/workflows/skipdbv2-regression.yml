@@ -142,6 +142,53 @@ jobs:
                   "UDBIndex_nextPid(db->index) != 3",
                   "index state did not survive a rebuild on reopen",
               ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBInternal.h": [
+                  "void SkipDB_readRootRecord(SkipDB *self);",
+                  "void SkipDB_freeExcessCachedRecords(SkipDB *self);",
+                  "int SkipDB_pickRandomRecordLevel(SkipDB *self);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDB.c": [
+                  '#include "SkipDBInternal.h"',
+                  "SkipDB *SkipDB_new(void)",
+                  "SKIPDB_API int SkipDB_open(SkipDB *self)",
+                  "void SkipDB_dealloc(SkipDB *self)",
+                  "int SkipDB_isOpen(SkipDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c": [
+                  "void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)",
+                  "void SkipDB_noteDirtyRecord_(SkipDB *self, SkipDBRecord *r)",
+                  "void SkipDB_freeExcessCachedRecords(SkipDB *self)",
+                  "void SkipDB_clearCache(SkipDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBTransaction.c": [
+                  "void SkipDB_sync(SkipDB *self)",
+                  "void SkipDB_saveDirtyRecords(SkipDB *self)",
+                  "void SkipDB_readRootRecord(SkipDB *self)",
+                  "SkipDB_commitTransaction(SkipDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBSearch.c": [
+                  "SkipDBRecord *SkipDB_recordAt_(SkipDB *self, Datum k)",
+                  "SkipDBRecord *SkipDB_recordAtPid_(SkipDB *self, PID_TYPE pid)",
+                  "Datum SkipDB_at_(SkipDB *self, Datum k)",
+                  "void SkipDB_clearUpdate(SkipDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBWrite.c": [
+                  "static int SkipDB_recordAt_put_inner(SkipDB *self, Datum k, Datum v, SkipDBRecord **pp)",
+                  "int SkipDB_at_put_(SkipDB *self, Datum k, Datum v)",
+                  "void SkipDB_removeAt_(SkipDB *self, Datum k)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBQuery.c": [
+                  "int SkipDB_count(SkipDB *self)",
+                  "int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)",
+                  "void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,",
+                  "int SkipDB_maxPos(SkipDB *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/skipdb_core_layers.c": [
+                  "SkipDB_count(source)!=4",
+                  "SkipDB_list_next(source,prefix,cursor)",
+                  "SkipDB_mergeInto_(source,target)",
+                  "cache eviction/lazy reload failed",
+              ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecords.c": [
                   "UDBRecords *UDBRecords_new(void)",
                   "void UDBRecords_free(UDBRecords *self)",

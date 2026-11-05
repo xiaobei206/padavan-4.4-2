@@ -37,7 +37,16 @@ SET(UDB_SRC
     ${PROJECT_SOURCE_DIR}/udb/UDBRecordsCursor.c
     ${PROJECT_SOURCE_DIR}/udb/UDBRecordsFreeList.c
 )
-FILE(GLOB_RECURSE SKIPDB_SRC ${PROJECT_SOURCE_DIR}/skipdb/*.c)
+SET(SKIPDB_SRC
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDB.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBCache.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBTransaction.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBSearch.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBWrite.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBQuery.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBCursor.c
+    ${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecord.c
+)
 FILE(GLOB_RECURSE MGR_SRC ${PROJECT_SOURCE_DIR}/mgr/*.c)
 FILE(GLOB_RECURSE CLIENT_SRC ${PROJECT_SOURCE_DIR}/client/*.c)
 
@@ -113,6 +122,11 @@ if(SKIPDB_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/mgr/ipc_transport.c)
     TARGET_LINK_LIBRARIES(dbapi_protocol_test skipdb m ${LIBEV_LIBRARIES})
     add_test(NAME dbapi_protocol_test COMMAND dbapi_protocol_test)
+
+    ADD_EXECUTABLE(skipdb_core_layers_test
+        ${PROJECT_SOURCE_DIR}/tests/skipdb_core_layers.c)
+    TARGET_LINK_LIBRARIES(skipdb_core_layers_test skipdb m)
+    add_test(NAME skipdb_core_layers_test COMMAND skipdb_core_layers_test)
 
     ADD_EXECUTABLE(skipdb_cursor_previous_test
         ${PROJECT_SOURCE_DIR}/tests/skipdb_cursor_previous.c)

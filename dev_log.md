@@ -1,3 +1,37 @@
+## 2026-11-05 17:22 JST — Split SkipDB core lifecycle, cache, transactions, search, writes, and queries
+
+### Baseline and regression state
+- Base commit: `25271f1f0d49c975088b808b5693817fc3283655` (`refactor(udb): split index lifecycle, free-list, and mapping layers`); `main` is the only branch.
+- Baseline `SkipDBv2 Regression` run `41992385670` (#138) completed successfully. Integration contracts, CMake configure, all SkipDBv2 targets, and the full CTest suite all passed.
+- The preceding #137 contract-only failure is corrected at the baseline. Host regression remains the fast feedback loop; firmware workflows remain manual-only.
+
+### Changes
+1. **Lifecycle facade — `skipdb/SkipDB.c`**
+   - Reduced the monolith to construction/destruction, path and database lifecycle, accessors, object callbacks, and diagnostics. Preserved the exposed `SkipDB` structure and public signatures.
+2. **Cache ownership — `skipdb/SkipDBCache.c`**
+   - Moved age notifications, dirty/PID bookkeeping, watermarks, cursor-aware eviction, and cache clearing. Preserved cursor marking and reference invalidation before eviction.
+3. **Transaction synchronization — `skipdb/SkipDBTransaction.c`**
+   - Isolated dirty-row persistence, pending PID removal, commit synchronization, and root-record recovery, retaining root PID reservation and fail-closed checks.
+4. **Search and mutation engines — `skipdb/SkipDBSearch.c`, `skipdb/SkipDBWrite.c`**
+   - Separated skip-list level/search-path construction, PID lookup and reads from insert/update/unlink mutation logic. Preserved link ordering, dirty propagation, removal handling, and persistence layout.
+5. **Ordered query surface — `skipdb/SkipDBQuery.c`**
+   - Isolated bounded traversal/count, first/last/lower-bound lookup, cursor registration, prefix scans, existence, merge, and max-position reporting.
+6. **Private contracts, build, and regression — `skipdb/SkipDBInternal.h`, `CMakeLists.txt`, `tests/skipdb_core_layers.c`, `.github/workflows/skipdbv2-regression.yml`**
+   - Added narrowly scoped private cross-unit declarations, replaced SkipDB's recursive source glob with an explicit eight-source manifest, and registered integration coverage for CRUD, prefix traversal, cache eviction/reload, updates/removals, and merge.
+   - Added CI source-boundary and test-registration assertions. No workflow stage or test was disabled.
+
+### Validation
+- Static extraction audit: all 62 original SkipDB function definitions are assigned exactly once across six implementation units; no definition was duplicated or omitted.
+- Build manifest, CTest registration, and CI contract anchors were checked before publishing.
+- No local compiler/CTest run is claimed; the pushed revision triggers the complete host `SkipDBv2 Regression`.
+- The manual-only XY-C1 firmware workflow and on-disk UDB/JFile/SkipDB representation are unchanged.
+
+### Follow-up
+- Keep object lifetime/path setup and accessors in `SkipDB.c`; cache lifetime/eviction in `SkipDBCache.c`.
+- Keep persistence ordering in `SkipDBTransaction.c`, predecessor search in `SkipDBSearch.c`, mutation in `SkipDBWrite.c`, and ordered traversal/prefix/merge in `SkipDBQuery.c`.
+
+---
+
 ## 2026-11-05 — Separate UDBIndex lifecycle, free-PID pool, and mapping layers
 
 ### Baseline and regression state
