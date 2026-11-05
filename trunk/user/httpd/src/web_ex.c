@@ -2178,6 +2178,68 @@ static int mentohust_status_hook(int eid, webs_t wp, int argc, char **argv)
 }
 #endif
 
+static int
+is_valid_js_identifier(const char *name)
+{
+	const unsigned char *p;
+
+	if (!name || !*name)
+		return 0;
+	if (!(isalpha((unsigned char)*name) || *name == '_'))
+		return 0;
+	for (p = (const unsigned char *)name + 1; *p; ++p) {
+		if (!(isalnum(*p) || *p == '_'))
+			return 0;
+	}
+	return 1;
+}
+
+static void
+write_js_string(webs_t wp, const char *value)
+{
+	const unsigned char *p;
+
+	websWrite(wp, "%s", "'");
+	for (p = (const unsigned char *)(value ? value : ""); *p; ++p) {
+		switch (*p) {
+		case '\'':
+			websWrite(wp, "%s", "\\'");
+			break;
+		case '\\':
+			websWrite(wp, "%s", "\\\\");
+			break;
+		case '<':
+			/* Prevent untrusted text from ending an inline script. */
+			websWrite(wp, "%s", "\\x3c");
+			break;
+		case '\b':
+			websWrite(wp, "%s", "\\b");
+			break;
+		case '\f':
+			websWrite(wp, "%s", "\\f");
+			break;
+		case '\n':
+			websWrite(wp, "%s", "\\n");
+			break;
+		case '\r':
+			websWrite(wp, "%s", "\\r");
+			break;
+		case '\t':
+			websWrite(wp, "%s", "\\t");
+			break;
+		default:
+			if (*p < 0x20 || *p == 0x7f)
+				websWrite(wp, "\\x%02x", (unsigned int)*p);
+			else
+				fputc(*p, wp);
+			break;
+		}
+	}
+	websWrite(wp, "%s", "'");
+}
+
+
+
 #if defined (APP_SHADOWSOCKS)
 static int shadowsocks_action_hook(int eid, webs_t wp, int argc, char **argv)
 {
@@ -2302,66 +2364,6 @@ do_applydb_cgi(char *url, FILE *stream)
 {
     //applydb_cgi(url, stream);
 	applydb_cgi(stream, NULL, NULL, 0, url, NULL, NULL);
-}
-
-static int
-is_valid_js_identifier(const char *name)
-{
-	const unsigned char *p;
-
-	if (!name || !*name)
-		return 0;
-	if (!(isalpha((unsigned char)*name) || *name == '_'))
-		return 0;
-	for (p = (const unsigned char *)name + 1; *p; ++p) {
-		if (!(isalnum(*p) || *p == '_'))
-			return 0;
-	}
-	return 1;
-}
-
-static void
-write_js_string(webs_t wp, const char *value)
-{
-	const unsigned char *p;
-
-	websWrite(wp, "%s", "'");
-	for (p = (const unsigned char *)(value ? value : ""); *p; ++p) {
-		switch (*p) {
-		case '\'':
-			websWrite(wp, "%s", "\\'");
-			break;
-		case '\\':
-			websWrite(wp, "%s", "\\\\");
-			break;
-		case '<':
-			/* Prevent untrusted text from ending an inline script. */
-			websWrite(wp, "%s", "\\x3c");
-			break;
-		case '\b':
-			websWrite(wp, "%s", "\\b");
-			break;
-		case '\f':
-			websWrite(wp, "%s", "\\f");
-			break;
-		case '\n':
-			websWrite(wp, "%s", "\\n");
-			break;
-		case '\r':
-			websWrite(wp, "%s", "\\r");
-			break;
-		case '\t':
-			websWrite(wp, "%s", "\\t");
-			break;
-		default:
-			if (*p < 0x20 || *p == 0x7f)
-				websWrite(wp, "\\x%02x", (unsigned int)*p);
-			else
-				fputc(*p, wp);
-			break;
-		}
-	}
-	websWrite(wp, "%s", "'");
 }
 
 static int
