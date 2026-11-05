@@ -139,6 +139,7 @@ SKIPDB_API void SkipDB_show(SkipDB *self);
 
 // private
 
+void SkipDB_clearUpdate(SkipDB *self);
 SKIPDB_API void SkipDB_updateAt_put_(SkipDB *self, int level, SkipDBRecord *r);
 SKIPDB_API SkipDBRecord *SkipDB_recordAtPid_(SkipDB *self, PID_TYPE pid);
 

@@ -535,8 +535,8 @@ void SkipDBRecord_save(SkipDBRecord *self)
 		return;
 	sdb = (SkipDB *)self->sdb;
 	stream = SkipDB_tmpStream(sdb);
-	if (NULL == stream || NULL == UDB_udb(sdb) ||
-		!UDB_isOpen(UDB_udb(sdb)))
+	if (NULL == stream || NULL == SkipDB_udb(sdb) ||
+		!UDB_isOpen(SkipDB_udb(sdb)))
 		return;
 	BStream_empty(stream);
 	if (!SkipDBRecord_toStream_(self, stream))
@@ -544,11 +544,11 @@ void SkipDBRecord_save(SkipDBRecord *self)
 	data = Datum_FromUArray_(BStream_byteArray(stream));
 	pid = SkipDBRecord_pid(self);
 	if (pid) {
-		UDB_at_put_(UDB_udb(sdb), pid, data);
-		if (!UDB_isOpen(UDB_udb(sdb)))
+		UDB_at_put_(SkipDB_udb(sdb), pid, data);
+		if (!UDB_isOpen(SkipDB_udb(sdb)))
 			return;
 	} else {
-		pid = UDB_put_(UDB_udb(sdb), data);
+		pid = UDB_put_(SkipDB_udb(sdb), data);
 		if (pid == 0)
 			return;
 		SkipDBRecord_pid_(self, pid);
