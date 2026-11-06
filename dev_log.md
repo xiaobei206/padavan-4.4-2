@@ -1,3 +1,11 @@
+## 2026-11-06 23:18 CST — Repair UArray pairwise extrema hash invalidation
+
+- CI #361 passed source contracts, configure, and compilation, then exposed a regression assertion: pairwise maximum changed values but retained the receiver's cached hash.
+- Root cause: `UArray_at_putDouble_()` calls a type-dispatch macro whose branch returns before the setter's trailing `UArray_changed()`. Invalidate the hash once after each nonempty Max/Min loop; keep empty prefix operations as no-ops.
+- Tighten the workflow contract to require the explicit post-loop invalidation. The existing regression already checks both mutations and is reused; no new files or CMake changes.
+
+---
+
 ## 2026-11-06 23:15 CST — Guard UArray pairwise extrema mutations
 
 - Baseline: main commit `bcb8cc4dea53e44db2a8d955f3644ddc04ea8c31`; SkipDBv2 Regression run #360 completed successfully after the elementwise-division source-contract correction.

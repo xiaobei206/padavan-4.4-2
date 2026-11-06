@@ -671,6 +671,9 @@ BASEKIT_API void UArray_Max(UArray *self, const UArray *other)
 		return;
 
 	minSize = self->size < other->size ? self->size : other->size;
+	if (minSize == 0)
+		return;
+
 	for (i = 0; i < minSize; ++i)
 	{
 		double v1 = UArray_rawDoubleAt_(self, i);
@@ -678,6 +681,9 @@ BASEKIT_API void UArray_Max(UArray *self, const UArray *other)
 		double m = v1 > v2 ? v1 : v2;
 		UArray_at_putDouble_(self, i, m);
 	}
+
+	/* The setter's type-dispatch macro returns before its hash invalidation. */
+	UArray_changed(self);
 }
 
 BASEKIT_API void UArray_Min(UArray *self, const UArray *other)
@@ -691,6 +697,9 @@ BASEKIT_API void UArray_Min(UArray *self, const UArray *other)
 		return;
 
 	minSize = self->size < other->size ? self->size : other->size;
+	if (minSize == 0)
+		return;
+
 	for (i = 0; i < minSize; ++i)
 	{
 		double v1 = UArray_rawDoubleAt_(self, i);
@@ -698,6 +707,9 @@ BASEKIT_API void UArray_Min(UArray *self, const UArray *other)
 		double m = v1 < v2 ? v1 : v2;
 		UArray_at_putDouble_(self, i, m);
 	}
+
+	/* The setter's type-dispatch macro returns before its hash invalidation. */
+	UArray_changed(self);
 }
 
 
