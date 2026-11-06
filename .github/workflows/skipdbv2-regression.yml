@@ -1954,7 +1954,7 @@ jobs:
           )
           if (
               not bit_helper_body or
-              "self->size > (size_t)-1 / self->itemSize" not in bit_helper_body or
+              "self->size > ((size_t)-1 - 1) / self->itemSize" not in bit_helper_body or
               "(self->size > 0 && NULL == self->data)" not in bit_helper_body
           ):
               raise SystemExit("UArray bit access must reject malformed or overflowing storage")

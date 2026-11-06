@@ -1,3 +1,11 @@
+## 2026-11-06 19:24 CST — Align bit-storage CI contract with the stricter size bound
+
+- CI run #323 stopped in `Verify XY-C1 firmware integration contracts` before compilation. The existing detailed assertion still required the older `SIZE_MAX / itemSize` boundary after the shared bit-storage validator was tightened to reserve the UArray terminator byte.
+- Update only the assertion to require the stricter `(SIZE_MAX - 1) / itemSize` guard. The implementation and regression coverage remain unchanged.
+- This is a contract-only repair; the next mainline run will continue through compilation and CTest.
+
+---
+
 ## 2026-11-06 19:23 CST — Validate UArray bit summaries against malformed storage
 
 ### Baseline
