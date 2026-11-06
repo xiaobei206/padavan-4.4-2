@@ -84,6 +84,18 @@ int main(void)
         goto done;
     }
 
+    /* Payload reads must not trust a stale cached size or PID. */
+    record->header.pid = 0;
+    record->header.size = 1;
+    restored = UDBRecord_readDatum(record);
+    if (restored.data == NULL || restored.size != sizeof(payload) ||
+        UDBRecord_pid(record) != 77 ||
+        UDBRecord_size(record) != sizeof(payload) ||
+        memcmp(restored.data, payload, sizeof(payload)) != 0) {
+        fprintf(stderr, "record payload read trusted stale header size\n");
+        goto done;
+    }
+
     /* A clone owns a distinct payload buffer and safely rejects NULL. */
     if (UDBRecord_clone(NULL) != NULL) {
         fprintf(stderr, "UDBRecord clone accepted a NULL source\n");

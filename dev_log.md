@@ -1,3 +1,13 @@
+## 2026-11-07 06:21 CST — Refresh persisted UDB headers before payload reads
+
+- Baseline: main commit `a24d5684a0357bb4e4b8584e3e58efdeb0a9d0f2`; SkipDBv2 Regression run #447 passed source contracts, configure, complete build, and all regression tests.
+- Scope: payload-read bounds in `udb/UDBRecordRead.c`.
+- `UDBRecord_readDatum()` used the caller's cached `header.size` to validate and size the payload buffer without re-reading the header. A stale/small cached size could silently return a truncated payload; a forged larger size could cause a valid persisted value to be rejected.
+- Refresh and validate the persisted header first, then derive the payload extent from that header. On failure, restore the previous cached header and JFile cursor bounds; clear a partially prepared payload buffer when a read fails. Extend the existing `udb_record_storage` test by poisoning cached PID/size and requiring the complete original binary payload and correct header metadata. Update existing Actions contracts. No new files, public declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:19 CST — Align UDB cursor-restoration contract with stale-header rejection
 
 - Baseline: main commit `c0fdb6b536c4f22ed1b5e4731e7c5fa20a50c50d`; SkipDBv2 Regression run #446 stopped in the XY-C1 source-contract step before configure/build because the existing contract expected five references to `UDBRecord_restoreFileState_()`.

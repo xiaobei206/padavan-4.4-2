@@ -54,6 +54,7 @@ Datum UDBRecord_readDatum(UDBRecord *self)
     UArray *ba;
     Datum d;
     PID_TYPE size;
+    UDBRecordHeader old_header;
     long old_pos, old_max;
 
     d.size = 0;
@@ -61,35 +62,45 @@ Datum UDBRecord_readDatum(UDBRecord *self)
     if (NULL == self || NULL == self->file || self->file->maxPos < 0)
         return d;
 
+    old_header = self->header;
+    old_pos = self->file->pos;
+    old_max = self->file->maxPos;
+    if (!UDBRecord_readHeader(self))
+        goto failed;
+
+    /* Payload boundaries must come from the persisted, validated header. */
     size = self->header.size;
     if (!UDBRecord_payloadFitsFile_(self, (size_t)self->file->maxPos, size))
-        return d;
+        goto failed;
 
     ba = UDBRecord_data(self);
     if (NULL == ba)
-        return d;
-    old_pos = self->file->pos;
-    old_max = self->file->maxPos;
+        goto failed;
     if (UArray_size(ba) != size)
         UArray_setSize_(ba, (size_t)size);
     if (UArray_size(ba) != size ||
         (size > 0 && NULL == UArray_bytes(ba)) ||
         self->pos > (PID_TYPE)LONG_MAX - sizeof(UDBRecordHeader)) {
-        self->file->pos = old_pos;
-        self->file->maxPos = old_max;
-        return d;
+        UArray_setSize_(ba, 0);
+        goto failed;
     }
+
     JFile_fseek(self->file, (long)(self->pos + sizeof(UDBRecordHeader)), SEEK_SET);
     if (self->file->pos != (long)(self->pos + sizeof(UDBRecordHeader)) ||
         (size > 0 && JFile_fread(self->file,
             (unsigned char *)UArray_bytes(ba), (size_t)size, 1) != 1)) {
         UArray_setSize_(ba, 0);
-        self->file->pos = old_pos;
-        self->file->maxPos = old_max;
-        return d;
+        goto failed;
     }
+
     d.size = size;
     d.data = (unsigned char *)UArray_bytes(ba);
+    self->file->pos = old_pos;
+    self->file->maxPos = old_max;
+    return d;
+
+failed:
+    self->header = old_header;
     self->file->pos = old_pos;
     self->file->maxPos = old_max;
     return d;
