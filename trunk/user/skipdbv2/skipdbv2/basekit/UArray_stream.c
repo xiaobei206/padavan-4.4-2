@@ -122,7 +122,7 @@ long UArray_readNumberOfItems_fromCStream_(UArray *self, size_t size, FILE *stre
 	oldSize = self->size;
 	UArray_append_(self, buffer);
 	UArray_free(buffer);
-	if (self->size != oldSize + itemsRead)
+	if (self->size != oldSize + itemsRead || ferror(stream))
 		return -1;
 	return (long)itemsRead;
 }
@@ -153,44 +153,67 @@ long UArray_readFromFilePath_(UArray *self, const UArray *path)
 
 #define CHUNK_SIZE 4096
 
+static int UArray_streamAppendLineChunk_(UArray *self,
+	const uint8_t *bytes, size_t count)
+{
+	UArray chunk;
+	size_t oldSize;
+
+	if (count == 0)
+		return 1;
+	if (count > (size_t)-1 - self->size ||
+		self->size + count == (size_t)-1)
+		return 0;
+
+	oldSize = self->size;
+	chunk = UArray_stackAllocedWithData_type_size_((void *)bytes,
+		self->itemType, count);
+	if (chunk.itemSize != self->itemSize)
+		return 0;
+	UArray_append_(self, &chunk);
+	return self->size == oldSize + count;
+}
+
 int UArray_readLineFromCStream_(UArray *self, FILE *stream)
 {
 	int readSomething = 0;
-	char *s;
+	int pushbackFailed = 0;
+	size_t used = 0;
+	uint8_t buffer[CHUNK_SIZE];
+
 	if (NULL == self || NULL == stream || self->itemSize != 1 ||
+		UArray_SizeOfCtype(self->itemType) != 1 ||
 		(self->size > 0 && NULL == self->data))
 		return 0;
 
-	s = (char *)io_calloc(1, CHUNK_SIZE);
-	if (NULL == s)
-		return 0;
-	while (fgets(s, CHUNK_SIZE, stream) != NULL) {
-		char *eol1 = strchr(s, '\n');
-		char *eol2 = strchr(s, '\r');
-		readSomething = 1;
-		if (eol1) *eol1 = 0;
-		if (eol2) *eol2 = 0;
-		if (*s) {
-			size_t length = strlen(s);
-			size_t oldSize = self->size;
-			if (length > (size_t)-1 - oldSize) {
-				io_free(s);
-				return -1;
-			}
-			UArray_appendCString_(self, s);
-			if (self->size != oldSize + length) {
-				io_free(s);
-				return -1;
-			}
-		}
-		if (eol1 || eol2)
+	for (;;) {
+		int ch = fgetc(stream);
+		if (ch == EOF)
 			break;
+		readSomething = 1;
+
+		if (ch == '\n')
+			break;
+		if (ch == '\r') {
+			int next = fgetc(stream);
+			if (next != '\n' && next != EOF &&
+				ungetc(next, stream) == EOF)
+				pushbackFailed = 1;
+			break;
+		}
+
+		buffer[used++] = (uint8_t)ch;
+		if (used == sizeof(buffer)) {
+			if (!UArray_streamAppendLineChunk_(self, buffer, used))
+				return -1;
+			used = 0;
+		}
 	}
-	if (ferror(stream)) {
-		io_free(s);
+
+	if (!UArray_streamAppendLineChunk_(self, buffer, used))
 		return -1;
-	}
-	io_free(s);
+	if (ferror(stream) || pushbackFailed)
+		return -1;
 	return readSomething;
 }
 

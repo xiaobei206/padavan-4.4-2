@@ -1,3 +1,23 @@
+## 2026-11-06 16:02 CST — Harden UArray stream line and read-error handling
+
+### Baseline
+- Main commit `c089a5d8b32080e24894a91c2d4a3741da3fd3f7`; SkipDBv2 Regression run #290 passed source-contract preflight, configure, full build, and CTest.
+
+### Defects and fixes
+- `UArray_readNumberOfItems_fromCStream_()` returned a partial item count even after the underlying stream entered an I/O error state. Preserve successfully read bytes, but return the documented `-1` error result consistently with the unbounded stream reader.
+- `UArray_readLineFromCStream_()` used `fgets()` chunks and truncated at the first carriage return after the input chunk had already consumed later bytes. Bare-CR line endings could discard the next line; CRLF at a chunk boundary and embedded NUL bytes were also mishandled.
+- Replace the heap-allocated line buffer with bounded stack chunks, recognize LF/CRLF/bare CR, push back the first byte after standalone CR, preserve binary payload bytes, and propagate stream/pushback errors after appending successfully read data.
+
+### Regression and contracts
+- Add `uarray_stream_io.c` for empty lines, LF/CRLF/bare-CR boundaries, a 4096-byte line crossing the chunk boundary, embedded NUL, EOF without a final newline, partial fixed-count reads, and injected I/O errors.
+- Register the focused CTest target and extend GitHub Actions source/build contracts. No production source file or public API is added.
+
+### Validation
+- Static review confirms line appends are bounded and type-consistent, no byte after a standalone CR is consumed, and partial input is preserved when an I/O error is reported.
+- The workflow triggered by this commit is authoritative for source contracts, compilation, and runtime tests.
+
+---
+
 ## 2026-11-06 15:46 CST — Correct UArray per-item byte reversal
 
 ### Baseline
