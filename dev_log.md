@@ -1,3 +1,13 @@
+## 2026-11-07 07:24 CST — Make failed initial metadata writes safe to unwind
+
+- Baseline: main commit `760546b81491bd847a08347b41cd6c295ff12e28`; SkipDBv2 Regression run #468 passed integration contracts, configure, full build, and all 56 tests.
+- Scope: empty-file startup cleanup in `udb/UDBRecordsStorage.c`.
+- The failure branch called `fclose(self->file->log)` unconditionally after a failed journal write. `JFile_fwrite()` may already close and null the journal stream when it cannot roll back a partial journal record, making that cleanup call undefined behavior and leaving the data stream open.
+- Use the existing null-safe `JFile_close()` lifecycle routine to unwind both streams on this failure path. Update the source contract; no new files, public symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:22 CST — Bound allocated PID slots to the seekable file range
 
 - Baseline: main commit `7f9303f8488d00fabea1b5253e2ef89df0d7c23f`; SkipDBv2 Regression run #467 passed integration contracts, configure, full build, and all 56 tests.

@@ -444,6 +444,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsStorage.c": [
                   "static int UDBRecords_hasReadyStreams_(UDBRecords *self)",
                   "UDBRecords_hasReadyStreams_(self)",
+                  "JFile_close(self->file);",
                   "void UDBRecords_open(UDBRecords *self)",
                   "int UDBRecords_finishOpening(UDBRecords *self)",
                   "void UDBRecords_commit(UDBRecords *self)",

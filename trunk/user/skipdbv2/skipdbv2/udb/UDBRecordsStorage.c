@@ -41,8 +41,8 @@ int UDBRecords_finishOpening(UDBRecords *self)
 		/* Position zero stores the first-empty-record offset. */
 		JFile_begin(self->file);
 		if (!UDBRecords_firstEmptyRecordPos_(self, 0)) {
-			fclose(self->file->log);
-			self->file->log = NULL;
+			/* JFile_fwrite may already have closed the journal on rollback failure. */
+			JFile_close(self->file);
 			return 0;
 		}
 		/* Materialize the initial metadata header before it is read below;
