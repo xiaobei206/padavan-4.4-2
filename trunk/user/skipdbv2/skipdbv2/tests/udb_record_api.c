@@ -16,12 +16,19 @@ static int has_value(UDB *db, PID_TYPE pid, const char *expected)
 
 int main(void)
 {
+    UDB empty_db = {0};
     UDB *db = NULL;
     Datum invalid;
     PID_TYPE pid = 0;
     char path[128];
     int path_len;
     int result = EXIT_FAILURE;
+
+    /* Public diagnostic helpers must tolerate absent/uninitialized databases. */
+    UDB_show(NULL);
+    UDB_showIndex(NULL);
+    UDB_show(&empty_db);
+    UDB_showIndex(&empty_db);
 
     db = UDB_new();
     if (NULL == db) {

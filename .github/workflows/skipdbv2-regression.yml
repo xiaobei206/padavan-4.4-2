@@ -556,6 +556,10 @@ jobs:
                   "time-sliced compaction did not merge and truncate in one call",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_record_api.c": [
+                  "UDB_show(NULL);",
+                  "UDB_showIndex(NULL);",
+                  "UDB_show(&empty_db);",
+                  "UDB_showIndex(&empty_db);",
                   "invalid.size = 1",
                   "UDB_put_(db, invalid)",
                   "UDB_at_put_(db, pid",
@@ -566,7 +570,9 @@ jobs:
                   "PID_TYPE UDB_nextPid(UDB *self)",
                   "PID_TYPE UDB_allocPid(UDB *self)",
                   "void UDB_show(UDB *self)",
+                  "if (NULL == self || NULL == self->records)",
                   "void UDB_showIndex(UDB *self)",
+                  "if (NULL == self || NULL == self->index)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBInternal.h": [
                   "int UDB_isInTransaction(UDB *self);",

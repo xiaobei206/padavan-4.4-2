@@ -23,7 +23,11 @@ PID_TYPE UDB_allocPid(UDB *self)
 
 void UDB_show(UDB *self)
 {
-	UDBRecord *record = UDBRecords_firstRecord(self->records);
+	UDBRecord *record;
+
+	if (NULL == self || NULL == self->records)
+		return;
+	record = UDBRecords_firstRecord(self->records);
 	printf("UDB Records:\n");
 	
 	while (record)
@@ -35,5 +39,7 @@ void UDB_show(UDB *self)
 
 void UDB_showIndex(UDB *self)
 {
+	if (NULL == self || NULL == self->index)
+		return;
 	UDBIndex_show(self->index);
 }

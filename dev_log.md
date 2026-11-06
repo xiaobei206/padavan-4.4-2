@@ -1,3 +1,13 @@
+## 2026-11-07 07:05 CST — Guard UDB diagnostic entry points
+
+- Baseline: main commit `1f0dccea4366ab9f753f48a2ce56a8bf55f6c569`; SkipDBv2 Regression run #461 passed the full build and all 56 regression tests.
+- Scope: public diagnostic helpers in `udb/UDB.c`.
+- `UDB_show()` and `UDB_showIndex()` dereferenced the database facade unconditionally, so a NULL or zero-initialized database caused a crash despite the rest of the public API being defensive.
+- Return without side effects when the facade or its required subobject is absent. Extend the existing record-API regression and workflow source contracts; no new files, exported symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:03 CST — Fix alias-sensitive record-move regression
 
 - Baseline: main commit `01b7d79e6ce8fcd189aa7a8009a80b9a7e720387`; SkipDBv2 Regression run #460 built successfully but failed `udb_record_storage_test`.
