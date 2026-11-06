@@ -1,3 +1,10 @@
+## 2026-11-07 01:43 CST — Align Stack cursor-reader contract with shared validation
+
+- Baseline: main commit `5f7147b8942325d252e6f4282d4317cdd6175978`; run #403 passed the static source-needle list but failed the later ordered Stack reader check.
+- Update that check to require each reader to call `Stack_hasValidStorage_`, which now owns the NULL-end and one-past-end checks centrally. This preserves the stronger centralized invariant instead of requiring duplicated local guards.
+
+---
+
 ## 2026-11-07 01:40 CST — Align Stack cursor source contract with the validator declaration
 
 - Baseline: main commit `77b1e29d7288a88e294199588d7b6132f236f2a3`; run #402 failed only during the XY-C1 static source-contract check.

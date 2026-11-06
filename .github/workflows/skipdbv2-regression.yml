@@ -3503,8 +3503,7 @@ jobs:
                   if stack_start >= 0 and stack_end > stack_start
                   else ""
               )
-              if ("NULL == self->memEnd" not in stack_body or
-                      "self->top >= self->memEnd" not in stack_body):
+              if "Stack_hasValidStorage_(self" not in stack_body:
                   raise SystemExit("Stack cursor reader must reject a missing allocation end and one-past-end cursor: " + stack_signature)
           stack_pop_mark_start = stack_inline_source.find("IOINLINE void Stack_popMark(Stack *self)")
           stack_pop_mark_end = stack_inline_source.find("\n}", stack_pop_mark_start)
