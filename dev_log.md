@@ -1,3 +1,13 @@
+## 2026-11-06 22:42 CST — Harden UArray bitwise mutation storage and hash lifecycle
+
+- Baseline: main commit `77fabdf63c62e130f59dfc792361568d13957024`; SkipDBv2 Regression run #351 passed all 55 CTest cases.
+- Scope: the five byte-oriented mutators in `basekit/UArray_math.c`: OR, AND, XOR, NOT, and set-all-bits.
+- The binary operations multiplied array dimensions without overflow checks, unary operations trusted unchecked byte counts, and all five changed data without invalidating the cached hash. NULL or malformed storage could be dereferenced or addressed out of bounds.
+- Reuse the existing byte-storage validator before every read/write, compute binary overlap from validated byte counts, and invalidate the hash only after a nonempty mutation. Add a file-local forward declaration because the existing validator is defined below these functions.
+- Extend the existing `uarray_bit_access` regression and workflow source contract for all five mutators, hash invalidation, NULL inputs, missing storage, zero item width, and overflow geometry. Reuse the existing CMake target; no new files or CMake changes.
+- No local C compilation or CTest result is claimed; mainline CI remains the build/runtime gate.
+
+---
 ## 2026-11-06 22:38 CST — Validate UArray extrema item layouts
 
 - Baseline: main commit `2b18f599e03ef3266ddc3f545bfbb34db16d8fdf`; SkipDBv2 Regression run #350 passed all 55 CTest cases after hardening the aggregate reductions.

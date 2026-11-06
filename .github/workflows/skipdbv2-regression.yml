@@ -1343,6 +1343,17 @@ jobs:
                   "UArray malformed backing storage was not rejected",
                   "UArray zero-width bit storage was not rejected",
                   "UArray overflowing bit storage geometry was not rejected",
+                  "UArray bitwise mutation allocation failed",
+                  "UArray bitwise OR failed or retained the cached hash",
+                  "UArray bitwise AND failed or retained the cached hash",
+                  "UArray bitwise XOR failed or retained the cached hash",
+                  "UArray bitwise NOT failed or retained the cached hash",
+                  "UArray set-all-bits true failed or retained the cached hash",
+                  "UArray set-all-bits false failed or retained the cached hash",
+                  "UArray bitwise mutations accepted missing receiver storage",
+                  "UArray binary bitwise mutation accepted missing operand storage",
+                  "UArray bitwise mutations accepted zero-width storage",
+                  "UArray bitwise mutations accepted overflowing storage geometry",
                   "UArray bit access test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_math_extrema.c": [
@@ -2129,6 +2140,33 @@ jobs:
               raise SystemExit("BStream attachment guard must cover empty interior and partial borrowed views")
 
           bit_math_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c").read_text()
+          bitwise_prototype = bit_math_source.find(
+              "static int UArray_hasValidBitStorage_(const UArray *self, size_t *byteCount);"
+          )
+          bitwise_first = bit_math_source.find("void UArray_bitwiseOr_(UArray *self, const UArray *other)")
+          if bitwise_prototype < 0 or bitwise_first < 0 or bitwise_prototype > bitwise_first:
+              raise SystemExit("UArray bitwise operations must see a file-local storage validator declaration")
+          bitwise_ranges = (
+              ("OR", "void UArray_bitwiseOr_(UArray *self, const UArray *other)", "void UArray_bitwiseAnd_"),
+              ("AND", "void UArray_bitwiseAnd_(UArray *self, const UArray *other)", "void UArray_bitwiseXor_"),
+              ("XOR", "void UArray_bitwiseXor_(UArray *self, const UArray *other)", "void UArray_bitwiseNot"),
+              ("NOT", "void UArray_bitwiseNot(UArray *self)", "// bitwise ops"),
+              ("fill", "void UArray_setAllBitsTo_(UArray *self, uint8_t aBool)", "// adjust for endianess?"),
+          )
+          for label, start_marker, end_marker in bitwise_ranges:
+              start = bit_math_source.find(start_marker)
+              end = bit_math_source.find(end_marker, start)
+              body = bit_math_source[start:end] if start >= 0 and end > start else ""
+              if not body or "UArray_hasValidBitStorage_(self" not in body or "UArray_changed(self);" not in body:
+                  raise SystemExit(f"UArray bitwise {label} must validate storage and invalidate the receiver hash after mutation")
+              if label in ("OR", "AND", "XOR") and (
+                  "UArray_hasValidBitStorage_(other" not in body or
+                  "UArray_minSizeInBytesWith_" in body
+              ):
+                  raise SystemExit(f"UArray bitwise {label} must validate both byte ranges before computing their overlap")
+              if label in ("NOT", "fill") and "byteCount" not in body:
+                  raise SystemExit(f"UArray bitwise {label} must use validated byte geometry")
+
           bit_helper_start = bit_math_source.find(
               "static int UArray_hasValidBitStorage_(const UArray *self, size_t *byteCount)"
           )

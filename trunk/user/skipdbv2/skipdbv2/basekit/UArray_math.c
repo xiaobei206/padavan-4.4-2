@@ -197,45 +197,93 @@ void UArray_divideScalarDouble_(UArray *self, double value)
 
 // bitwise
 
+static int UArray_hasValidBitStorage_(const UArray *self, size_t *byteCount);
+
 void UArray_bitwiseOr_(UArray *self, const UArray *other)
 {
-	size_t i, max = UArray_minSizeInBytesWith_(self, other);
-	uint8_t *d1 = self->data;
-	uint8_t *d2 = other->data;
-	for (i = 0; i < max; i ++) { d1[i] |= d2[i]; }
+	size_t i, selfByteCount, otherByteCount, max;
+	uint8_t *d1, *d2;
+
+	if (!UArray_hasValidBitStorage_(self, &selfByteCount) ||
+		!UArray_hasValidBitStorage_(other, &otherByteCount))
+		return;
+
+	max = selfByteCount < otherByteCount ? selfByteCount : otherByteCount;
+	d1 = self->data;
+	d2 = other->data;
+	for (i = 0; i < max; ++i)
+		d1[i] |= d2[i];
+	if (max > 0)
+		UArray_changed(self);
 }
 
 void UArray_bitwiseAnd_(UArray *self, const UArray *other)
 {
-	size_t i, max = UArray_minSizeInBytesWith_(self, other);
-	uint8_t *d1 = self->data;
-	uint8_t *d2 = other->data;
-	for (i = 0; i < max; i ++) { d1[i] &= d2[i]; }
+	size_t i, selfByteCount, otherByteCount, max;
+	uint8_t *d1, *d2;
+
+	if (!UArray_hasValidBitStorage_(self, &selfByteCount) ||
+		!UArray_hasValidBitStorage_(other, &otherByteCount))
+		return;
+
+	max = selfByteCount < otherByteCount ? selfByteCount : otherByteCount;
+	d1 = self->data;
+	d2 = other->data;
+	for (i = 0; i < max; ++i)
+		d1[i] &= d2[i];
+	if (max > 0)
+		UArray_changed(self);
 }
 
 void UArray_bitwiseXor_(UArray *self, const UArray *other)
 {
-	size_t i, max = UArray_minSizeInBytesWith_(self, other);
-	uint8_t *d1 = self->data;
-	uint8_t *d2 = other->data;
-	for (i = 0; i < max; i ++) { d1[i] ^= d2[i]; }
+	size_t i, selfByteCount, otherByteCount, max;
+	uint8_t *d1, *d2;
+
+	if (!UArray_hasValidBitStorage_(self, &selfByteCount) ||
+		!UArray_hasValidBitStorage_(other, &otherByteCount))
+		return;
+
+	max = selfByteCount < otherByteCount ? selfByteCount : otherByteCount;
+	d1 = self->data;
+	d2 = other->data;
+	for (i = 0; i < max; ++i)
+		d1[i] ^= d2[i];
+	if (max > 0)
+		UArray_changed(self);
 }
 
 void UArray_bitwiseNot(UArray *self)
 {
-	size_t i, max = UArray_sizeInBytes(self);
-	uint8_t *data = self->data;
-	for (i = 0; i < max; i ++) { data[i] = ~(data[i]); }
+	size_t i, byteCount;
+	uint8_t *data;
+
+	if (!UArray_hasValidBitStorage_(self, &byteCount))
+		return;
+
+	data = self->data;
+	for (i = 0; i < byteCount; ++i)
+		data[i] = (uint8_t)~data[i];
+	if (byteCount > 0)
+		UArray_changed(self);
 }
 
 // bitwise ops
 
 void UArray_setAllBitsTo_(UArray *self, uint8_t aBool)
 {
-	size_t i, max = UArray_sizeInBytes(self);
-	uint8_t *data = self->data;
-	uint8_t bits = aBool ? ~0 : 0;
-	for (i = 0; i < max; i ++) { data[i] = bits; }
+	size_t i, byteCount;
+	uint8_t *data;
+	uint8_t bits = aBool ? 0xff : 0;
+
+	if (!UArray_hasValidBitStorage_(self, &byteCount))
+		return;
+
+	data = self->data;
+	for (i = 0; i < byteCount; ++i)
+		data[i] = bits;
+	if (byteCount > 0)
+		UArray_changed(self);
 }
 
 // adjust for endianess?
