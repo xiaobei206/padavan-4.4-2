@@ -1,3 +1,14 @@
+## 2026-11-06 23:53 CST — Bound List callback traversals to live storage
+
+- Baseline: main commit `7fb99ff23c9af7448cb594c82667df83431a61ff`; SkipDBv2 Regression run #369 completed successfully.
+- Scope: `List_do_()`, `List_do_with_()`, and `List_detect_()` callback traversal.
+- These functions used `LIST_FOREACH`, which snapshots the initial item count but does not revalidate the list's live size/capacity after user callbacks. A callback that reduces the logical capacity could leave later iterations reading slots outside the current List storage contract.
+- Switch these callback consumers to the existing `LIST_SAFEFOREACH` iterator, which revalidates storage and the live size on every iteration. Keep callback signatures, null-item handling, and return behavior unchanged.
+- Extend the existing `list_storage_bounds` test and workflow source contracts with callbacks that reduce declared capacity during traversal. Reuse the current CMake target; no new files or target changes.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:47 CST — Make List_removeTrueFor_ callback-reallocation safe
 
 - Baseline: main commit `371f54aa525e38a0fb311e435ad15facf5ef22e1`; SkipDBv2 Regression run #368 completed successfully.

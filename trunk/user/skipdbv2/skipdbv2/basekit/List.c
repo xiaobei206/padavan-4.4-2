@@ -261,14 +261,14 @@ void List_do_(List *self, ListDoCallback *callback)
 {
 	if (!List_hasValidStorage_(self) || NULL == callback)
 		return;
-	LIST_FOREACH(self, i, v, if (v) (*callback)(v));
+	LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v));
 }
 
 void List_do_with_(List *self, ListDoWithCallback *callback, void *arg)
 {
 	if (!List_hasValidStorage_(self) || NULL == callback)
 		return;
-	LIST_FOREACH(self, i, v, if (v) (*callback)(v, arg));
+	LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v, arg));
 }
 
 void List_mapInPlace_(List *self, ListCollectCallback *callback)
@@ -344,7 +344,7 @@ void *List_detect_(List *self, ListDetectCallback *callback)
 {
 	if (!List_hasValidStorage_(self) || NULL == callback)
 		return NULL;
-	LIST_FOREACH(self, i, v, if (v && (*callback)(v)) return v; );
+	LIST_SAFEFOREACH(self, i, v, if (v && (*callback)(v)) return v; );
 	return NULL;
 }
 

@@ -1837,6 +1837,12 @@ jobs:
                   "self->memSize > (size_t)-1 - sizeof(List)",
                   "return sizeof(List) + self->memSize;",
                   "void List_sliceInPlace(List* self, long startIndex, long endIndex)",
+                  "void List_do_(List *self, ListDoCallback *callback)",
+                  "LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v));",
+                  "void List_do_with_(List *self, ListDoWithCallback *callback, void *arg)",
+                  "LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v, arg));",
+                  "void *List_detect_(List *self, ListDetectCallback *callback)",
+                  "LIST_SAFEFOREACH(self, i, v, if (v && (*callback)(v)) return v; );",
                   "void List_mapInPlace_(List *self, ListCollectCallback *callback)",
                   "originalSize = self->size;",
                   "if (!List_hasValidStorage_(self) || self->size != originalSize)",
@@ -1946,6 +1952,14 @@ jobs:
                   "List_removeTrueFor_(&malformed_target, remove_everything)",
                   "malformed_target.items[1] == saved_target_items[1]",
                   "List_asStackAllocatedUArray(&malformed_source)",
+                  "List live callback traversal allocation failed",
+                  "List live callback traversal fixture append failed",
+                  "List_do_(do_list, shrink_metadata_for_do);",
+                  "List_do_ visited entries beyond callback-reduced capacity",
+                  "List_do_with_(do_with_list, shrink_metadata_for_do_with, NULL);",
+                  "List_do_with_ visited entries beyond callback-reduced capacity",
+                  "List_detect_(detect_list, shrink_metadata_for_detect) == NULL",
+                  "List_detect_ visited entries beyond callback-reduced capacity",
                   "List filter fixture allocation failed",
                   "List filter fixture append failed",
                   "List filter realloc blocker allocation failed",
@@ -2485,6 +2499,21 @@ jobs:
           list_inline_source = Path(
               "trunk/user/skipdbv2/skipdbv2/basekit/List_inline.h"
           ).read_text()
+          list_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/basekit/List.c"
+          ).read_text()
+          list_callback_operations = (
+              ("do", "void List_do_(List *self, ListDoCallback *callback)", "void List_do_with_", "LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v));"),
+              ("do_with", "void List_do_with_(List *self, ListDoWithCallback *callback, void *arg)", "void List_mapInPlace_", "LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v, arg));"),
+              ("detect", "void *List_detect_(List *self, ListDetectCallback *callback)", "void *List_anyOne", "LIST_SAFEFOREACH(self, i, v, if (v && (*callback)(v)) return v; );"),
+          )
+          for label, start_marker, end_marker, safe_loop in list_callback_operations:
+              start = list_source.find(start_marker)
+              end = list_source.find(end_marker, start)
+              body = list_source[start:end] if start >= 0 and end > start else ""
+              if not body or safe_loop not in body or "LIST_FOREACH(" in body:
+                  raise SystemExit(f"List_{label} callback traversal must recheck live storage bounds after each callback")
+
           list_filter_start = list_inline_source.find(
               "IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)"
           )

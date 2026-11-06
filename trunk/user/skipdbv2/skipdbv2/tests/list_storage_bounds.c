@@ -238,8 +238,107 @@ done:
     return result;
 }
 
+
+static List *traversal_callback_list;
+static size_t traversal_callback_calls;
+
+static void shrink_metadata_for_do(void *item)
+{
+    (void)item;
+    traversal_callback_calls++;
+    if (traversal_callback_calls == 1) {
+        traversal_callback_list->size = 1;
+        traversal_callback_list->memSize = sizeof(void *);
+    }
+}
+
+static void shrink_metadata_for_do_with(void *item, void *arg)
+{
+    (void)item;
+    (void)arg;
+    traversal_callback_calls++;
+    if (traversal_callback_calls == 1) {
+        traversal_callback_list->size = 1;
+        traversal_callback_list->memSize = sizeof(void *);
+    }
+}
+
+static int shrink_metadata_for_detect(void *item)
+{
+    (void)item;
+    traversal_callback_calls++;
+    if (traversal_callback_calls == 1) {
+        traversal_callback_list->size = 1;
+        traversal_callback_list->memSize = sizeof(void *);
+    }
+    return 0;
+}
+
+static int append_three_values(List *list, int *values)
+{
+    return List_append_(list, &values[0]) == &values[0] &&
+        List_append_(list, &values[1]) == &values[1] &&
+        List_append_(list, &values[2]) == &values[2];
+}
+
+static int test_live_callback_traversals(void)
+{
+    int values[] = {10, 20, 30};
+    List *do_list = List_new();
+    List *do_with_list = List_new();
+    List *detect_list = List_new();
+    int result = EXIT_FAILURE;
+
+    if (!do_list || !do_with_list || !detect_list) {
+        check(0, "List live callback traversal allocation failed");
+        goto done;
+    }
+    if (!append_three_values(do_list, values) ||
+        !append_three_values(do_with_list, values) ||
+        !append_three_values(detect_list, values)) {
+        check(0, "List live callback traversal fixture append failed");
+        goto done;
+    }
+
+    traversal_callback_list = do_list;
+    traversal_callback_calls = 0;
+    List_do_(do_list, shrink_metadata_for_do);
+    if (!check(traversal_callback_calls == 1 && do_list->size == 1 &&
+        do_list->memSize == sizeof(void *),
+        "List_do_ visited entries beyond callback-reduced capacity"))
+        goto done;
+
+    traversal_callback_list = do_with_list;
+    traversal_callback_calls = 0;
+    List_do_with_(do_with_list, shrink_metadata_for_do_with, NULL);
+    if (!check(traversal_callback_calls == 1 && do_with_list->size == 1 &&
+        do_with_list->memSize == sizeof(void *),
+        "List_do_with_ visited entries beyond callback-reduced capacity"))
+        goto done;
+
+    traversal_callback_list = detect_list;
+    traversal_callback_calls = 0;
+    if (!check(List_detect_(detect_list, shrink_metadata_for_detect) == NULL &&
+        traversal_callback_calls == 1 && detect_list->size == 1 &&
+        detect_list->memSize == sizeof(void *),
+        "List_detect_ visited entries beyond callback-reduced capacity"))
+        goto done;
+
+    result = EXIT_SUCCESS;
+
+done:
+    traversal_callback_list = NULL;
+    traversal_callback_calls = 0;
+    List_free(do_list);
+    List_free(do_with_list);
+    List_free(detect_list);
+    return result;
+}
+
 int main(void)
 {
+	if (test_live_callback_traversals() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 	if (test_remove_true_for_reentrancy() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (test_map_in_place_reentrancy() != EXIT_SUCCESS)
