@@ -2098,6 +2098,7 @@ jobs:
                   "Stack_hasValidMarkChain_(self, active)",
                   "static int Stack_copyState_(Stack *self, const Stack *other)",
                   "oldItems = Stack_hasValidStorage_(self, NULL, NULL) ? self->items : NULL;",
+                  "if (oldItems != other->items)",
                   "newItems = (void **)io_realloc(self->items,",
                   "newItems = (void **)io_malloc(slots * sizeof(void *))",
                   "self->memEnd = newItems + newCapacity;",
@@ -2234,6 +2235,8 @@ jobs:
                   "list slice test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c": [
+                  "static int test_copy_preserves_shared_backing(void)",
+                  "Stack shallow aliases must not free the source backing allocation",
                   "Stack_copy_(destination, source);",
                   "test_callback_iteration_reentrancy()",
                   "test_misaligned_pointer_metadata()",

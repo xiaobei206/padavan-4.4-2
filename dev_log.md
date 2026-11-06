@@ -1,3 +1,14 @@
+## 2026-11-07 02:51 CST — Preserve Stack source storage when copying into a shallow alias
+
+- Baseline: main commit `bc5f3ad53f9448955e1f441d79e793424318a932`; SkipDBv2 Regression run #421 passed source contracts, configure, full build, and all CTest cases.
+- Scope: `Stack_copyState_()` and the existing `stack_lifecycle` regression.
+- A distinct `Stack` struct can shallow-alias the source's `items` allocation. Copying correctly creates and publishes independent storage, but the destination cleanup then unconditionally frees its old `items` pointer—which still belongs to the source. This leaves the source with dangling `items` / `top` / `memEnd` pointers.
+- Preserve the shared allocation when `oldItems == other->items`; free only a genuinely separate previous destination allocation. Add a regression that copies into a shallow struct alias and verifies both stacks retain independent, readable contents.
+- Extend the existing Stack source/test contracts. Reuse the registered `stack_lifecycle_test` target; no new files, public declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 02:48 CST — Preserve SHash source storage when copying into a shallow alias
 
 - Baseline: main commit `fb2ebb56caec60e14ea85e618c4425bdcb87ecb5`; SkipDBv2 Regression run #420 passed the source contracts, configure, full build, and CTest suite.

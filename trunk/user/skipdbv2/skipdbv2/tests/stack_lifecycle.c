@@ -221,8 +221,46 @@ done:
     return result;
 }
 
+static int test_copy_preserves_shared_backing(void)
+{
+	Stack *source = Stack_new();
+	Stack alias = {0};
+	int values[] = {31, 47};
+	int okay = 0;
+
+	if (NULL == source)
+		return 0;
+	Stack_push_(source, &values[0]);
+	Stack_push_(source, &values[1]);
+	if (Stack_totalSize(source) != 2 || Stack_top(source) != &values[1])
+		goto done;
+
+	/* Copying into a shallow struct alias must not free source->items. */
+	alias = *source;
+	Stack_copy_(&alias, source);
+	if (alias.items == source->items ||
+		Stack_totalSize(source) != 2 || Stack_top(source) != &values[1] ||
+		Stack_totalSize(&alias) != 2 || Stack_top(&alias) != &values[1] ||
+		Stack_at_(source, 0) != &values[0] ||
+		Stack_at_(&alias, 0) != &values[0])
+		goto done;
+	okay = 1;
+
+done:
+	if (alias.items && alias.items != source->items)
+		io_free(alias.items);
+	Stack_free(source);
+	return okay;
+}
+
+
 int main(void)
-{	if (test_callback_iteration_reentrancy() != EXIT_SUCCESS ||
+{
+	if (!test_copy_preserves_shared_backing()) {
+		fprintf(stderr, "Stack shallow aliases must not free the source backing allocation\\n");
+		return EXIT_FAILURE;
+	}
+	if (test_callback_iteration_reentrancy() != EXIT_SUCCESS ||
 		test_misaligned_pointer_metadata() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 

@@ -49,7 +49,9 @@ static int Stack_copyState_(Stack *self, const Stack *other)
 	copy.top = newItems + used;
 	oldItems = Stack_hasValidStorage_(self, NULL, NULL) ? self->items : NULL;
 	*self = copy;
-	io_free(oldItems);
+	/* A shallow struct alias must not release the source's shared allocation. */
+	if (oldItems != other->items)
+		io_free(oldItems);
 	return 1;
 }
 
