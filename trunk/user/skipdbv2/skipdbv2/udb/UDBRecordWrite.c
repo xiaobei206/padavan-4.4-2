@@ -20,7 +20,11 @@ int UDBRecord_remove(UDBRecord *self)
     unsigned char old_tag;
     long old_pos, old_max;
 
-    if (NULL == self || NULL == self->file)
+    if (NULL == self || NULL == self->file || NULL == self->file->file ||
+        self->file->maxPos < 0 || self->pos > (PID_TYPE)LONG_MAX ||
+        self->pos < (PID_TYPE)sizeof(PID_TYPE) ||
+        self->pos > (PID_TYPE)self->file->maxPos ||
+        (PID_TYPE)self->file->maxPos - self->pos < sizeof(UDBRecordHeader))
         return 0;
     old_tag = self->header.tag;
     old_pos = self->file->pos;

@@ -530,6 +530,9 @@ jobs:
                   "UDBRecord_restoreFileState_(self->file, old_pos, old_max)",
                   "UDBRecord_restoreFileState_(file, old_file_pos, old_max_pos)",
                   "int UDBRecord_remove(UDBRecord *self)",
+                  "self->pos < (PID_TYPE)sizeof(PID_TYPE)",
+                  "self->pos > (PID_TYPE)self->file->maxPos",
+                  "(PID_TYPE)self->file->maxPos - self->pos < sizeof(UDBRecordHeader)",
                   "int UDBRecord_saveHeader(UDBRecord *self)",
                   "static int UDBRecord_rollbackSave(UDBRecord *self, long log_start,",
                   "int UDBRecord_saveWithDatum_(UDBRecord *self, Datum d)",
@@ -549,6 +552,7 @@ jobs:
                   "UDBRecord clone did not preserve metadata and payload",
                   "freeing a record clone damaged the source payload",
                   "truncated record header was accepted",
+                  "removal accepted a truncated record position",
                   "record tombstone did not survive commit",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBWrite.c": [

@@ -150,6 +150,13 @@ int main(void)
         goto done;
     }
 
+    /* Refuse to remove a truncated trailing record header. */
+    if (UDBRecord_remove(probe) ||
+        db->records->file->maxPos != saved_file_end) {
+        fprintf(stderr, "removal accepted a truncated record position\n");
+        goto done;
+    }
+
     /* Removal persists only the EMPTY tag and remains readable as a tombstone. */
     UDB_beginTransaction(db);
     if (!UDBRecord_remove(record)) {

@@ -1,3 +1,12 @@
+## 2026-11-07 01:14 CST — Reject UDB tombstones outside complete record extents
+
+- Baseline: main commit `0f3fabcc1b86082f175c10b8904a9ba219c6765f`; SkipDBv2 Regression run #394 passed source-contract checks, the full build, and regression tests.
+- Scope: `UDBRecord_remove()` in the existing record-write module.
+- Removal previously wrote an EMPTY header after only checking record/file pointers. A stale position at EOF minus one byte could extend the data file because the path did not validate the stream or physical record extent.
+- Reject closed streams, invalid file bounds, the reserved metadata header position, positions beyond EOF, and positions lacking a complete record header before changing the tag or writing. Extend the existing `udb_record_storage` regression to assert that a truncated trailing header cannot be removed or extend the file. Update existing workflow source contracts; no new files or CMake target changes. No local C build is claimed.
+
+---
+
 ## 2026-11-07 01:11 CST — Match PortableTruncate's seek-error check after the call
 
 - Baseline: main commit `5a089cd67da91f02f4f6ca8179bdf3cbed26311b`; SkipDBv2 Regression run #393 reached the source-contract script but failed because `find("INVALID_SET_FILE_POINTER")` matched the explanatory comment before the Win32 seek call.
