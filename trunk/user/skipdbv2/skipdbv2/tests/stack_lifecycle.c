@@ -254,8 +254,69 @@ done:
 }
 
 
+static int test_pop_releases_top_mark(void)
+{
+	Stack *stack = Stack_new();
+	int values[] = {11, 22, 33, 44, 55};
+	intptr_t outer_mark, inner_mark;
+	int result = EXIT_FAILURE;
+
+	if (NULL == stack) {
+		fprintf(stderr, "Stack pop-mark fixture allocation failed\n");
+		return EXIT_FAILURE;
+	}
+	Stack_push_(stack, &values[0]);
+	outer_mark = Stack_pushMarkPoint(stack);
+	Stack_push_(stack, &values[1]);
+	inner_mark = Stack_pushMarkPoint(stack);
+	Stack_push_(stack, &values[2]);
+	if (outer_mark <= 0 || inner_mark <= outer_mark ||
+		Stack_pop(stack) != &values[2]) {
+		fprintf(stderr, "Stack pop-mark fixture initialization failed\n");
+		goto done;
+	}
+
+	/* Ordinary pop can reach a mark after all values above it are removed. */
+	(void)Stack_pop(stack);
+	if (stack->lastMark != outer_mark || Stack_totalSize(stack) != 3) {
+		fprintf(stderr, "Stack_pop left the inner mark linked after popping it\n");
+		goto done;
+	}
+	Stack_push_(stack, &values[3]);
+	if (Stack_top(stack) != &values[3] || stack->lastMark != outer_mark) {
+		fprintf(stderr, "Stack_push failed after ordinary pop removed an inner mark\n");
+		goto done;
+	}
+	if (Stack_pop(stack) != &values[3] ||
+		Stack_pop(stack) != &values[1]) {
+		fprintf(stderr, "Stack_pop changed values after removing an inner mark\n");
+		goto done;
+	}
+	(void)Stack_pop(stack);
+	if (stack->lastMark != 0 || Stack_totalSize(stack) != 1 ||
+		Stack_top(stack) != &values[0]) {
+		fprintf(stderr, "Stack_pop left the outer mark linked after popping it\n");
+		goto done;
+	}
+	Stack_push_(stack, &values[4]);
+	if (Stack_top(stack) != &values[4] ||
+		Stack_totalSize(stack) != 2 || stack->lastMark != 0) {
+		fprintf(stderr, "Stack_push failed after ordinary pop removed the outer mark\n");
+		goto done;
+	}
+
+	result = EXIT_SUCCESS;
+
+done:
+	Stack_free(stack);
+	return result;
+}
+
+
 int main(void)
 {
+	if (test_pop_releases_top_mark() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 	if (!test_copy_preserves_shared_backing()) {
 		fprintf(stderr, "Stack shallow aliases must not free the source backing allocation\\n");
 		return EXIT_FAILURE;

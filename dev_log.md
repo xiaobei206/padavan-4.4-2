@@ -1,3 +1,13 @@
+## 2026-11-07 06:46 CST — Keep Stack mark chains valid when ordinary pop reaches a mark
+
+- Baseline: main commit `00ec98bd155b3df120d76d7af2311949736b33c8`; SkipDBv2 Regression run #453 passed source contracts, configure, full build, and all regression tests.
+- Scope: mark lifecycle in `basekit/Stack_inline.h`.
+- `Stack_pop()` removed the sentinel slot for a mark without rewinding `lastMark`. Once ordinary pops reached a mark, the mark index could exceed the new stack depth; later push/pop operations were then rejected by the mark-chain validator, leaving a live stack unusable.
+- Validate the mark chain before popping and, when the removed top slot is the current mark, restore its recorded predecessor before decrementing the top pointer. Add a nested-mark regression proving normal pop can remove inner and outer mark slots and the stack remains usable afterward. Update existing Actions contracts only; no new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:36 CST — Snapshot aliased List removal inputs before mutation
 
 - Baseline: main commit `e3cdfd63b94ac76c02aa8b51c58656c1d61dd48e`; SkipDBv2 Regression run #452 passed source contracts, configure, complete build, and all regression tests.

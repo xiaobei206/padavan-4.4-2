@@ -189,15 +189,19 @@ IOINLINE void Stack_pushMark(Stack *self)
 IOINLINE void *Stack_pop(Stack *self)
 {
 	void *top;
-
 	size_t used;
-	if (!Stack_hasValidStorage_(self, &used, NULL) || used == 0)
+
+	if (!Stack_hasValidStorage_(self, &used, NULL) || used == 0 ||
+		!Stack_hasValidMarkChain_(self, used))
 		return NULL;
 	top = *(self->top);
 #ifdef STACK_POP_CALLBACK
 	if (self->popCallback)
 		self->popCallback(top);
 #endif
+	/* Popping a mark entry must unlink it from the nested-mark chain. */
+	if (self->lastMark > 0 && (size_t)self->lastMark == used)
+		self->lastMark = (intptr_t)top;
 	self->top--;
 	return top;
 }
