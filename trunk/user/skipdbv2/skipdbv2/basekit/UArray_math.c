@@ -206,7 +206,7 @@ void UArray_setAllBitsTo_(UArray *self, uint8_t aBool)
 static int UArray_hasValidBitStorage_(const UArray *self, size_t *byteCount)
 {
     if (NULL == self || NULL == byteCount || self->itemSize == 0 ||
-        self->size > (size_t)-1 / self->itemSize ||
+        self->size > ((size_t)-1 - 1) / self->itemSize ||
         (self->size > 0 && NULL == self->data))
         return 0;
     *byteCount = self->size * self->itemSize;
@@ -251,22 +251,30 @@ void UArray_setBit_at_(UArray *self, int aBool, size_t i)
 
 UArray *UArray_asBits(const UArray *self)
 {
-	UArray *out = UArray_new();
-	size_t i, max = UArray_sizeInBytes(self);
-	uint8_t *data = self->data;
+	UArray *out;
+	size_t byteCount, bitCount, i;
+	const uint8_t *data;
 
-	for (i = 0; i < max; i ++)
-	{
-		uint8_t b = data[i];
-		int j;
-
-		for (j = 0; j < 8; j ++)
-		{
-			int v = (b >> j) & 0x1;
-			UArray_appendCString_(out, v ? "1" : "0");
-		}
+	if (!UArray_hasValidBitStorage_(self, &byteCount) ||
+		byteCount > ((size_t)-1 - 1) / 8)
+		return NULL;
+	bitCount = byteCount * 8;
+	out = UArray_new();
+	if (NULL == out)
+		return NULL;
+	UArray_setSize_(out, bitCount);
+	if (out->size != bitCount || (bitCount > 0 && NULL == out->data)) {
+		UArray_free(out);
+		return NULL;
 	}
 
+	data = self->data;
+	for (i = 0; i < byteCount; ++i) {
+		unsigned int bit;
+		for (bit = 0; bit < 8; ++bit)
+			out->data[i * 8 + bit] =
+				(data[i] & (uint8_t)(1u << bit)) ? '1' : '0';
+	}
 	return out;
 }
 
@@ -292,12 +300,12 @@ size_t UArray_bitCount(UArray *self)
 		4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8
 	};
 
-	size_t i, max = UArray_sizeInBytes(self);
-	uint8_t *data = self->data;
-	size_t total = 0;
+	size_t i, byteCount, total = 0;
 
-	for (i = 0; i < max; i ++) { total += map[data[i]]; }
-
+	if (!UArray_hasValidBitStorage_(self, &byteCount))
+		return 0;
+	for (i = 0; i < byteCount; ++i)
+		total += map[self->data[i]];
 	return total;
 }
 

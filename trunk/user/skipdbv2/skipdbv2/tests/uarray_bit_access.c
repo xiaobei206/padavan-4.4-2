@@ -16,10 +16,13 @@ int main(void)
     const unsigned char expected[] = { 0x80, 0x00, 0x01 };
     unsigned char snapshot[sizeof(expected)];
     unsigned char *originalData;
-    size_t originalSize, originalItemSize;
+    size_t originalSize, originalItemSize, malformedBitCount;
+    static const char expectedBitString[] = "000000010000000010000000";
+    UArray *bits = NULL;
+    UArray *invalidBits = NULL;
     UArray *array = UArray_newWithData_type_size_copy_(
         (void *)initial, CTYPE_uint8_t, sizeof(initial), 1);
-    int invalidBit;
+    int invalidBit, malformedSummariesRejected;
 
     if (NULL == array)
         return fail("UArray bit access allocation failed");
@@ -61,6 +64,26 @@ int main(void)
         return fail("UArray bit read mutated the source bytes");
     }
 
+    if (UArray_bitCount(array) != 2) {
+        UArray_free(array);
+        return fail("UArray bit count did not count set bits");
+    }
+    bits = UArray_asBits(array);
+    if (NULL == bits || bits->size != sizeof(expectedBitString) - 1 ||
+        NULL == bits->data ||
+        memcmp(bits->data, expectedBitString, sizeof(expectedBitString) - 1) != 0 ||
+        bits->data[bits->size] != 0) {
+        UArray_free(bits);
+        UArray_free(array);
+        return fail("UArray bit string reader returned incorrect bits");
+    }
+    UArray_free(bits);
+    bits = NULL;
+    if (UArray_bitCount(NULL) != 0 || UArray_asBits(NULL) != NULL) {
+        UArray_free(array);
+        return fail("UArray bit summaries accepted NULL storage");
+    }
+
     UArray_setBit_at_(array, 1, 24);
     UArray_setBit_at_(array, 1, (size_t)-1);
     if (UArray_bitAt_(array, 24) != 0 ||
@@ -83,9 +106,14 @@ int main(void)
     array->size = 1;
     invalidBit = UArray_bitAt_(array, 0);
     UArray_setBit_at_(array, 1, 0);
+    malformedBitCount = UArray_bitCount(array);
+    invalidBits = UArray_asBits(array);
+    malformedSummariesRejected = malformedBitCount == 0 && NULL == invalidBits;
     array->data = originalData;
     array->size = originalSize;
-    if (invalidBit != 0 ||
+    UArray_free(invalidBits);
+    invalidBits = NULL;
+    if (invalidBit != 0 || !malformedSummariesRejected ||
         memcmp(array->data, snapshot, sizeof(snapshot)) != 0) {
         UArray_free(array);
         return fail("UArray malformed backing storage was not rejected");

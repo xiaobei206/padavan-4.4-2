@@ -1,3 +1,23 @@
+## 2026-11-06 19:23 CST — Validate UArray bit summaries against malformed storage
+
+### Baseline
+- Main commit `0dd7fac651e21a050aa6bd774f1f355f65073787`; SkipDBv2 Regression run #322 passed.
+- Scope: `UArray_asBits()`, `UArray_bitCount()`, and shared bit-storage validation.
+
+### Defect and fix
+- Both bit-summary readers derived a byte count without consistently validating the receiver's backing pointer. A nonempty `UArray` with `data == NULL` therefore reached a dereference; `UArray_asBits()` also appended each output bit separately and did not verify allocation success.
+- Reuse the shared storage validator for both readers, reject unrepresentable byte/bit counts, allocate the complete bit string once, verify the resize succeeded, and then emit the same LSB-first textual representation directly. Invalid storage now returns `NULL` from `UArray_asBits()` and zero from `UArray_bitCount()`.
+
+### Regression and contracts
+- Extend `uarray_bit_access` with valid bit-string/count checks, NULL receiver checks, and malformed-storage cases for both readers. Keep cleanup safe by restoring the original array metadata before freeing allocations.
+- Update existing GitHub Actions source contracts. Reuse the current CMake/CTest target; no new files or exported declarations.
+
+### Validation
+- Static review confirms the output-size multiplication and terminator-byte constraint are checked before allocation, and the new direct-fill loop only executes after the target array size and backing pointer are verified.
+- Mainline CI will compile the changes and run the updated regression suite.
+
+---
+
 ## 2026-11-06 19:19 CST — Make UArray index duplication failure-safe
 
 ### Baseline
