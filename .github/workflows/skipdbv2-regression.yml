@@ -4023,27 +4023,27 @@ jobs:
               if needle not in strptime_test:
                   raise SystemExit("PortableStrptime boundary regression case missing: " + needle)
 
-                     truncate_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableTruncate.c").read_text()
-           truncate_start = truncate_source.find("int truncate(const char *path, long length)")
-           truncate_end = truncate_source.find("\n#endif", truncate_start)
-           truncate_body = truncate_source[truncate_start:truncate_end] if truncate_start >= 0 and truncate_end > truncate_start else ""
-           truncate_checks = [
-               truncate_body.find("if (NULL == path || length < 0)"),
-               truncate_body.find("errno = EINVAL;"),
-               truncate_body.find("CreateFileA(path, GENERIC_WRITE,"),
-               truncate_body.find("FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,"),
-               truncate_body.find("FILE_ATTRIBUTE_NORMAL, NULL)"),
-               truncate_body.find("SetFilePointer(file, length, NULL, FILE_BEGIN)"),
-               truncate_body.find("INVALID_SET_FILE_POINTER"),
-               truncate_body.find("!SetEndOfFile(file)"),
-           ]
-           if not truncate_body or min(truncate_checks) < 0 or not (
-                   truncate_checks[0] < truncate_checks[1] < truncate_checks[2] <
-                   truncate_checks[3] < truncate_checks[4] < truncate_checks[5] <
-                   truncate_checks[6] < truncate_checks[7]):
-               raise SystemExit("PortableTruncate must validate the path/length and use correct Win32 sharing, attributes, and seek failure checks")
+          truncate_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableTruncate.c").read_text()
+          truncate_start = truncate_source.find("int truncate(const char *path, long length)")
+          truncate_end = truncate_source.find("\n#endif", truncate_start)
+          truncate_body = truncate_source[truncate_start:truncate_end] if truncate_start >= 0 and truncate_end > truncate_start else ""
+          truncate_checks = [
+              truncate_body.find("if (NULL == path || length < 0)"),
+              truncate_body.find("errno = EINVAL;"),
+              truncate_body.find("CreateFileA(path, GENERIC_WRITE,"),
+              truncate_body.find("FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,"),
+              truncate_body.find("FILE_ATTRIBUTE_NORMAL, NULL)"),
+              truncate_body.find("SetFilePointer(file, length, NULL, FILE_BEGIN)"),
+              truncate_body.find("INVALID_SET_FILE_POINTER"),
+              truncate_body.find("!SetEndOfFile(file)"),
+          ]
+          if not truncate_body or min(truncate_checks) < 0 or not (
+                  truncate_checks[0] < truncate_checks[1] < truncate_checks[2] <
+                  truncate_checks[3] < truncate_checks[4] < truncate_checks[5] <
+                  truncate_checks[6] < truncate_checks[7]):
+              raise SystemExit("PortableTruncate must validate the path/length and use correct Win32 sharing, attributes, and seek failure checks")
 
-           gettimeofday_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c").read_text()
+          gettimeofday_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c").read_text()
           gettimeofday_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.h").read_text()
           windows_impl_start = gettimeofday_source.find("int gettimeofday(struct timeval *tv, struct timezone *tz)")
           windows_impl_end = gettimeofday_source.find("#endif", windows_impl_start)
