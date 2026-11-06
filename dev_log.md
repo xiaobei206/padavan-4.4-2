@@ -1,3 +1,10 @@
+## 2026-11-07 01:09 CST — Repair the PortableTruncate workflow-contract indentation
+
+- The #391 run failed before configuration because the newly inserted Python source-contract block began one indentation level too far left.
+- Align the first statement with the existing in-script checks; no source behavior changed.
+
+---
+
 ## 2026-11-07 01:08 CST — Correct the Windows PortableTruncate adapter
 
 - Baseline: main commit `5e9e6dce2ef3eb3c0247bb5306f2807ad11d1abb`; SkipDBv2 Regression run #390 passed.

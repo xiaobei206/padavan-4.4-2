@@ -4023,7 +4023,7 @@ jobs:
               if needle not in strptime_test:
                   raise SystemExit("PortableStrptime boundary regression case missing: " + needle)
 
-          truncate_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableTruncate.c").read_text()
+                     truncate_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableTruncate.c").read_text()
            truncate_start = truncate_source.find("int truncate(const char *path, long length)")
            truncate_end = truncate_source.find("\n#endif", truncate_start)
            truncate_body = truncate_source[truncate_start:truncate_end] if truncate_start >= 0 and truncate_end > truncate_start else ""
