@@ -117,6 +117,114 @@ static int phashCuckooFailurePreservesState(void)
 	return okay;
 }
 
+
+static int phashOperationsRejectInvalidGeometry(int corruption)
+{
+	PHash *hash = NULL, *destination = NULL, *clone = NULL;
+	int key = 101, value = 202, otherKey = 303, otherValue = 404;
+	int replacement = 505;
+	PHashRecord originalRecords[4], destinationRecords[4], incoming;
+	unsigned int savedTableSize = 0, savedLog2 = 0, savedMask = 0;
+	unsigned int savedNumKeys = 0, savedBalance = 0, iterationCount = 0;
+	void *savedNullValue = NULL;
+	int savedState = 0, okay = 0;
+
+	hash = PHash_new();
+	destination = PHash_new();
+	if (NULL == hash || NULL == destination)
+		goto done;
+	PHash_at_put_(hash, &key, &value);
+	PHash_at_put_(destination, &otherKey, &otherValue);
+	if (hash->tableSize != 2 || hash->numKeys != 1 ||
+		destination->tableSize != 2 || destination->numKeys != 1)
+		goto done;
+
+	memcpy(originalRecords, hash->records, sizeof(originalRecords));
+	memcpy(destinationRecords, destination->records, sizeof(destinationRecords));
+	savedTableSize = hash->tableSize;
+	savedLog2 = hash->log2tableSize;
+	savedMask = hash->mask;
+	savedNumKeys = hash->numKeys;
+	savedBalance = hash->balance;
+	savedNullValue = hash->nullRecord.value;
+	savedState = 1;
+	hash->nullRecord.value = &replacement;
+
+	switch (corruption) {
+		case 0:
+			hash->tableSize = 1;
+			break;
+		case 1:
+			hash->mask ^= 1u;
+			break;
+		case 2:
+			hash->numKeys = hash->tableSize * 2 + 1;
+			break;
+		case 3:
+			hash->log2tableSize = 0;
+			break;
+		case 4:
+			/* The real allocation stays four records despite this claim. */
+			hash->tableSize = 1u << 20;
+			break;
+		default:
+			goto done;
+	}
+
+	if (PHash_hasValidStorage_(hash) ||
+		PHash_count(hash) != 0 ||
+		PHash_memorySize(hash) != 0 ||
+		PHash_recordAt_(hash, &otherKey) != &hash->nullRecord ||
+		PHash_at_(hash, &otherKey) != NULL ||
+		PHash_at_update_(hash, &key, &replacement) != 0)
+		goto done;
+
+	clone = PHash_clone(hash);
+	if (clone)
+		goto done;
+	incoming.key = &otherKey;
+	incoming.value = &otherValue;
+	if (PHash_cuckoo_(hash, &incoming) != NULL ||
+		incoming.key != &otherKey || incoming.value != &otherValue)
+		goto done;
+
+	PHash_at_put_(hash, &otherKey, &otherValue);
+	PHash_removeKey_(hash, &key);
+	PHash_removeValue_(hash, &value);
+	PHash_clean(hash);
+	PHash_compact(hash);
+	PHash_grow(hash);
+	if (PHash_firstKeyForValue_(hash, &value) != NULL)
+		goto done;
+
+	PHash_copy_(destination, hash);
+	PHash_copy_(hash, destination);
+	PHASH_FOREACH(hash, iterKey, iterValue, ++iterationCount);
+
+	if (iterationCount != 0 ||
+		0 != memcmp(originalRecords, hash->records, sizeof(originalRecords)) ||
+		0 != memcmp(destinationRecords, destination->records, sizeof(destinationRecords)) ||
+		destination->numKeys != 1 ||
+		PHash_at_(destination, &otherKey) != &otherValue)
+		goto done;
+
+	okay = 1;
+
+done:
+	if (savedState && hash) {
+		hash->tableSize = savedTableSize;
+		hash->log2tableSize = savedLog2;
+		hash->mask = savedMask;
+		hash->numKeys = savedNumKeys;
+		hash->balance = savedBalance;
+		hash->nullRecord.value = savedNullValue;
+	}
+	PHash_free(clone);
+	PHash_free(destination);
+	PHash_free(hash);
+	return okay;
+}
+
 int main(void)
 {
 	PHash *hash;
@@ -138,6 +246,11 @@ int main(void)
 	if (!check(phashGrowRejectsInvalidState(2),
 		"PHash_grow accepted an impossible key count"))
 		return EXIT_FAILURE;
+	for (i = 0; i < 5; ++i) {
+		if (!check(phashOperationsRejectInvalidGeometry((int)i),
+			"PHash operations accessed an invalid table geometry"))
+			return EXIT_FAILURE;
+	}
 
 	hash = PHash_new();
 	if (!check(hash != NULL, "PHash allocation failed"))

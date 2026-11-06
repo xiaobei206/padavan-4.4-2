@@ -19,9 +19,21 @@
 #define PHASH_RECORDS_AT_HASH_(self, tableIndex, hash) \
 (self->records + self->tableSize*tableIndex + (hash & self->mask))
 
+/* Validate table geometry before any indexed access or bulk traversal. */
+IOINLINE int PHash_hasValidStorage_(const PHash *self)
+{
+	if (NULL == self || NULL == self->records ||
+		self->log2tableSize == 0 || self->log2tableSize > 20 ||
+		self->tableSize != (1u << self->log2tableSize) ||
+		self->mask != self->tableSize - 1 ||
+		self->numKeys > self->tableSize * 2)
+		return 0;
+	return 1;
+}
+
 IOINLINE unsigned int PHash_count(PHash *self)
 {
-	return self ? self->numKeys : 0;
+	return PHash_hasValidStorage_(self) ? self->numKeys : 0;
 }
 
 
@@ -72,7 +84,7 @@ IOINLINE unsigned int PHash_hash_more(PHash *self, unsigned int hash)
 
 IOINLINE void PHash_clean(PHash *self)
 {
-	if (NULL == self || NULL == self->records || self->tableSize == 0)
+	if (!PHash_hasValidStorage_(self))
 		return;
 	memset(self->records, 0, sizeof(PHashRecord) * (size_t)self->tableSize * 2);
 	self->numKeys = 0;
@@ -83,7 +95,7 @@ IOINLINE PHashRecord *PHash_recordAt_(PHash *self, void *key)
 {
 	unsigned int hash;
 	PHashRecord *record;
-	if (NULL == self || NULL == self->records || self->tableSize == 0 || NULL == key)
+	if (!PHash_hasValidStorage_(self) || NULL == key)
 		return self ? &self->nullRecord : NULL;
 	hash = PHash_hash(self, key);
 	record = PHASH_RECORDS_AT_HASH_(self, 0, hash);
@@ -97,7 +109,10 @@ IOINLINE PHashRecord *PHash_recordAt_(PHash *self, void *key)
 
 IOINLINE void *PHash_at_(PHash *self, void *key)
 {
-	PHashRecord *record = PHash_recordAt_(self, key);
+	PHashRecord *record;
+	if (!PHash_hasValidStorage_(self) || NULL == key)
+		return NULL;
+	record = PHash_recordAt_(self, key);
 	return record ? record->value : NULL;
 }
 
@@ -105,7 +120,7 @@ IOINLINE void *PHash_at_(PHash *self, void *key)
 IOINLINE unsigned char PHash_at_update_(PHash *self, void *key, void *value)
 {
 	PHashRecord *record;
-	if (NULL == self || NULL == key)
+	if (!PHash_hasValidStorage_(self) || NULL == key)
 		return 0;
 	record = PHash_recordAt_(self, key);
 	if (NULL == record || record == &self->nullRecord || record->key != key ||
@@ -120,7 +135,7 @@ IOINLINE void PHash_at_put_(PHash *self, void *key, void *value)
 {
 	PHashRecord thisRecord;
 	PHashRecord *record;
-	if (NULL == self || NULL == self->records || self->tableSize == 0 || NULL == key)
+	if (!PHash_hasValidStorage_(self) || NULL == key)
 		return;
 	record = PHash_recordAt_(self, key);
 	if (record && record != &self->nullRecord && record->key == key) {
@@ -144,7 +159,7 @@ IOINLINE void PHash_at_put_(PHash *self, void *key, void *value)
 IOINLINE void PHash_removeKey_(PHash *self, void *key)
 {
 	PHashRecord *record;
-	if (NULL == self || NULL == key)
+	if (!PHash_hasValidStorage_(self) || NULL == key)
 		return;
 	record = PHash_recordAt_(self, key);
 	if (record && record != &self->nullRecord && record->key == key) {
@@ -163,7 +178,7 @@ IOINLINE void PHash_removeKey_(PHash *self, void *key)
 	unsigned int _i, _j; \
 	void *pkey; \
 	void *pvalue; \
-	if (_self && _self->records && _self->tableSize) { \
+	if (PHash_hasValidStorage_(_self)) { \
 	for (_j = 0; _j < 2; _j ++) \
 	for (_i = 0; _i < _self->tableSize; _i ++) { \
 		PHashRecord *_record = PHASH_RECORDS_AT_(_self, _j, _i); \

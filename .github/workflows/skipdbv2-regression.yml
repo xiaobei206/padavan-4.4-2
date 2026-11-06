@@ -1026,7 +1026,18 @@ jobs:
                   "SHash_grow accepted an impossible key count",
                   "SHash compact test passed",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/PHash_inline.h": [
+                  "IOINLINE int PHash_hasValidStorage_(const PHash *self)",
+                  "self->log2tableSize == 0 || self->log2tableSize > 20",
+                  "self->tableSize != (1u << self->log2tableSize)",
+                  "self->mask != self->tableSize - 1",
+                  "self->numKeys > self->tableSize * 2",
+                  "PHash_hasValidStorage_(self)",
+              ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PHash.c": [
+                  "static void PHash_tableInit_(PHash* self, int log2tableSize)",
+                  "PHash_hasValidStorage_(self)",
+                  "PHash_hasValidStorage_(other)",
                   "void PHash_compact(PHash *self)",
                   "PHash_tableInit_(&candidate, log2tableSize)",
                   "PHash_cuckoo_(&candidate, &thisRecord)",
@@ -1043,6 +1054,8 @@ jobs:
                   "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c": [
+                  "static int phashOperationsRejectInvalidGeometry(int corruption)",
+                  "PHash operations accessed an invalid table geometry",
                   "PHash_compact did not reduce the table while preserving count",
                   "PHash_compact lost a retained key/value mapping",
                   "PHash_compact did not return an empty table to its minimum size",

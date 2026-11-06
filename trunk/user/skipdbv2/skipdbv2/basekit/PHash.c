@@ -17,6 +17,10 @@ void PHash_print(PHash *self)
 		printf("PHash <null>\n");
 		return;
 	}
+	if (!PHash_hasValidStorage_(self)) {
+		printf("<invalid table>\n");
+		return;
+	}
 	memory = PHash_memorySize(self);
 	printf("log2tableSize = %u\n", self->log2tableSize);
 	printf("tableSize = %u\n", self->tableSize);
@@ -44,7 +48,7 @@ void PHash_print(PHash *self)
 		(count[0] + count[1]) ? ((double)count[0] - (double)count[1]) /
 		((double)count[0] + (double)count[1]) : 0.0);
 }
-void PHash_tableInit_(PHash* self, int log2tableSize)
+static void PHash_tableInit_(PHash* self, int log2tableSize)
 {
 	PHashRecord *records;
 	unsigned int tableSize;
@@ -83,7 +87,7 @@ PHash *PHash_new(void)
 PHash *PHash_clone(PHash *self)
 {
 	PHash *child;
-	if (NULL == self || NULL == self->records)
+	if (!PHash_hasValidStorage_(self))
 		return NULL;
 	child = PHash_new();
 	if (NULL == child)
@@ -109,7 +113,7 @@ void PHash_free(PHash *self)
 
 size_t PHash_memorySize(PHash *self)
 {
-	if (NULL == self || self->tableSize >
+	if (!PHash_hasValidStorage_(self) || self->tableSize >
 		((size_t)-1 - sizeof(PHash)) / (2 * sizeof(PHashRecord)))
 		return 0;
 	return sizeof(PHash) + ((size_t)self->tableSize * 2 * sizeof(PHashRecord));
@@ -122,7 +126,7 @@ void PHash_compact(PHash *self)
 	unsigned int oldTableSize, targetLog2;
 	int log2tableSize;
 
-	if (NULL == self || NULL == self->records ||
+	if (!PHash_hasValidStorage_(self) ||
 		self->log2tableSize < 1 || self->log2tableSize > 20 ||
 		self->tableSize != (1u << self->log2tableSize) ||
 		self->mask != self->tableSize - 1 ||
@@ -181,7 +185,7 @@ void PHash_copy_(PHash *self, PHash *other)
 	PHash copy;
 	size_t bytes;
 	if (NULL == self || NULL == other || self == other ||
-		NULL == other->records || other->tableSize == 0 ||
+		!PHash_hasValidStorage_(self) || !PHash_hasValidStorage_(other) ||
 		other->tableSize > (size_t)-1 / (2 * sizeof(PHashRecord)))
 		return;
 	bytes = (size_t)other->tableSize * 2 * sizeof(PHashRecord);
@@ -211,7 +215,7 @@ PHashRecord *PHash_cuckoo_(PHash *self, PHashRecord* thisRecord)
 	PHashRecord *record;
 	size_t swapCount = 0;
 
-	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+	if (!PHash_hasValidStorage_(self) ||
 		NULL == thisRecord || NULL == thisRecord->key)
 		return NULL;
 
@@ -276,7 +280,7 @@ void PHash_grow(PHash *self)
 	PHashRecord *oldRecords;
 	unsigned int oldTableSize;
 	int log2tableSize;
-	if (NULL == self || NULL == self->records ||
+	if (!PHash_hasValidStorage_(self) ||
 		self->log2tableSize < 1 || self->log2tableSize >= 20 ||
 		self->tableSize != (1u << self->log2tableSize) ||
 		self->mask != self->tableSize - 1 ||
@@ -323,7 +327,7 @@ void PHash_growWithRecord(PHash *self, PHashRecord* thisRecord)
 {
 	void *key, *value;
 	unsigned int oldTableSize;
-	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+	if (!PHash_hasValidStorage_(self) ||
 		NULL == thisRecord || NULL == thisRecord->key)
 		return;
 	key = thisRecord->key;
@@ -338,7 +342,7 @@ void PHash_growWithRecord(PHash *self, PHashRecord* thisRecord)
 void PHash_removeValue_(PHash *self, void *value)
 {
 	size_t i, count;
-	if (NULL == self || NULL == self->records || self->tableSize == 0)
+	if (!PHash_hasValidStorage_(self))
 		return;
 	count = (size_t)self->tableSize * 2;
 	for (i = 0; i < count; ++i) {
@@ -356,7 +360,7 @@ void PHash_removeValue_(PHash *self, void *value)
 void *PHash_firstKeyForValue_(PHash *self, void *v)
 {
 	size_t i, count;
-	if (NULL == self || NULL == self->records || self->tableSize == 0)
+	if (!PHash_hasValidStorage_(self))
 		return NULL;
 	count = (size_t)self->tableSize * 2;
 	for (i = 0; i < count; ++i) {

@@ -1,3 +1,14 @@
+## 2026-11-07 01:31 CST — Validate PHash geometry before hot-path access
+
+- Baseline: main commit `f96e49e290d73172737eb61b7ec92071c5aeca65`; SkipDBv2 Regression run #398 passed.
+- Scope: the pointer-key cuckoo hash table in `basekit/PHash.c` and its existing inline API.
+- Grow and compact already rejected inconsistent table geometry, but lookup, insertion, deletion, cleanup, enumeration, copy, and clone could still trust public `tableSize`/`mask` fields. Corrupted or partially initialized metadata could therefore index beyond the backing allocation or make copy/clone read an oversized record span.
+- Add one shared geometry validator (bounded log2, exact power-of-two size, matching mask, non-NULL storage, and a representable key count) and apply it before indexed access or bulk traversal. Guard both source and destination for copy; keep cuckoo placement, hashing, valid-table behavior, and capacity policy unchanged. Make the table initializer file-local.
+- Extend the existing `phash_compact` regression across five malformed geometry states, including a four-record allocation advertising a maximum-sized table. Strengthen existing Actions source contracts. No new files, public API, or CMake targets.
+- No local C build is claimed; CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 01:20 CST — Bound Windows PortableUsleep busy-waiting and clock failures
 
 - Baseline: main commit `e3a4a6becfbf9711c1b0ec459859e78e01eca94a`; latest mainline regression run #397 passed.
