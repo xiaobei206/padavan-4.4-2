@@ -1,3 +1,14 @@
+## 2026-11-07 03:24 CST — Validate UArray C-stream I/O against CTYPE widths
+
+- Baseline: main commit `7c915cb673f64a3b9bf1db73c05eaf8982f40440`; SkipDBv2 Regression run #425 passed source contracts, configure, full build, and all CTest cases.
+- Scope: typed-layout preflight shared by `UArray_stream.c` read and write entry points.
+- Stream operations previously trusted `itemSize` independently of `itemType`. A forged width could make reads/writes use a byte extent inconsistent with the typed array, and the line reader could consume input before its later chunk-width check rejected the array.
+- Add one private layout validator, explicitly reference the existing `CTYPE_size()` symbol, and reject invalid widths, overflowing extents, or missing storage before any stream side effect. Apply it to item reads, bulk reads, line reads, and write paths.
+- Extend the existing `uarray_stream_io` regression to cover all affected C-stream APIs and prove malformed file writes do not truncate an existing destination. Strengthen Actions source/dynamic contracts. Reuse existing CTest target; no new files, public API, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 03:20 CST — Accept space-padded %e, %k and %l fields
 
 - Baseline: main commit `808cc1e380363c1aa19e9e6d40926c45268d0490`; SkipDBv2 Regression run #424 passed source contracts, configure, full build, and all CTest cases.

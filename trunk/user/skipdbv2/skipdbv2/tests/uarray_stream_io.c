@@ -329,6 +329,71 @@ done:
 }
 
 
+static int testMismatchedItemWidthRejected(void)
+{
+    static const uint8_t payload[] = {'A', 'B', '\n', 'C'};
+    FILE *readStream = tmpfile();
+    FILE *writeStream = tmpfile();
+    UArray *wide = UArray_new();
+    uint16_t originalValue = 0x5a3c;
+    int okay = 0;
+
+    if (NULL == readStream || NULL == writeStream || NULL == wide)
+        goto done;
+    if (fwrite(payload, 1, sizeof(payload), readStream) != sizeof(payload) ||
+        fseek(readStream, 0, SEEK_SET) != 0)
+        goto done;
+
+    UArray_setItemType_(wide, CTYPE_uint16_t);
+    UArray_setSize_(wide, 1);
+    if (wide->itemType != CTYPE_uint16_t ||
+        wide->itemSize != sizeof(uint16_t) || wide->size != 1 ||
+        NULL == wide->data)
+        goto done;
+    ((uint16_t *)wide->data)[0] = originalValue;
+
+    /* A two-byte C type must never be read or written using a forged one-byte width. */
+    wide->itemSize = sizeof(uint8_t);
+    if (UArray_fread_(wide, readStream) != 0 || ftell(readStream) != 0 ||
+        ((uint16_t *)wide->data)[0] != originalValue) {
+        fprintf(stderr, "UArray_fread_ accepted mismatched CTYPE/itemSize metadata\n");
+        goto done;
+    }
+    if (UArray_readFromCStream_(wide, readStream) != -1 ||
+        ftell(readStream) != 0 || ((uint16_t *)wide->data)[0] != originalValue) {
+        fprintf(stderr, "UArray_readFromCStream_ consumed data for a mismatched item width\n");
+        goto done;
+    }
+    if (UArray_readNumberOfItems_fromCStream_(wide, 1, readStream) != -1 ||
+        ftell(readStream) != 0 || ((uint16_t *)wide->data)[0] != originalValue) {
+        fprintf(stderr, "UArray bounded stream read accepted a mismatched item width\n");
+        goto done;
+    }
+    if (UArray_readLineFromCStream_(wide, readStream) != -1 ||
+        ftell(readStream) != 0 || ((uint16_t *)wide->data)[0] != originalValue) {
+        fprintf(stderr, "UArray line reader consumed input for a mismatched byte-array layout\n");
+        goto done;
+    }
+    if (UArray_fwrite_(wide, 1, writeStream) != 0 || ftell(writeStream) != 0 ||
+        UArray_writeToCStream_(wide, writeStream) != -1 || ftell(writeStream) != 0) {
+        fprintf(stderr, "UArray stream writer exposed bytes for a mismatched item width\n");
+        goto done;
+    }
+
+    okay = 1;
+done:
+    if (wide != NULL) {
+        wide->itemSize = sizeof(uint16_t);
+        UArray_free(wide);
+    }
+    if (readStream != NULL)
+        fclose(readStream);
+    if (writeStream != NULL)
+        fclose(writeStream);
+    return okay;
+}
+
+
 static int testInvalidFileWritePreservesDestination(void)
 {
 	char pathName[] = "/tmp/uarray-stream-invalid-write-XXXXXX";
@@ -372,6 +437,11 @@ static int testInvalidFileWritePreservesDestination(void)
 	source->data = originalData;
 	originalData = NULL;
 
+	source->itemSize = 2;
+	if (UArray_writeToFilePath_(source, path) != -1)
+		goto done;
+	source->itemSize = sizeof(uint8_t);
+
 	check = fopen(pathName, "rb");
 	if (NULL == check)
 		goto done;
@@ -398,6 +468,10 @@ done:
 
 int main(void)
 {
+	if (!testMismatchedItemWidthRejected()) {
+		fprintf(stderr, "UArray stream I/O accepted inconsistent CTYPE/itemSize metadata\n");
+		return EXIT_FAILURE;
+	}
 	if (!testInvalidFileWritePreservesDestination()) {
 		fprintf(stderr, "UArray file write truncated an existing destination for invalid source storage\n");
 		return EXIT_FAILURE;

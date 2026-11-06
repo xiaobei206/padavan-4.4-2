@@ -10,14 +10,28 @@
 #include <stddef.h>
 #include <limits.h>
 
+extern size_t CTYPE_size(CTYPE type);
+
+static int UArray_streamHasValidLayout_(const UArray *self)
+{
+	size_t expectedItemSize;
+
+	if (NULL == self)
+		return 0;
+	expectedItemSize = CTYPE_size(self->itemType);
+	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+		self->size > (size_t)-1 / expectedItemSize ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	return 1;
+}
+
 /* read ------------------------------------------------------ */
 
 size_t UArray_fread_(UArray *self, FILE *fp)
 {
 	size_t itemsRead;
-	if (NULL == self || NULL == fp || self->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize ||
-		(self->size > 0 && NULL == self->data))
+	if (NULL == fp || !UArray_streamHasValidLayout_(self))
 		return 0;
 	if (self->size == 0)
 		return 0;
@@ -39,9 +53,7 @@ long UArray_readFromCStream_(UArray *self, FILE *fp)
 	long totalItemsRead = 0;
 	size_t itemsPerBuffer;
 	UArray *buffer;
-	if (NULL == self || NULL == fp || self->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize ||
-		(self->size > 0 && NULL == self->data))
+	if (NULL == fp || !UArray_streamHasValidLayout_(self))
 		return -1;
 
 	itemsPerBuffer = 4096 / self->itemSize;
@@ -101,10 +113,8 @@ long UArray_readNumberOfItems_fromCStream_(UArray *self, size_t size, FILE *stre
 {
 	size_t itemsRead, oldSize;
 	UArray *buffer;
-	if (NULL == self || NULL == stream || self->itemSize == 0 ||
-		(self->size > 0 && NULL == self->data) ||
+	if (NULL == stream || !UArray_streamHasValidLayout_(self) ||
 		size > (size_t)LONG_MAX ||
-		self->size > (size_t)-1 / self->itemSize ||
 		size > (size_t)-1 - self->size)
 		return -1;
 
@@ -189,8 +199,8 @@ int UArray_readLineFromCStream_(UArray *self, FILE *stream)
 	size_t used = 0;
 	uint8_t buffer[CHUNK_SIZE];
 
-	if (NULL == self || NULL == stream || self->itemSize != 1 ||
-		(self->size > 0 && NULL == self->data))
+	if (NULL == stream || !UArray_streamHasValidLayout_(self) ||
+		self->itemSize != 1)
 		return -1;
 
 	for (;;) {
@@ -226,10 +236,8 @@ int UArray_readLineFromCStream_(UArray *self, FILE *stream)
 
 static int UArray_streamCanWrite_(const UArray *self)
 {
-	if (NULL == self || self->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize ||
-		self->size > (size_t)LONG_MAX ||
-		(self->size > 0 && NULL == self->data))
+	if (!UArray_streamHasValidLayout_(self) ||
+		self->size > (size_t)LONG_MAX)
 		return 0;
 	return 1;
 }
@@ -238,9 +246,8 @@ static int UArray_streamCanWrite_(const UArray *self)
 
 size_t UArray_fwrite_(const UArray *self, size_t size, FILE *fp)
 {
-	if (NULL == self || NULL == fp || self->itemSize == 0 ||
-		size > self->size || size > (size_t)-1 / self->itemSize ||
-		(size > 0 && NULL == self->data))
+	if (NULL == fp || !UArray_streamHasValidLayout_(self) ||
+		size > self->size)
 		return 0;
 	if (size == 0)
 		return 0;

@@ -1869,24 +1869,38 @@ jobs:
                   "uarray character ctype test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c": [
+                  "extern size_t CTYPE_size(CTYPE type);",
+                  "static int UArray_streamHasValidLayout_(const UArray *self)",
+                  "expectedItemSize = CTYPE_size(self->itemType);",
+                  "self->itemSize != expectedItemSize",
+                  "!UArray_streamHasValidLayout_(self)",
                   "static int UArray_streamCanWrite_(const UArray *self)",
                   "self->size > (size_t)LONG_MAX",
                   "!UArray_streamCanWrite_(self)",
                   "static int UArray_streamAppendLineChunk_(UArray *self,",
                   "UArray_stackAllocedWithData_type_size_((void *)bytes,",
-                  "if (NULL == self || NULL == stream || self->itemSize != 1 ||",
+                  "if (NULL == stream || !UArray_streamHasValidLayout_(self) ||",
                   "(self->size > 0 && NULL == self->data)",
                   "self->itemSize != 1",
                   "int ch = fgetc(stream);",
                   "ungetc(next, stream)",
                   "if (ferror(stream) || pushbackFailed)",
                   "self->size != oldSize + itemsRead || ferror(stream)",
-                  "self->size > 0 && NULL == self->data) ||\n\t\tsize > (size_t)LONG_MAX",
-                  "self->size > (size_t)-1 / self->itemSize",
+                  "size > (size_t)-1 - self->size",
+                  "self->size > (size_t)-1 / expectedItemSize",
                   "itemsRead > (size_t)-1 / self->itemSize - self->size",
                   "itemsRead > (size_t)-1 / self->itemSize - oldSize",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stream_io.c": [
+                  "static int testMismatchedItemWidthRejected(void)",
+                  "UArray_fread_(wide, readStream)",
+                  "UArray_readFromCStream_(wide, readStream)",
+                  "UArray_readNumberOfItems_fromCStream_(wide, 1, readStream)",
+                  "UArray_readLineFromCStream_(wide, readStream)",
+                  "UArray_fwrite_(wide, 1, writeStream)",
+                  "UArray_writeToCStream_(wide, writeStream)",
+                  "UArray stream writer exposed bytes for a mismatched item width",
+                  "source->itemSize = 2;",
                   "testInvalidFileWritePreservesDestination",
                   "UArray_writeToFilePath_(source, path) != -1",
                   "UArray file write truncated an existing destination for invalid source storage",
@@ -2518,7 +2532,7 @@ jobs:
           line_start = line_source.find("int UArray_readLineFromCStream_(UArray *self, FILE *stream)")
           line_end = line_source.find("/* write", line_start)
           line_body = line_source[line_start:line_end] if line_start >= 0 and line_end > line_start else ""
-          invalid_guard = line_body.find("if (NULL == self || NULL == stream || self->itemSize != 1 ||")
+          invalid_guard = line_body.find("if (NULL == stream || !UArray_streamHasValidLayout_(self) ||")
           invalid_return = line_body.find("return -1;", invalid_guard)
           first_read = line_body.find("int ch = fgetc(stream);")
           if (not line_body or min(invalid_guard, invalid_return, first_read) < 0 or
@@ -2532,10 +2546,17 @@ jobs:
           write_helper_start = line_source.find("static int UArray_streamCanWrite_(const UArray *self)")
           write_helper_end = line_source.find("long UArray_writeToCStream_", write_helper_start)
           write_helper = line_source[write_helper_start:write_helper_end] if write_helper_start >= 0 and write_helper_end > write_helper_start else ""
-          if (not write_helper or "self->size > (size_t)-1 / self->itemSize" not in write_helper or
-                  "self->size > (size_t)LONG_MAX" not in write_helper or
-                  "(self->size > 0 && NULL == self->data)" not in write_helper):
-              raise SystemExit("UArray file writes must preflight the complete source extent and return-count range")
+          if (not write_helper or "!UArray_streamHasValidLayout_(self)" not in write_helper or
+                  "self->size > (size_t)LONG_MAX" not in write_helper):
+              raise SystemExit("UArray file writes must validate typed source layout, complete extent and return-count range")
+          stream_layout_start = line_source.find("static int UArray_streamHasValidLayout_(const UArray *self)")
+          stream_layout_end = line_source.find("/* read", stream_layout_start)
+          stream_layout = line_source[stream_layout_start:stream_layout_end] if stream_layout_start >= 0 and stream_layout_end > stream_layout_start else ""
+          if (not stream_layout or "expectedItemSize = CTYPE_size(self->itemType);" not in stream_layout or
+                  "self->itemSize != expectedItemSize" not in stream_layout or
+                  "self->size > (size_t)-1 / expectedItemSize" not in stream_layout or
+                  "(self->size > 0 && NULL == self->data)" not in stream_layout):
+              raise SystemExit("UArray stream I/O layout validator must verify CTYPE width, overflow, and storage")
           write_path_start = line_source.find("long UArray_writeToFilePath_(const UArray *self, const UArray *path)")
           write_path_body = line_source[write_path_start:] if write_path_start >= 0 else ""
           write_guard = write_path_body.find("if (NULL == path || !UArray_streamCanWrite_(self))")
@@ -2543,7 +2564,15 @@ jobs:
           if (not write_path_body or write_guard < 0 or write_open < 0 or write_guard > write_open):
               raise SystemExit("UArray file writes must reject malformed source storage before opening/truncating the destination")
           stream_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_stream_io.c").read_text()
-          for needle in ("testInvalidFileWritePreservesDestination",
+          for needle in ("testMismatchedItemWidthRejected()",
+                         "UArray_fread_(wide, readStream)",
+                         "UArray_readFromCStream_(wide, readStream)",
+                         "UArray_readNumberOfItems_fromCStream_(wide, 1, readStream)",
+                         "UArray_readLineFromCStream_(wide, readStream)",
+                         "UArray_fwrite_(wide, 1, writeStream)",
+                         "UArray_writeToCStream_(wide, writeStream)",
+                         "source->itemSize = 2;",
+                         "testInvalidFileWritePreservesDestination",
                          "UArray_writeToFilePath_(source, path) != -1",
                          "UArray file write truncated an existing destination for invalid source storage"):
               if needle not in stream_test:
