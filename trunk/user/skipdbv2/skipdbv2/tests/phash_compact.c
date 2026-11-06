@@ -225,6 +225,36 @@ done:
 	return okay;
 }
 
+static int phashCopyPreservesSharedBacking(void)
+{
+	PHash *source = PHash_new();
+	PHash alias = {0};
+	int key = 707;
+	int value = 808;
+	int okay = 0;
+
+	if (NULL == source)
+		return 0;
+	PHash_at_put_(source, &key, &value);
+	if (source->numKeys != 1 || PHash_at_(source, &key) != &value)
+		goto done;
+
+	/* Copying into a shallow struct alias must not free source->records. */
+	alias = *source;
+	PHash_copy_(&alias, source);
+	if (alias.records == source->records ||
+		PHash_at_(source, &key) != &value ||
+		PHash_at_(&alias, &key) != &value)
+		goto done;
+	okay = 1;
+
+done:
+	if (alias.records && alias.records != source->records)
+		io_free(alias.records);
+	PHash_free(source);
+	return okay;
+}
+
 int main(void)
 {
 	PHash *hash;
@@ -236,6 +266,9 @@ int main(void)
 
 	if (!check(phashCuckooFailurePreservesState(),
 		"PHash cuckoo failure altered the original table or input record"))
+		return EXIT_FAILURE;
+	if (!check(phashCopyPreservesSharedBacking(),
+		"PHash shallow aliases must not free the source backing allocation"))
 		return EXIT_FAILURE;
 	if (!check(phashGrowRejectsInvalidState(0),
 		"PHash_grow accepted inconsistent table geometry"))

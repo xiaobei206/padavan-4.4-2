@@ -1,3 +1,12 @@
+## 2026-11-07 02:39 CST — Preserve PHash source storage across shallow-alias copies
+
+- Baseline: main commit `593f91324945dd087a2411a02c0f683178e80629`; SkipDBv2 Regression run #417 passed.
+- Scope: `PHash_copy_()` and the existing `phash_compact` regression.
+- `PHash_copy_()` deep-copied the source records, published the new destination buffer, then unconditionally freed the destination's previous buffer. When two distinct public `PHash` structs were shallow aliases of the same record allocation, this freed the source table's live storage and left it dangling.
+- Keep the destination's normal deep-copy behavior, but release its previous buffer only when it is not the source's shared allocation. Add a regression using a shallow struct alias and verify both tables remain readable; extend existing static/dynamic Actions contracts. Reuse the registered CMake target; no new files or public API changes.
+- No local C build or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
 ## 2026-11-07 02:35 CST — Preserve full-width UArray floating-format output
 
 - Baseline: main commit `2d320cb4eb92b567a075957e98ff29d4a3cd2080`; SkipDBv2 Regression run #416 passed.

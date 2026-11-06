@@ -1056,6 +1056,7 @@ jobs:
                   "static void PHash_tableInit_(PHash* self, int log2tableSize)",
                   "PHash_hasValidStorage_(self)",
                   "PHash_hasValidStorage_(other)",
+                  "if (oldRecords != other->records)",
                   "void PHash_compact(PHash *self)",
                   "PHash_tableInit_(&candidate, log2tableSize)",
                   "PHash_cuckoo_(&candidate, &thisRecord)",
@@ -1072,6 +1073,8 @@ jobs:
                   "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c": [
+                  "static int phashCopyPreservesSharedBacking(void)",
+                  "PHash shallow aliases must not free the source backing allocation",
                   "static int phashOperationsRejectInvalidGeometry(int corruption)",
                   "PHash operations accessed an invalid table geometry",
                   "PHash_compact did not reduce the table while preserving count",
@@ -4487,6 +4490,19 @@ jobs:
           phash_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PHash.c").read_text()
           phash_test = Path("trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c").read_text()
           phash_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          copy_start = phash_source.find("void PHash_copy_(")
+          copy_end = phash_source.find("/*\tthis is where", copy_start)
+          copy_body = phash_source[copy_start:copy_end] if copy_start >= 0 and copy_end > copy_start else ""
+          if (not copy_body or
+                  "oldRecords = self->records;" not in copy_body or
+                  "*self = copy;" not in copy_body or
+                  "if (oldRecords != other->records)" not in copy_body or
+                  copy_body.find("if (oldRecords != other->records)") < copy_body.find("*self = copy;")):
+              raise SystemExit("PHash_copy_ must preserve the source allocation when distinct objects share backing storage")
+          for needle in ("static int phashCopyPreservesSharedBacking(void)",
+                         "PHash shallow aliases must not free the source backing allocation"):
+              if needle not in phash_test:
+                  raise SystemExit("PHash aliased-copy lifecycle regression missing: " + needle)
           compact_start = phash_source.find("void PHash_compact(PHash *self)")
           compact_end = phash_source.find("void PHash_copy_(", compact_start)
           compact_body = phash_source[compact_start:compact_end] if compact_start >= 0 and compact_end > compact_start else ""

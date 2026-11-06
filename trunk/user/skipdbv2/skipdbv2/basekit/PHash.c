@@ -197,7 +197,9 @@ void PHash_copy_(PHash *self, PHash *other)
 	copy.records = records;
 	oldRecords = self->records;
 	*self = copy;
-	io_free(oldRecords);
+	/* A shallow struct alias must not release the source's shared allocation. */
+	if (oldRecords != other->records)
+		io_free(oldRecords);
 }
 
 
