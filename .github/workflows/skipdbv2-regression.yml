@@ -1010,6 +1010,11 @@ jobs:
                   "BStream tagged write silently accepted a NULL payload",
                   "BStream tagged write accepted malformed existing backing storage",
                   "static int testBStreamReadValidation(void)",
+                  "static int expectBStreamAliasedBackingRejected(BStream *stream,",
+                  "BStream plain array read accepted distinct shared backing storage",
+                  "BStream plain array read accepted partially overlapping backing storage",
+                  "BStream tagged array read accepted distinct shared backing storage",
+                  "BStream tagged array read accepted partially overlapping backing storage",
                   "BStream plain array read silently accepted a NULL destination",
                   "BStream plain array read accepted an aliased destination",
                   "BStream plain array read accepted an out-of-range cursor",
@@ -1839,13 +1844,33 @@ jobs:
               if tagged_array_start >= 0 and tagged_array_end > tagged_array_start
               else ""
           )
+          overlap_helper_start = bstream_source.find(
+              "static int BStream_arrayBackingStoresOverlap_(const UArray *streamArray,"
+          )
+          overlap_helper_end = bstream_source.find(
+              "\nstatic int BStream_canReadArray_", overlap_helper_start
+          )
+          overlap_helper_body = (
+              bstream_source[overlap_helper_start:overlap_helper_end]
+              if overlap_helper_start >= 0 and overlap_helper_end > overlap_helper_start
+              else ""
+          )
+          if (
+              not overlap_helper_body or
+              "streamArray->data == destination->data" not in overlap_helper_body or
+              "destinationStart - streamStart <= streamArray->size" not in overlap_helper_body or
+              "streamStart - destinationStart < destinationBytes" not in overlap_helper_body
+          ):
+              raise SystemExit("BStream backing-store alias guard must reject exact, interior, and partial overlap")
+
           if (
               not array_helper_body or
               "destination->itemSize == 0" not in array_helper_body or
               "self->index > self->ba->size" not in array_helper_body or
-              "destination->size > (size_t)-1 / destination->itemSize" not in array_helper_body
+              "destination->size > (size_t)-1 / destination->itemSize" not in array_helper_body or
+              "BStream_arrayBackingStoresOverlap_(self->ba, destination)" not in array_helper_body
           ):
-              raise SystemExit("BStream array-read preflight is missing storage or cursor validation")
+              raise SystemExit("BStream array-read preflight is missing storage, cursor, or backing-alias validation")
           if (
               not plain_array_body or
               'BStream_canReadArray_(self, b, "invalid binary stream array read")' not in plain_array_body

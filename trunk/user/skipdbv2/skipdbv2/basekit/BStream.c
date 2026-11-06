@@ -461,6 +461,36 @@ unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)
 }
 
 
+static int BStream_arrayBackingStoresOverlap_(const UArray *streamArray,
+    const UArray *destination)
+{
+    size_t destinationBytes;
+    uintptr_t streamStart, destinationStart;
+
+    if (NULL == streamArray || NULL == destination ||
+        NULL == streamArray->data || NULL == destination->data)
+        return 0;
+    if (streamArray->data == destination->data)
+        return 1;
+
+    destinationBytes = destination->size * destination->itemSize;
+    streamStart = (uintptr_t)streamArray->data;
+    destinationStart = (uintptr_t)destination->data;
+
+    /* An interior pointer is unsafe for UArray_setData_type_size_copy_(),
+     * even when the destination currently reports zero logical bytes. */
+    if (destinationStart >= streamStart &&
+        destinationStart - streamStart <= streamArray->size)
+        return 1;
+
+    if (destinationBytes == 0 || streamArray->size == 0)
+        return 0;
+    return destinationStart >= streamStart
+        ? destinationStart - streamStart < streamArray->size
+        : streamStart - destinationStart < destinationBytes;
+}
+
+
 static int BStream_canReadArray_(BStream *self, const UArray *destination,
     const char *errorMessage)
 {
@@ -474,6 +504,10 @@ static int BStream_canReadArray_(BStream *self, const UArray *destination,
         destination->itemSize == 0 ||
         destination->size > (size_t)-1 / destination->itemSize ||
         (destination->size > 0 && NULL == destination->data)) {
+        BStream_error_(self, errorMessage);
+        return 0;
+    }
+    if (BStream_arrayBackingStoresOverlap_(self->ba, destination)) {
         BStream_error_(self, errorMessage);
         return 0;
     }

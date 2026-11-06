@@ -129,6 +129,39 @@ static int testBStreamWriteValidation(void)
 	return EXIT_SUCCESS;
 }
 
+static int expectBStreamAliasedBackingRejected(BStream *stream,
+    int tagged, int interior, const char *message)
+{
+    UArray alias;
+    unsigned char *originalData;
+    size_t originalSize;
+    const char *error;
+
+    if (NULL == stream || NULL == stream->ba || NULL == stream->ba->data)
+        return fail("BStream backing alias fixture is invalid");
+    originalData = stream->ba->data;
+    originalSize = stream->ba->size;
+    alias = *stream->ba;
+    if (interior) {
+        if (originalSize < 2)
+            return fail("BStream backing alias fixture is too short");
+        alias.data = stream->ba->data + 1;
+        alias.size = originalSize - 1;
+    }
+
+    stream->index = 0;
+    if (tagged)
+        BStream_readTaggedUArray_(stream, &alias);
+    else
+        BStream_readUArray_(stream, &alias);
+    error = BStream_errorString(stream);
+    if (NULL == error || error[0] == '\0' || stream->index != 0 ||
+        stream->ba->data != originalData || stream->ba->size != originalSize)
+        return fail(message);
+    return EXIT_SUCCESS;
+}
+
+
 static int testBStreamReadValidation(void)
 {
     const unsigned char payload[] = { 0x51, 0x52, 0x53, 0x54 };
@@ -171,6 +204,24 @@ static int testBStreamReadValidation(void)
         BStream_free(stream);
         UArray_free(destination);
         return fail("BStream plain array read accepted an aliased destination");
+    }
+
+    BStream_empty(stream);
+    BStream_writeUArray_(stream, &source);
+    if (expectBStreamAliasedBackingRejected(stream, 0, 0,
+            "BStream plain array read accepted distinct shared backing storage") != EXIT_SUCCESS) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return EXIT_FAILURE;
+    }
+
+    BStream_empty(stream);
+    BStream_writeUArray_(stream, &source);
+    if (expectBStreamAliasedBackingRejected(stream, 0, 1,
+            "BStream plain array read accepted partially overlapping backing storage") != EXIT_SUCCESS) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return EXIT_FAILURE;
     }
 
     BStream_empty(stream);
@@ -224,6 +275,24 @@ static int testBStreamReadValidation(void)
         BStream_free(stream);
         UArray_free(destination);
         return fail("BStream tagged array read accepted an aliased destination");
+    }
+
+    BStream_empty(stream);
+    BStream_writeTaggedUArray_(stream, &source);
+    if (expectBStreamAliasedBackingRejected(stream, 1, 0,
+            "BStream tagged array read accepted distinct shared backing storage") != EXIT_SUCCESS) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return EXIT_FAILURE;
+    }
+
+    BStream_empty(stream);
+    BStream_writeTaggedUArray_(stream, &source);
+    if (expectBStreamAliasedBackingRejected(stream, 1, 1,
+            "BStream tagged array read accepted partially overlapping backing storage") != EXIT_SUCCESS) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return EXIT_FAILURE;
     }
 
     BStream_empty(stream);

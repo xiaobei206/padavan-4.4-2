@@ -1,3 +1,24 @@
+## 2026-11-06 18:25 CST — Reject BStream read destinations that share stream storage
+
+### Baseline
+- Main commit `ebfc4a2bbb8a6c52c35239ce48ba6d8ab1b0bb9f`; SkipDBv2 Regression run #313 passed.
+- Scope: plain/tagged array-read destination preflight in `BStream.c`.
+
+### Defect and fix
+- The preflight rejected only the exact destination `UArray` object. A distinct `UArray` struct could still share all or part of the stream's backing allocation.
+- After reading a payload, `UArray_setData_type_size_copy_()` may reallocate that destination pointer. With a shallow or interior alias, this can invalidate or free the stream's own buffer while `BStream` still retains the old pointer.
+- Add a private address-range preflight. Reject exact pointer aliases, destination pointers within the stream allocation (including zero-length views), and partial overlap before either reader consumes the cursor.
+
+### Regression and contracts
+- Extend the existing `bstream_tag_boundaries_test` with shared and partially overlapping backing views for both plain and tagged reads. Verify the error latch is set, the cursor remains unchanged, and stream storage metadata is preserved.
+- Extend workflow source contracts for the overlap helper, preflight call, and all four regression cases. Reuse the existing CMake/CTest target; no new files or public declarations.
+
+### Validation
+- Static review confirms overlap comparisons use `uintptr_t` differences rather than potentially overflowing end-pointer arithmetic, and validation precedes payload reads.
+- Mainline CI run #314 will validate compilation and the complete regression suite.
+
+---
+
 ## 2026-11-06 18:21 CST — Preflight the complete Stack mark chain before rollback
 
 ### Baseline
