@@ -1,3 +1,13 @@
+## 2026-11-07 06:52 CST — Make UDBRecord metadata accessors NULL-safe
+
+- Baseline: main commit `57be964b2e14e224d8bf677c986c0a91b7b85dd4`; SkipDBv2 Regression run #455 passed source contracts, configure, full build, and all regression tests.
+- Scope: record identity and metadata accessors in `udb/UDBRecord.c`.
+- Several public getters, setters, `UDBRecord_isEmpty()`, and `UDBRecord_show()` dereferenced a NULL record despite the surrounding record API already providing NULL-safe allocation/data/size helpers. `UDBRecord_setPosToEnd()` also cast a failed `JFile_setPositionToEnd()` result of -1 into the unsigned position field.
+- Make metadata accessors NULL-safe with zero/no-op sentinel behavior. Only publish an end position when the file reports a nonnegative offset, so a missing file cannot corrupt the in-memory cursor. Extend the existing record-storage regression and its Actions source contract; no new files, exported symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:50 CST — Honor UDB compaction time slices
 
 - Baseline: main commit `12c784c219925e43db8727aa615b14bf4a17b7f1`; SkipDBv2 Regression run #454 passed source contracts, configure, full build, and all regression tests.

@@ -29,6 +29,7 @@ int main(void)
         fprintf(stderr, "UDB_new failed\n");
         return EXIT_FAILURE;
     }
+
     path_len = snprintf(path, sizeof(path), "udb_record_storage_test_%ld",
         (long)getpid());
     if (path_len < 0 || (size_t)path_len >= sizeof(path)) {
@@ -37,6 +38,27 @@ int main(void)
     }
 
     UDB_setPath_(db, path);
+    /* Public metadata accessors must be safe for absent records/files. */
+    {
+        UDBRecord null_file_record;
+
+        memset(&null_file_record, 0, sizeof(null_file_record));
+        null_file_record.pos = (PID_TYPE)23;
+        UDBRecord_setJFile_(NULL, NULL);
+        UDBRecord_setPos_(NULL, (PID_TYPE)99);
+        UDBRecord_setPosToEnd(NULL);
+        UDBRecord_pid_(NULL, (PID_TYPE)99);
+        UDBRecord_size_(NULL, (PID_TYPE)99);
+        UDBRecord_show(NULL);
+        UDBRecord_setPosToEnd(&null_file_record);
+        if (UDBRecord_pos(NULL) != 0 || UDBRecord_pid(NULL) != 0 ||
+            UDBRecord_size(NULL) != 0 || UDBRecord_isEmpty(NULL) ||
+            UDBRecord_totalSize(NULL) != 0 ||
+            null_file_record.pos != (PID_TYPE)23) {
+            fprintf(stderr, "record metadata accessors were not NULL-safe\n");
+            goto done;
+        }
+    }
     UDB_delete(db);
     UDB_open(db);
     if (!UDB_isOpen(db) || NULL == db->records || NULL == db->records->file) {
