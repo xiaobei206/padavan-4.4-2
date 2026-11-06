@@ -227,8 +227,10 @@ int UArray_bitAt_(UArray *self, size_t i)
 
 uint8_t UArray_byteAt_(UArray *self, size_t i)
 {
-	if (i < self->size) return self->data[i];
-	return 0;
+	size_t byteCount;
+	if (!UArray_hasValidBitStorage_(self, &byteCount) || i >= byteCount)
+		return 0;
+	return self->data[i];
 }
 
 void UArray_setBit_at_(UArray *self, int aBool, size_t i)

@@ -1,3 +1,22 @@
+## 2026-11-06 19:36 CST — Bound UArray raw byte access to validated storage
+
+### Baseline
+- Main commit `8bcb3ff385d79aaa243c3d8d1a3f000129192e12`; SkipDBv2 Regression run #328 passed.
+- Scope: `UArray_byteAt_()` and the existing byte-size regression.
+
+### Defect and fix
+- The byte accessor dereferenced a NULL receiver or missing backing pointer and compared a byte index against item count rather than total byte count. Typed arrays could therefore not access their full raw byte extent.
+- Reuse the existing bit-storage validator for NULL, item-width, overflow, and backing-storage checks, and bound the index against the validated byte count.
+
+### Regression and contracts
+- Extend `uarray_size_in_bytes` to cover NULL/empty input, typed-array byte offsets beyond item count, the byte boundary, missing storage, zero item width, and overflowing geometry.
+- Update the existing GitHub Actions source contracts. Reuse the existing CMake/CTest target; no new files or public declarations.
+
+### Validation
+- Static inspection confirms the raw byte read only happens after storage validation and an in-range byte index. Mainline CI will validate compilation, contracts, and all regressions.
+
+---
+
 ## 2026-11-06 19:34 CST — Repair UArray distance precision source contract
 
 - CI run #327 stopped in the source-contract stage before compilation: the check still searched for the old `else if` float64 branch after `UArray_distanceTo_()` was changed to validate both vectors up front and use explicit typed branches.
