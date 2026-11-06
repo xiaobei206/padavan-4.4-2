@@ -1,3 +1,10 @@
+## 2026-11-07 02:32 CST — Update Date_compare ordered contract for exact field comparison
+
+- Baseline: main commit `64aea53ab55aa4d3bfc8e3c7db578a5a91e6bd2f`; SkipDBv2 Regression run #415 failed in the XY-C1 integration/source-contract step after the Date needles were correctly moved into the Date block.
+- The existing ordered Date entry-point contract still required `Date_asSeconds(self)` as the operation in `Date_compare()`. That expectation contradicted the new exact `tv_sec`/`tv_usec` comparison; the dedicated Date check already verifies both fields and rejects floating conversion.
+- Change only the Date_compare operation needle to the exact seconds-field comparison. This preserves the NULL-guard ordering contract and removes the stale double-conversion requirement.
+
+---
 ## 2026-11-07 02:30 CST — Correct Date source-contract ownership after CI rejection
 
 - Baseline: main commit `42a4d5bead1f05a989d71890cb4a58e39a161d06`; SkipDBv2 Regression run #414 stopped in the XY-C1 integration source-contract check before configure/build.
