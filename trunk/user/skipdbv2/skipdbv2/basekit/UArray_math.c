@@ -449,10 +449,10 @@ double UArray_maxAsDouble(const UArray *self)
 {
     size_t i;
     double maximum;
-    if (NULL == self || self->itemSize == 0 ||
-        self->size > (size_t)-1 / self->itemSize ||
-        (self->size > 0 && NULL == self->data) || self->size == 0)
+
+    if (!UArray_hasValidNumericStorage_(self) || self->size == 0)
         return 0;
+
     maximum = UArray_rawDoubleAt_(self, 0);
     for (i = 1; i < self->size; ++i) {
         double value = UArray_rawDoubleAt_(self, i);
@@ -466,10 +466,10 @@ double UArray_minAsDouble(const UArray *self)
 {
     size_t i;
     double minimum;
-    if (NULL == self || self->itemSize == 0 ||
-        self->size > (size_t)-1 / self->itemSize ||
-        (self->size > 0 && NULL == self->data) || self->size == 0)
+
+    if (!UArray_hasValidNumericStorage_(self) || self->size == 0)
         return 0;
+
     minimum = UArray_rawDoubleAt_(self, 0);
     for (i = 1; i < self->size; ++i) {
         double value = UArray_rawDoubleAt_(self, i);

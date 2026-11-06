@@ -1,3 +1,12 @@
+## 2026-11-06 22:38 CST — Validate UArray extrema item layouts
+
+- Baseline: main commit `2b18f599e03ef3266ddc3f545bfbb34db16d8fdf`; SkipDBv2 Regression run #350 passed all 55 CTest cases after hardening the aggregate reductions.
+- Scope: `UArray_maxAsDouble()` and `UArray_minAsDouble()` in the existing basekit math module.
+- The extrema functions checked non-NULL storage and multiplication overflow but did not verify that `itemSize` matched `itemType`. Their typed `UArray_rawDoubleAt_()` reads could therefore overrun a malformed byte allocation.
+- Reuse `UArray_hasValidNumericStorage_()` before the first typed read and retain the existing empty-array result of zero. Extend the existing extrema regression and workflow source contract for mismatched widths and types; no new files or CMake changes.
+- No local C compilation or CTest result is claimed; mainline CI remains the build/runtime gate.
+
+---
 ## 2026-11-06 22:33 CST — Harden UArray statistical reductions
 
 - Baseline: main commit `cd4a796114f40a6ec026593b110f994f863157c6`; SkipDBv2 Regression run #349 passed all 55 CTest cases, including the scale-safe normalization change.

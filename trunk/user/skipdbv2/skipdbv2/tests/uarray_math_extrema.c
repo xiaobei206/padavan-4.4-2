@@ -327,6 +327,26 @@ int main(void)
     size=n->size; n->itemSize=2; n->size=(size_t)-1/2+1;
     if (UArray_maxAsDouble(n)!=0.0 || UArray_minAsDouble(n)!=0.0) { n->size=size; n->itemSize=itemSize; UArray_free(n); UArray_free(p); UArray_free(empty); return fail("UArray extrema accepted overflowing geometry"); }
     n->size=size; n->itemSize=itemSize;
+    {
+        size_t originalItemSize = n->itemSize;
+        n->itemSize = sizeof(int32_t) - 1;
+        if (UArray_maxAsDouble(n) != 0.0 || UArray_minAsDouble(n) != 0.0) {
+            n->itemSize = originalItemSize;
+            UArray_free(n); UArray_free(p); UArray_free(empty);
+            return fail("UArray extrema accepted mismatched item width");
+        }
+        n->itemSize = originalItemSize;
+    }
+    {
+        CTYPE originalItemType = n->itemType;
+        n->itemType = CTYPE_float64_t;
+        if (UArray_maxAsDouble(n) != 0.0 || UArray_minAsDouble(n) != 0.0) {
+            n->itemType = originalItemType;
+            UArray_free(n); UArray_free(p); UArray_free(empty);
+            return fail("UArray extrema accepted mismatched item type");
+        }
+        n->itemType = originalItemType;
+    }
     UArray_free(n); UArray_free(p); UArray_free(empty);
     puts("UArray math extrema test passed");
     return EXIT_SUCCESS;
