@@ -1,3 +1,13 @@
+## 2026-11-06 22:22 CST — Guard UArray cross-product storage
+
+- Mainline CI #346 passed after UArray path storage validation.
+- Scope: UArray_crossProduct_() and the existing uarray_distance_precision regression.
+- The cross-product implementation checked only itemType and logical size before casting both data pointers to float32_t. It did not reject NULL backing storage, a mismatched itemSize, or overflowing array geometry before reading the first three elements.
+- Reuse UArray_hasValidNumericStorage_() for both operands, retain float32-only and minimum-three-element behavior, and add valid cross-product plus malformed storage cases. Extend the existing workflow source contract; no new files or CMake target changes.
+- No local C compilation is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 22:15 CST — Validate UArray path storage geometry
 
 - Mainline CI #345 passed after the hex-byte conversion fix.

@@ -1303,6 +1303,11 @@ jobs:
                   "maximum = UArray_rawDoubleAt_(self, 0);",
                   "double UArray_minAsDouble(const UArray *self)",
                   "minimum = UArray_rawDoubleAt_(self, 0);",
+                  "void UArray_crossProduct_(UArray *self, const UArray *other)",
+                  "if (!UArray_hasValidNumericStorage_(self) ||",
+                  "!UArray_hasValidNumericStorage_(other) ||",
+                  "self->itemType != CTYPE_float32_t",
+                  "self->size < 3 || other->size < 3",
                   "static int UArray_hasValidDistanceVector_(const UArray *self)",
                   "expectedItemSize = sizeof(float32_t);",
                   "expectedItemSize = sizeof(float64_t);",
@@ -1348,6 +1353,12 @@ jobs:
                   "UArray math extrema test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c": [
+                  "UArray float32 cross product changed",
+                  "UArray cross product accepted missing receiver storage",
+                  "UArray cross product accepted missing operand storage",
+                  "UArray cross product accepted malformed item width",
+                  "UArray cross product accepted overflowing item geometry",
+                  "UArray cross product accepted a non-float32 receiver",
                   "UArray float32 distance changed",
                   "UArray float64 distance underflowed a representable delta",
                   "UArray float64 distance overflowed a representable delta",
@@ -2181,6 +2192,27 @@ jobs:
               dot_guard_position > dot_dispatch_position
           ):
               raise SystemExit("UArray dot product must preflight both operands before typed dispatch")
+
+          cross_start = bit_math_source.find("void UArray_crossProduct_(UArray *self, const UArray *other)")
+          cross_end = bit_math_source.find("static int UArray_hasValidDistanceVector_", cross_start)
+          cross_body = bit_math_source[cross_start:cross_end] if cross_start >= 0 and cross_end > cross_start else ""
+          cross_receiver_guard = cross_body.find("UArray_hasValidNumericStorage_(self)")
+          cross_operand_guard = cross_body.find("UArray_hasValidNumericStorage_(other)")
+          cross_first_cast = cross_body.find("(float32_t *)self->data")
+          cross_other_cast = cross_body.find("(float32_t *)other->data")
+          if (
+              not cross_body or
+              cross_receiver_guard < 0 or
+              cross_operand_guard < 0 or
+              cross_first_cast < 0 or
+              cross_other_cast < 0 or
+              cross_receiver_guard > cross_first_cast or
+              cross_operand_guard > cross_other_cast or
+              "self->itemType != CTYPE_float32_t" not in cross_body or
+              "other->itemType != CTYPE_float32_t" not in cross_body or
+              "self->size < 3 || other->size < 3" not in cross_body
+          ):
+              raise SystemExit("UArray cross product must validate both float32 layouts and three-item bounds before typed access")
 
           distance_start = bit_math_source.find("double UArray_distanceTo_(const UArray *self, const UArray *other)")
           distance_end = bit_math_source.find("\n// hash", distance_start)

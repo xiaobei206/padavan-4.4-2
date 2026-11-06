@@ -507,26 +507,27 @@ void UArray_normalize(UArray *self)
 
 void UArray_crossProduct_(UArray *self, const UArray *other)
 {
-	if (self->itemType == CTYPE_float32_t &&
-		other->itemType == CTYPE_float32_t &&
-		self->size > 2 && other->size > 2)
-	{
-		float32_t *a = (float32_t *)self->data;
-		float32_t *b = (float32_t *)other->data;
-
-		float32_t i = (a[1]*b[2]) - (a[2]*b[1]);
-		float32_t j = (a[2]*b[0]) - (a[0]*b[2]);
-		float32_t k = (a[0]*b[1]) - (a[1]*b[0]);
-
-		a[0] = i;
-		a[1] = j;
-		a[2] = k;
-
-		UArray_changed(self);
-
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other) ||
+		self->itemType != CTYPE_float32_t ||
+		other->itemType != CTYPE_float32_t ||
+		self->size < 3 || other->size < 3)
 		return;
-	}
+
+	float32_t *a = (float32_t *)self->data;
+	float32_t *b = (float32_t *)other->data;
+
+	float32_t i = (a[1]*b[2]) - (a[2]*b[1]);
+	float32_t j = (a[2]*b[0]) - (a[0]*b[2]);
+	float32_t k = (a[0]*b[1]) - (a[1]*b[0]);
+
+	a[0] = i;
+	a[1] = j;
+	a[2] = k;
+
+	UArray_changed(self);
 }
+
 
 static int UArray_hasValidDistanceVector_(const UArray *self)
 {
