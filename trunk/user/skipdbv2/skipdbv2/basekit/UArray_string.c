@@ -620,11 +620,12 @@ void UArray_translate(UArray *self, UArray *fromChars, UArray *toChars)
 {
     size_t i;
     unsigned char map[256];
-    if (NULL == self || NULL == fromChars || NULL == toChars ||
-        self->itemSize != 1 || fromChars->itemSize != 1 || toChars->itemSize != 1 ||
-        (fromChars->size > 0 && NULL == fromChars->data) ||
-        (toChars->size > 0 && NULL == toChars->data) ||
-        (self->size > 0 && NULL == self->data))
+    if (!UArray_hasValidStringItemLayout_(self) ||
+        !UArray_hasValidStringItemLayout_(fromChars) ||
+        !UArray_hasValidStringItemLayout_(toChars) ||
+        self->itemSize != sizeof(uint8_t) ||
+        fromChars->itemSize != sizeof(uint8_t) ||
+        toChars->itemSize != sizeof(uint8_t))
         return;
     if (fromChars->size != toChars->size)
         return;

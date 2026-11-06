@@ -82,6 +82,40 @@ int main(void)
         return fail("UArray translation mutated data after malformed byte-array input");
     }
 
+    /* A forged one-byte width must not make a non-byte CTYPE valid. */
+    malformed = *input;
+    malformed.itemType = CTYPE_uint16_t;
+    malformed.hash = (uintptr_t)0x2345;
+    UArray_translate(&malformed, from, to);
+    if (!bytesEqual(input, unchanged, sizeof(unchanged)) ||
+        malformed.hash != (uintptr_t)0x2345) {
+        UArray_free(input); UArray_free(from);
+        UArray_free(to); UArray_free(shortTo);
+        return fail("UArray translation accepted a non-byte receiver CTYPE");
+    }
+
+    malformed = *from;
+    malformed.itemType = CTYPE_int16_t;
+    input->hash = (uintptr_t)0x3456;
+    UArray_translate(input, &malformed, to);
+    if (!bytesEqual(input, unchanged, sizeof(unchanged)) ||
+        input->hash != (uintptr_t)0x3456) {
+        UArray_free(input); UArray_free(from);
+        UArray_free(to); UArray_free(shortTo);
+        return fail("UArray translation accepted a non-byte source CTYPE");
+    }
+
+    malformed = *to;
+    malformed.itemType = CTYPE_uint32_t;
+    input->hash = (uintptr_t)0x4567;
+    UArray_translate(input, from, &malformed);
+    if (!bytesEqual(input, unchanged, sizeof(unchanged)) ||
+        input->hash != (uintptr_t)0x4567) {
+        UArray_free(input); UArray_free(from);
+        UArray_free(to); UArray_free(shortTo);
+        return fail("UArray translation accepted a non-byte target CTYPE");
+    }
+
     UArray_free(input); UArray_free(from);
     UArray_free(to); UArray_free(shortTo);
     puts("UArray translate validation test passed");

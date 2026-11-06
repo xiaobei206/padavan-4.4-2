@@ -1,3 +1,14 @@
+## 2026-11-07 03:36 CST — Validate CTYPE geometry before UArray byte translation
+
+- Baseline: main commit `129c44ba2398f061a2ee9573d6a65493ec62e7af`; SkipDBv2 Regression run #428 passed source contracts, configure, full build, and all CTest cases.
+- Scope: `UArray_translate()` in `basekit/UArray_string.c`.
+- The byte translation routine checked only `itemSize == 1`. A malformed array declaring a wider CTYPE while advertising a one-byte item width passed validation and was then treated as a byte string, allowing the routine to mutate storage under inconsistent element metadata.
+- Reuse the module's existing private string-layout validator for receiver, source map, and target map, then explicitly require one-byte item widths. All three layouts now pass CTYPE/width/overflow/backing-storage checks before the map is read or receiver mutation begins.
+- Extend the registered `uarray_translate_validation` CTest with mismatched receiver/source/target CTYPE regressions and no-op/hash-preservation assertions. Strengthen static and dynamic Actions contracts. No new files, public API, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 03:33 CST — Repair division-contract Python block placement
 
 - CI run #427 failed before configure because the newly added floating-quotient assertions were inserted before the existing division-contract `if (...):` block had closed.
