@@ -2448,6 +2448,8 @@ jobs:
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
                   "size_t index, foreachMax = List_hasValidStorage_(foreachList) ? foreachList->size : 0;",
                   "foreachList && List_hasValidStorage_(foreachList) && index < List_size(foreachList)",
+                  "while (foreachList && List_hasValidStorage_(foreachList) && index > 0)",
+                  "if (index > foreachList->size) index = foreachList->size;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_storage_bounds.c": [
                   "malformed_source.memSize = sizeof(void *)",
@@ -2470,6 +2472,9 @@ jobs:
                   "List_select_ continued iterating after callback appended to its source",
                   "List live callback traversal allocation failed",
                   "List live callback traversal fixture append failed",
+                  "LIST_SAFEREVERSEFOREACH(reverse_list, reverse_index, reverse_value,",
+                  "shrink_metadata_for_safe_reverse(reverse_value)",
+                  "LIST_SAFEREVERSEFOREACH visited entries beyond callback-reduced capacity",
                   "List_do_(do_list, shrink_metadata_for_do);",
                   "List_do_ visited entries beyond callback-reduced capacity",
                   "List_do_with_(do_with_list, shrink_metadata_for_do_with, NULL);",

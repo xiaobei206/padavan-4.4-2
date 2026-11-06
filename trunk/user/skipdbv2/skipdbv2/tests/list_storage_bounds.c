@@ -410,6 +410,16 @@ static int shrink_metadata_for_detect(void *item)
     return 0;
 }
 
+static void shrink_metadata_for_safe_reverse(void *item)
+{
+    (void)item;
+    traversal_callback_calls++;
+    if (traversal_callback_calls == 1) {
+        traversal_callback_list->size = 1;
+        traversal_callback_list->memSize = sizeof(void *);
+    }
+}
+
 static int append_three_values(List *list, int *values)
 {
     return List_append_(list, &values[0]) == &values[0] &&
@@ -423,15 +433,17 @@ static int test_live_callback_traversals(void)
     List *do_list = List_new();
     List *do_with_list = List_new();
     List *detect_list = List_new();
+    List *reverse_list = List_new();
     int result = EXIT_FAILURE;
 
-    if (!do_list || !do_with_list || !detect_list) {
+    if (!do_list || !do_with_list || !detect_list || !reverse_list) {
         check(0, "List live callback traversal allocation failed");
         goto done;
     }
     if (!append_three_values(do_list, values) ||
         !append_three_values(do_with_list, values) ||
-        !append_three_values(detect_list, values)) {
+        !append_three_values(detect_list, values) ||
+        !append_three_values(reverse_list, values)) {
         check(0, "List live callback traversal fixture append failed");
         goto done;
     }
@@ -460,6 +472,15 @@ static int test_live_callback_traversals(void)
         "List_detect_ visited entries beyond callback-reduced capacity"))
         goto done;
 
+    traversal_callback_list = reverse_list;
+    traversal_callback_calls = 0;
+    LIST_SAFEREVERSEFOREACH(reverse_list, reverse_index, reverse_value,
+        shrink_metadata_for_safe_reverse(reverse_value));
+    if (!check(traversal_callback_calls == 1 && reverse_list->size == 1 &&
+        reverse_list->memSize == sizeof(void *),
+        "LIST_SAFEREVERSEFOREACH visited entries beyond callback-reduced capacity"))
+        goto done;
+
     result = EXIT_SUCCESS;
 
 done:
@@ -468,6 +489,7 @@ done:
     List_free(do_list);
     List_free(do_with_list);
     List_free(detect_list);
+    List_free(reverse_list);
     return result;
 }
 

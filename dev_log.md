@@ -1,3 +1,13 @@
+## 2026-11-07 07:31 CST — Revalidate storage during safe reverse iteration
+
+- Baseline: main commit `4c50788e432ded69288ad191ffe7312e1c4ca35d`; SkipDBv2 Regression run #472 passed integration contracts, configure, full build, and all 56 tests.
+- Scope: `LIST_SAFEREVERSEFOREACH` in `basekit/List_inline.h`.
+- The reverse-safe macro validated storage only when iteration started. If callback code made the List metadata inconsistent while retaining its struct (for example, reducing `memSize` below `size`), subsequent iterations still ran; `List_size()` read unchecked metadata and `List_at_()` returned NULL repeatedly instead of terminating.
+- Revalidate the storage invariant on every loop pass and clamp against the validated struct's `size`. Add a callback-mutation regression in the existing List bounds test and update the two existing Actions source contracts. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:29 CST — Bound JFile reads to signed seek offsets
 
 - Baseline: main commit `9111b2a76c306f5358219bcc1dcd21a4184690e4`; SkipDBv2 Regression run #471 passed source contracts, configure, full build, and all 56 tests.

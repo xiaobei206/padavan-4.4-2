@@ -67,10 +67,10 @@ static inline int List_hasValidStorage_(const List *self)
 { \
 	const List *foreachList = list; \
 	size_t index = List_hasValidStorage_(foreachList) ? foreachList->size : 0; \
-	while (foreachList && index > 0) \
+	while (foreachList && List_hasValidStorage_(foreachList) && index > 0) \
 	{ \
 		void *value; \
-		if (index > List_size(foreachList)) index = List_size(foreachList); \
+		if (index > foreachList->size) index = foreachList->size; \
 		if (index == 0) break; \
 		value = List_at_(foreachList, --index); \
 		code; \
