@@ -1122,6 +1122,7 @@ jobs:
                   "overflowing UArray byte size did not return zero",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_search_bounds.c": [
+                  "unsigned char pattern_bytes[] = { 'A', 'b' };",
                   "invalid_data.data = NULL;",
                   "invalid_layout.itemSize = 0;",
                   "invalid_type.itemType = (CTYPE)999;",

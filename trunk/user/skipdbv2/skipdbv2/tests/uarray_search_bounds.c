@@ -7,7 +7,7 @@
 static int check_valid_searches(void)
 {
 	unsigned char bytes[] = { 'a', 'B', 'c', 'A', 'b' };
-	unsigned char pattern_bytes[] = { 'a', 'b' };
+	unsigned char pattern_bytes[] = { 'A', 'b' };
 	unsigned char case_pattern_bytes[] = { 'b', 'C' };
 	unsigned char value_bytes[] = { 'B', 'x' };
 	UArray source = UArray_stackAllocedWithData_type_size_(
@@ -92,7 +92,7 @@ static int check_invalid_pattern(const UArray *valid, const UArray *invalid)
 int main(void)
 {
 	unsigned char bytes[] = { 'a', 'B', 'c', 'A', 'b' };
-	unsigned char pattern_bytes[] = { 'a', 'b' };
+	unsigned char pattern_bytes[] = { 'A', 'b' };
 	UArray source = UArray_stackAllocedWithData_type_size_(
 		bytes, CTYPE_uint8_t, sizeof(bytes));
 	UArray pattern = UArray_stackAllocedWithData_type_size_(

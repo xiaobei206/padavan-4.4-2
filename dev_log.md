@@ -1,3 +1,16 @@
+## 2026-11-06 14:27 CST — Correct case-sensitive UArray search fixture
+
+### CI diagnosis and repair
+- SkipDBv2 Regression run #268 compiled all targets and passed workflow source contracts; CTest failed only in `uarray_search_bounds_test`.
+- The fixture searched for lowercase `ab` at offset 3, while the source contains uppercase `Ab`. Correct both local test fixtures to `{'A', 'b'}`; retain the production API's intended case-sensitive comparison.
+- Add a workflow source contract for the exact fixture to prevent this mismatch from recurring.
+
+### Scope
+- Test and contract correction only. No production code or new files added.
+- Re-run the full remote build and all regression tests; the next CI result decides whether the branch is green.
+
+---
+
 ## 2026-11-06 14:29 CST — Harden UArray search input validation
 
 ### Baseline
