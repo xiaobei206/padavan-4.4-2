@@ -1125,7 +1125,7 @@ jobs:
 
           common_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Common.c").read_text()
           realloc_start = common_source.find("MemoryBlock *MemoryBlock_reallocToSize_(MemoryBlock *self, size_t size)")
-          realloc_end = common_source.find("\\n}", realloc_start)
+          realloc_end = common_source.find("\n}", realloc_start)
           realloc_body = common_source[realloc_start:realloc_end] if realloc_start >= 0 and realloc_end > realloc_start else ""
           detach = realloc_body.find("MemoryBlock_remove(self);")
           call = realloc_body.find("realloc(self, sizeof(MemoryBlock) + size)")
@@ -1136,7 +1136,7 @@ jobs:
               raise SystemExit("tracked realloc must preserve and relink the original block when realloc fails")
 
           calloc_body_start = common_source.find("void *io_real_calloc(")
-          calloc_body_end = common_source.find("\\n}", calloc_body_start)
+          calloc_body_end = common_source.find("\n}", calloc_body_start)
           calloc_body = common_source[calloc_body_start:calloc_body_end] if calloc_body_start >= 0 and calloc_body_end > calloc_body_start else ""
           if ("count != 0 && size > (size_t)-1 / count" not in calloc_body or
                   "return NULL;" not in calloc_body):

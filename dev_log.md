@@ -1,3 +1,19 @@
+## 2026-11-06 12:20 CST — Correct allocator preflight function-body delimiters
+
+### CI preflight repair
+- Commit `f3cd5d293a66cef002d1ccbdce05fe34fc8c650e` added the isolated `IO_CHECK_ALLOC` lifecycle test and allocator guards.
+- The preflight source scanner repeated the escaped-newline typo in its realloc/calloc body delimiters, which would stop the workflow before compilation.
+
+### Repair
+- Correct both Python string literals to search for the actual newline preceding each C function's closing brace.
+- No allocator implementation, test behavior, or CMake registration changed.
+
+### Validation
+- Verified both source-contract expressions contain one escaped newline and no double-escaped delimiter.
+- Run #230 was queued when this repair was pushed; the next mainline run validates the complete allocator test and suite.
+
+---
+
 ## 2026-11-06 12:18 CST — Preserve tracked allocations across allocator failures
 
 ### Baseline and scope
