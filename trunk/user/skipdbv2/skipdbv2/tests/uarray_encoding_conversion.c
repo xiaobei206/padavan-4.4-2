@@ -75,9 +75,19 @@ int main(void)
 		fprintf(stderr, "three-byte UTF-8 fixture allocation failed\n");
 		goto done;
 	}
-	if (!UArray_convertToFixedSizeType(array) || !is_utf32_value(array, 0x20ac)) {
-		fprintf(stderr, "three-byte UTF-8 conversion did not produce one UTF-32 code point\n");
-		goto done;
+	{
+		int conversion_result = UArray_convertToFixedSizeType(array);
+		uint32_t actual = 0;
+		if (array->data != NULL && array->size > 0 &&
+			array->itemSize == sizeof(uint32_t))
+			actual = ((const uint32_t *)array->data)[0];
+		if (!conversion_result || !is_utf32_value(array, 0x20ac)) {
+			fprintf(stderr,
+				"three-byte UTF-8 conversion failed: result=%d encoding=%u itemType=%d itemSize=%zu size=%zu data=%p first=0x%08x\n",
+				conversion_result, (unsigned int)array->encoding, (int)array->itemType,
+				array->itemSize, array->size, (void *)array->data, (unsigned int)actual);
+			goto done;
+		}
 	}
 	UArray_free(array);
 	array = NULL;

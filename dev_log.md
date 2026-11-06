@@ -1,3 +1,15 @@
+## 2026-11-06 14:14 CST — Instrument UTF-32 conversion regression
+
+### CI diagnosis
+- Run #263 built successfully, but the Euro-code-point assertion remained red after cursor-based output sizing.
+- Replace the generic test failure with a structured diagnostic reporting conversion status, encoding, item type/size, logical length, data pointer, and first converted value. This distinguishes conversion failure, metadata mismatch, incorrect buffer length, and scalar-content errors without changing runtime implementation.
+
+### Validation
+- The other 38 regression tests passed in run #263.
+- Use the next CI result to make the smallest evidence-led production fix.
+
+---
+
 ## 2026-11-06 14:06 CST — Fix UTF-32 converted-length regression
 
 ### CI repair
