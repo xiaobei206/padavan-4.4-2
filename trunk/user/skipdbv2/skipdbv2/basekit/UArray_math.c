@@ -388,26 +388,36 @@ double UArray_arithmeticMeanSquareAsDouble(const UArray *self)
 
 double UArray_maxAsDouble(const UArray *self)
 {
-	if(self->size > 0)
-	{
-		double max = DBL_MIN;
-		UARRAY_FOREACH(self, i, v, if(v > max) { max = v; });
-		return max;
-	}
-
-	return 0;
+    size_t i;
+    double maximum;
+    if (NULL == self || self->itemSize == 0 ||
+        self->size > (size_t)-1 / self->itemSize ||
+        (self->size > 0 && NULL == self->data) || self->size == 0)
+        return 0;
+    maximum = UArray_rawDoubleAt_(self, 0);
+    for (i = 1; i < self->size; ++i) {
+        double value = UArray_rawDoubleAt_(self, i);
+        if (value > maximum)
+            maximum = value;
+    }
+    return maximum;
 }
 
 double UArray_minAsDouble(const UArray *self)
 {
-	if(self->size > 0)
-	{
-		double max = DBL_MAX;
-		UARRAY_FOREACH(self, i, v, if(v < max) { max = v; });
-		return max;
-	}
-
-	return 0;
+    size_t i;
+    double minimum;
+    if (NULL == self || self->itemSize == 0 ||
+        self->size > (size_t)-1 / self->itemSize ||
+        (self->size > 0 && NULL == self->data) || self->size == 0)
+        return 0;
+    minimum = UArray_rawDoubleAt_(self, 0);
+    for (i = 1; i < self->size; ++i) {
+        double value = UArray_rawDoubleAt_(self, i);
+        if (value < minimum)
+            minimum = value;
+    }
+    return minimum;
 }
 
 BASEKIT_API void UArray_Max(UArray *self, const UArray *other)

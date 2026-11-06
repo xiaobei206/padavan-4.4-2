@@ -708,6 +708,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_bit_access.c",
                   "TARGET_LINK_LIBRARIES(uarray_bit_access_test skipdb m)",
                   "add_test(NAME uarray_bit_access_test COMMAND uarray_bit_access_test)",
+                  "ADD_EXECUTABLE(uarray_math_extrema_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_math_extrema.c",
+                  "TARGET_LINK_LIBRARIES(uarray_math_extrema_test skipdb m)",
+                  "add_test(NAME uarray_math_extrema_test COMMAND uarray_math_extrema_test)",
                   "ADD_EXECUTABLE(bstream_tag_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
                   "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
@@ -1139,6 +1143,10 @@ jobs:
                   "mask = (uint8_t)(1u << bitPosition);",
                   "self->data[bytePosition] &= (uint8_t)~mask;",
                   "UArray_changed(self);",
+                  "double UArray_maxAsDouble(const UArray *self)",
+                  "maximum = UArray_rawDoubleAt_(self, 0);",
+                  "double UArray_minAsDouble(const UArray *self)",
+                  "minimum = UArray_rawDoubleAt_(self, 0);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_reverse_item_byte_order.c": [
                   "UArray_reverseItemByteOrders(NULL)",
@@ -1159,6 +1167,13 @@ jobs:
                   "UArray zero-width bit storage was not rejected",
                   "UArray overflowing bit storage geometry was not rejected",
                   "UArray bit access test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_math_extrema.c": [
+                  "UArray negative-only extrema returned a finite sentinel",
+                  "UArray extrema accepted missing backing storage",
+                  "UArray extrema accepted zero-width storage",
+                  "UArray extrema accepted overflowing geometry",
+                  "UArray math extrema test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
@@ -1766,6 +1781,16 @@ jobs:
               "UArray_changed(self);" not in bit_setter_body
           ):
               raise SystemExit("UArray bit setter must set/clear the target bit and invalidate cached hash")
+
+          extrema_source = bit_math_source
+          maximum_start = extrema_source.find("double UArray_maxAsDouble(const UArray *self)")
+          minimum_start = extrema_source.find("double UArray_minAsDouble(const UArray *self)")
+          extrema_end = extrema_source.find("BASEKIT_API void UArray_Max", minimum_start)
+          maximum_body = extrema_source[maximum_start:minimum_start] if maximum_start >= 0 and minimum_start > maximum_start else ""
+          minimum_body = extrema_source[minimum_start:extrema_end] if minimum_start >= 0 and extrema_end > minimum_start else ""
+          for label, body, init in (("maximum", maximum_body, "maximum = UArray_rawDoubleAt_(self, 0);"), ("minimum", minimum_body, "minimum = UArray_rawDoubleAt_(self, 0);")):
+              if not body or init not in body or "self->itemSize == 0" not in body or "self->size > (size_t)-1 / self->itemSize" not in body or "(self->size > 0 && NULL == self->data)" not in body or "self->size == 0" not in body:
+                  raise SystemExit(f"UArray {label} must initialize from a valid first element")
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
           memory_start = list_source.find("size_t List_memorySize(const List *self)")
           memory_end = list_source.find("\nvoid List_removeAll", memory_start)

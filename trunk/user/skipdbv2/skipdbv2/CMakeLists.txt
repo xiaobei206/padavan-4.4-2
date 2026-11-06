@@ -276,6 +276,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_bit_access_test skipdb m)
     add_test(NAME uarray_bit_access_test COMMAND uarray_bit_access_test)
 
+    ADD_EXECUTABLE(uarray_math_extrema_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_math_extrema.c)
+    TARGET_LINK_LIBRARIES(uarray_math_extrema_test skipdb m)
+    add_test(NAME uarray_math_extrema_test COMMAND uarray_math_extrema_test)
+
     ADD_EXECUTABLE(uarray_search_bounds_test
         ${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c)
     TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)

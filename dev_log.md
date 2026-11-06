@@ -1,3 +1,12 @@
+## 2026-11-06 16:46 CST — Fix UArray extrema on negative-only values
+
+- Baseline `dd707bd254232e86ebe7eefc8de35331e5bfdfc5`; CI run #300 passed.
+- `UArray_maxAsDouble()` used `DBL_MIN`, so arrays containing only negative values returned a positive sentinel. `UArray_minAsDouble()` had the symmetric finite-sentinel issue for positive infinity.
+- Both functions now preflight receiver/storage geometry and initialize from the first actual element; empty arrays retain the existing zero result.
+- Added `uarray_math_extrema_test`, registered it in CMake, and extended workflow source contracts. No public API changes.
+
+---
+
 ## 2026-11-06 16:41 CST — Correct UArray bit indexing and assignment semantics
 
 ### Baseline
