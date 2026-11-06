@@ -409,7 +409,8 @@ void Date_fromString_format_(Date *self, const char *s, const char *format)
 	if (NULL == self || NULL == s || NULL == format)
 		return;
 	tm = EmptyTM();
-	io_strptime((char *)s, (char *)format, &tm);
+	if (NULL == io_strptime((char *)s, (char *)format, &tm))
+		return;
 	/*
 	printf("year  = %i\n", t.tm_year);
 	printf("month = %i\n", t.tm_mon);

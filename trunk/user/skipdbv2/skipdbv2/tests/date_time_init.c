@@ -75,6 +75,8 @@ int main(void)
     {
         Date value = {0};
         Date beforeInvalid;
+        char truncated_date[] = "2024-11";
+        char full_date_format[] = "%Y-%m-%d";
 
         Date_fromSeconds_(&value, -0.5);
         if (value.tv.tv_sec != (time_t)-1 || value.tv.tv_usec != 500000 ||
@@ -98,6 +100,13 @@ int main(void)
         }
 
         Date_fromSeconds_(&value, 1700000000.25);
+        beforeInvalid = value;
+        Date_fromString_format_(&value, truncated_date, full_date_format);
+        if (value.tv.tv_sec != beforeInvalid.tv.tv_sec ||
+            value.tv.tv_usec != beforeInvalid.tv.tv_usec) {
+            fprintf(stderr, "Date parse failure changed the stored time\\n");
+            return EXIT_FAILURE;
+        }
         Date_setSecond_(&value, -0.5);
         if (value.tv.tv_usec != 500000 ||
             Date_second(&value) < 59.499999 ||

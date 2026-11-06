@@ -1,4 +1,23 @@
-## 2026-11-06 19:38 CST — Reject negative Stack mark metadata
+## 2026-11-06 19:49 CST — Preserve Date state when parsing fails
+
+### Baseline
+- Main commit `a5178903411a2bbca35a85c33d733e98a20ad530`; SkipDBv2 Regression run #331 passed.
+- Scope: `Date_fromString_format_()` and its existing time-initialization regression.
+
+### Defect and fix
+- The parser return value was ignored. Malformed/truncated input could partially update `struct tm`, after which `mktime()` overwrote the destination with a date derived from incomplete fields.
+- Return without changing the destination when `io_strptime()` reports failure; successful parsing still follows the existing conversion path.
+
+### Regression and contracts
+- Add a truncated-date case that verifies both seconds and microseconds remain unchanged after parse failure.
+- Update existing Date source/test contracts. Reuse the existing CTest target; no new files or build-list changes.
+
+### Validation
+- Static review confirms `mktime()` is reached only on successful parsing. CI will verify compilation and the complete regression suite.
+
+---
+
+## 2026-11-06 19:40 CST — Reject negative Stack mark metadata
 
 - Main baseline `7630dd2295d0a16c6e4a822265ef72dd6951c673`; SkipDBv2 Regression run #330 passed.
 - `Stack_isValid_()` validated only positive mark-chain nodes, allowing a negative `lastMark` to pass as an empty chain. Reject the invalid sentinel in the shared validator used by clone, compact, and memory-size queries.
