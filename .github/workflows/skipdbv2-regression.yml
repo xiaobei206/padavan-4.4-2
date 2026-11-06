@@ -1282,6 +1282,14 @@ jobs:
                   "list memory size reported logical contents instead of allocated capacity",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/List.c": [
+                  "size_t List_memorySize(const List *self)",
+                  "self->memSize > (size_t)-1 - sizeof(List)",
+                  "return sizeof(List) + self->memSize;",
+                  "void List_sliceInPlace(List* self, long startIndex, long endIndex)",
+                  "if (start >= oldSize || start > end)",
+                  "retainedSize = end - start + 1;",
+                  "memmove(self->items, self->items + start, retainedSize * sizeof(void *));",
+                  "memset(self->items + retainedSize, 0, (oldSize - retainedSize) * sizeof(void *));",
                   "static int List_hasValidStorage_(const List *self)",
                   "self->size > self->memSize / sizeof(void *)",
                   "(self->memSize > 0 && NULL == self->items)",
@@ -1570,8 +1578,7 @@ jobs:
           slice_end = list_source.find("\nList *List_cloneSlice", slice_start)
           slice_body = list_source[slice_start:slice_end] if slice_start >= 0 and slice_end > slice_start else ""
           if (not slice_body or "List_new()" in slice_body or "List_append_(" in slice_body or
-                  "oldSize > (size_t)-1 / sizeof(void *)" not in slice_body or
-                  "oldSize > self->memSize / sizeof(void *)" not in slice_body or
+                  "List_hasValidStorage_(self)" not in slice_body or
                   "if (start >= oldSize || start > end)" not in slice_body or
                   "if (end >= oldSize)" not in slice_body or
                   "memmove(self->items, self->items + start, retainedSize * sizeof(void *));" not in slice_body or

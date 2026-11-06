@@ -1,3 +1,17 @@
+## 2026-11-06 15:34 CST — Align List slice CI contract with centralized validator
+
+### CI failure
+- SkipDBv2 Regression run #285 stopped at the source-contract preflight. The List refactor moved the existing size/capacity bounds checks into `List_hasValidStorage_()`, but the older slice contract still required those two expressions to remain duplicated inside `List_sliceInPlace()`.
+
+### Fix
+- Preserve the pre-existing List memory-accounting and slice-semantic static checks while asserting that slice now delegates storage validation to the shared helper.
+- Keep the implementation and test unchanged; this is a source-contract-only correction.
+
+### Validation
+- The workflow contract now checks helper use in the slice entry point and continues to require allocation-free inclusive slicing, end clamping, and tail clearing.
+
+---
+
 ## 2026-11-06 15:32 CST — Validate List backing-storage invariants
 
 ### Baseline
