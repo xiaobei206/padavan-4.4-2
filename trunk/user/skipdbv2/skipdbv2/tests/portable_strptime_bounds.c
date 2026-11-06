@@ -26,6 +26,11 @@ int main(void)
     char yday_060[] = "060";
     char yday_366[] = "366";
     char yday_367[] = "367";
+    char year_format[] = "%y";
+    char year_00[] = "00";
+    char year_68[] = "68";
+    char year_69[] = "69";
+    char year_99[] = "99";
 
     memset(&parsed, 0, sizeof(parsed));
     if (io_strptime(NULL, format, &parsed) != NULL ||
@@ -78,6 +83,28 @@ int main(void)
         io_strptime(yday_zero, yday_format, &parsed) != NULL ||
         io_strptime(yday_367, yday_format, &parsed) != NULL) {
         fprintf(stderr, "invalid or missing day-of-year input was accepted\n");
+        return EXIT_FAILURE;
+    }
+
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(year_00, year_format, &parsed) != year_00 + 2 ||
+        parsed.tm_year != 100) {
+        fprintf(stderr, "two-digit year 00 did not map to 2000\\n");
+        return EXIT_FAILURE;
+    }
+    if (io_strptime(year_68, year_format, &parsed) != year_68 + 2 ||
+        parsed.tm_year != 168) {
+        fprintf(stderr, "two-digit year 68 did not map to 2068\\n");
+        return EXIT_FAILURE;
+    }
+    if (io_strptime(year_69, year_format, &parsed) != year_69 + 2 ||
+        parsed.tm_year != 69) {
+        fprintf(stderr, "two-digit year 69 did not map to 1969\\n");
+        return EXIT_FAILURE;
+    }
+    if (io_strptime(year_99, year_format, &parsed) != year_99 + 2 ||
+        parsed.tm_year != 99) {
+        fprintf(stderr, "two-digit year 99 did not map to 1999\\n");
         return EXIT_FAILURE;
     }
 

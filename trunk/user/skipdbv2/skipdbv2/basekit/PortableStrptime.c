@@ -314,7 +314,8 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						if (i < 0 || i > 99)
 								return NULL;
 
-						tm->tm_year = i;
+						/* POSIX two-digit year window: 00-68 => 2000-2068. */
+						tm->tm_year = i <= 68 ? i + 100 : i;
 
 						somethingToDoWithSpaces(buf, &ptr);
 						break;

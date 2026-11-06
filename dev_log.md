@@ -1,3 +1,22 @@
+## 2026-11-06 19:59 CST — Normalize two-digit years in PortableStrptime
+
+### Baseline
+- Main commit `3a32fa0d50df1617746d1ba73c3b8d4c07b91391`; SkipDBv2 Regression run #332 passed.
+- Scope: the `%y` conversion in `io_strptime()` and the existing parser-boundary regression.
+
+### Defect and fix
+- `%y` assigned the parsed value directly to `tm_year`, so years `00`–`68` became 1900–1968 instead of 2000–2068. A value such as `24` therefore represented 1924 instead of 2024.
+- Apply the POSIX two-digit year window: `00`–`68` map to 2000–2068; `69`–`99` map to 1969–1999. Leave the four-digit `%Y` branch unchanged.
+
+### Regression and contracts
+- Add boundary checks for `00`, `68`, `69`, and `99` in `portable_strptime_bounds`.
+- Update existing workflow source contracts. Reuse the current CTest target; no new files or build-list changes.
+
+### Validation
+- Static inspection confirms the parser stores years-since-1900 in `tm_year` and preserves its consumed-input return contract. Mainline CI will verify compilation and all regressions.
+
+---
+
 ## 2026-11-06 19:49 CST — Preserve Date state when parsing fails
 
 ### Baseline

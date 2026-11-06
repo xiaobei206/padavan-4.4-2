@@ -1059,6 +1059,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableStrptime.c": [
                   "static int readndigits(char **const buf, const size_t count)",
                   "return i == 0 ? -1 : result;",
+                  "tm->tm_year = i <= 68 ? i + 100 : i;",
                   "static void somethingToDoWithSpaces",
                   "if (NULL == buf || NULL == fmt || NULL == tm)",
                   "isdigit((unsigned char)*buf)",
@@ -1069,6 +1070,15 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c": [
                   "io_strptime(NULL, format, &parsed)",
+                  "char year_00[] = \"00\";",
+                  "parsed.tm_year != 100",
+                  "parsed.tm_year != 168",
+                  "parsed.tm_year != 69",
+                  "parsed.tm_year != 99",
+                  "two-digit year 00 did not map to 2000",
+                  "two-digit year 68 did not map to 2068",
+                  "two-digit year 69 did not map to 1969",
+                  "two-digit year 99 did not map to 1999",
                   "io_strptime(truncated, format, &invalid)",
                   "io_strptime(empty, hour_format, &invalid)",
                   "io_strptime(alpha, month_format, &invalid)",
