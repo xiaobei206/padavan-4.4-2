@@ -3058,6 +3058,28 @@ jobs:
               if needle not in datum_cmake:
                   raise SystemExit("Datum boundary CTest registration missing: " + needle)
 
+          datum_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/Datum.h").read_text()
+          detector_start = datum_source.find("int Datum_detect_with_(")
+          detector_end = datum_source.find("\n}", detector_start)
+          detector_body = datum_source[detector_start:detector_end + 2] if detector_start >= 0 and detector_end > detector_start else ""
+          if "Returns the first matching byte offset" not in datum_header:
+              raise SystemExit("Datum detector return semantics must be documented in the public header")
+          if "#include <limits.h>" not in datum_source or detector_start < 0:
+              raise SystemExit("Datum detector implementation or INT_MAX declaration is missing")
+          for needle in ("!Datum_hasValidStorage_(self)", "NULL == func",
+                         "self->size > (size_t)INT_MAX",
+                         "result = (*func)(target, &suffix);",
+                         "if (1 == result)", "if (-1 == result)", "return (int)i"):
+              if needle not in detector_body:
+                  raise SystemExit("Datum detector bounds or callback contract missing: " + needle)
+          for needle in ("Datum detection returned an incorrect match offset or suffix",
+                         "Datum detection did not scan every unmatched byte",
+                         "Datum detection did not honor callback early stop",
+                         "Datum detection did not reject empty or invalid inputs before callbacks",
+                         "Datum detection must reject unrepresentable offsets"):
+              if needle not in datum_test:
+                  raise SystemExit("Datum detector regression case missing: " + needle)
+
           shash_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/SHash.c").read_text()
           shash_test = Path("trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c").read_text()
           shash_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()

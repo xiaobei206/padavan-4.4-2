@@ -7,6 +7,7 @@ docObject("Datum")
 #include "Datum.h"
 #include "List.h"
 #include "UArray.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -208,6 +209,34 @@ Datum *Datum_newFrom_to_(Datum *self, size_t start, size_t end)
 	d->data = self->data ? self->data + start : NULL;
 	d->size = end - start;
 	return d;
+}
+
+
+
+int Datum_detect_with_(Datum *self, DatumDetectWithFunc *func, void *target)
+{
+	size_t i, size;
+	unsigned char *data;
+
+	if (!Datum_hasValidStorage_(self) || NULL == func ||
+		self->size > (size_t)INT_MAX)
+		return -1;
+
+	/* Keep the original search extent stable across callback invocations. */
+	size = self->size;
+	data = self->data;
+	for (i = 0; i < size; ++i) {
+		Datum suffix;
+		int result;
+		suffix.data = data + i;
+		suffix.size = size - i;
+		result = (*func)(target, &suffix);
+		if (1 == result)
+			return (int)i;
+		if (-1 == result)
+			return -1;
+	}
+	return -1;
 }
 
 

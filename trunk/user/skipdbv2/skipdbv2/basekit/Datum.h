@@ -54,6 +54,7 @@ BASEKIT_API void *Datum_split_(Datum *self, void *delims); /* returns a List */
 BASEKIT_API unsigned int Datum_hash(Datum *self);
 
 typedef int (DatumDetectWithFunc)(void *, Datum *); /* 1 = match, -1 = break */
+/* Returns the first matching byte offset, or -1 for no match, early stop, or invalid input. */
 BASEKIT_API int Datum_detect_with_(Datum *self, DatumDetectWithFunc *func, void *target);
 
 #include "UArray.h"

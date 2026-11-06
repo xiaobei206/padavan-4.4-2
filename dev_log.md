@@ -1,3 +1,23 @@
+## 2026-11-06 20:58 CST — Restore the declared Datum detector API
+
+### Baseline
+- Main commit `4c055add539d0dc8c1351459362a78ae02502f1b`; SkipDBv2 Regression run #335 (`42220283821`) passed source contracts, CMake configuration, all target builds, and the complete CTest regression step.
+- Scope: the existing `Datum_detect_with_()` API in `Datum.c` / `Datum.h` and its existing boundary regression.
+
+### Defect and fix
+- `Datum.h` exported `Datum_detect_with_()`, but `Datum.c` contained no linked definition; only a commented legacy detector sketch remained. Callers using the declared API would fail at link time.
+- Restore the detector as a first-match scan over successive Datum suffixes. Callback result `1` returns the byte offset, `-1` stops with no match, and other results continue. Reject NULL callbacks, malformed storage, and spans too large for the public `int` result before invoking callbacks; keep the original search extent stable.
+
+### Regression and contracts
+- Extend the existing `datum_boundaries` target with first-match/suffix, full miss, early-stop, empty input, NULL/malformed input, NULL callback, and unrepresentable-size cases.
+- Extend the existing GitHub Actions Datum source contract. Reuse the already-registered CMake/CTest target; no new files or build-list changes.
+
+### Validation
+- Static review confirms every returned offset fits `int`, each callback receives the remaining suffix beginning at the current byte, and invalid input cannot reach the callback.
+- No local C compilation is claimed. Mainline CI run #336 is required to compile the restored definition and execute the regression.
+
+---
+
 ## 2026-11-06 20:45 CST — Avoid quadratic quicksort partitions on reverse-ordered input
 
 ### Baseline
