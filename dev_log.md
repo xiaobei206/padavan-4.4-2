@@ -1,3 +1,23 @@
+## 2026-11-06 15:24 CST — Guard UArray path component entry points
+
+### Baseline
+- Main commit `f4e38d9f4ed151d73bbb69ebb3889507ac057085`; SkipDBv2 Regression run #282 passed source-contract preflight, configure, full build, and CTest.
+
+### Defect and fix
+- Several `UArray_path.c` entry points dereferenced a NULL receiver before validating it. The component and file-name accessors could crash instead of returning a failure result; `UArray_appendPath_()` and `UArray_removeLastPathComponent()` had the same unsafe receiver handling.
+- Add early NULL and backing-storage checks, use consistent `-1` / `NULL` failure results for query functions, and avoid converting a negative component offset to an unsigned size.
+
+### Regression and contracts
+- Add `uarray_path_null.c` covering NULL receivers plus normal component, extension, and extension-free paths.
+- Register `uarray_path_null_test` in CMake/CTest and add workflow source contracts for guard ordering, test coverage, and registration.
+- Keep the public function signatures and existing valid-path behavior unchanged.
+
+### Validation
+- Structural checks verify NULL guards precede receiver dereferences and the regression target is wired into CMake/CTest.
+- The workflow triggered by this commit is authoritative for compilation and runtime tests.
+
+---
+
 ## 2026-11-06 15:15 CST — Prevent overflow in Duration component conversion
 
 ### Baseline

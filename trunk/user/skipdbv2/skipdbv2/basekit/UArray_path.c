@@ -12,9 +12,14 @@
 void UArray_appendPath_(UArray *self, const UArray *path)
 {
 	const UArray sep = UArray_stackAllocedWithCString_(IO_PATH_SEPARATOR);
+	int selfEndsWithSep, pathStartsWithSep;
 
-	int selfEndsWithSep   = IS_PATH_SEPERATOR(UArray_lastLong(self));
-	int pathStartsWithSep = IS_PATH_SEPERATOR(UArray_firstLong(path));
+	if (NULL == self || NULL == path ||
+		(self->size > 0 && NULL == self->data) ||
+		(path->size > 0 && NULL == path->data))
+		return;
+	selfEndsWithSep = IS_PATH_SEPERATOR(UArray_lastLong(self));
+	pathStartsWithSep = IS_PATH_SEPERATOR(UArray_firstLong(path));
 
 	if (!selfEndsWithSep && !pathStartsWithSep)
 	{
@@ -34,10 +39,15 @@ void UArray_appendPath_(UArray *self, const UArray *path)
 
 void UArray_removeLastPathComponent(UArray *self)
 {
-	UArray seps = UArray_stackAllocedWithCString_(IO_PATH_SEPARATORS);
-	long pos = UArray_findLastPathComponent(self);
-	if (pos) pos --;
-	UArray_setSize_(self, pos);
+	long pos;
+	if (NULL == self)
+		return;
+	pos = UArray_findLastPathComponent(self);
+	if (pos < 0)
+		return;
+	if (pos > 0)
+		pos--;
+	UArray_setSize_(self, (size_t)pos);
 }
 
 void UArray_clipBeforeLastPathComponent(UArray *self)
@@ -52,6 +62,8 @@ void UArray_clipBeforeLastPathComponent(UArray *self)
 
 long UArray_findLastPathComponent(const UArray *self)
 {
+	if (NULL == self || (self->size > 0 && NULL == self->data))
+		return -1;
 	if (self->size)
 	{
 		UArray seps = UArray_stackAllocedWithCString_(IO_PATH_SEPARATORS);
@@ -72,13 +84,21 @@ long UArray_findLastPathComponent(const UArray *self)
 
 UArray *UArray_lastPathComponent(const UArray *self)
 {
-	long pos = UArray_findLastPathComponent(self);
-	return UArray_range(self, pos, self->size - pos);
+	long pos;
+	if (NULL == self)
+		return NULL;
+	pos = UArray_findLastPathComponent(self);
+	if (pos < 0 || (size_t)pos > self->size)
+		return NULL;
+	return UArray_range(self, (size_t)pos, self->size - (size_t)pos);
 }
 
 long UArray_findPathExtension(UArray *self)
 {
-	UArray dot = UArray_stackAllocedWithCString_(IO_PATH_SEPARATOR_DOT);
+	UArray dot;
+	if (NULL == self || (self->size > 0 && NULL == self->data))
+		return -1;
+	dot = UArray_stackAllocedWithCString_(IO_PATH_SEPARATOR_DOT);
 	return UArray_rFind_(self, &dot);
 }
 
@@ -94,9 +114,11 @@ void UArray_removePathExtension(UArray *self)
 
 UArray *UArray_pathExtension(UArray *self)
 {
-	long pos = UArray_findPathExtension(self);
-
-	if (pos == -1 || pos == self->size - 1)
+	long pos;
+	if (NULL == self)
+		return NULL;
+	pos = UArray_findPathExtension(self);
+	if (pos == -1 || (size_t)pos >= self->size - 1)
 	{
 		return UArray_newWithCString_copy_("", 1);
 	}
@@ -106,13 +128,19 @@ UArray *UArray_pathExtension(UArray *self)
 
 UArray *UArray_fileName(UArray *self)
 {
-	long extPos = UArray_findLastPathComponent(self);
-	long dotPos = UArray_findPathExtension(self);
+	long extPos, dotPos;
+	if (NULL == self)
+		return NULL;
+	extPos = UArray_findLastPathComponent(self);
+	dotPos = UArray_findPathExtension(self);
+	if (extPos < 0)
+		return NULL;
 
 	//if (extPos == -1) { extPos = 0; } else { extPos ++; }
-	if (dotPos == -1) dotPos = self->size;
-
-	return UArray_range(self, extPos, dotPos - extPos);
+	if (dotPos == -1) dotPos = (long)self->size;
+	if (dotPos < extPos)
+		return NULL;
+	return UArray_range(self, (size_t)extPos, (size_t)(dotPos - extPos));
 }
 
 // to/from os path - always returns a copy
@@ -124,14 +152,20 @@ int UArray_OSPathSeparatorIsUnixSeparator(void)
 
 UArray *UArray_asOSPath(UArray *self)
 {
-	UArray *a = UArray_clone(self);
+	UArray *a;
+	if (NULL == self)
+		return NULL;
+	a = UArray_clone(self);
 	UArray_replaceCString_withCString_(a, IO_PATH_SEPARATOR, OS_PATH_SEPARATOR);
 	return a;
 }
 
 UArray *UArray_asUnixPath(UArray *self)
 {
-	UArray *a = UArray_clone(self);
+	UArray *a;
+	if (NULL == self)
+		return NULL;
+	a = UArray_clone(self);
 	UArray_replaceCString_withCString_(a, OS_PATH_SEPARATOR, IO_PATH_SEPARATOR);
 	return a;
 }

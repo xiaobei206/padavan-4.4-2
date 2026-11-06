@@ -700,6 +700,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_name_lookup.c",
                   "TARGET_LINK_LIBRARIES(uarray_name_lookup_test skipdb m)",
                   "add_test(NAME uarray_name_lookup_test COMMAND uarray_name_lookup_test)",
+                  "ADD_EXECUTABLE(uarray_path_null_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_path_null.c",
+                  "TARGET_LINK_LIBRARIES(uarray_path_null_test skipdb m)",
+                  "add_test(NAME uarray_path_null_test COMMAND uarray_path_null_test)",
                   "ADD_EXECUTABLE(bstream_tag_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
                   "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
@@ -1198,6 +1202,21 @@ jobs:
                   'CENCODING_forName("utf8") == CENCODING_UTF8',
                   "UArray name lookup test passed",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c": [
+                  "if (NULL == self || NULL == path)",
+                  "if (NULL == self || (self->size > 0 && NULL == self->data))",
+                  "if (NULL == self)",
+                  "if (pos < 0)",
+                  "if (pos < 0 || (size_t)pos > self->size)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_path_null.c": [
+                  "UArray_findLastPathComponent(NULL) == -1",
+                  "UArray_lastPathComponent(NULL) == NULL",
+                  "UArray_findPathExtension(NULL) == -1",
+                  "UArray_pathExtension(NULL) == NULL",
+                  "UArray_fileName(NULL) == NULL",
+                  "UArray path null-safety test passed",
+              ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_search_bounds.c": [
                   "unsigned char pattern_bytes[] = { 'A', 'b' };",
                   "invalid_data.data = NULL;",
@@ -1633,6 +1652,41 @@ jobs:
                          "add_test(NAME uarray_name_lookup_test COMMAND uarray_name_lookup_test)"):
               if needle not in uarray_name_cmake:
                   raise SystemExit("UArray name lookup regression is not registered in CMake/CTest: " + needle)
+
+          uarray_path_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c").read_text()
+          for signature, next_signature in (
+                  ("void UArray_appendPath_(UArray *self, const UArray *path)", "void UArray_removeLastPathComponent("),
+                  ("void UArray_removeLastPathComponent(UArray *self)", "void UArray_clipBeforeLastPathComponent("),
+                  ("long UArray_findLastPathComponent(const UArray *self)", "UArray *UArray_lastPathComponent("),
+                  ("UArray *UArray_lastPathComponent(const UArray *self)", "long UArray_findPathExtension("),
+                  ("long UArray_findPathExtension(UArray *self)", "void UArray_removePathExtension("),
+                  ("UArray *UArray_pathExtension(UArray *self)", "UArray *UArray_fileName("),
+                  ("UArray *UArray_fileName(UArray *self)", "int UArray_OSPathSeparatorIsUnixSeparator(")):
+              start = uarray_path_source.find(signature)
+              end = uarray_path_source.find(next_signature, start)
+              body = uarray_path_source[start:end] if start >= 0 and end > start else ""
+              guard = body.find("if (NULL == self")
+              first_self_access = body.find("self->")
+              if not body or guard < 0 or (first_self_access >= 0 and guard > first_self_access):
+                  raise SystemExit("UArray path entry point must reject NULL before receiver dereferences: " + signature)
+          uarray_path_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_path_null.c").read_text()
+          for needle in ("UArray_findLastPathComponent(NULL) == -1",
+                         "UArray_lastPathComponent(NULL) == NULL",
+                         "UArray_findPathExtension(NULL) == -1",
+                         "UArray_pathExtension(NULL) == NULL",
+                         "UArray_fileName(NULL) == NULL",
+                         'strcmp(UArray_asCString(component), "alpha.tar.gz")',
+                         'strcmp(UArray_asCString(extension), "gz")',
+                         'strcmp(UArray_asCString(file_name), "alpha.tar")'):
+              if needle not in uarray_path_test:
+                  raise SystemExit("UArray path null/boundary regression case missing: " + needle)
+          uarray_path_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(uarray_path_null_test",
+                         "${PROJECT_SOURCE_DIR}/tests/uarray_path_null.c",
+                         "TARGET_LINK_LIBRARIES(uarray_path_null_test skipdb m)",
+                         "add_test(NAME uarray_path_null_test COMMAND uarray_path_null_test)"):
+              if needle not in uarray_path_cmake:
+                  raise SystemExit("UArray path regression is not registered in CMake/CTest: " + needle)
 
           search_validator_start = uarray_source.find("static int UArray_searchArrayIsValid_(const UArray *self)")
           search_validator_end = uarray_source.find("\n}", search_validator_start)
