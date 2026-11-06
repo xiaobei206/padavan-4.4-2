@@ -257,7 +257,7 @@ void PHash_grow(PHash *self)
 		self->log2tableSize < 1 || self->log2tableSize >= 20 ||
 		self->tableSize != (1u << self->log2tableSize) ||
 		self->mask != self->tableSize - 1 ||
-		self->numKeys > self->tableSize)
+		self->numKeys > self->tableSize * 2)
 		return;
 	saved = *self;
 	oldRecords = self->records;

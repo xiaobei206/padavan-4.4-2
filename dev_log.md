@@ -1,3 +1,18 @@
+## 2026-11-06 16:09 CST — Preserve valid over-capacity PHash growth
+
+### CI diagnosis
+- SkipDBv2 Regression run #293 passed source contracts, configure, and compilation, but CTest failed in both `phash_compact_test` and `skipdb_prefix_test`.
+- The new `PHash_grow()` guard incorrectly rejected `numKeys > tableSize`. A normal insert increments `numKeys` before it calls grow, so the valid transition state can be `tableSize + 1`; the rejection prevented growth and then broke database PID caching.
+
+### Fix
+- Keep geometry and mask validation, but bound the count against the actual two-table storage capacity (`2 * tableSize`), not the post-growth threshold (`tableSize`).
+- Adjust the malformed-count fixture to exceed the physical record capacity. Existing tests continue to cover successful growth across the threshold.
+
+### Validation
+- No production API, test target, or file set changes. The next CI run must confirm both the PHash growth path and the downstream SkipDB prefix fixture.
+
+---
+
 ## 2026-11-06 16:07 CST — Reject malformed PHash growth metadata
 
 ### Baseline

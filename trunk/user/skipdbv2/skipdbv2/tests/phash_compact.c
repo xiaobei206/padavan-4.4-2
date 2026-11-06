@@ -34,7 +34,7 @@ static int phashGrowRejectsInvalidState(int corruption)
 			hash->mask ^= 1u;
 			break;
 		case 2:
-			hash->numKeys = hash->tableSize + 1;
+			hash->numKeys = hash->tableSize * 2 + 1;
 			break;
 		default:
 			PHash_free(hash);

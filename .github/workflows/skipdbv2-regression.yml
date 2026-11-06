@@ -951,7 +951,7 @@ jobs:
                   "self->log2tableSize < 1 || self->log2tableSize >= 20",
                   "self->tableSize != (1u << self->log2tableSize)",
                   "self->mask != self->tableSize - 1",
-                  "self->numKeys > self->tableSize",
+                  "self->numKeys > self->tableSize * 2",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c": [
                   "PHash_compact did not reduce the table while preserving count",
