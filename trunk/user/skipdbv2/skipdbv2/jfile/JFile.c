@@ -408,7 +408,7 @@ size_t JFile_fwrite(JFile *self, void *buf, size_t size, size_t nobjs)
 
 size_t JFile_fread(JFile *self, void *buf, size_t size, size_t nobjs)
 {
-	size_t nobjsRead;
+	size_t total, nobjsRead;
 	long next_pos;
 
 	if (NULL == self || NULL == self->file ||
@@ -416,6 +416,11 @@ size_t JFile_fread(JFile *self, void *buf, size_t size, size_t nobjs)
 		(size > 0 && NULL == buf) || self->pos < 0)
 		return 0;
 	if (size == 0 || nobjs == 0)
+		return 0;
+	total = size * nobjs;
+	/* Match JFile_fwrite: never request bytes outside the signed seek range. */
+	if (total > (size_t)LONG_MAX ||
+		self->pos > LONG_MAX - (long)total)
 		return 0;
 	if (fseek(self->file, self->pos, SEEK_SET) != 0)
 		return 0;

@@ -1,3 +1,13 @@
+## 2026-11-07 07:29 CST — Bound JFile reads to signed seek offsets
+
+- Baseline: main commit `9111b2a76c306f5358219bcc1dcd21a4184690e4`; SkipDBv2 Regression run #471 passed source contracts, configure, full build, and all 56 tests.
+- Scope: low-level read bounds in `jfile/JFile.c`.
+- `JFile_fwrite()` rejects byte counts above `LONG_MAX` and spans where `pos + total` exceeds the signed seek range. `JFile_fread()` checked only multiplication overflow and a negative starting position, then called `fseek/fread` with an impossible span; this could move the stream beyond the representable logical cursor and leave `self->pos` stale when `ftell()` failed.
+- Apply the same checked total-span limits before touching the stream. Extend the existing journal regression to verify both an oversized request and a start-plus-length overflow are rejected without changing stream or logical position. Update source contracts only; no new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:27 CST — Repair next-PID preview source contract
 
 - Baseline: main commit `50ab4c3432a431a5f761d1aa0e46506ff23e44cb`; SkipDBv2 Regression run #470 failed at the integration-contract step before configure/build.

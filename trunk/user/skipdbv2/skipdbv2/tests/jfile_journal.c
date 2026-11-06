@@ -1,5 +1,6 @@
 #include "JFileInternal.h"
 #include <errno.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,6 +90,41 @@ int main(void)
 		!file_is_private_owned_regular(file->logPath)) {
 		fprintf(stderr, "managed data or journal file is not private and owned\n");
 		goto done;
+	}
+
+	/*
+	 * Reject impossible byte spans before touching the underlying stream.
+	 * Offsets beyond EOF make these probes safe even on the unfixed code.
+	 */
+	{
+		unsigned char read_probe = 0;
+		size_t too_large = (size_t)LONG_MAX + (size_t)1;
+		long saved_logical_pos = file->pos;
+		long saved_stream_pos = ftell(file->file);
+
+		if (saved_stream_pos < 0) {
+			fprintf(stderr, "unable to capture stream position for fread bounds test\n");
+			goto done;
+		}
+		file->pos = LONG_MAX;
+		if (JFile_fread(file, &read_probe, too_large, 1) != 0 ||
+			ftell(file->file) != saved_stream_pos ||
+			file->pos != LONG_MAX) {
+			fprintf(stderr, "oversized fread changed stream or logical position\n");
+			goto done;
+		}
+		file->pos = LONG_MAX - 1;
+		if (JFile_fread(file, &read_probe, 2, 1) != 0 ||
+			ftell(file->file) != saved_stream_pos ||
+			file->pos != LONG_MAX - 1) {
+			fprintf(stderr, "overflowing fread span changed stream or logical position\n");
+			goto done;
+		}
+		file->pos = saved_logical_pos;
+		if (fseek(file->file, saved_stream_pos, SEEK_SET) != 0) {
+			fprintf(stderr, "unable to restore stream after fread bounds test\n");
+			goto done;
+		}
 	}
 
 	/* Both managed data files and journals must be single-link files. */
