@@ -1,3 +1,12 @@
+## 2026-11-07 02:22 CST — Validate UArray split element layouts before scanning
+
+- Baseline: main commit `016c5efa42077873e1c4706768d4d5d94349110c`; SkipDBv2 Regression run #410 passed.
+- Scope: the private input preflight in `basekit/UArray_string.c` and the existing `uarray_split_delimiters` regression.
+- The split preflight checked byte extents and the pointer-container geometry but did not verify that the source or each non-empty delimiter's `itemSize` matched its declared `CTYPE`. The downstream search routine rejected such layouts, but split silently treated malformed delimiters as non-matches and could return a full copy of malformed source data as a valid result.
+- Reuse `UArray_hasValidStringItemLayout_()` to validate source and non-empty delimiter storage before allocating results or scanning. Preserve the existing NULL/empty delimiter skip behavior. Add regressions for mismatched source metadata, mismatched delimiter metadata, and missing delimiter storage; update static and dynamic Actions contracts. Reuse the registered CMake target; no new files, public API, or build registration.
+- No local C build or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
 ## 2026-11-07 02:18 CST — Preflight UArray file writes before destructive open
 
 - Baseline: main commit `468b9e1337d0957a06b1967d69c8e68f89cbb015`; SkipDBv2 Regression run #409 passed.

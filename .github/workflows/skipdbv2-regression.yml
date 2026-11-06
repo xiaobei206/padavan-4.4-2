@@ -1399,6 +1399,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c": [
                   "static size_t UArray_stringExpectedItemSize_(CTYPE itemType)",
+                  "!UArray_hasValidStringItemLayout_(self)",
+                  "for (i = 0; i < delims->size; ++i)",
+                  "!UArray_hasValidStringItemLayout_(delim)",
+                  "delim->size > (size_t)LONG_MAX",
                   "static int UArray_hasValidStringItemLayout_(const UArray *self)",
                   "self->itemSize != expectedItemSize",
                   "self->size > (size_t)-1 / expectedItemSize",
@@ -1733,6 +1737,9 @@ jobs:
                   "UArray pointer access test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_split_delimiters.c": [
+                  "UArray split accepted mismatched source item metadata",
+                  "UArray split accepted mismatched delimiter item metadata",
+                  "UArray split accepted missing delimiter element storage",
                   "UArray split valid delimiter round trip failed",
                   "UArray split count changed for valid delimiters",
                   "UArray split accepted malformed delimiter element width",
@@ -3212,13 +3219,16 @@ jobs:
           split_body = split_source[split_start:split_end] if split_start >= 0 and split_end > split_start else ""
           if (
               not split_validator_body or
-              "self->itemSize == 0" not in split_validator_body or
-              "self->size > (size_t)-1 / self->itemSize" not in split_validator_body or
+              "!UArray_hasValidStringItemLayout_(self)" not in split_validator_body or
+              "self->size > (size_t)LONG_MAX" not in split_validator_body or
               "delims->itemSize != sizeof(void *)" not in split_validator_body or
               "delims->size > (size_t)-1 / delims->itemSize" not in split_validator_body or
-              "(delims->size > 0 && NULL == delims->data)" not in split_validator_body
+              "(delims->size > 0 && NULL == delims->data)" not in split_validator_body or
+              "for (i = 0; i < delims->size; ++i)" not in split_validator_body or
+              "!UArray_hasValidStringItemLayout_(delim)" not in split_validator_body or
+              "delim->size > (size_t)LONG_MAX" not in split_validator_body
           ):
-              raise SystemExit("UArray split must validate source and pointer-delimiter storage geometry")
+              raise SystemExit("UArray split must validate source and every non-empty delimiter item layout before scanning")
           split_guard = split_body.find("UArray_splitInputsAreValid_(self, delims)")
           result_allocation = split_body.find("results = UArray_new()")
           if split_guard < 0 or result_allocation < 0 or split_guard > result_allocation:

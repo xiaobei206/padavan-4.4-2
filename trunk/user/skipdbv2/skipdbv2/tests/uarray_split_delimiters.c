@@ -107,6 +107,36 @@ int main(void)
     }
 
     malformedInput = input;
+    malformedInput.itemType = CTYPE_uint64_t;
+    if (NULL != UArray_split_(&malformedInput, delims)) {
+        return fail("UArray split accepted mismatched source item metadata");
+    }
+
+    {
+        CTYPE savedDelimiterType = comma.itemType;
+        comma.itemType = CTYPE_uint64_t;
+        parts = UArray_split_(&input, delims);
+        comma.itemType = savedDelimiterType;
+        if (NULL != parts) {
+            freeParts(parts);
+            UArray_free(delims);
+            return fail("UArray split accepted mismatched delimiter item metadata");
+        }
+    }
+
+    {
+        unsigned char *savedDelimiterData = comma.data;
+        comma.data = NULL;
+        parts = UArray_split_(&input, delims);
+        comma.data = savedDelimiterData;
+        if (NULL != parts) {
+            freeParts(parts);
+            UArray_free(delims);
+            return fail("UArray split accepted missing delimiter element storage");
+        }
+    }
+
+    malformedInput = input;
     malformedInput.itemSize = 0;
     if (NULL != UArray_split_(&malformedInput, delims)) {
         UArray_free(delims);

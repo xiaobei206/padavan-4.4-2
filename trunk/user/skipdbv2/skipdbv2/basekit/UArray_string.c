@@ -329,16 +329,24 @@ static void UArray_freeSplitResults_(PtrUArray *results)
 
 static int UArray_splitInputsAreValid_(const UArray *self, const PtrUArray *delims)
 {
-    if (NULL == self || self->itemSize == 0 ||
-        self->size > (size_t)-1 / self->itemSize ||
+    size_t i;
+    if (!UArray_hasValidStringItemLayout_(self) ||
         self->size > (size_t)LONG_MAX ||
-        (self->size > 0 && NULL == self->data) ||
         NULL == delims || delims->itemType != CTYPE_uintptr_t ||
         delims->itemSize != sizeof(void *) ||
         delims->itemSize != sizeof(uintptr_t) ||
         delims->size > (size_t)-1 / delims->itemSize ||
         (delims->size > 0 && NULL == delims->data))
         return 0;
+
+    for (i = 0; i < delims->size; ++i) {
+        const UArray *delim = (const UArray *)UArray_rawPointerAt_(delims, i);
+        if (NULL == delim || delim->size == 0)
+            continue;
+        if (!UArray_hasValidStringItemLayout_(delim) ||
+            delim->size > (size_t)LONG_MAX)
+            return 0;
+    }
     return 1;
 }
 
