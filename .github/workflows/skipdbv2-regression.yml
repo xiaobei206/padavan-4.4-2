@@ -1315,6 +1315,11 @@ jobs:
                   "UArray translate validation test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
+                  "static size_t UArray_expectedNumberItemSize_(CTYPE itemType)",
+                  "static int UArray_hasValidNumberArrayLayout_(const UArray *self)",
+                  "self->itemSize != expectedItemSize",
+                  "self->size > (size_t)-1 / expectedItemSize",
+                  "if (!UArray_hasValidNumberArrayLayout_(self))",
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
                   "if (self->size > (size_t)LONG_MAX)",
                   "return self->size == (size_t)newSize;",
@@ -1337,6 +1342,8 @@ jobs:
                   "typedef uint8_t  UTF8;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_encoding_conversion.c": [
+                  "numeric conversion accepted mismatched item metadata",
+                  "UArray_newWithData_type_encoding_size_copy_(",
                   "UArray_convertToFixedSizeType(NULL)",
                   "CENCODING_ASCII",
                   "0x00a2",

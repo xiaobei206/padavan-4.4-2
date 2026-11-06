@@ -167,10 +167,49 @@ int UArray_isLegalUTF8(const UArray *self)
 	return 1;
 }
 
+static size_t UArray_expectedNumberItemSize_(CTYPE itemType)
+{
+	switch (itemType) {
+		case CTYPE_uint8_t:
+		case CTYPE_int8_t:
+			return sizeof(uint8_t);
+		case CTYPE_uint16_t:
+		case CTYPE_int16_t:
+			return sizeof(uint16_t);
+		case CTYPE_uint32_t:
+		case CTYPE_int32_t:
+			return sizeof(uint32_t);
+		case CTYPE_uint64_t:
+		case CTYPE_int64_t:
+			return sizeof(uint64_t);
+		case CTYPE_float32_t:
+			return sizeof(float32_t);
+		case CTYPE_float64_t:
+			return sizeof(float64_t);
+		case CTYPE_uintptr_t:
+			return sizeof(uintptr_t);
+		default:
+			return 0;
+	}
+}
+
+static int UArray_hasValidNumberArrayLayout_(const UArray *self)
+{
+	size_t expectedItemSize;
+	if (NULL == self)
+		return 0;
+	expectedItemSize = UArray_expectedNumberItemSize_(self->itemType);
+	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+		self->size > (size_t)-1 / expectedItemSize ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	return 1;
+}
+
 UArray *UArray_asNumberArrayString(const UArray *self)
 {
 	UArray *out;
-	if (NULL == self || (self->size > 0 && NULL == self->data))
+	if (!UArray_hasValidNumberArrayLayout_(self))
 		return NULL;
 	out = UArray_new();
 	if (NULL == out)

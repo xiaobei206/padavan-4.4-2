@@ -1,3 +1,23 @@
+## 2026-11-06 19:28 CST — Validate UArray numeric encoding item layout
+
+### Baseline
+- Main commit `4687d9b8c0efdd09d21e188720f38de5a013ee76`; SkipDBv2 Regression run #324 passed.
+- Scope: `UArray_asNumberArrayString()`, used by numeric-to-text encoding conversion.
+
+### Defect and fix
+- The numeric formatter checked only for missing data when the item count was nonzero. It then dispatched on `itemType` and read elements using the C type's width, even when the public `UArray` metadata declared a different `itemSize`. A malformed array could therefore read beyond the declared storage and still be accepted for conversion.
+- Add an explicit supported-type-to-width check and require the stored item width to match it, the item-count multiplication to remain representable, and nonempty storage to have a backing pointer before entering `UARRAY_INTFOREACH`.
+
+### Regression and contracts
+- Extend `uarray_encoding_conversion` with a numeric array whose 64-bit item type has deliberately mismatched 8-bit item metadata. Conversion must fail without changing its bytes or metadata; restore the original width before cleanup.
+- Extend the existing GitHub Actions source contracts. Reuse the existing CMake/CTest target; no new files, exported declarations, or build-list edits.
+
+### Validation
+- Static review covers every CTYPE branch consumed by `UARRAY_INTFOREACH`; unsupported type identifiers are rejected instead of silently yielding a partial/empty number string.
+- Mainline CI will compile the C changes and run the source-contract and regression suites.
+
+---
+
 ## 2026-11-06 19:24 CST — Align bit-storage CI contract with the stricter size bound
 
 - CI run #323 stopped in `Verify XY-C1 firmware integration contracts` before compilation. The existing detailed assertion still required the older `SIZE_MAX / itemSize` boundary after the shared bit-storage validator was tightened to reserve the UArray terminator byte.

@@ -104,6 +104,34 @@ int main(void)
 	UArray_free(array);
 	array = NULL;
 
+
+	{
+		const uint64_t numericValue = UINT64_C(0x123456789abcdef0);
+		array = UArray_newWithData_type_encoding_size_copy_(
+			(void *)&numericValue, CTYPE_uint64_t, CENCODING_NUMBER, 1, 1);
+		if (NULL == array) {
+			fprintf(stderr, "numeric-layout fixture allocation failed\\n");
+			goto done;
+		}
+		{
+			UArray *converted = NULL;
+			size_t originalItemSize = array->itemSize;
+			array->itemSize = sizeof(uint8_t);
+			converted = UArray_asUTF8(array);
+			array->itemSize = originalItemSize;
+			if (NULL != converted || array->itemType != CTYPE_uint64_t ||
+				array->itemSize != sizeof(uint64_t) || array->size != 1 ||
+				NULL == array->data ||
+				memcmp(array->data, &numericValue, sizeof(numericValue)) != 0) {
+				UArray_free(converted);
+				fprintf(stderr, "numeric conversion accepted mismatched item metadata\\n");
+				goto done;
+			}
+		}
+		UArray_free(array);
+		array = NULL;
+	}
+
 	array = new_utf8(invalid_bytes, sizeof(invalid_bytes));
 	if (NULL == array) {
 		fprintf(stderr, "invalid UTF-8 fixture allocation failed\n");
