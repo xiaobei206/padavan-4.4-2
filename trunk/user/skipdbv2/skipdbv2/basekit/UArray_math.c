@@ -926,7 +926,7 @@ double UArray_distanceTo_(const UArray *self, const UArray *other)
 			float32_t d = a[i] - b[i];
 			sum = hypot(sum, (double)d);
 		}
-		return (double)sqrt(sum);
+		return sum;
 	}
 
 	if (self->itemType == CTYPE_float64_t)
@@ -939,7 +939,7 @@ double UArray_distanceTo_(const UArray *self, const UArray *other)
 			float64_t d = a[i] - b[i];
 			sum = hypot(sum, (double)d);
 		}
-		return sqrt(sum);
+		return sum;
 	}
 
 	return 0;

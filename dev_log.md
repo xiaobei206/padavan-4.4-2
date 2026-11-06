@@ -1,3 +1,10 @@
+## 2026-11-07 02:24 CST — Repair UArray distance return after scaled accumulation
+
+- Baseline: main commit `4b32dcbbf6c275d3a7bd13e6bdc4f03e4651c9fe`; SkipDBv2 Regression run #412 failed in `uarray_distance_precision_test`.
+- CI showed the new `hypot()` accumulation was still passed through the old final `sqrt(sum)`, producing `sqrt(distance)` and breaking the existing float32 distance assertion. The compile and all earlier contracts passed.
+- Return the accumulated norm directly in both typed branches. Tighten the ordered Actions contract to require one direct `return sum;` per branch and forbid the obsolete second square root. This is an in-place correction of the same UArray distance change; no new files or test-target changes.
+
+---
 ## 2026-11-07 02:20 CST — Prevent overflow in UArray Euclidean distance accumulation
 
 - Baseline: main commit `c653b77949390ae6f4155d49bfa7a36f3eceeb7f`; SkipDBv2 Regression run #411 passed.

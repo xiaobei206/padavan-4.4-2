@@ -1436,6 +1436,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c": [
                   "sum = hypot(sum, (double)d);",
+                  "return sum;",
                   "void UArray_duplicateIndexes(UArray *self)",
                   "size > (size_t)-1 / 2",
                   "doubledSize > ((size_t)-1 - 1) / itemSize",
@@ -3127,9 +3128,13 @@ jobs:
               "float32_t d = a[i] - b[i];" not in float32_branch or
               "float64_t d = a[i] - b[i];" not in float64_branch or
               "sum = hypot(sum, (double)d);" not in float32_branch or
-              "sum = hypot(sum, (double)d);" not in float64_branch
+              "sum = hypot(sum, (double)d);" not in float64_branch or
+              float32_branch.count("return sum;") != 1 or
+              float64_branch.count("return sum;") != 1 or
+              "sqrt(sum)" in float32_branch or
+              "sqrt(sum)" in float64_branch
           ):
-              raise SystemExit("UArray distance must use scaled hypot accumulation in both float32 and float64 branches while retaining typed deltas")
+              raise SystemExit("UArray distance must return the accumulated hypot norm directly in both float32 and float64 branches")
           distance_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c").read_text()
           if "UArray float64 distance overflowed intermediate squares for a finite result" not in distance_test:
               raise SystemExit("UArray distance must cover finite results whose naive sum of squares overflows")
