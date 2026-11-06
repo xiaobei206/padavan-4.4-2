@@ -1,3 +1,22 @@
+## 2026-11-06 14:59 CST — Fail closed when cloning invalid BStream state
+
+### Baseline
+- Main commit `819243c9c3dd17d831694e234b0ead86c97b1f16`; SkipDBv2 Regression run #278 passed source-contract preflight, configure, full build, and CTest.
+
+### Defect and fix
+- `BStream_clone()` trusted any non-NULL UArray and ignored that `UArray_copy_()` can silently return when backing bytes are missing. It could return a stream without the source bytes and preserve a cursor beyond the copied buffer.
+- Validate the byte-array storage and cursor before allocation; verify copied type, encoding, size, storage, and content before returning the clone. A failed copy releases the partial stream and returns NULL.
+
+### Regression and contracts
+- Extend the existing `bstream_tag_boundaries_test` with clone fidelity, out-of-range cursor, and missing-backing-storage cases.
+- Extend the existing workflow source contracts for the new guard and regression assertions. Reuse the registered CMake target; no new files, targets, or public symbols.
+
+### Validation
+- Structural preflight confirms the source-state checks precede allocation and that copied content is verified before returning the clone.
+- The workflow triggered by this commit is authoritative for full compilation and CTest.
+
+---
+
 ## 2026-11-06 14:49 CST — Correct Common byte-order detection
 
 ### Baseline

@@ -940,6 +940,9 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c": [
                   "BStreamTag null arguments were not handled safely",
                   "BStreamTag wire-format round trip failed",
+                  "BStream clone did not preserve bytes, cursor, and endianness",
+                  "BStream clone accepted an out-of-range cursor",
+                  "BStream clone accepted malformed backing storage",
                   "BStreamTag boundaries test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
@@ -1148,6 +1151,12 @@ jobs:
                   "io_uint32InBigEndian(endianProbe) != expectedNetwork",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStream.c": [
+                  "BStream *BStream_clone(BStream *self)",
+                  "self->ba->itemSize != 1",
+                  "self->index > self->ba->size",
+                  "child->ba->size != self->ba->size",
+                  "memcmp(child->ba->data, self->ba->data,",
+                  "BStream_free(child);",
                   "uint8_t BStream_readUint8(BStream *self)",
                   "unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)",
                   "BStream_error_(self, \"truncated binary stream byte\")",

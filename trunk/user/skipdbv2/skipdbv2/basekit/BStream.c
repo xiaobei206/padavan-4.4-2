@@ -46,12 +46,26 @@ BStream *BStream_new(void)
 BStream *BStream_clone(BStream *self)
 {
 	BStream *child;
-	if (NULL == self || NULL == self->ba)
+	if (NULL == self || NULL == self->ba ||
+		self->ba->itemSize != 1 ||
+		(self->ba->size > 0 && NULL == self->ba->data) ||
+		self->index > self->ba->size)
 		return NULL;
 	child = BStream_new();
 	if (NULL == child)
 		return NULL;
 	UArray_copy_(child->ba, self->ba);
+	if (child->ba->itemType != self->ba->itemType ||
+		child->ba->encoding != self->ba->encoding ||
+		child->ba->itemSize != self->ba->itemSize ||
+		child->ba->size != self->ba->size ||
+		(self->ba->size > 0 &&
+			(NULL == child->ba->data ||
+			 memcmp(child->ba->data, self->ba->data,
+				self->ba->size) != 0))) {
+		BStream_free(child);
+		return NULL;
+	}
 	child->index = self->index;
 	child->flipEndian = self->flipEndian;
 	return child;
