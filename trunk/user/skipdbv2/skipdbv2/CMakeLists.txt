@@ -262,4 +262,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(portable_strptime_bounds_test skipdb m)
     add_test(NAME portable_strptime_bounds_test COMMAND portable_strptime_bounds_test)
 
+    ADD_EXECUTABLE(portable_gettimeofday_test
+        ${PROJECT_SOURCE_DIR}/tests/portable_gettimeofday.c)
+    TARGET_LINK_LIBRARIES(portable_gettimeofday_test skipdb m)
+    add_test(NAME portable_gettimeofday_test COMMAND portable_gettimeofday_test)
+
 endif()

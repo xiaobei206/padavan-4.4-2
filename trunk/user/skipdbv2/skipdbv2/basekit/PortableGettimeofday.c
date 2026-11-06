@@ -1,4 +1,6 @@
 #include <time.h>
+#include <errno.h>
+#include <stddef.h>
 #include <sys/types.h>
 #include <sys/timeb.h>
 #include "PortableGettimeofday.h"
@@ -9,26 +11,41 @@
 	#else
 
 		#ifndef IO_ADDON_Sockets
-			void gettimeofday(struct timeval *tv, struct timezone *tz)
+			int gettimeofday(struct timeval *tv, struct timezone *tz)
 			{
 				TIME_ZONE_INFORMATION zoneInfo;
-
 				struct _timeb timeb;
-				_ftime_s(&timeb);
+				int status;
 
-				tv->tv_sec = (long) timeb.time;
-				tv->tv_usec = (long) (timeb.millitm * 1000);
+				if (NULL == tv)
+				{
+					errno = EINVAL;
+					return -1;
+				}
+				status = (int)_ftime_s(&timeb);
+				if (status != 0)
+				{
+					errno = status;
+					return -1;
+				}
 
-				if (GetTimeZoneInformation(&zoneInfo) != TIME_ZONE_ID_INVALID)
+				tv->tv_sec = (long)timeb.time;
+				tv->tv_usec = (long)(timeb.millitm * 1000);
+
+				if (tz)
 				{
-					tz->tz_minuteswest = zoneInfo.Bias;
-					tz->tz_dsttime = 0;
+					if (GetTimeZoneInformation(&zoneInfo) != TIME_ZONE_ID_INVALID)
+					{
+						tz->tz_minuteswest = zoneInfo.Bias;
+						tz->tz_dsttime = 0;
+					}
+					else
+					{
+						tz->tz_minuteswest = 0;
+						tz->tz_dsttime = 0;
+					}
 				}
-				else
-				{
-					tz->tz_minuteswest = 0;
-					tz->tz_dsttime = 0;
-				}
+				return 0;
 			}
 		#endif
 	#endif
@@ -43,13 +60,11 @@
 
 double secondsSince1970(void)
 {
-	double result;
 	struct timeval tv;
 	struct timezone tz;
-	gettimeofday(&tv, &tz);
-	result = tv.tv_sec;
-	result += tv.tv_usec / 1000000.0;
-	return result;
+	if (gettimeofday(&tv, &tz) != 0)
+		return 0.0;
+	return (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0);
 }
 
 

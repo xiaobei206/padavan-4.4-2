@@ -27,7 +27,7 @@
 			};
 
 						#include "Common.h"
-			BASEKIT_API extern void gettimeofday(struct timeval *tv, struct timezone *tz);
+			BASEKIT_API extern int gettimeofday(struct timeval *tv, struct timezone *tz);
 		#endif
 
 	#else

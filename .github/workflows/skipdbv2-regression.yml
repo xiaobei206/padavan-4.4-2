@@ -727,6 +727,9 @@ jobs:
                   "ADD_EXECUTABLE(portable_strptime_bounds_test",
                   "${PROJECT_SOURCE_DIR}/tests/portable_strptime_bounds.c",
                   "add_test(NAME portable_strptime_bounds_test COMMAND portable_strptime_bounds_test)",
+                  "ADD_EXECUTABLE(portable_gettimeofday_test",
+                  "${PROJECT_SOURCE_DIR}/tests/portable_gettimeofday.c",
+                  "add_test(NAME portable_gettimeofday_test COMMAND portable_gettimeofday_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -766,6 +769,21 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
+                  "int gettimeofday(struct timeval *tv, struct timezone *tz)",
+                  "if (NULL == tv)",
+                  "status = (int)_ftime_s(&timeb);",
+                  "errno = status;",
+                  "if (gettimeofday(&tv, &tz) != 0)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.h": [
+                  "int gettimeofday(struct timeval *tv, struct timezone *tz)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/portable_gettimeofday.c": [
+                  "secondsSince1970()",
+                  "time(NULL)",
+                  "PortableGettimeofday test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableStrptime.c": [
                   "static int readndigits(char **const buf, const size_t count)",
@@ -1358,6 +1376,21 @@ jobs:
                          "io_strptime(high_byte, hour_format, &invalid)"):
               if needle not in strptime_test:
                   raise SystemExit("PortableStrptime boundary regression case missing: " + needle)
+
+          gettimeofday_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c").read_text()
+          gettimeofday_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.h").read_text()
+          windows_impl_start = gettimeofday_source.find("int gettimeofday(struct timeval *tv, struct timezone *tz)")
+          windows_impl_end = gettimeofday_source.find("#endif", windows_impl_start)
+          windows_impl = gettimeofday_source[windows_impl_start:windows_impl_end] if windows_impl_start >= 0 and windows_impl_end > windows_impl_start else ""
+          if ("int gettimeofday(struct timeval *tv, struct timezone *tz)" not in gettimeofday_header or
+                  "if (NULL == tv)" not in windows_impl or
+                  "status = (int)_ftime_s(&timeb);" not in windows_impl or
+                  "if (status != 0)" not in windows_impl or "return -1;" not in windows_impl or
+                  "if (gettimeofday(&tv, &tz) != 0)" not in gettimeofday_source):
+              raise SystemExit("PortableGettimeofday must expose a status-returning Windows adapter and propagate clock-read failures")
+          gettimeofday_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_gettimeofday.c").read_text()
+          if ("secondsSince1970()" not in gettimeofday_test or "time(NULL)" not in gettimeofday_test):
+              raise SystemExit("PortableGettimeofday regression must validate the wall-clock result")
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

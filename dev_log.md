@@ -1,3 +1,21 @@
+## 2026-11-06 12:44 CST — Unify PortableGettimeofday status semantics
+
+### Baseline and scope
+- Base commit: `600892354f789f083657f8ae5f1a1c3d47a89a15`; SkipDBv2 Regression run #240 passed source contracts, compilation, and CTest.
+- Scope is limited to the portable gettimeofday adapter and its seconds helper, one regression, and the existing CMake/workflow registrations.
+
+### Changes
+- Align the Windows compatibility declaration/implementation with POSIX-style integer status returns, matching the Linux API already used by Date.
+- Reject a NULL timeval output and propagate `_ftime_s()` failure through `errno` and a -1 result; timezone output remains optional.
+- Make `secondsSince1970()` return a defined zero value when the platform clock query fails instead of consuming uninitialized time fields.
+- Add a wall-clock regression that compares the portable helper with the system epoch clock.
+
+### Validation
+- Static source contracts verify the Windows adapter signature and error propagation; the test is registered in CTest.
+- The Linux workflow validates the shared helper and current platform build. Windows-only adapter code is source-checked but cannot be executed in this Linux runner.
+
+---
+
 ## 2026-11-06 12:42 CST — Cast format bytes before ctype classification
 
 ### Follow-up
