@@ -1,3 +1,16 @@
+## 2026-11-06 15:05 CST — Fix UArray lookup source-contract scan
+
+### CI failure
+- Run #280 stopped in the XY-C1 source-contract preflight: the new lookup guard contract searched for a literal backslash-n instead of the newline before the C function's closing brace.
+
+### Fix
+- Correct the embedded Python source scan to locate the actual newline delimiter. No C implementation changes or new files in this CI-repair commit.
+
+### Validation
+- Structural preflight confirms the contract now searches for `"\n}"` and still checks NULL rejection before the first `strcmp()`.
+
+---
+
 ## 2026-11-06 15:03 CST — Reject NULL type and encoding names
 
 ### Baseline

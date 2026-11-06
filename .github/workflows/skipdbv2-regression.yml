@@ -1612,7 +1612,7 @@ jobs:
           for signature in ("int CTYPE_forName(const char *name)",
                             "int CENCODING_forName(const char *name)"):
               start = uarray_name_source.find(signature)
-              end = uarray_name_source.find("\\n}", start)
+              end = uarray_name_source.find("\n}", start)
               body = uarray_name_source[start:end + 2] if start >= 0 and end > start else ""
               guard = body.find("if (NULL == name)")
               fallback = body.find("return -1;")
