@@ -1,3 +1,23 @@
+## 2026-11-06 19:30 CST — Validate UArray storage before unescaping
+
+### Baseline
+- Main commit `585016b8ad87e14abe9fba6d4d8d24b8c9872bd2`; SkipDBv2 Regression run #325 passed.
+- Scope: `UArray_unescape()` and its existing bounds regression.
+
+### Defect and fix
+- The unescape loop read values according to `itemType` but validated only the backing pointer. When a caller supplied inconsistent public metadata (for example, a two-item 64-bit array whose `itemSize` was changed to one byte), it could read and rewrite storage using a different stride, then shrink the logical array.
+- Validate every supported CTYPE's expected width, require `itemSize` to match that width, check the size multiplication, and reject missing backing storage before the first typed read.
+
+### Regression and contracts
+- Extend `uarray_unescape_bounds` with a deliberately malformed two-element 64-bit fixture containing a backslash escape. Verify unescape leaves all bytes, count, and malformed metadata unchanged, then restore the original item width before freeing it.
+- Update the existing GitHub Actions source contracts; reuse the current CMake/CTest target without new files or public declarations.
+
+### Validation
+- Static checks confirm all CTYPE variants used by the typed array macros are handled, unsupported enum values are rejected, and the validator executes before any read/write or size change.
+- Mainline CI will compile and execute the regression suite.
+
+---
+
 ## 2026-11-06 19:28 CST — Validate UArray numeric encoding item layout
 
 ### Baseline

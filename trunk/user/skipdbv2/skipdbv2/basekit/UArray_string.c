@@ -503,11 +503,50 @@ void UArray_escape(UArray *self)
 	UArray_changed(self);
 }
 
+static size_t UArray_stringExpectedItemSize_(CTYPE itemType)
+{
+	switch (itemType) {
+		case CTYPE_uint8_t:
+		case CTYPE_int8_t:
+			return sizeof(uint8_t);
+		case CTYPE_uint16_t:
+		case CTYPE_int16_t:
+			return sizeof(uint16_t);
+		case CTYPE_uint32_t:
+		case CTYPE_int32_t:
+			return sizeof(uint32_t);
+		case CTYPE_uint64_t:
+		case CTYPE_int64_t:
+			return sizeof(uint64_t);
+		case CTYPE_float32_t:
+			return sizeof(float32_t);
+		case CTYPE_float64_t:
+			return sizeof(float64_t);
+		case CTYPE_uintptr_t:
+			return sizeof(uintptr_t);
+		default:
+			return 0;
+	}
+}
+
+static int UArray_hasValidStringItemLayout_(const UArray *self)
+{
+	size_t expectedItemSize;
+	if (NULL == self)
+		return 0;
+	expectedItemSize = UArray_stringExpectedItemSize_(self->itemType);
+	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+		self->size > (size_t)-1 / expectedItemSize ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	return 1;
+}
+
 void UArray_unescape(UArray *self)
 {
 	size_t getIndex = 0;
 	size_t putIndex = 0;
-	if (NULL == self || (self->size > 0 && NULL == self->data))
+	if (!UArray_hasValidStringItemLayout_(self))
 		return;
 	while (getIndex < self->size) {
 		long c = UArray_longAt_(self, getIndex);

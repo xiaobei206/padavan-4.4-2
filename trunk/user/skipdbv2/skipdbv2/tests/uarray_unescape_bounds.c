@@ -11,6 +11,27 @@ static int equals_bytes(const UArray *value, const char *expected, size_t length
         (length == 0 || memcmp(UArray_bytes(value), expected, length) == 0);
 }
 
+
+static int malformed_numeric_layout_is_preserved(void)
+{
+	uint64_t values[2] = { (uint64_t)'\\', (uint64_t)'n' };
+	UArray *array = UArray_newWithData_type_size_copy_(
+		values, CTYPE_uint64_t, sizeof(values) / sizeof(values[0]), 1);
+	size_t originalItemSize;
+	int okay;
+
+	if (NULL == array)
+		return 0;
+	originalItemSize = array->itemSize;
+	array->itemSize = sizeof(uint8_t);
+	UArray_unescape(array);
+	okay = array->itemSize == sizeof(uint8_t) && array->size == 2 &&
+		NULL != array->data && memcmp(array->data, values, sizeof(values)) == 0;
+	array->itemSize = originalItemSize;
+	UArray_free(array);
+	return okay;
+}
+
 int main(void)
 {
     UArray *single_backslash = UArray_newWithCString_("\\");
@@ -49,6 +70,11 @@ int main(void)
     UArray_unescape(escaped_backslash);
     if (!equals_bytes(escaped_backslash, "\\", 1)) {
         fprintf(stderr, "escaped backslash decoding changed unexpectedly\n");
+        goto done;
+    }
+
+    if (!malformed_numeric_layout_is_preserved()) {
+        fprintf(stderr, "UArray_unescape accepted mismatched item metadata\n");
         goto done;
     }
 

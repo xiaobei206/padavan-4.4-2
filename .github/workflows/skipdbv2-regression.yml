@@ -1197,6 +1197,11 @@ jobs:
                   "UArray trailing format marker test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c": [
+                  "static size_t UArray_stringExpectedItemSize_(CTYPE itemType)",
+                  "static int UArray_hasValidStringItemLayout_(const UArray *self)",
+                  "self->itemSize != expectedItemSize",
+                  "self->size > (size_t)-1 / expectedItemSize",
+                  "if (!UArray_hasValidStringItemLayout_(self))",
                   "long nextChar = (getIndex < self->size - 1)",
                   "? UArray_longAt_(self, getIndex + 1)",
                   "static int UArray_splitInputsAreValid_(const UArray *self, const PtrUArray *delims)",
@@ -1209,6 +1214,9 @@ jobs:
                   "if (fromChars->size != toChars->size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_unescape_bounds.c": [
+                  "malformed_numeric_layout_is_preserved",
+                  "UArray_unescape accepted mismatched item metadata",
+                  "UArray_newWithData_type_size_copy_(",
                   "UArray_unescape(single_backslash)",
                   "UArray_unescape(trailing_backslash)",
                   "a lone trailing backslash was not preserved",
