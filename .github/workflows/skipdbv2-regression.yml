@@ -1385,10 +1385,11 @@ jobs:
                   "List_sliceInPlace(list, 2, 1)" not in slice_test or
                   "list slice test passed" not in slice_test):
               raise SystemExit("List slicing regression must cover end clamping, negative indexes, out-of-range starts, and reversed bounds")
-          if ("ADD_EXECUTABLE(list_slice_test" not in cmake_text or
-                  "${PROJECT_SOURCE_DIR}/tests/list_slice.c" not in cmake_text or
-                  "TARGET_LINK_LIBRARIES(list_slice_test skipdb m)" not in cmake_text or
-                  "add_test(NAME list_slice_test COMMAND list_slice_test)" not in cmake_text):
+          list_slice_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          if ("ADD_EXECUTABLE(list_slice_test" not in list_slice_cmake or
+                  "${PROJECT_SOURCE_DIR}/tests/list_slice.c" not in list_slice_cmake or
+                  "TARGET_LINK_LIBRARIES(list_slice_test skipdb m)" not in list_slice_cmake or
+                  "add_test(NAME list_slice_test COMMAND list_slice_test)" not in list_slice_cmake):
               raise SystemExit("List slicing regression is not registered in CMake/CTest")
 
           uarray_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text()

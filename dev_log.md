@@ -1,3 +1,16 @@
+## 2026-11-06 13:49 CST — Fix List CMake contract variable scope
+
+### CI repair
+- List slicing run #260 failed in the workflow's source-contract preflight before CMake configure, build, or CTest.
+- The new List test-registration check referenced `cmake_text` before the existing later assignment. Read the CMake file into a local `list_slice_cmake` variable at the check site.
+- No C implementation, test expectation, build configuration, or runtime behavior changed in this CI-only repair.
+
+### Validation
+- Confirmed the failure log's `NameError: name 'cmake_text' is not defined` and the check's ordering relative to the existing later assignment.
+- Re-run the full main workflow after this minimal variable-scope fix.
+
+---
+
 ## 2026-11-06 13:46 CST — Make List slicing allocation-free
 
 ### Scope and changes
