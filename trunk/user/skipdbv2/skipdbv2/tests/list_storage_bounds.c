@@ -131,13 +131,17 @@ static int test_remove_true_for_reentrancy(void)
     filter_callback_storage_moved = 0;
 
     removed = List_removeTrueFor_(filter_list, expand_list_during_filter);
-    if (!check(removed == 2 && filter_callback_storage_moved &&
-        filter_callback_calls == 4 && filter_list->size == 2 &&
+    if (!check(filter_callback_storage_moved,
+        "List predicate-filter callback did not move backing allocation"))
+        goto done;
+    if (!check(filter_callback_calls == 4,
+        "List_removeTrueFor_ did not invoke callback for every nonnull item"))
+        goto done;
+    if (!check(removed == 2 && filter_list->size == 2 &&
         filter_list->items[0] == &values[0] &&
         filter_list->items[1] == &values[2],
-        "List_removeTrueFor_ wrote through a stale backing pointer after callback realloc")) {
+        "List_removeTrueFor_ produced incorrect filtered survivors or removal count"))
         goto done;
-    }
 
     filter_callback_list = shrink_list;
     filter_callback_calls = 0;

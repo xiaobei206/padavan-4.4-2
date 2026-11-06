@@ -1,3 +1,10 @@
+## 2026-11-06 23:56 CST — Isolate List predicate-filter regression failure
+
+- CI #370 passed source contracts, configure, and full compilation; `list_storage_bounds_test` failed in the new callback-reallocation assertion.
+- Split the aggregate check into separate backing-pointer movement, callback-count, and filtered-result assertions so the next run identifies the exact failing invariant. This is test-only diagnosis; production filtering logic is unchanged.
+
+---
+
 ## 2026-11-06 23:53 CST — Bound List callback traversals to live storage
 
 - Baseline: main commit `7fb99ff23c9af7448cb594c82667df83431a61ff`; SkipDBv2 Regression run #369 completed successfully.
