@@ -456,10 +456,18 @@ int main(void)
     UDB_commitTransaction(foreign_db);
     {
         Datum first_value = UDB_at_(foreign_db, foreign_pid);
-        Datum destination_value = UDB_at_(foreign_db, foreign_pid2);
         if (!UDB_isOpen(foreign_db) || !UDB_isOpen(db) ||
             first_value.data == NULL || first_value.size != 1 ||
-            first_value.data[0] != 0x7b || destination_value.data == NULL ||
+            first_value.data[0] != 0x7b) {
+            fprintf(stderr, "source row changed after rejected move\n");
+            goto done;
+        }
+    }
+    {
+        /* UDB_at_ reuses the records cursor buffer, so read/check serially. */
+        Datum destination_value = UDB_at_(foreign_db, foreign_pid2);
+        if (!UDB_isOpen(foreign_db) || !UDB_isOpen(db) ||
+            destination_value.data == NULL ||
             destination_value.size != sizeof("occupied-destination") ||
             memcmp(destination_value.data, "occupied-destination",
                 sizeof("occupied-destination")) != 0) {

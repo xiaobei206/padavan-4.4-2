@@ -1,3 +1,12 @@
+## 2026-11-07 07:03 CST — Fix alias-sensitive record-move regression
+
+- Baseline: main commit `01b7d79e6ce8fcd189aa7a8009a80b9a7e720387`; SkipDBv2 Regression run #460 built successfully but failed `udb_record_storage_test`.
+- The regression captured two `UDB_at_()` results before checking either one, but both Datum payload pointers refer to the shared records cursor buffer. Reading the destination replaced the source payload before it was asserted.
+- Check the source bytes before the next cursor read, then read and validate the destination. The production change and its source contract remain unchanged; no new files or CMake changes.
+- CI retry required before further refactoring.
+
+---
+
 ## 2026-11-07 07:01 CST — Repair record-storage regression build
 
 - Baseline: main commit `8617adcdbb6704fc3b6933474cf6c665e4a2d027`; SkipDBv2 Regression run #459 failed during compilation because the new record-move regression referenced an undefined `has_value()` helper in `udb_record_storage.c`.
