@@ -1,3 +1,10 @@
+## 2026-11-07 01:40 CST — Align Stack cursor source contract with the validator declaration
+
+- Baseline: main commit `77b1e29d7288a88e294199588d7b6132f236f2a3`; run #402 failed only during the XY-C1 static source-contract check.
+- Correct the Stack inline-header contract to match the actual grouped `uintptr_t` declaration. The implementation and test logic are unchanged; this is a CI-contract-only correction.
+
+---
+
 ## 2026-11-07 01:37 CST — Validate Stack cursor geometry without undefined pointer arithmetic
 
 - Baseline: main commit `1538ea8f5f5a172b5733abd4fa4ad167128b270d`; SkipDBv2 Regression run #401 passed.

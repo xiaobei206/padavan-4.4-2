@@ -2041,7 +2041,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h": [
                   "IOINLINE int Stack_hasValidStorage_(const Stack *self, size_t *used, size_t *capacity)",
-                  "uintptr_t topAddress",
+                  "uintptr_t itemsAddress, topAddress, endAddress;",
                   "endAddress <= itemsAddress || topAddress < itemsAddress",
                   "IOINLINE int Stack_hasValidMarkChain_(const Stack *self, size_t used)",
                   "Stack_hasValidMarkChain_(self, used)",
