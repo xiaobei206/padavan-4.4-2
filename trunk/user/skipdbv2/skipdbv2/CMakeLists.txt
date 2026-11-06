@@ -247,6 +247,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(random_gen_lifecycle_test skipdb m)
     add_test(NAME random_gen_lifecycle_test COMMAND random_gen_lifecycle_test)
 
+    ADD_EXECUTABLE(random_gen_state_bounds_test
+        ${PROJECT_SOURCE_DIR}/tests/random_gen_state_bounds.c)
+    TARGET_LINK_LIBRARIES(random_gen_state_bounds_test skipdb m)
+    add_test(NAME random_gen_state_bounds_test COMMAND random_gen_state_bounds_test)
+
     ADD_EXECUTABLE(convert_utf8_bounds_test
         ${PROJECT_SOURCE_DIR}/tests/convert_utf8_bounds.c)
     TARGET_LINK_LIBRARIES(convert_utf8_bounds_test skipdb m)

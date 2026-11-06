@@ -142,6 +142,9 @@ static unsigned long genrand_int32(RandomGen *self)
 	static unsigned long mag01[2]={0x0UL, MATRIX_A};
 	/* mag01[x] = x * MATRIX_A  for x=0,1 */
 
+	if (self->mti < 0 || self->mti > N+1)
+		init_genrand(self, 5489UL);
+
 	if (self->mti >= N) { /* generate N words at one time */
 		int kk;
 

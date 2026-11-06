@@ -1,3 +1,19 @@
+## 2026-11-06 13:28 CST — Guard RandomGen state-index bounds
+
+### Baseline and scope
+- Base commit: `9034acaabd07331dd1b55def9d93e2b7c7006a07`; SkipDBv2 Regression run #255 passed.
+- Scope is limited to the MT19937 generator's state-index invariant and a dedicated regression test.
+
+### Changes
+- Detect negative or excessive `mti` values before indexing the state array and reset malformed state to the generator's documented default seed.
+- Preserve normal seeded sequences and the existing `N+1` uninitialized-state fallback.
+- Add a regression for both negative and above-sentinel indexes; register it in CMake and the workflow source contracts.
+
+### Validation
+- No local firmware build is claimed; the post-push SkipDBv2 Regression run validates compilation and runtime behavior.
+
+---
+
 ## 2026-11-06 13:25 CST — Harden BStreamTag NULL handling
 
 ### Baseline and scope
