@@ -1,3 +1,11 @@
+## 2026-11-07 00:59 CST — Restore string declarations for ConvertUTF range regression
+
+- Baseline: main commit `e9c77fba669c6a57bff04f78b0be7584339595b8`; regression run #387 failed during test compilation.
+- The new reversed-cursor checks use `memset()`; the existing test did not include `<string.h>`, and the strict build rejected its implicit declaration.
+- Add the standard header and assert its presence in the existing Actions source contract. No runtime logic or files changed.
+
+---
+
 ## 2026-11-07 00:56 CST — Reject reversed ConvertUTF cursor ranges before conversion
 
 - Baseline: main commit `1d563eb10c90c1f392a99800985b163271284a56`; SkipDBv2 Regression run #386 passed.

@@ -1247,6 +1247,7 @@ jobs:
                   "if ((size_t)(targetEnd - target) < bytesToWrite)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/convert_utf8_bounds.c": [
+                  "#include <string.h>",
                   "NULL source",
                   "NULL end",
                   "empty range",
