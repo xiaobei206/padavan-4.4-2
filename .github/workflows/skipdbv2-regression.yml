@@ -1435,6 +1435,7 @@ jobs:
                   "UArray unescape bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c": [
+                  "sum = hypot(sum, (double)d);",
                   "void UArray_duplicateIndexes(UArray *self)",
                   "size > (size_t)-1 / 2",
                   "doubledSize > ((size_t)-1 - 1) / itemSize",
@@ -1705,6 +1706,7 @@ jobs:
                   "if (test_elementwise_division() != EXIT_SUCCESS)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c": [
+                  "UArray float64 distance overflowed intermediate squares for a finite result",
                   "UArray float32 cross product changed",
                   "UArray cross product accepted missing receiver storage",
                   "UArray cross product accepted missing operand storage",
@@ -3115,14 +3117,22 @@ jobs:
           distance_start = bit_math_source.find("double UArray_distanceTo_(const UArray *self, const UArray *other)")
           distance_end = bit_math_source.find("\n// hash", distance_start)
           distance_body = bit_math_source[distance_start:distance_end] if distance_start >= 0 and distance_end > distance_start else ""
+          float32_branch_start = distance_body.find("if (self->itemType == CTYPE_float32_t)")
           float64_branch_start = distance_body.find("if (self->itemType == CTYPE_float64_t)")
+          float32_branch = distance_body[float32_branch_start:float64_branch_start] if float32_branch_start >= 0 and float64_branch_start > float32_branch_start else ""
           float64_branch = distance_body[float64_branch_start:] if float64_branch_start >= 0 else ""
           if (
+              not float32_branch or
               not float64_branch or
+              "float32_t d = a[i] - b[i];" not in float32_branch or
               "float64_t d = a[i] - b[i];" not in float64_branch or
-              "float32_t d = a[i] - b[i];" in float64_branch
+              "sum = hypot(sum, (double)d);" not in float32_branch or
+              "sum = hypot(sum, (double)d);" not in float64_branch
           ):
-              raise SystemExit("UArray float64 distance must retain a float64 intermediate")
+              raise SystemExit("UArray distance must use scaled hypot accumulation in both float32 and float64 branches while retaining typed deltas")
+          distance_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c").read_text()
+          if "UArray float64 distance overflowed intermediate squares for a finite result" not in distance_test:
+              raise SystemExit("UArray distance must cover finite results whose naive sum of squares overflows")
 
           index_compaction_ranges = (
               ("remove odd indexes", "void UArray_removeOddIndexes(UArray *self)", "void UArray_removeEvenIndexes"),

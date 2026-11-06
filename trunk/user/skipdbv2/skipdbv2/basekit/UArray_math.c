@@ -924,7 +924,7 @@ double UArray_distanceTo_(const UArray *self, const UArray *other)
 		for (i = 0; i < self->size; ++i)
 		{
 			float32_t d = a[i] - b[i];
-			sum += d * d;
+			sum = hypot(sum, (double)d);
 		}
 		return (double)sqrt(sum);
 	}
@@ -937,7 +937,7 @@ double UArray_distanceTo_(const UArray *self, const UArray *other)
 		for (i = 0; i < self->size; ++i)
 		{
 			float64_t d = a[i] - b[i];
-			sum += d * d;
+			sum = hypot(sum, (double)d);
 		}
 		return sqrt(sum);
 	}

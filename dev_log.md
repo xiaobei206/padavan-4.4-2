@@ -1,3 +1,12 @@
+## 2026-11-07 02:20 CST — Prevent overflow in UArray Euclidean distance accumulation
+
+- Baseline: main commit `c653b77949390ae6f4155d49bfa7a36f3eceeb7f`; SkipDBv2 Regression run #411 passed.
+- Scope: `UArray_distanceTo_()` in `basekit/UArray_math.c` and its existing `uarray_distance_precision` regression.
+- The implementation accumulated `d * d` before taking the square root. A finite and representable distance such as two float64 deltas of `1e200` overflowed the intermediate squares to infinity, incorrectly returning infinity.
+- Accumulate each component with `hypot(sum, (double)d)` in both float32 and float64 branches. This performs scaled norm accumulation without avoidable intermediate square overflow. Add the two-component `1e200` regression and strengthen static/dynamic Actions contracts. Reuse the registered CMake target; no new files, public API, or build registration.
+- No local C build or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
 ## 2026-11-07 02:22 CST — Validate UArray split element layouts before scanning
 
 - Baseline: main commit `016c5efa42077873e1c4706768d4d5d94349110c`; SkipDBv2 Regression run #410 passed.

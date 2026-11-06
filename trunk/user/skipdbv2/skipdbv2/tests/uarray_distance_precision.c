@@ -25,6 +25,8 @@ int main(void)
     const float64_t tinyZeros[] = { 0.0, 0.0 };
     const float64_t largeValues[] = { 0.0, 1e40 };
     const float64_t largeZeros[] = { 0.0, 0.0 };
+    const float64_t extremeValues[] = { 1e200, -1e200 };
+    const float64_t extremeZeros[] = { 0.0, 0.0 };
     const float64_t oneValue[] = { 0.0 };
     UArray *floatA = UArray_newWithData_type_size_copy_(
         (void *)floatValues, CTYPE_float32_t, 3, 1);
@@ -42,16 +44,21 @@ int main(void)
         (void *)largeValues, CTYPE_float64_t, 2, 1);
     UArray *largeB = UArray_newWithData_type_size_copy_(
         (void *)largeZeros, CTYPE_float64_t, 2, 1);
+    UArray *extremeA = UArray_newWithData_type_size_copy_(
+        (void *)extremeValues, CTYPE_float64_t, 2, 1);
+    UArray *extremeB = UArray_newWithData_type_size_copy_(
+        (void *)extremeZeros, CTYPE_float64_t, 2, 1);
     UArray *shortA = UArray_newWithData_type_size_copy_(
         (void *)oneValue, CTYPE_float64_t, 1, 1);
     double distance;
 
     if (!floatA || !floatB || !crossA || !crossB ||
-        !tinyA || !tinyB || !largeA || !largeB || !shortA) {
+        !tinyA || !tinyB || !largeA || !largeB || !extremeA || !extremeB || !shortA) {
         UArray_free(floatA); UArray_free(floatB);
         UArray_free(crossA); UArray_free(crossB);
         UArray_free(tinyA); UArray_free(tinyB);
         UArray_free(largeA); UArray_free(largeB);
+        UArray_free(extremeA); UArray_free(extremeB);
         UArray_free(shortA);
         return fail("UArray distance test allocation failed");
     }
@@ -139,6 +146,12 @@ int main(void)
         goto failed;
     }
 
+    distance = UArray_distanceTo_(extremeA, extremeB);
+    if (!isfinite(distance) || !closeEnough(distance, sqrt(2.0) * 1e200)) {
+        fail("UArray float64 distance overflowed intermediate squares for a finite result");
+        goto failed;
+    }
+
     if (UArray_distanceTo_(tinyA, shortA) != 0.0) {
         fail("UArray distance changed unequal-length behavior");
         goto failed;
@@ -197,6 +210,7 @@ int main(void)
     UArray_free(crossA); UArray_free(crossB);
     UArray_free(tinyA); UArray_free(tinyB);
     UArray_free(largeA); UArray_free(largeB);
+    UArray_free(extremeA); UArray_free(extremeB);
     UArray_free(shortA);
     puts("UArray distance precision test passed");
     return EXIT_SUCCESS;
@@ -206,6 +220,7 @@ failed:
     UArray_free(crossA); UArray_free(crossB);
     UArray_free(tinyA); UArray_free(tinyB);
     UArray_free(largeA); UArray_free(largeB);
+    UArray_free(extremeA); UArray_free(extremeB);
     UArray_free(shortA);
     return EXIT_FAILURE;
 }
