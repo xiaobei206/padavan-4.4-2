@@ -1,3 +1,14 @@
+## 2026-11-07 00:50 CST — Reject out-of-range BStream tag fields before bit-field truncation
+
+- Baseline: main commit `d10391ceb2066d8bd0ed9d92b8e0846b3fef8654`; SkipDBv2 Regression run #384 passed.
+- Scope: the tagged-wire header writer `BStream_writeTag()` and its existing `bstream_tag_boundaries` regression.
+- The previous round-trip check compared values only after assigning them to 1/2/5-bit fields. Inputs outside those widths had already been truncated, so invalid type, byte-count, or array-flag values could pass the check and emit a different tag than requested.
+- Validate the original unsigned arguments before bit-field assignment, fail through the existing stream error channel, and emit no tag on invalid input. Preserve the maximum valid field combination (`0xff`).
+- Extend the current C test for each invalid dimension and the valid width boundary. Add static and ordered dynamic source-contract checks; reuse the current CMake/CTest registration. No new files.
+- No local C build is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:19 CST — Stop Datum detection when callbacks invalidate the source span
 
 - Baseline: main commit `0c1c7c54764563f7209944e3b0d3c3a358229e57`; SkipDBv2 Regression run #383 passed source contracts, full build, and all CTest cases.

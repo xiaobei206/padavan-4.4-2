@@ -624,18 +624,15 @@ void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned in
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		UArray_size(self->errorBa) != 0)
 		return;
+	/* Validate the original values before assigning to narrow bit-fields. */
+	if (a > 1 || t > 3 || b > 31) {
+		BStream_error_(self, "unsupported binary stream tag");
+		return;
+	}
 	tag.isArray = a;
 	tag.type = t;
 	tag.byteCount = b;
 	byte = BStreamTag_asUnsignedChar(&tag);
-	{
-		BStreamTag decoded = BStreamTag_FromUnsignedChar(byte);
-		if (decoded.isArray != tag.isArray || decoded.type != tag.type ||
-			decoded.byteCount != tag.byteCount) {
-			BStream_error_(self, "unsupported binary stream tag");
-			return;
-		}
-	}
 	BStream_writeUint8_(self, byte);
 }
 

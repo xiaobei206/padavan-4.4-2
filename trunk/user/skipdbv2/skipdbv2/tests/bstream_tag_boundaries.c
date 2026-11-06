@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Internal writer is exercised here to test raw wire-field range checks. */
+extern void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned int a);
+
 static int fail(const char *message)
 {
 	fprintf(stderr, "%s\n", message);
@@ -477,6 +480,52 @@ static int testBStreamAliasedWrites(void)
 }
 
 
+static int expectBStreamInvalidTagRejected_(unsigned int type,
+    unsigned int byteCount, unsigned int arrayFlag, const char *message)
+{
+    BStream *stream = BStream_new();
+    const char *error;
+    if (NULL == stream || NULL == stream->ba) {
+        BStream_free(stream);
+        return fail("BStream tag-boundary fixture allocation failed");
+    }
+    BStream_writeTag(stream, type, byteCount, arrayFlag);
+    error = BStream_errorString(stream);
+    if (NULL == error || error[0] == '\0' ||
+        UArray_size(stream->ba) != 0 || stream->index != 0) {
+        BStream_free(stream);
+        return fail(message);
+    }
+    BStream_free(stream);
+    return EXIT_SUCCESS;
+}
+
+static int testBStreamTagWriterFieldBounds(void)
+{
+    BStream *stream;
+    if (expectBStreamInvalidTagRejected_(4, 1, 0,
+            "BStream tag writer accepted an out-of-range type") != EXIT_SUCCESS ||
+        expectBStreamInvalidTagRejected_(BSTREAM_UNSIGNED_INT, 32, 0,
+            "BStream tag writer accepted an out-of-range byte count") != EXIT_SUCCESS ||
+        expectBStreamInvalidTagRejected_(BSTREAM_UNSIGNED_INT, 1, 2,
+            "BStream tag writer accepted an out-of-range array flag") != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+
+    stream = BStream_new();
+    if (NULL == stream)
+        return fail("BStream valid tag-boundary fixture allocation failed");
+    BStream_writeTag(stream, BSTREAM_POINTER, 31, 1);
+    if (NULL == stream->ba->data || UArray_size(stream->ba) != 1 ||
+        stream->index != 1 || stream->ba->data[0] != 0xff ||
+        UArray_size(stream->errorBa) != 0) {
+        BStream_free(stream);
+        return fail("BStream tag writer rejected field-width maximum");
+    }
+    BStream_free(stream);
+    return EXIT_SUCCESS;
+}
+
+
 int main(void)
 {
 	unsigned int arrayFlag, type, byteCount;
@@ -512,6 +561,8 @@ int main(void)
 
 	if (strcmp(BStreamTag_typeName(&sample), "pointer") != 0)
 		return fail("BStreamTag valid type name changed");
+	if (testBStreamTagWriterFieldBounds() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 	if (testBStreamClone() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamSetUArrayOwnership() != EXIT_SUCCESS)

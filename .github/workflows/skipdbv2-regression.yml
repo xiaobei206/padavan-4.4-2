@@ -1038,6 +1038,8 @@ jobs:
                   "BStream_sourceOverlapsStream_(self->ba, ba->data, length)",
                   "BStream_sourceOverlapsStream_(self->ba, data, length)",
                   "BStream_viewOverlapsStream_(self->ba, ba)",
+                  "if (a > 1 || t > 3 || b > 31)",
+                  "unsupported binary stream tag",
                   "static int BStream_viewOverlapsStream_(const UArray *streamArray,",
                   "viewStart - streamStart <= streamArray->size",
                   "BStream_sourceOverlapsStream_(streamArray, view->data, view->size)",
@@ -1058,6 +1060,12 @@ jobs:
                   "BStream write accepted malformed existing backing storage",
                   "BStream tagged write silently accepted a NULL payload",
                   "BStream tagged write accepted malformed existing backing storage",
+                  "static int testBStreamTagWriterFieldBounds(void)",
+                  "BStream tag writer accepted an out-of-range type",
+                  "BStream tag writer accepted an out-of-range byte count",
+                  "BStream tag writer accepted an out-of-range array flag",
+                  "BStream tag writer rejected field-width maximum",
+                  "extern void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned int a);",
                   "static int testBStreamAliasedWrites(void)",
                   "BStream plain byte append lost an aliased tail terminator",
                   "BStream empty-stream append lost its terminator source",
@@ -4206,6 +4214,22 @@ jobs:
           bstream_tag_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c").read_text()
           bstream_tag_test = Path("trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c").read_text()
           bstream_tag_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+
+          bstream_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/BStream.c").read_text()
+          tag_writer_start = bstream_source.find("void BStream_writeTag(")
+          tag_writer_end = bstream_source.find("\nvoid BStream_writeTaggedUint8_(", tag_writer_start)
+          tag_writer_body = bstream_source[tag_writer_start:tag_writer_end] if tag_writer_start >= 0 and tag_writer_end > tag_writer_start else ""
+          tag_writer_order = [tag_writer_body.find(token) for token in (
+              "if (a > 1 || t > 3 || b > 31)",
+              'BStream_error_(self, "unsupported binary stream tag")',
+              "tag.isArray = a;",
+              "byte = BStreamTag_asUnsignedChar(&tag);",
+              "BStream_writeUint8_(self, byte);")]
+          if not tag_writer_body or min(tag_writer_order) < 0 or tag_writer_order != sorted(tag_writer_order):
+              raise SystemExit("BStream tag writer must reject raw out-of-range fields before bit-field conversion and writing")
+          if "extern void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned int a);" not in bstream_tag_test:
+              raise SystemExit("BStream tag boundary test must declare the internal writer explicitly")
+
           for signature, guard in (("unsigned char BStreamTag_asUnsignedChar(", "if (NULL == self)"),
                                    ("int BStreamTag_isEqual_(", "if (NULL == self || NULL == other)"),
                                    ("void BStreamTag_print(", "if (NULL == self)"),
