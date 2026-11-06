@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int keys_equal(void *left, void *right)
 {
@@ -69,6 +70,49 @@ static int shashGrowRejectsInvalidState(int corruption)
 		originalNumKeys == 0;
 }
 
+
+static intptr_t constant_hash_key(void *key)
+{
+	(void)key;
+	return 0;
+}
+
+static int shashCuckooFailurePreservesState(void)
+{
+	SHash *hash = SHash_new();
+	int keys[3] = {11, 22, 33};
+	int values[3] = {101, 202, 303};
+	SHashRecord originalRecords[4], incoming;
+	SHashRecord *record;
+	unsigned int originalBalance;
+	int okay;
+
+	if (NULL == hash)
+		return 0;
+	SHash_setKeysEqualCallback(hash, keys_equal);
+	SHash_setHashForKeyCallback(hash, constant_hash_key);
+	SHash_at_put_(hash, &keys[0], &values[0]);
+	SHash_at_put_(hash, &keys[1], &values[1]);
+	if (hash->tableSize != 2 || hash->numKeys != 2) {
+		SHash_free(hash);
+		return 0;
+	}
+
+	memcpy(originalRecords, hash->records, sizeof(originalRecords));
+	originalBalance = hash->balance;
+	incoming.key = &keys[2];
+	incoming.value = &values[2];
+	record = SHash_cuckoo_(hash, &incoming);
+	okay = NULL == record &&
+		incoming.key == &keys[2] && incoming.value == &values[2] &&
+		hash->balance == originalBalance && hash->numKeys == 2 &&
+		0 == memcmp(originalRecords, hash->records, sizeof(originalRecords)) &&
+		SHash_at_(hash, &keys[0]) == &values[0] &&
+		SHash_at_(hash, &keys[1]) == &values[1];
+	SHash_free(hash);
+	return okay;
+}
+
 int main(void)
 {
 	SHash *hash;
@@ -77,6 +121,10 @@ int main(void)
 	size_t oldMemory;
 
 	SHash_compact(NULL);
+
+	if (!check(shashCuckooFailurePreservesState(),
+		"SHash cuckoo failure altered the original table or input record"))
+		return EXIT_FAILURE;
 	if (!check(shashGrowRejectsInvalidState(0),
 		"SHash_grow accepted inconsistent table geometry"))
 		return EXIT_FAILURE;

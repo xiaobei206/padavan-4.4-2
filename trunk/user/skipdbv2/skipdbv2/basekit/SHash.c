@@ -206,12 +206,21 @@ void SHash_copy_(SHash *self, SHash *other)
 */
 SHashRecord *SHash_cuckoo_(SHash *self, SHashRecord* thisRecord)
 {
-	unsigned int hash;
+	enum { SHASH_CUCKOO_MAX_SWAPS = 41 };
+	SHashRecord originalRecord;
+	SHashRecord *swappedRecords[SHASH_CUCKOO_MAX_SWAPS];
+	SHashRecord previousRecords[SHASH_CUCKOO_MAX_SWAPS];
+	unsigned int hash, originalBalance;
 	SHashRecord *record;
+	size_t swapCount = 0;
+
 	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
 		NULL == thisRecord || NULL == thisRecord->key ||
 		NULL == self->keysEqual || NULL == self->hashForKey)
 		return NULL;
+
+	originalRecord = *thisRecord;
+	originalBalance = self->balance;
 	record = SHash_recordAt_(self, thisRecord->key);
 	if (record != &self->nullRecord && NULL == record->key)
 		return record;
@@ -225,6 +234,8 @@ SHashRecord *SHash_cuckoo_(SHash *self, SHashRecord* thisRecord)
 			record = SHASH_RECORDS_AT_HASH_(self, 1, hash);
 			if (NULL == record->key)
 				return record;
+			swappedRecords[swapCount] = record;
+			previousRecords[swapCount++] = *record;
 			SHashRecord_swap(record, thisRecord);
 			if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
 				return record;
@@ -235,6 +246,8 @@ SHashRecord *SHash_cuckoo_(SHash *self, SHashRecord* thisRecord)
 			record = SHASH_RECORDS_AT_HASH_(self, 0, hash);
 			if (NULL == record->key)
 				return record;
+			swappedRecords[swapCount] = record;
+			previousRecords[swapCount++] = *record;
 			SHashRecord_swap(record, thisRecord);
 			if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
 				return record;
@@ -242,11 +255,21 @@ SHashRecord *SHash_cuckoo_(SHash *self, SHashRecord* thisRecord)
 			record = SHASH_RECORDS_AT_HASH_(self, 1, hash);
 			if (NULL == record->key)
 				return record;
+			swappedRecords[swapCount] = record;
+			previousRecords[swapCount++] = *record;
 			SHashRecord_swap(record, thisRecord);
 			if (SHash_keysAreEqual_(self, thisRecord->key, record->key))
 				return record;
 		}
 	}
+
+	/* A failed kick chain must not publish partial table mutations. */
+	while (swapCount > 0) {
+		--swapCount;
+		*swappedRecords[swapCount] = previousRecords[swapCount];
+	}
+	*thisRecord = originalRecord;
+	self->balance = originalBalance;
 	return NULL;
 }
 

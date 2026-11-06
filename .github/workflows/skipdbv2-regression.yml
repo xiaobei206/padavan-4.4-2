@@ -962,11 +962,16 @@ jobs:
                   "self->tableSize != (1u << self->log2tableSize)",
                   "self->mask != self->tableSize - 1",
                   "self->numKeys > self->tableSize * 2",
+                  "enum { SHASH_CUCKOO_MAX_SWAPS = 41 };",
+                  "SHashRecord *swappedRecords[SHASH_CUCKOO_MAX_SWAPS];",
+                  "*thisRecord = originalRecord;",
+                  "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c": [
                   "SHash_compact did not reduce the table while preserving count",
                   "SHash_compact lost a retained key/value mapping",
                   "SHash_compact did not return an empty table to its minimum size",
+                  "SHash cuckoo failure altered the original table or input record",
                   "SHash_grow accepted inconsistent table geometry",
                   "SHash_grow accepted an inconsistent hash mask",
                   "SHash_grow accepted an impossible key count",
@@ -2967,6 +2972,45 @@ jobs:
                          "add_test(NAME shash_compact_test COMMAND shash_compact_test)"):
               if needle not in shash_cmake:
                   raise SystemExit("SHash compaction CTest registration missing: " + needle)
+
+
+          shash_inline = Path("trunk/user/skipdbv2/skipdbv2/basekit/SHash_inline.h").read_text()
+          if "#define SHash_maxLoops(self) (self->tableSize < 20 ? self->tableSize : 20)" not in shash_inline:
+              raise SystemExit("SHash cuckoo rollback capacity must match the 20-iteration loop bound")
+          cuckoo_start = shash_source.find("SHashRecord *SHash_cuckoo_(SHash *self, SHashRecord* thisRecord)")
+          cuckoo_end = shash_source.find("void SHash_grow(", cuckoo_start)
+          cuckoo_body = shash_source[cuckoo_start:cuckoo_end] if cuckoo_start >= 0 and cuckoo_end > cuckoo_start else ""
+          for needle in ("enum { SHASH_CUCKOO_MAX_SWAPS = 41 };",
+                         "SHashRecord originalRecord;",
+                         "SHashRecord *swappedRecords[SHASH_CUCKOO_MAX_SWAPS];",
+                         "SHashRecord previousRecords[SHASH_CUCKOO_MAX_SWAPS];",
+                         "originalRecord = *thisRecord;",
+                         "originalBalance = self->balance;",
+                         "swappedRecords[swapCount] = record;",
+                         "previousRecords[swapCount++] = *record;",
+                         "while (swapCount > 0)",
+                         "*swappedRecords[swapCount] = previousRecords[swapCount];",
+                         "*thisRecord = originalRecord;",
+                         "self->balance = originalBalance;"):
+              if needle not in cuckoo_body:
+                  raise SystemExit("SHash failed-kick rollback contract missing: " + needle)
+          if cuckoo_body.count("SHashRecord_swap(record, thisRecord);") != 3:
+              raise SystemExit("SHash cuckoo swaps must all record their prior slot state")
+          rollback_start = cuckoo_body.find("while (swapCount > 0)")
+          slot_restore = cuckoo_body.find("*swappedRecords[swapCount] = previousRecords[swapCount];", rollback_start)
+          record_restore = cuckoo_body.find("*thisRecord = originalRecord;", slot_restore)
+          balance_restore = cuckoo_body.find("self->balance = originalBalance;", record_restore)
+          failure_return = cuckoo_body.find("return NULL;", balance_restore)
+          if min(rollback_start, slot_restore, record_restore, balance_restore, failure_return) < 0 or not (
+              rollback_start < slot_restore < record_restore < balance_restore < failure_return
+          ):
+              raise SystemExit("SHash cuckoo failure must restore slots, input record, and balance before returning")
+
+          if "static int shashCuckooFailurePreservesState(void)" not in shash_test or \
+             "constant_hash_key" not in shash_test or \
+             "SHash_cuckoo_" not in shash_test or \
+             "0 == memcmp(originalRecords, hash->records, sizeof(originalRecords))" not in shash_test:
+              raise SystemExit("SHash failed-kick regression must verify table and input rollback")
 
           phash_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PHash.c").read_text()
           phash_test = Path("trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c").read_text()

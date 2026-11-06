@@ -1,3 +1,23 @@
+## 2026-11-06 18:56 CST — Roll back failed SHash cuckoo kick chains
+
+### Baseline
+- Main commit `260fdc21af769e3f9d406324d8e561f5e57a80da`; SkipDBv2 Regression run #315 passed.
+- Scope: failure handling in `SHash_cuckoo_()` and its existing regression fixture.
+
+### Defect and fix
+- A bounded kick-chain failure returned `NULL` after swapping records through the two tables. If a subsequent growth attempt could not complete, the map remained partially rewritten and an existing mapping could be lost even though insertion failed.
+- Snapshot each touched slot before swapping. On an exhausted kick chain, restore every touched slot in reverse order, restore the caller's input record, and restore the table-balance bit before returning failure. Successful insertion paths retain their existing behavior.
+
+### Regression and contracts
+- Extend `shash_compact_test` with deterministic constant-hash collisions that exhaust the kick chain, then verify both mappings, every record slot, the incoming record, the key count, and balance remain unchanged.
+- Extend existing workflow source contracts for the rollback sequence and regression. The existing CMake/CTest target is reused; no new files or exported declarations.
+
+### Validation
+- Static review confirms the rollback stack is bounded to the maximum of 20 two-table kick iterations plus the optional balancing kick (41 slots), and every `SHashRecord_swap` site records the prior slot contents.
+- Mainline CI will compile and run the full SkipDBv2 regression suite.
+
+---
+
 ## 2026-11-06 18:29 CST — Normalize Date fractional seconds and guard overflow
 
 ### Baseline
