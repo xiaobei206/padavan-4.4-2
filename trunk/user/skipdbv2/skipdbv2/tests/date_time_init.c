@@ -1,6 +1,7 @@
 #include "Date.h"
 
 #include <math.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -69,6 +70,61 @@ int main(void)
     if (!isfinite(before) || before <= 0.0) {
         fprintf(stderr, "wall-clock query returned an invalid timestamp\n");
         return EXIT_FAILURE;
+    }
+
+    {
+        Date value = {0};
+        Date beforeInvalid;
+
+        Date_fromSeconds_(&value, -0.5);
+        if (value.tv.tv_sec != (time_t)-1 || value.tv.tv_usec != 500000 ||
+            fabs(Date_asSeconds(&value) + 0.5) > 0.000001) {
+            fprintf(stderr, "negative fractional Date timestamp was not normalized\\n");
+            return EXIT_FAILURE;
+        }
+
+        Date_fromSeconds_(&value, 10.75);
+        Date_addSeconds_(&value, 0.5);
+        if (value.tv.tv_sec != (time_t)11 || value.tv.tv_usec != 250000 ||
+            fabs(Date_asSeconds(&value) - 11.25) > 0.000001) {
+            fprintf(stderr, "Date fractional addition did not carry microseconds\\n");
+            return EXIT_FAILURE;
+        }
+        Date_addSeconds_(&value, -0.5);
+        if (value.tv.tv_sec != (time_t)10 || value.tv.tv_usec != 750000 ||
+            fabs(Date_asSeconds(&value) - 10.75) > 0.000001) {
+            fprintf(stderr, "Date negative fractional addition did not borrow seconds\\n");
+            return EXIT_FAILURE;
+        }
+
+        Date_fromSeconds_(&value, 1700000000.25);
+        Date_setSecond_(&value, -0.5);
+        if (value.tv.tv_usec != 500000 ||
+            Date_second(&value) < 59.499999 ||
+            Date_second(&value) > 59.500001) {
+            fprintf(stderr, "Date_setSecond did not normalize a negative fraction\\n");
+            return EXIT_FAILURE;
+        }
+
+        beforeInvalid = value;
+        Date_fromSeconds_(&value, NAN);
+        Date_addSeconds_(&value, INFINITY);
+        Date_addSeconds_(&value, -INFINITY);
+        Date_setSecond_(&value, NAN);
+        Date_setSecond_(&value, INFINITY);
+        if (value.tv.tv_sec != beforeInvalid.tv.tv_sec ||
+            value.tv.tv_usec != beforeInvalid.tv.tv_usec) {
+            fprintf(stderr, "non-finite Date seconds input changed the stored time\\n");
+            return EXIT_FAILURE;
+        }
+
+        value.tv.tv_sec = (time_t)LONG_MAX;
+        value.tv.tv_usec = 0;
+        Date_addSeconds_(&value, 1.0);
+        if (value.tv.tv_sec != (time_t)LONG_MAX || value.tv.tv_usec != 0) {
+            fprintf(stderr, "Date seconds addition overflowed the whole-second field\\n");
+            return EXIT_FAILURE;
+        }
     }
 
     date = Date_new();

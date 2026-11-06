@@ -10,6 +10,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <limits.h>
 #include "PortableStrptime.h"
 #include "UArray.h"
 
@@ -19,6 +20,42 @@ static struct tm *Date_localTime_(const Date *self, time_t *timestamp)
 		return NULL;
 	*timestamp = self->tv.tv_sec;
 	return localtime(timestamp);
+}
+
+/* Split seconds into a whole-second part and normalized positive microseconds.
+ * Reject values before any floating-to-integer conversion can leave its range. */
+static int Date_splitSeconds_(double seconds, long *wholeSeconds,
+	long *microseconds)
+{
+	double integral, fractional;
+	long whole, micros;
+
+	if (NULL == wholeSeconds || NULL == microseconds || !isfinite(seconds) ||
+		seconds < (double)LONG_MIN || seconds >= (double)LONG_MAX)
+		return 0;
+
+	fractional = modf(seconds, &integral);
+	if (fractional < 0.0) {
+		integral -= 1.0;
+		fractional += 1.0;
+	}
+	if (integral < (double)LONG_MIN || integral >= (double)LONG_MAX)
+		return 0;
+
+	whole = (long)integral;
+	micros = (long)(fractional * 1000000.0);
+	if (micros >= 1000000) {
+		if (whole == LONG_MAX)
+			return 0;
+		++whole;
+		micros -= 1000000;
+	}
+	if (micros < 0 || micros >= 1000000)
+		return 0;
+
+	*wholeSeconds = whole;
+	*microseconds = micros;
+	return 1;
 }
 
 
@@ -150,22 +187,54 @@ double Date_asSeconds(const Date *self)
 
 void Date_fromSeconds_(Date *self, double s)
 {
-	long secs;
-	if (NULL == self)
+	long secs, usecs;
+	time_t timestamp;
+
+	if (NULL == self || !Date_splitSeconds_(s, &secs, &usecs))
 		return;
-	secs = s;
-	self->tv.tv_sec = secs;
-	self->tv.tv_usec = (s - secs)*1000000;
+	timestamp = (time_t)secs;
+	if ((long double)timestamp != (long double)secs)
+		return;
+	self->tv.tv_sec = timestamp;
+	self->tv.tv_usec = usecs;
 }
 
 void Date_addSeconds_(Date *self, double s)
 {
-	long secs;
-	if (NULL == self)
+	long deltaSeconds, deltaMicroseconds;
+	long currentSeconds, currentMicroseconds;
+	long newSeconds, newMicroseconds;
+	time_t timestamp;
+
+	if (NULL == self ||
+		!Date_splitSeconds_(s, &deltaSeconds, &deltaMicroseconds) ||
+		(long double)self->tv.tv_sec < (long double)LONG_MIN ||
+		(long double)self->tv.tv_sec >= (long double)LONG_MAX)
 		return;
-	secs = s;
-	self->tv.tv_sec += secs;
-	self->tv.tv_usec += (s - secs)*1000000;
+	currentSeconds = (long)self->tv.tv_sec;
+	if ((long double)(time_t)currentSeconds != (long double)currentSeconds)
+		return;
+	currentMicroseconds = (long)self->tv.tv_usec;
+	if (currentMicroseconds < 0 || currentMicroseconds >= 1000000)
+		return;
+
+	if ((deltaSeconds > 0 && currentSeconds > LONG_MAX - deltaSeconds) ||
+		(deltaSeconds < 0 && currentSeconds < LONG_MIN - deltaSeconds))
+		return;
+	newSeconds = currentSeconds + deltaSeconds;
+	newMicroseconds = currentMicroseconds + deltaMicroseconds;
+	if (newMicroseconds >= 1000000) {
+		if (newSeconds == LONG_MAX)
+			return;
+		++newSeconds;
+		newMicroseconds -= 1000000;
+	}
+
+	timestamp = (time_t)newSeconds;
+	if ((long double)timestamp != (long double)newSeconds)
+		return;
+	self->tv.tv_sec = timestamp;
+	self->tv.tv_usec = newMicroseconds;
 }
 
 double Date_secondsSince_(const Date *self, const Date *other)
@@ -273,13 +342,19 @@ double Date_second(const Date *self)
 
 void Date_setSecond_(Date *self, double v)
 {
+	long wholeSeconds, microseconds;
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
+	struct tm *tm;
+
+	if (NULL == self || !Date_splitSeconds_(v, &wholeSeconds, &microseconds) ||
+		wholeSeconds < INT_MIN || wholeSeconds > INT_MAX)
+		return;
+	tm = Date_localTime_(self, &t);
 	if (NULL == tm)
 		return;
-	tm->tm_sec = v;
+	tm->tm_sec = (int)wholeSeconds;
 	self->tv.tv_sec = mktime(tm);
-	self->tv.tv_usec = (v - ((long)v))*1000000;
+	self->tv.tv_usec = microseconds;
 }
 
 unsigned char Date_isDaylightSavingsTime(const Date *self)

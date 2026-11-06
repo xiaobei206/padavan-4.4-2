@@ -1,3 +1,24 @@
+## 2026-11-06 18:29 CST — Normalize Date fractional seconds and guard overflow
+
+### Baseline
+- Main commit `d75bb402b6cd102960ecfac1a9f61f2cade6d268`; SkipDBv2 Regression run #314 passed.
+- Scope: Date seconds conversion, addition, and second-component setting in `Date.c`.
+
+### Defect and fix
+- `Date_fromSeconds_()` and `Date_addSeconds_()` cast arbitrary doubles to `long` without rejecting NaN, infinity, or out-of-range values. The addition path also left `tv_usec` unnormalized and could overflow `tv_sec`.
+- Negative fractions were stored as negative microseconds (for example, `-0.5` became `tv_sec=0, tv_usec=-500000`), violating timeval normalization and producing incorrect component/time_t behavior.
+- Add one private splitter that validates finite/range-safe input before conversion and returns floor-normalized seconds plus microseconds in [0, 999999]. Use it for construction, checked addition, and `Date_setSecond_()`. Reject invalid/overflowing updates without mutating the Date.
+
+### Regression and contracts
+- Extend existing `date_time_init_test` for negative fractions, carry/borrow, non-finite input, `tm_sec` negative fractions, and second-field overflow.
+- Extend workflow source contracts for the helper, checked arithmetic, and tests. Existing CMake/CTest target reused; no new files or public declarations.
+
+### Validation
+- Static review confirms no floating-to-integer conversion occurs before finite/range validation, signed second arithmetic is guarded, and all successful updates publish normalized microseconds.
+- Mainline CI run #315 will validate compilation and the complete regression suite.
+
+---
+
 ## 2026-11-06 18:25 CST — Reject BStream read destinations that share stream storage
 
 ### Baseline

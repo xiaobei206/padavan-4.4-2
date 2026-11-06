@@ -1104,6 +1104,12 @@ jobs:
                   "Date_asSeconds(NULL) != 0.0",
                   "Date NULL receiver/argument contract failed",
                   "Date_SecondsFrom1970ToNow()",
+                  "Date_fromSeconds_(&value, -0.5)",
+                  "Date_addSeconds_(&value, 0.5)",
+                  "Date_addSeconds_(&value, -0.5)",
+                  "Date_setSecond_(&value, -0.5)",
+                  "non-finite Date seconds input changed the stored time",
+                  "Date seconds addition overflowed the whole-second field",
                   "Date_new did not initialize the wall-clock state",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/date_string_bounds.c": [
@@ -2700,13 +2706,68 @@ jobs:
               member_write = body.find("tm->")
               if not body or helper_call < 0 or null_guard < helper_call or member_write < null_guard:
                   raise SystemExit("Date component setter must guard localtime before mutating its result: " + signature)
+          seconds_helper_start = date_source.find(
+              "static int Date_splitSeconds_(double seconds, long *wholeSeconds,"
+          )
+          seconds_helper_end = date_source.find("\nDate *Date_new(", seconds_helper_start)
+          seconds_helper_body = (
+              date_source[seconds_helper_start:seconds_helper_end]
+              if seconds_helper_start >= 0 and seconds_helper_end > seconds_helper_start
+              else ""
+          )
+          if (
+              not seconds_helper_body or
+              "!isfinite(seconds)" not in seconds_helper_body or
+              "modf(seconds, &integral)" not in seconds_helper_body or
+              "fractional += 1.0" not in seconds_helper_body or
+              "micros >= 1000000" not in seconds_helper_body
+          ):
+              raise SystemExit("Date seconds splitting must reject non-finite/out-of-range values and normalize negative fractions")
+
+          from_seconds_start = date_source.find("void Date_fromSeconds_(Date *self, double s)")
+          from_seconds_end = date_source.find("\nvoid Date_addSeconds_", from_seconds_start)
+          from_seconds_body = date_source[from_seconds_start:from_seconds_end] if from_seconds_start >= 0 and from_seconds_end > from_seconds_start else ""
+          add_seconds_start = date_source.find("void Date_addSeconds_(Date *self, double s)")
+          add_seconds_end = date_source.find("\ndouble Date_secondsSince_", add_seconds_start)
+          add_seconds_body = date_source[add_seconds_start:add_seconds_end] if add_seconds_start >= 0 and add_seconds_end > add_seconds_start else ""
+          set_second_start = date_source.find("void Date_setSecond_(Date *self, double v)")
+          set_second_end = date_source.find("\nunsigned char Date_isDaylightSavingsTime(", set_second_start)
+          set_second_body = date_source[set_second_start:set_second_end] if set_second_start >= 0 and set_second_end > set_second_start else ""
+          if (
+              not from_seconds_body or
+              "Date_splitSeconds_(s, &secs, &usecs)" not in from_seconds_body or
+              "(long double)timestamp != (long double)secs" not in from_seconds_body or
+              "self->tv.tv_usec = usecs;" not in from_seconds_body
+          ):
+              raise SystemExit("Date_fromSeconds_ must validate and publish a normalized timeval")
+          if (
+              not add_seconds_body or
+              "Date_splitSeconds_(s, &deltaSeconds, &deltaMicroseconds)" not in add_seconds_body or
+              "LONG_MAX - deltaSeconds" not in add_seconds_body or
+              "LONG_MIN - deltaSeconds" not in add_seconds_body or
+              "newMicroseconds -= 1000000;" not in add_seconds_body
+          ):
+              raise SystemExit("Date_addSeconds_ must normalize fractions and guard signed-second overflow")
+          if (
+              not set_second_body or
+              "Date_splitSeconds_(v, &wholeSeconds, &microseconds)" not in set_second_body or
+              "wholeSeconds < INT_MIN || wholeSeconds > INT_MAX" not in set_second_body or
+              "self->tv.tv_usec = microseconds;" not in set_second_body
+          ):
+              raise SystemExit("Date_setSecond_ must validate tm_sec conversion and normalized microseconds")
+
           date_null_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
           for needle in ("Date_copy_(NULL, &sample)", "Date_compare(NULL, &sample)",
                          "Date_asSeconds(NULL) != 0.0",
                          "Date NULL receiver/argument contract failed",
+                         "Date_fromSeconds_(&value, -0.5)",
+                         "Date_addSeconds_(&value, 0.5)",
+                         "Date_setSecond_(&value, -0.5)",
+                         "non-finite Date seconds input changed the stored time",
+                         "Date seconds addition overflowed the whole-second field",
                          "Date_newDurationBySubtractingDate_(&sample, NULL) != NULL"):
               if needle not in date_null_test:
-                  raise SystemExit("Date NULL-boundary regression case missing: " + needle)
+                  raise SystemExit("Date seconds/timeval regression case missing: " + needle)
 
           date_string_start = date_source.find("UArray *Date_asString(const Date *self, const char *format)")
           date_string_end = date_source.find("\n}", date_string_start)
