@@ -12,6 +12,71 @@ int main(void)
     unsigned char *data;
     size_t size, itemSize;
     if (!n || !p || !empty) { UArray_free(n); UArray_free(p); UArray_free(empty); return fail("UArray extrema allocation failed"); }
+    {
+        const int16_t factors[] = { 2, 3 };
+        UArray *factorArray = UArray_newWithData_type_size_copy_(
+            (void *)factors, CTYPE_int16_t, 2, 1);
+        double dot;
+        if (NULL == factorArray) {
+            UArray_free(n); UArray_free(p); UArray_free(empty);
+            return fail("UArray dot product fixture allocation failed");
+        }
+        dot = UArray_dotProduct_(p, factorArray);
+        if (dot != 46.0) {
+            UArray_free(factorArray); UArray_free(n); UArray_free(p); UArray_free(empty);
+            return fail("UArray mixed-width dot product changed");
+        }
+        if (UArray_dotProduct_(NULL, factorArray) != 0.0 ||
+            UArray_dotProduct_(p, NULL) != 0.0) {
+            UArray_free(factorArray); UArray_free(n); UArray_free(p); UArray_free(empty);
+            return fail("UArray dot product accepted NULL input");
+        }
+        {
+            unsigned char *originalData = p->data;
+            p->data = NULL;
+            dot = UArray_dotProduct_(p, factorArray);
+            p->data = originalData;
+            if (dot != 0.0) {
+                UArray_free(factorArray); UArray_free(n); UArray_free(p); UArray_free(empty);
+                return fail("UArray dot product accepted missing backing storage");
+            }
+        }
+        {
+            size_t originalItemSize = p->itemSize;
+            p->itemSize = sizeof(uint32_t) - 1;
+            dot = UArray_dotProduct_(p, factorArray);
+            p->itemSize = originalItemSize;
+            if (dot != 0.0) {
+                UArray_free(factorArray); UArray_free(n); UArray_free(p); UArray_free(empty);
+                return fail("UArray dot product accepted mismatched item width");
+            }
+        }
+        {
+            CTYPE originalItemType = p->itemType;
+            p->itemType = (CTYPE)9999;
+            dot = UArray_dotProduct_(p, factorArray);
+            p->itemType = originalItemType;
+            if (dot != 0.0) {
+                UArray_free(factorArray); UArray_free(n); UArray_free(p); UArray_free(empty);
+                return fail("UArray dot product accepted an unsupported item type");
+            }
+        }
+        {
+            size_t originalSize = p->size;
+            p->size = (size_t)-1 / sizeof(uint32_t) + 1;
+            dot = UArray_dotProduct_(p, factorArray);
+            p->size = originalSize;
+            if (dot != 0.0) {
+                UArray_free(factorArray); UArray_free(n); UArray_free(p); UArray_free(empty);
+                return fail("UArray dot product accepted overflowing item geometry");
+            }
+        }
+        if (UArray_dotProduct_(empty, factorArray) != 0.0) {
+            UArray_free(factorArray); UArray_free(n); UArray_free(p); UArray_free(empty);
+            return fail("UArray empty dot product behavior changed");
+        }
+        UArray_free(factorArray);
+    }
     if (UArray_maxAsDouble(n) != -4.0 || UArray_minAsDouble(n) != -19.0) { UArray_free(n); UArray_free(p); UArray_free(empty); return fail("UArray negative-only extrema returned a finite sentinel"); }
     if (UArray_maxAsDouble(p) != 12.0 || UArray_minAsDouble(p) != 5.0) { UArray_free(n); UArray_free(p); UArray_free(empty); return fail("UArray positive extrema changed"); }
     if (UArray_maxAsDouble(empty) != 0.0 || UArray_minAsDouble(empty) != 0.0 || UArray_maxAsDouble(NULL) != 0.0 || UArray_minAsDouble(NULL) != 0.0) { UArray_free(n); UArray_free(p); UArray_free(empty); return fail("UArray extrema empty/NULL behavior changed"); }

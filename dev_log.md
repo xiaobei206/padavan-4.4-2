@@ -1,3 +1,13 @@
+## 2026-11-06 22:05 CST — Validate UArray dot-product input geometry
+
+- Mainline CI #342 passed with the UArray string-iteration layout checks.
+- Scope: UArray_dotProduct_() and the existing uarray_math_extrema regression.
+- The generic typed dot-product dispatcher read both arrays without checking NULL inputs, supported item types, item-width consistency, overflow-safe geometry, or backing storage. Malformed metadata could make the typed loop read beyond the allocation.
+- Add one local numeric-layout validator for all types dispatched by DUARRAY_OP; reject invalid operands before dispatch while preserving mixed-width and unequal-length valid dot products. Extend the existing regression and workflow source contract; no CMake or file-list changes.
+- No local C compilation is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 22:02 CST — Validate UArray string iteration item layouts
 
 - Mainline CI #341 passed after the BStream attachment guard repair.

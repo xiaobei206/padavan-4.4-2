@@ -2133,6 +2133,40 @@ jobs:
               if not body or init not in body or "self->itemSize == 0" not in body or "self->size > (size_t)-1 / self->itemSize" not in body or "(self->size > 0 && NULL == self->data)" not in body or "self->size == 0" not in body:
                   raise SystemExit(f"UArray {label} must initialize from a valid first element")
 
+          dot_size_start = bit_math_source.find("static size_t UArray_numericItemSize_(CTYPE itemType)")
+          dot_guard_start = bit_math_source.find("static int UArray_hasValidNumericStorage_(const UArray *self)")
+          dot_product_start = bit_math_source.find("double UArray_dotProduct_(const UArray *self, const UArray *other)")
+          dot_product_end = bit_math_source.find("// basic scalar math", dot_product_start)
+          dot_size_body = bit_math_source[dot_size_start:dot_guard_start] if dot_size_start >= 0 and dot_guard_start > dot_size_start else ""
+          dot_guard_body = bit_math_source[dot_guard_start:dot_product_start] if dot_guard_start >= 0 and dot_product_start > dot_guard_start else ""
+          dot_product_body = bit_math_source[dot_product_start:dot_product_end] if dot_product_start >= 0 and dot_product_end > dot_product_start else ""
+          if (
+              not dot_size_body or
+              any(f"case CTYPE_{item}:" not in dot_size_body for item in (
+                  "uint8_t", "uint16_t", "uint32_t", "uint64_t",
+                  "int8_t", "int16_t", "int32_t", "int64_t",
+                  "float32_t", "float64_t", "uintptr_t"
+              ))
+          ):
+              raise SystemExit("UArray dot-product item-size map must cover every dispatched numeric CTYPE")
+          if (
+              not dot_guard_body or
+              "self->itemSize != expectedItemSize" not in dot_guard_body or
+              "self->size > (size_t)-1 / expectedItemSize" not in dot_guard_body or
+              "(self->size > 0 && NULL == self->data)" not in dot_guard_body
+          ):
+              raise SystemExit("UArray dot-product storage guard must validate type width, overflow, and backing bytes")
+          dot_guard_position = dot_product_body.find("UArray_hasValidNumericStorage_(self)")
+          dot_dispatch_position = dot_product_body.find("DUARRAY_OP(UARRAY_DOT, NULL, self, other);")
+          if (
+              not dot_product_body or
+              dot_guard_position < 0 or
+              "UArray_hasValidNumericStorage_(other)" not in dot_product_body or
+              dot_dispatch_position < 0 or
+              dot_guard_position > dot_dispatch_position
+          ):
+              raise SystemExit("UArray dot product must preflight both operands before typed dispatch")
+
           distance_start = bit_math_source.find("double UArray_distanceTo_(const UArray *self, const UArray *other)")
           distance_end = bit_math_source.find("\n// hash", distance_start)
           distance_body = bit_math_source[distance_start:distance_end] if distance_start >= 0 and distance_end > distance_start else ""
