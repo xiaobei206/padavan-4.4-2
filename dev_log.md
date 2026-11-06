@@ -1,3 +1,13 @@
+## 2026-11-07 06:01 CST — Keep SkipDB cursor ownership registration consistent
+
+- Baseline: main commit `d0becbde4bb4d19cf501b985f2c7f08dbf56b652`; SkipDBv2 Regression run #443 passed source contracts, configure, complete build, and all regression tests.
+- Scope: cursor-to-database ownership transitions in `skipdb/SkipDBCursor.c`.
+- `SkipDBCursor_sdb_()` previously replaced only the raw database pointer. A cursor already registered in the old database remained in its cursor list, while deallocation later tried to remove it from the new database. This could leave a freed cursor pointer in the old database's cache-protection list; the cursor also retained a record pointer and traversal counters from the old database.
+- Register the destination first (fail without changing ownership if the destination is closed/unavailable), then remove the old registration and reset position/directional history. Detaching to NULL removes the old registration. Add lifecycle assertions to the existing `skipdb_core_layers_test`; update existing Actions contracts. No new files, declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 05:57 CST — Reject foreign cursors in SkipDB prefix iteration
 
 - Baseline: main commit `5e7127ccdf802a4cbe61bd8c5bec83c9ed6a343b`; SkipDBv2 Regression run #442 passed source contracts, configure, complete build, and all regression tests.

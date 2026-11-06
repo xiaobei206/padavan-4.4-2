@@ -32,8 +32,24 @@ SkipDBCursor *SkipDBCursor_newWithDB_(SkipDB *sdb)
 
 void SkipDBCursor_sdb_(SkipDBCursor *self, SkipDB *sdb)
 {
-	if (self && self->refCount > 0)
-		self->sdb = sdb;
+	if (NULL == self || self->refCount <= 0 || self->sdb == sdb)
+		return;
+
+	/* Register the new owner before detaching from the current one. */
+	if (sdb) {
+		if (NULL == sdb->cursors || !SkipDB_isOpen(sdb))
+			return;
+		if (!List_contains_(sdb->cursors, self) &&
+			NULL == List_append_(sdb->cursors, self))
+			return;
+	}
+
+	if (self->sdb)
+		SkipDB_removeCursor_(self->sdb, self);
+	self->sdb = sdb;
+	self->record = NULL;
+	self->nextSteps = 0;
+	self->previousSteps = 0;
 }
 
 void SkipDBCursor_retain(SkipDBCursor *self)

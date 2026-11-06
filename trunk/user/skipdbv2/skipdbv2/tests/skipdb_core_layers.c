@@ -15,7 +15,7 @@ static int key_is(SkipDBRecord *record,const char *expected)
 }
 int main(void)
 {
- SkipDB *source=NULL,*target=NULL;SkipDBCursor *cursor=NULL,*foreignCursor=NULL;SkipDBRecord *record;
+ SkipDB *source=NULL,*target=NULL;SkipDBCursor *cursor=NULL,*foreignCursor=NULL,*transferCursor=NULL;SkipDBRecord *record;
  Datum prefix=Datum_FromCString_("al");char sp[128],tp[128];int sl,tl,result=EXIT_FAILURE;
  source=SkipDB_new();target=SkipDB_new();
  if(!source||!target){fprintf(stderr,"SkipDB allocation failed\n");goto done;}
@@ -35,6 +35,27 @@ int main(void)
  if(!SkipDB_isOpen(source)||SkipDB_count(source)!=4||!value_is(source,"alpha","1")||
   !value_is(source,"gamma","4")||!SkipDB_exists(source,Datum_FromCString_("beta"))){
   fprintf(stderr,"read/count/lookup contract failed\n");goto done;}
+ /* Rebinding a cursor must move cache protection and discard old record state. */
+ transferCursor=SkipDB_createCursor(source);
+ if(!transferCursor||!key_is(SkipDBCursor_goto_(transferCursor,Datum_FromCString_("alpha")),"alpha")){
+  fprintf(stderr,"cursor ownership transfer fixture failed\n");goto done;}
+ {
+  SkipDBCursor *savedCursor=transferCursor;
+  SkipDBCursor_sdb_(transferCursor,target);
+  if(transferCursor->sdb!=target||List_contains_(source->cursors,transferCursor)||
+     !List_contains_(target->cursors,transferCursor)||SkipDBCursor_current(transferCursor)!=NULL||
+     transferCursor->nextSteps!=0||transferCursor->previousSteps!=0){
+   fprintf(stderr,"cursor rebinding did not transfer registration and reset position\n");goto done;
+  }
+  SkipDBCursor_sdb_(transferCursor,NULL);
+  if(transferCursor->sdb!=NULL||List_contains_(target->cursors,transferCursor)){
+   fprintf(stderr,"cursor detachment left stale database registration\n");goto done;
+  }
+  SkipDBCursor_release(transferCursor);transferCursor=NULL;
+  if(List_contains_(source->cursors,savedCursor)||List_contains_(target->cursors,savedCursor)){
+   fprintf(stderr,"released cursor remained registered with a database\n");goto done;
+  }
+ }
  /* A corrupt negative root level is not an empty-list search result. */
  {
   int saved_level=source->header->level;
@@ -149,6 +170,7 @@ int main(void)
  }
  result=EXIT_SUCCESS;puts("skipdb core layers test passed");
 done:
+ if(transferCursor)SkipDBCursor_release(transferCursor);
  if(foreignCursor)SkipDBCursor_release(foreignCursor);
  if(cursor)SkipDBCursor_release(cursor);
  if(source){SkipDB_delete(source);SkipDB_free(source);}
