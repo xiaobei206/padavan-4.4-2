@@ -96,6 +96,40 @@ int main(void)
         goto done;
     }
 
+    /* A physical move must not trust a caller-modified cached extent. */
+    {
+        int move_accepted;
+
+        if (JFile_logSize(db->records->file) != 0) {
+            fprintf(stderr, "record move stale-header fixture had a pending journal\\n");
+            goto done;
+        }
+        record->header.pid = 0;
+        record->header.size = 1;
+        move_accepted = UDBRecord_moveToPos_(record, saved_pos + 1);
+        if (JFile_clipLog(db->records->file) != 0) {
+            fprintf(stderr, "unable to discard uncommitted record-move fixture\\n");
+            goto done;
+        }
+        clearerr(db->records->file->file);
+        if (move_accepted) {
+            fprintf(stderr, "record move trusted stale cached size\\n");
+            goto done;
+        }
+        if (!UDBRecord_readHeader(record) ||
+            UDBRecord_pid(record) != (PID_TYPE)77 ||
+            UDBRecord_size(record) != (PID_TYPE)sizeof(payload)) {
+            fprintf(stderr, "record move failure did not retain persisted metadata\\n");
+            goto done;
+        }
+        restored = UDBRecord_readDatum(record);
+        if (restored.data == NULL || restored.size != sizeof(payload) ||
+            memcmp(restored.data, payload, sizeof(payload)) != 0) {
+            fprintf(stderr, "record move failure damaged the source payload\\n");
+            goto done;
+        }
+    }
+
     /*
      * Offset zero stores free-list metadata, not a physical record. Craft
      * metadata/header bytes that would otherwise decode as a valid EMPTY row.

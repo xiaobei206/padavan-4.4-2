@@ -1,3 +1,13 @@
+## 2026-11-07 06:27 CST — Validate persisted extents before relocating UDB records
+
+- Baseline: main commit `1f2ff69566d1e022ea41f502080aeaceced68ddd`; SkipDBv2 Regression run #449 passed source contracts, configure, full build, and all regression tests.
+- Scope: physical record relocation in `udb/UDBRecordMove.c`.
+- `UDBRecord_moveToPos_()` derived the copied byte count from the caller's cached `header.size` and validated offsets against that count without re-reading the persisted header. A stale/small cache could therefore authorize a partial record copy into an overlapping destination.
+- Re-read and validate the source header before deriving the relocation extent. On rejected moves, restore the caller's cached header and JFile cursor bounds. Extend the existing record-storage regression with a stale-size move whose actual extent does not fit the destination; discard any uncommitted journal fixture, then assert the persisted header and payload remain intact. Update existing Actions contracts. No new files, public declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:25 CST — Reject UDB record cursors inside reserved metadata
 
 - Baseline: main commit `0d1b2116c72fe0d62da22881da113e9b52938a37`; SkipDBv2 Regression run #448 passed source contracts, configure, full build, and all regression tests.
