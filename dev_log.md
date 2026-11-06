@@ -1,3 +1,13 @@
+## 2026-11-07 01:50 CST — Consume Windows dynamic-loader errors on retrieval
+
+- Baseline: main commit `ab59b37cf842f8aec8f553e4c7dfd7f1c1a5351d`; SkipDBv2 Regression run #405 passed.
+- Scope: the Windows `dlerror()` compatibility shim in `basekit/DynLib.c`.
+- The shim formatted `GetLastError()` but left the thread's last-error value set. Unlike POSIX `dlerror()`, repeated retrievals therefore returned the same stale loader failure; `DynLib_updateError()` could not observe the consumed state and clear the stored error consistently across platforms.
+- Clear the Win32 last-error state after capturing either a formatted message or the fallback message. Extend the existing lifecycle test to verify that a second update consumes/clears the prior loader error. No public API, new files, or CMake changes.
+- No local Windows build is claimed; Linux CI verifies shared lifecycle behavior, while the Windows-only shim is guarded by source contracts.
+
+---
+
 ## 2026-11-07 01:46 CST — Bound Date calendar-year conversion before narrowing
 
 - Baseline: main commit `744afb9016bafa4757b904862573a409a60dde39`; SkipDBv2 Regression run #404 passed after the Stack cursor contract correction.

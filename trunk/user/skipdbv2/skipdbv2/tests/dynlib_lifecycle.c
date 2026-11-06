@@ -94,6 +94,9 @@ int main(void)
     CHECK(NULL == DynLib_pointerForSymbolName_(library, "__skipdb_dynlib_missing_symbol__"),
           "missing symbol unexpectedly resolved");
     CHECK(DynLib_hasError(library), "missing symbol did not report an error");
+    DynLib_updateError(library);
+    CHECK(!DynLib_hasError(library),
+          "loader error state was not consumed after update");
     CHECK(NULL != DynLib_pointerForSymbolName_(library, TEST_SYMBOL),
           "symbol lookup did not recover after a previous failure");
 

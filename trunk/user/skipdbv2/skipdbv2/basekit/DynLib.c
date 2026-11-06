@@ -40,8 +40,12 @@ static const char *dlerror(void)
                             FORMAT_MESSAGE_IGNORE_INSERTS,
                             NULL, error,
                             MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                            message, (DWORD)sizeof(message), NULL))
+                            message, (DWORD)sizeof(message), NULL)) {
+        SetLastError(ERROR_SUCCESS);
         return "Windows dynamic loader operation failed";
+    }
+    /* Match POSIX dlerror(): retrieving an error consumes the loader state. */
+    SetLastError(ERROR_SUCCESS);
     return message;
 }
 

@@ -946,6 +946,9 @@ jobs:
                   "Sorting boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c": [
+                  "static const char *dlerror(void)",
+                  "SetLastError(ERROR_SUCCESS);\n        return \"Windows dynamic loader operation failed\";",
+                  "SetLastError(ERROR_SUCCESS);\n    return message;",
                   "static int DynLib_replaceString_",
                   "copy = (char *)io_malloc(length + 1);",
                   "memcpy(copy, value, length + 1);",
@@ -960,6 +963,8 @@ jobs:
                   "BASEKIT_API unsigned char DynLib_hasError(DynLib *self);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/dynlib_lifecycle.c": [
+                  "DynLib_updateError(library);",
+                  "loader error state was not consumed after update",
                   "DynLib_free(NULL);",
                   "DynLib_updateError(NULL);",
                   "TEST_LIBRARY",
