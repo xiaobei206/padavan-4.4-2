@@ -19,6 +19,9 @@ license
 
 #define BSTREAM_IS_BIG_ENDIAN 1
 
+static int BStream_sourceOverlapsStream_(const UArray *streamArray,
+    const void *source, size_t length);
+
 BStream *BStream_new(void)
 {
 	BStream *self = (BStream *)io_calloc(1, sizeof(BStream));
@@ -110,6 +113,10 @@ void BStream_setUArray_(BStream *self, UArray *ba)
 			UArray_setSize_(self->errorBa, 0);
 		return;
 	}
+	/* Do not free an owned stream buffer while the incoming view borrows it. */
+	if (self->ownsUArray && self->ba &&
+		BStream_sourceOverlapsStream_(self->ba, ba->data, ba->size))
+		return;
 	if (self->ownsUArray && self->ba)
 		UArray_free(self->ba);
 	self->ba = ba;

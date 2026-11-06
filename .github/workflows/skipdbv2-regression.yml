@@ -1023,6 +1023,7 @@ jobs:
                   "BStream_sourceOverlapsStream_(self->ba, bytes, length)",
                   "BStream_sourceOverlapsStream_(self->ba, ba->data, length)",
                   "BStream_sourceOverlapsStream_(self->ba, data, length)",
+                  "BStream_sourceOverlapsStream_(self->ba, ba->data, ba->size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c": [
                   "if (NULL == self)",
@@ -1046,6 +1047,11 @@ jobs:
                   "BStream plain array write lost an aliased tail terminator",
                   "BStream tagged write lost an aliased tail terminator",
                   "BStream tagged array write lost an aliased tail terminator",
+                  "static int testBStreamSetUArrayOwnership(void)",
+                  "BStream setUArray accepted an exact alias of owned storage",
+                  "BStream setUArray accepted an interior alias of owned storage",
+                  "BStream setUArray accepted a tail alias of owned storage",
+                  "BStream setUArray rejected an unrelated external array",
                   "static int testBStreamReadValidation(void)",
                   "static int expectBStreamAliasedBackingRejected(BStream *stream,",
                   "BStream plain array read accepted distinct shared backing storage",
@@ -2025,6 +2031,25 @@ jobs:
               'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")' not in tagged_array_body
           ):
               raise SystemExit("tagged BStream array reads must validate before consuming input")
+
+          set_array_start = bstream_source.find("void BStream_setUArray_(BStream *self, UArray *ba)")
+          set_data_start = bstream_source.find("\nvoid BStream_setData_length_", set_array_start)
+          set_array_body = (
+              bstream_source[set_array_start:set_data_start]
+              if set_array_start >= 0 and set_data_start > set_array_start
+              else ""
+          )
+          alias_preflight = set_array_body.find(
+              "BStream_sourceOverlapsStream_(self->ba, ba->data, ba->size)"
+          )
+          old_buffer_free = set_array_body.find("UArray_free(self->ba)")
+          if (
+              not set_array_body or "self->ownsUArray" not in set_array_body or
+              "self->ba == ba" not in set_array_body or
+              alias_preflight < 0 or old_buffer_free < 0 or
+              alias_preflight > old_buffer_free
+          ):
+              raise SystemExit("BStream setUArray must reject borrowed views before freeing owned storage")
 
           bit_math_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c").read_text()
           bit_helper_start = bit_math_source.find(

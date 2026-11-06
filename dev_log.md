@@ -1,3 +1,14 @@
+## 2026-11-06 21:49 CST — Prevent BStream owned-buffer use-after-free during attachment
+
+- Baseline: main `bf6ae8c72896324cc5418bf241ba887c26fbe142`; SkipDBv2 Regression #339 passed.
+- Scope: `BStream_setUArray_()` and the existing `bstream_tag_boundaries` regression.
+- A distinct incoming `UArray` can borrow all or part of the stream's currently owned byte buffer. Replacing the stream then freed the old `UArray`, leaving the new stream's borrowed view dangling.
+- Before releasing an owned stream array, reject incoming views whose data overlaps the old byte range, including its trailing NUL. Preserve the current stream, ownership flag, cursor, and bytes on rejection; continue accepting unrelated external arrays as non-owning attachments.
+- Add exact-buffer, interior-buffer, and tail-terminator regressions. Extend the existing workflow source contract to enforce preflight ordering; the existing CMake/CTest target is reused.
+- No local C compilation is claimed; the next mainline CI run is the compile/runtime gate.
+
+---
+
 ## 2026-11-06 21:14 CST — Distinguish invalid UArray line-reader input from EOF
 
 - Baseline: main `bfb07b7a6a5780aabf95ca6c2c969dcb8470d8fa`; SkipDBv2 Regression #338 passed.

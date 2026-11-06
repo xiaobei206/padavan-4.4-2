@@ -67,6 +67,77 @@ static int testBStreamClone(void)
 	return EXIT_SUCCESS;
 }
 
+static int testBStreamSetUArrayOwnership(void)
+{
+	const unsigned char payload[] = { 0x61, 0x62, 0x63, 0x64 };
+	unsigned char external_bytes[] = { 0x71, 0x72 };
+	BStream *stream = BStream_new();
+	UArray alias;
+	UArray external = UArray_stackAllocedWithData_type_size_(
+		external_bytes, CTYPE_uint8_t, sizeof(external_bytes));
+	UArray *ownedArray;
+	unsigned char *ownedData;
+	size_t ownedSize;
+
+	if (NULL == stream)
+		return fail("BStream setUArray fixture allocation failed");
+	BStream_writeData_length_(stream, payload, sizeof(payload));
+	if (stream->ba->size != sizeof(payload) || NULL == stream->ba->data ||
+		UArray_size(stream->errorBa) != 0) {
+		BStream_free(stream);
+		return fail("BStream setUArray owned-buffer fixture could not be initialized");
+	}
+	ownedArray = stream->ba;
+	ownedData = stream->ba->data;
+	ownedSize = stream->ba->size;
+	stream->index = 2;
+
+	/* A distinct UArray object can still borrow the exact owned allocation. */
+	alias = *stream->ba;
+	BStream_setUArray_(stream, &alias);
+	if (stream->ba != ownedArray || stream->ownsUArray != 1 ||
+		stream->index != 2 || stream->ba->data != ownedData ||
+		stream->ba->size != ownedSize ||
+		memcmp(stream->ba->data, payload, sizeof(payload)) != 0) {
+		BStream_free(stream);
+		return fail("BStream setUArray accepted an exact alias of owned storage");
+	}
+
+	/* Reject interior views before releasing the owner of their bytes. */
+	alias = UArray_stackAllocedWithData_type_size_(
+		ownedData + 1, CTYPE_uint8_t, 2);
+	BStream_setUArray_(stream, &alias);
+	if (stream->ba != ownedArray || stream->ownsUArray != 1 ||
+		stream->index != 2 || stream->ba->data != ownedData ||
+		stream->ba->size != ownedSize) {
+		BStream_free(stream);
+		return fail("BStream setUArray accepted an interior alias of owned storage");
+	}
+
+	/* The trailing NUL is part of the allocation and must keep its owner alive. */
+	alias = UArray_stackAllocedWithData_type_size_(
+		ownedData + ownedSize, CTYPE_uint8_t, 0);
+	BStream_setUArray_(stream, &alias);
+	if (stream->ba != ownedArray || stream->ownsUArray != 1 ||
+		stream->index != 2 || stream->ba->data != ownedData) {
+		BStream_free(stream);
+		return fail("BStream setUArray accepted a tail alias of owned storage");
+	}
+
+	/* An unrelated external view remains a valid non-owning attachment. */
+	BStream_setUArray_(stream, &external);
+	if (stream->ba != &external || stream->ownsUArray != 0 ||
+		stream->index != 0 || stream->ba->data != external_bytes ||
+		stream->ba->size != sizeof(external_bytes) ||
+		memcmp(stream->ba->data, external_bytes, sizeof(external_bytes)) != 0) {
+		BStream_free(stream);
+		return fail("BStream setUArray rejected an unrelated external array");
+	}
+	BStream_free(stream);
+	return EXIT_SUCCESS;
+}
+
+
 static int testBStreamWriteValidation(void)
 {
 	const unsigned char payload[] = { 0x31, 0x32, 0x33 };
@@ -442,6 +513,8 @@ int main(void)
 	if (strcmp(BStreamTag_typeName(&sample), "pointer") != 0)
 		return fail("BStreamTag valid type name changed");
 	if (testBStreamClone() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (testBStreamSetUArrayOwnership() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamWriteValidation() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
