@@ -1,3 +1,23 @@
+## 2026-11-06 16:49 CST — Preserve float64 precision in UArray distance
+
+### Baseline
+- Main commit `79a9d686b93ad98aea763492ace8eac3c35f0363`; SkipDBv2 Regression run #301 passed source contracts, configure, full build, and CTest.
+- Scope: the float64 branch of `UArray_distanceTo_()` only.
+
+### Defect and fix
+- The float64 distance loop stored each double-precision delta in a `float32_t`, silently underflowing small representable differences and overflowing large but representable ones before squaring.
+- Keep the delta in `float64_t`. The float32 path and existing unequal-length behavior are unchanged.
+
+### Regression and contracts
+- Add `uarray_distance_precision_test` to cover float32 baseline behavior, float64 deltas at (10^{-50}) and (10^{40}), and unequal lengths.
+- Register the test in CMake and extend CI contracts to enforce the float64 intermediate and test registration. No public declarations changed.
+
+### Validation
+- Static review confirms the changed intermediate matches the source array's 64-bit element type.
+- Mainline CI will validate the source contracts, build, and full CTest suite.
+
+---
+
 ## 2026-11-06 16:46 CST — Fix UArray extrema on negative-only values
 
 - Baseline `dd707bd254232e86ebe7eefc8de35331e5bfdfc5`; CI run #300 passed.

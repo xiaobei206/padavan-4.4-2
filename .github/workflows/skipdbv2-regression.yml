@@ -712,6 +712,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_math_extrema.c",
                   "TARGET_LINK_LIBRARIES(uarray_math_extrema_test skipdb m)",
                   "add_test(NAME uarray_math_extrema_test COMMAND uarray_math_extrema_test)",
+                  "ADD_EXECUTABLE(uarray_distance_precision_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_distance_precision.c",
+                  "TARGET_LINK_LIBRARIES(uarray_distance_precision_test skipdb m)",
+                  "add_test(NAME uarray_distance_precision_test COMMAND uarray_distance_precision_test)",
                   "ADD_EXECUTABLE(bstream_tag_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
                   "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
@@ -1147,6 +1151,8 @@ jobs:
                   "maximum = UArray_rawDoubleAt_(self, 0);",
                   "double UArray_minAsDouble(const UArray *self)",
                   "minimum = UArray_rawDoubleAt_(self, 0);",
+                  "else if (self->itemType == CTYPE_float64_t &&",
+                  "float64_t d = a[i] - b[i];",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_reverse_item_byte_order.c": [
                   "UArray_reverseItemByteOrders(NULL)",
@@ -1174,6 +1180,13 @@ jobs:
                   "UArray extrema accepted zero-width storage",
                   "UArray extrema accepted overflowing geometry",
                   "UArray math extrema test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c": [
+                  "UArray float32 distance changed",
+                  "UArray float64 distance underflowed a representable delta",
+                  "UArray float64 distance overflowed a representable delta",
+                  "UArray distance changed unequal-length behavior",
+                  "UArray distance precision test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
@@ -1791,6 +1804,18 @@ jobs:
           for label, body, init in (("maximum", maximum_body, "maximum = UArray_rawDoubleAt_(self, 0);"), ("minimum", minimum_body, "minimum = UArray_rawDoubleAt_(self, 0);")):
               if not body or init not in body or "self->itemSize == 0" not in body or "self->size > (size_t)-1 / self->itemSize" not in body or "(self->size > 0 && NULL == self->data)" not in body or "self->size == 0" not in body:
                   raise SystemExit(f"UArray {label} must initialize from a valid first element")
+
+          distance_start = bit_math_source.find("double UArray_distanceTo_(const UArray *self, const UArray *other)")
+          distance_end = bit_math_source.find("\\n// hash", distance_start)
+          distance_body = bit_math_source[distance_start:distance_end] if distance_start >= 0 and distance_end > distance_start else ""
+          float64_branch_start = distance_body.find("else if (self->itemType == CTYPE_float64_t")
+          float64_branch = distance_body[float64_branch_start:] if float64_branch_start >= 0 else ""
+          if (
+              not float64_branch or
+              "float64_t d = a[i] - b[i];" not in float64_branch or
+              "float32_t d = a[i] - b[i];" in float64_branch
+          ):
+              raise SystemExit("UArray float64 distance must retain a float64 intermediate")
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
           memory_start = list_source.find("size_t List_memorySize(const List *self)")
           memory_end = list_source.find("\nvoid List_removeAll", memory_start)

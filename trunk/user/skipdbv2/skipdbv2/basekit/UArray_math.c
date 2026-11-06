@@ -518,7 +518,7 @@ double UArray_distanceTo_(const UArray *self, const UArray *other)
 
 			for (i = 0; i < max; i ++)
 			{
-				float32_t d = a[i] - b[i];
+				float64_t d = a[i] - b[i];
 				sum += d * d;
 			}
 		}

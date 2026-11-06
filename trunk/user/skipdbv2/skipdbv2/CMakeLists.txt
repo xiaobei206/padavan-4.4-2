@@ -281,6 +281,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_math_extrema_test skipdb m)
     add_test(NAME uarray_math_extrema_test COMMAND uarray_math_extrema_test)
 
+    ADD_EXECUTABLE(uarray_distance_precision_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_distance_precision.c)
+    TARGET_LINK_LIBRARIES(uarray_distance_precision_test skipdb m)
+    add_test(NAME uarray_distance_precision_test COMMAND uarray_distance_precision_test)
+
     ADD_EXECUTABLE(uarray_search_bounds_test
         ${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c)
     TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)
