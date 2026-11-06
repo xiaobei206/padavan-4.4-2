@@ -96,6 +96,74 @@ int main(void)
         goto done;
     }
 
+    /*
+     * Offset zero stores free-list metadata, not a physical record. Craft
+     * metadata/header bytes that would otherwise decode as a valid EMPTY row.
+     */
+    {
+        FILE *data_file = db->records->file->file;
+        PID_TYPE saved_empty_pos, forged_empty_pos = (PID_TYPE)1;
+        UDBRecordHeader saved_header, forged_header;
+        int forged_lookup_accepted = 0;
+        int restore_ok = 1;
+
+        if (fseek(data_file, 0, SEEK_SET) != 0 ||
+            fread(&saved_empty_pos, sizeof(saved_empty_pos), 1, data_file) != 1 ||
+            fseek(data_file, (long)saved_pos, SEEK_SET) != 0 ||
+            fread(&saved_header, sizeof(saved_header), 1, data_file) != 1) {
+            fprintf(stderr, "unable to save record metadata for boundary test\n");
+            goto done;
+        }
+        memset(&forged_header, 0, sizeof(forged_header));
+        forged_header.tag = RECORD_TAG_EMPTY;
+        forged_header.pid = (PID_TYPE)1;
+        forged_header.size = (PID_TYPE)1;
+
+        if (fseek(data_file, (long)saved_pos, SEEK_SET) != 0 ||
+            fwrite(&forged_header, sizeof(forged_header), 1, data_file) != 1 ||
+            fseek(data_file, 0, SEEK_SET) != 0 ||
+            fwrite(&forged_empty_pos, sizeof(forged_empty_pos), 1, data_file) != 1 ||
+            fflush(data_file) != 0) {
+            if (fseek(data_file, (long)saved_pos, SEEK_SET) != 0 ||
+                fwrite(&saved_header, sizeof(saved_header), 1, data_file) != 1)
+                restore_ok = 0;
+            if (fseek(data_file, 0, SEEK_SET) != 0 ||
+                fwrite(&saved_empty_pos, sizeof(saved_empty_pos), 1, data_file) != 1)
+                restore_ok = 0;
+            if (fflush(data_file) != 0)
+                restore_ok = 0;
+            clearerr(data_file);
+            fprintf(stderr, "unable to craft record metadata boundary fixture\n");
+            if (!restore_ok)
+                fprintf(stderr, "unable to restore record metadata boundary fixture\n");
+            goto done;
+        }
+
+        forged_lookup_accepted =
+            UDBRecords_recordAtPos_(db->records, (PID_TYPE)0) != NULL;
+
+        /* Restore disk state before asserting so later cases see an intact DB. */
+        if (fseek(data_file, (long)saved_pos, SEEK_SET) != 0 ||
+            fwrite(&saved_header, sizeof(saved_header), 1, data_file) != 1 ||
+            fseek(data_file, 0, SEEK_SET) != 0 ||
+            fwrite(&saved_empty_pos, sizeof(saved_empty_pos), 1, data_file) != 1 ||
+            fflush(data_file) != 0) {
+            clearerr(data_file);
+            fprintf(stderr, "unable to restore record metadata after boundary test\n");
+            goto done;
+        }
+        clearerr(data_file);
+        if (forged_lookup_accepted) {
+            fprintf(stderr, "record cursor accepted metadata offset as a physical row\n");
+            goto done;
+        }
+        if (UDBRecords_recordAtPos_(db->records, saved_pos) == NULL ||
+            UDBRecord_pid(db->records->record) != (PID_TYPE)77) {
+            fprintf(stderr, "record cursor did not recover after metadata boundary rejection\n");
+            goto done;
+        }
+    }
+
     /* A clone owns a distinct payload buffer and safely rejects NULL. */
     if (UDBRecord_clone(NULL) != NULL) {
         fprintf(stderr, "UDBRecord clone accepted a NULL source\n");

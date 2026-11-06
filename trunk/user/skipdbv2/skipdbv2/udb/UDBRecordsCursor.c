@@ -64,7 +64,8 @@ UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)
 	long file_size;
 
 	if (NULL == self || NULL == self->record || NULL == self->file ||
-		NULL == self->file->file || pos > (PID_TYPE)LONG_MAX)
+		NULL == self->file->file || pos < (PID_TYPE)sizeof(PID_TYPE) ||
+		pos > (PID_TYPE)LONG_MAX)
 		return NULL;
 	file_size = self->file->maxPos;
 	if (file_size < 0 || pos > (PID_TYPE)file_size) {

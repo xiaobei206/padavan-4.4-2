@@ -434,6 +434,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsCursor.c": [
                   "UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)",
+                  "pos < (PID_TYPE)sizeof(PID_TYPE)",
                   "UDBRecord *UDBRecords_nextRecord(UDBRecords *self)",
                   "UDBRecord *UDBRecords_recordAfter_(UDBRecords *self, UDBRecord *record)",
                   "static int UDBRecords_nextPosition_(UDBRecord *record, PID_TYPE *next_pos)",
@@ -599,6 +600,9 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_record_storage.c": [
                   "UDBRecord_saveWithDatum_(record, input)",
+                  "UDBRecords_recordAtPos_(db->records, (PID_TYPE)0)",
+                  "record cursor accepted metadata offset as a physical row",
+                  "record cursor did not recover after metadata boundary rejection",
                   "binary payload round-trip failed",
                   "record->header.pid = 0;",
                   "record->header.size = 1;",

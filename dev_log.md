@@ -1,3 +1,13 @@
+## 2026-11-07 06:25 CST — Reject UDB record cursors inside reserved metadata
+
+- Baseline: main commit `0d1b2116c72fe0d62da22881da113e9b52938a37`; SkipDBv2 Regression run #448 passed source contracts, configure, full build, and all regression tests.
+- Scope: physical record offset validation in `udb/UDBRecordsCursor.c`.
+- `UDBRecords_recordAtPos_()` checked the upper file bound but did not reject offsets below `sizeof(PID_TYPE)`, even though byte zero stores the first-empty free-list pointer, not a row. A specially shaped metadata/header byte sequence could therefore be accepted as a fabricated record.
+- Reject reserved metadata offsets before moving the shared cursor or reading a header. Extend `udb_record_storage` with a crafted on-disk fixture that would parse as a valid EMPTY row at offset zero without the guard; restore the original header/metadata before continuing. Update existing Actions source/runtime contracts. No new files, declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:21 CST — Refresh persisted UDB headers before payload reads
 
 - Baseline: main commit `a24d5684a0357bb4e4b8584e3e58efdeb0a9d0f2`; SkipDBv2 Regression run #447 passed source contracts, configure, complete build, and all regression tests.
