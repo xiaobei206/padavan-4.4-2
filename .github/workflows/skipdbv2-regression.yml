@@ -733,6 +733,9 @@ jobs:
                   "ADD_EXECUTABLE(main_args_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/main_args_lifecycle.c",
                   "add_test(NAME main_args_lifecycle_test COMMAND main_args_lifecycle_test)",
+                  "ADD_EXECUTABLE(datum_boundaries_test",
+                  "${PROJECT_SOURCE_DIR}/tests/datum_boundaries.c",
+                  "add_test(NAME datum_boundaries_test COMMAND datum_boundaries_test)",
                   "ADD_EXECUTABLE(dynlib_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/dynlib_lifecycle.c",
                   "TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})",
@@ -818,6 +821,18 @@ jobs:
                   "MainArgs_argc_argv_(args, 1, null_argument)",
                   "MainArgs retained borrowed argument storage",
                   "MainArgs lifecycle test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/Datum.c": [
+                  "static int Datum_hasValidStorage_(const Datum *self)",
+                  "static int Datum_compareStorageState_(const Datum *self, const Datum *other, int *handled)",
+                  "int state = Datum_compareStorageState_(self, other, &handled);",
+                  "if (!Datum_hasValidStorage_(self) || !Datum_hasValidStorage_(other))",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/datum_boundaries.c": [
+                  "malformed Datum comparison must be antisymmetric",
+                  "malformed prefix comparison must be antisymmetric",
+                  "malformed Datum must not match its own prefix or suffix",
+                  "Datum boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
                   "int gettimeofday(struct timeval *tv, struct timezone *tz)",
@@ -1461,6 +1476,40 @@ jobs:
                          "MainArgs retained borrowed argument storage"):
               if needle not in main_args_test:
                   raise SystemExit("MainArgs lifecycle regression case missing: " + needle)
+
+          datum_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Datum.c").read_text()
+          datum_test = Path("trunk/user/skipdbv2/skipdbv2/tests/datum_boundaries.c").read_text()
+          datum_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          storage_helper = datum_source.find("static int Datum_compareStorageState_(")
+          compare_start = datum_source.find("int Datum_compare_(")
+          compare_length_start = datum_source.find("int Datum_compare_length_(")
+          if storage_helper < 0 or compare_start < storage_helper or compare_length_start < compare_start:
+              raise SystemExit("Datum storage-state comparator must be private and precede both public comparators")
+          if "if (selfValid != otherValid)" not in datum_source or "self->size < other->size ? -1 : 1" not in datum_source:
+              raise SystemExit("Datum invalid-storage comparisons must have a consistent ordering")
+          for signature in ("int Datum_compare_(", "int Datum_compare_length_("):
+              start = datum_source.find(signature)
+              end = datum_source.find("\n}", start)
+              body = datum_source[start:end + 2] if start >= 0 and end > start else ""
+              if "Datum_compareStorageState_(self, other, &handled)" not in body or "if (handled)" not in body:
+                  raise SystemExit("Datum comparators must share invalid-storage ordering")
+          for signature in ("int Datum_beginsWith_(", "int Datum_endsWith_("):
+              start = datum_source.find(signature)
+              end = datum_source.find("\n}", start)
+              body = datum_source[start:end + 2] if start >= 0 and end > start else ""
+              if "Datum_hasValidStorage_" not in body:
+                  raise SystemExit("Datum prefix/suffix helpers must reject malformed storage")
+          for needle in ("Datum_compare_(&malformed, &alpha) < 0",
+                         "Datum_compare_(&alpha, &malformed) > 0",
+                         "Datum_beginsWith_(&malformed, &malformed) == 0",
+                         "Datum boundary test passed"):
+              if needle not in datum_test:
+                  raise SystemExit("Datum boundary regression case missing: " + needle)
+          for needle in ("ADD_EXECUTABLE(datum_boundaries_test",
+                         "${PROJECT_SOURCE_DIR}/tests/datum_boundaries.c",
+                         "add_test(NAME datum_boundaries_test COMMAND datum_boundaries_test)"):
+              if needle not in datum_cmake:
+                  raise SystemExit("Datum boundary CTest registration missing: " + needle)
 
           dynlib_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c").read_text()
           replace_start = dynlib_source.find("static int DynLib_replaceString_(")

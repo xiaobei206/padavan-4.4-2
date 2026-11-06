@@ -272,6 +272,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(main_args_lifecycle_test skipdb m)
     add_test(NAME main_args_lifecycle_test COMMAND main_args_lifecycle_test)
 
+    ADD_EXECUTABLE(datum_boundaries_test
+        ${PROJECT_SOURCE_DIR}/tests/datum_boundaries.c)
+    TARGET_LINK_LIBRARIES(datum_boundaries_test skipdb m)
+    add_test(NAME datum_boundaries_test COMMAND datum_boundaries_test)
+
     ADD_EXECUTABLE(dynlib_lifecycle_test
         ${PROJECT_SOURCE_DIR}/tests/dynlib_lifecycle.c)
     TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})

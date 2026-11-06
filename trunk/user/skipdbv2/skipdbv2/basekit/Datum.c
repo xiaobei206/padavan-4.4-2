@@ -11,6 +11,35 @@ docObject("Datum")
 #include <stdlib.h>
 #include <string.h>
 
+static int Datum_hasValidStorage_(const Datum *self)
+{
+	return NULL != self && (0 == self->size || NULL != self->data);
+}
+
+static int Datum_compareStorageState_(const Datum *self, const Datum *other, int *handled)
+{
+	int selfValid, otherValid;
+	*handled = 1;
+	if (self == other)
+		return 0;
+	if (NULL == self)
+		return -1;
+	if (NULL == other)
+		return 1;
+	selfValid = Datum_hasValidStorage_(self);
+	otherValid = Datum_hasValidStorage_(other);
+	if (selfValid != otherValid)
+		return selfValid ? 1 : -1;
+	if (selfValid) {
+		*handled = 0;
+		return 0;
+	}
+	if (self->size == other->size)
+		return 0;
+	return self->size < other->size ? -1 : 1;
+}
+
+
 PID_TYPE Datum_size(Datum *self)
 {
 	return self ? self->size : 0;
@@ -23,7 +52,7 @@ unsigned char *Datum_data(Datum *self)
 
 void *Datum_asUArray(Datum *self)
 {
-	if (NULL == self || (self->size > 0 && NULL == self->data))
+	if (!Datum_hasValidStorage_(self))
 		return NULL;
 	return UArray_newWithData_type_encoding_size_copy_(self->data,
 		CTYPE_uint8_t, CENCODING_UTF8, self->size, 1);
@@ -82,7 +111,7 @@ Datum Datum_Empty(void)
 Datum Datum_datumAt_(Datum *self, size_t i)
 {
 	Datum d;
-	if (NULL == self || (self->size > 0 && NULL == self->data) || i >= self->size)
+	if (!Datum_hasValidStorage_(self) || i >= self->size)
 		return Datum_Empty();
 	d.data = self->data + i;
 	d.size = self->size - i;
@@ -94,11 +123,10 @@ Datum Datum_datumAt_(Datum *self, size_t i)
 int Datum_compare_(Datum *self, Datum *other)
 {
 	size_t l1, l2, min;
-	int cmp;
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
-		return self == other ? 0 : (self ? 1 : (other ? -1 : 0));
+	int cmp, handled;
+	int state = Datum_compareStorageState_(self, other, &handled);
+	if (handled)
+		return state;
 	l1 = self->size;
 	l2 = other->size;
 	min = l1 < l2 ? l1 : l2;
@@ -114,10 +142,10 @@ int Datum_compare_(Datum *self, Datum *other)
 int Datum_compare_length_(Datum *self, Datum *other, size_t limit)
 {
 	size_t min;
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
-		return self == other ? 0 : (self ? 1 : (other ? -1 : 0));
+	int handled;
+	int state = Datum_compareStorageState_(self, other, &handled);
+	if (handled)
+		return state;
 	min = self->size < other->size ? self->size : other->size;
 	if (min > limit)
 		min = limit;
@@ -127,7 +155,8 @@ int Datum_compare_length_(Datum *self, Datum *other, size_t limit)
 
 int Datum_beginsWith_(Datum *self, Datum *other)
 {
-	if (NULL == self || NULL == other || self->size < other->size)
+	if (!Datum_hasValidStorage_(self) || !Datum_hasValidStorage_(other) ||
+		self->size < other->size)
 		return 0;
 	return Datum_compare_length_(self, other, other->size) == 0;
 }
@@ -136,7 +165,8 @@ int Datum_beginsWith_(Datum *self, Datum *other)
 int Datum_endsWith_(Datum *self, Datum *other)
 {
 	Datum d;
-	if (NULL == self || NULL == other || self->size < other->size)
+	if (!Datum_hasValidStorage_(self) || !Datum_hasValidStorage_(other) ||
+		self->size < other->size)
 		return 0;
 	if (other->size == 0)
 		return 1;
@@ -155,9 +185,7 @@ size_t Datum_matchingPrefixSizeWith_(Datum *self, Datum *other)
 {
 	size_t min, i;
 	const unsigned char *b1, *b2;
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
+	if (!Datum_hasValidStorage_(self) || !Datum_hasValidStorage_(other))
 		return 0;
 	min = self->size < other->size ? self->size : other->size;
 	b1 = self->data;
@@ -172,8 +200,7 @@ size_t Datum_matchingPrefixSizeWith_(Datum *self, Datum *other)
 Datum *Datum_newFrom_to_(Datum *self, size_t start, size_t end)
 {
 	Datum *d;
-	if (NULL == self || (self->size > 0 && NULL == self->data) ||
-		start > end || end > self->size)
+	if (!Datum_hasValidStorage_(self) || start > end || end > self->size)
 		return NULL;
 	d = (Datum *)malloc(sizeof(Datum));
 	if (NULL == d)
@@ -188,8 +215,7 @@ long Datum_find_(Datum *self, void *delimsList, size_t startIndex)
 {
 	List *delims = (List *)delimsList;
 	size_t i;
-	if (NULL == self || NULL == delims ||
-		(self->size > 0 && NULL == self->data) ||
+	if (!Datum_hasValidStorage_(self) || NULL == delims ||
 		self->size > (size_t)LONG_MAX ||
 		startIndex > self->size)
 		return -1;
@@ -222,8 +248,7 @@ void *Datum_split_(Datum *self, void *delimsList) /* returns a List */
 	List *delims = (List *)delimsList;
 	List *results;
 	size_t i, last = 0;
-	if (NULL == self || NULL == delims ||
-		(self->size > 0 && NULL == self->data))
+	if (!Datum_hasValidStorage_(self) || NULL == delims)
 		return NULL;
 	results = List_new();
 	if (NULL == results)
@@ -298,7 +323,7 @@ unsigned int Datum_hash(Datum *self)
 	PID_TYPE length;
 	const unsigned char *key;
 	unsigned int h = 5381;
-	if (NULL == self || (self->size > 0 && NULL == self->data))
+	if (!Datum_hasValidStorage_(self))
 		return 0;
 	length = self->size;
 	key = self->data;

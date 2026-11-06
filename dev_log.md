@@ -1,3 +1,21 @@
+## 2026-11-06 13:06 CST — Make Datum invalid-storage comparisons consistent
+
+### Baseline and scope
+- Base commit: `58c76700616c42cc27539ad7f8448558a4531704`; preceding green SkipDBv2 Regression run #242 passed. DynLib run #245 is being validated.
+- Scope is limited to Datum storage validation/comparison semantics, one boundary regression, and its CMake/workflow registration.
+
+### Changes
+- Centralize the check for the invalid state `size > 0 && data == NULL`.
+- Give malformed Datum values a stable comparison order instead of returning a positive result in both comparison directions.
+- Reject malformed storage consistently in prefix/suffix checks, indexing, slicing, hashing, prefix matching, and UArray conversion.
+- Add regression coverage for antisymmetry, invalid sizes, NULL values, empty prefixes/suffixes, and normal valid slices.
+
+### Validation
+- Extend the existing workflow source contracts to verify comparator ordering, malformed-input guards, boundary fixtures, and CTest registration.
+- No local firmware build is claimed; the post-push SkipDBv2 Regression run is authoritative for compilation and execution.
+
+---
+
 ## 2026-11-06 13:05 CST — Harden DynLib allocation, loader errors, and handle lifecycle
 
 ### Baseline and scope
