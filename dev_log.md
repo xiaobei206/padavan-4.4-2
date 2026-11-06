@@ -1,3 +1,20 @@
+## 2026-11-06 12:28 CST — Bound-check standalone UTF-8 sequence validation
+
+### Baseline and scope
+- Base commit: `a5baaaaf3904db8ec920ae3bb87828a837fe30ad`; SkipDBv2 Regression run #233 passed source contracts, full compilation, and CTest.
+- Scope is limited to `isLegalUTF8Sequence()` in `ConvertUTF.c`, one boundary regression, its CMake/workflow registration, and this handoff log.
+
+### Changes
+- Reject NULL pointers and empty/reversed ranges before reading the first byte.
+- Compare the remaining source length against the expected sequence length using pointer distance, avoiding construction of an out-of-range end pointer.
+- Cover ASCII, valid 3/4-byte sequences, NULL/empty ranges, truncation, overlong encodings, and illegal leading bytes.
+
+### Validation
+- Workflow source contracts enforce guard ordering and all malformed-input fixtures.
+- No conversion API signatures or Unicode tables changed; the next remote regression run validates compilation and CTest.
+
+---
+
 ## 2026-11-06 12:25 CST — Make RandomGen source preflight independent of escaped newlines
 
 ### CI preflight repair

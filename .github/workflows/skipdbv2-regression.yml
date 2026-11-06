@@ -715,6 +715,9 @@ jobs:
                   "ADD_EXECUTABLE(random_gen_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/random_gen_lifecycle.c",
                   "add_test(NAME random_gen_lifecycle_test COMMAND random_gen_lifecycle_test)",
+                  "ADD_EXECUTABLE(convert_utf8_bounds_test",
+                  "${PROJECT_SOURCE_DIR}/tests/convert_utf8_bounds.c",
+                  "add_test(NAME convert_utf8_bounds_test COMMAND convert_utf8_bounds_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -754,6 +757,20 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.c": [
+                  "Boolean isLegalUTF8Sequence(const UTF8 *source, const UTF8 *sourceEnd)",
+                  "NULL == source || NULL == sourceEnd || source >= sourceEnd",
+                  "sourceEnd - source < length",
+                  "return isLegalUTF8(source, length);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/convert_utf8_bounds.c": [
+                  "NULL source",
+                  "NULL end",
+                  "empty range",
+                  "truncated sequence",
+                  "overlong sequence",
+                  "illegal lead byte",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c": [
                   "if (NULL == self)",
@@ -1187,6 +1204,22 @@ jobs:
                   "RandomGen_randomInt(first) != RandomGen_randomInt(second)" not in random_test or
                   "!isfinite(gaussian)" not in random_test):
               raise SystemExit("RandomGen lifecycle regression does not cover NULL, deterministic seed, and Gaussian output")
+
+          convert_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.c").read_text()
+          sequence_start = convert_source.find("Boolean isLegalUTF8Sequence(const UTF8 *source, const UTF8 *sourceEnd)")
+          sequence = convert_source[sequence_start:] if sequence_start >= 0 else ""
+          null_range_guard = sequence.find("NULL == source || NULL == sourceEnd || source >= sourceEnd")
+          first_byte_read = sequence.find("trailingBytesForUTF8[*source]")
+          remaining_check = sequence.find("sourceEnd - source < length")
+          if (not sequence or null_range_guard < 0 or first_byte_read < 0 or
+                  remaining_check < 0 or null_range_guard > first_byte_read or
+                  first_byte_read > remaining_check or "source+length > sourceEnd" in sequence):
+              raise SystemExit("ConvertUTF sequence validator must reject null/empty ranges and check remaining length before reading")
+          convert_test = Path("trunk/user/skipdbv2/skipdbv2/tests/convert_utf8_bounds.c").read_text()
+          for needle in ("NULL source", "NULL end", "empty range", "truncated sequence",
+                         "overlong sequence", "illegal lead byte"):
+              if needle not in convert_test:
+                  raise SystemExit("ConvertUTF boundary regression case missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:
