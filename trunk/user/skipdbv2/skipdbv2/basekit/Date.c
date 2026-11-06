@@ -322,14 +322,47 @@ double Date_secondsSinceNow(const Date *self)
 
 UArray *Date_asString(const Date *self, const char *format)
 {
-	UArray *u = UArray_new();
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
+	UArray *u;
+	time_t t;
+	struct tm *tm;
+	size_t formatLength, capacity, written;
+	char *buffer;
 
-	// what about unicode formats?
-	UArray_setSize_(u, 1024 + strlen(format));
-	strftime((char *)UArray_bytes(u), 1024, format, tm);
-	UArray_setSize_(u, strlen((char *)UArray_bytes(u)));
+	if (NULL == self || NULL == format)
+		return NULL;
+
+	t = self->tv.tv_sec;
+	tm = localtime(&t);
+	if (NULL == tm)
+		return NULL;
+
+	formatLength = strlen(format);
+	if (formatLength > (size_t)-1 - 1024)
+		return NULL;
+	capacity = 1024 + formatLength;
+
+	u = UArray_new();
+	if (NULL == u)
+		return NULL;
+	UArray_setSize_(u, capacity);
+	buffer = (char *)UArray_bytes(u);
+	if (NULL == buffer || UArray_size(u) < capacity) {
+		UArray_free(u);
+		return NULL;
+	}
+
+	/* Keep a valid terminator if strftime cannot represent the result. */
+	buffer[0] = '\0';
+	written = strftime(buffer, capacity, format, tm);
+	if (written == 0) {
+		buffer[0] = '\0';
+		written = 0;
+	}
+	UArray_setSize_(u, written);
+	if (UArray_size(u) != written) {
+		UArray_free(u);
+		return NULL;
+	}
 
 	return u;
 }

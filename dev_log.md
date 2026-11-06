@@ -1,3 +1,22 @@
+## 2026-11-06 14:36 CST — Harden Date string formatting bounds
+
+### Baseline
+- Main commit `cbafd3a806e605b1a1ca6c7c63144bea3446180f`; SkipDBv2 Regression run #271 passed source contracts, configure, full build, and CTest.
+
+### Defect and fix
+- `Date_asString()` dereferenced `self`, `format`, `localtime()`, and the newly allocated output without validating them. It allocated according to the format length but always told `strftime` the buffer was only 1024 bytes, then used `strlen` on the buffer instead of the formatter's reported length.
+- Validate inputs and conversion results, guard capacity arithmetic, verify the UArray allocation before writing, pass the actual available capacity to `strftime`, and size the result from the returned byte count.
+
+### Regression and contracts
+- Add `date_string_bounds_test` for NULL arguments, a deterministic year format, and a 1300-byte literal format.
+- Register the test in CMake and extend workflow source contracts for validation order, long-format coverage, and CTest registration.
+
+### Validation
+- Structural preflight checks argument/time validation, overflow guard, allocation/storage validation, formatter capacity, and output sizing in order.
+- The workflow triggered by this commit is authoritative for compilation and runtime validation.
+
+---
+
 ## 2026-11-06 14:33 CST — Bound Quicksort recursion depth
 
 ### Baseline

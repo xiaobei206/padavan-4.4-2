@@ -743,6 +743,10 @@ jobs:
                   "ADD_EXECUTABLE(date_time_init_test",
                   "${PROJECT_SOURCE_DIR}/tests/date_time_init.c",
                   "add_test(NAME date_time_init_test COMMAND date_time_init_test)",
+                  "ADD_EXECUTABLE(date_string_bounds_test",
+                  "${PROJECT_SOURCE_DIR}/tests/date_string_bounds.c",
+                  "TARGET_LINK_LIBRARIES(date_string_bounds_test skipdb m)",
+                  "add_test(NAME date_string_bounds_test COMMAND date_string_bounds_test)",
                   "ADD_EXECUTABLE(duration_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/duration_lifecycle.c",
                   "add_test(NAME duration_lifecycle_test COMMAND duration_lifecycle_test)",
@@ -990,12 +994,23 @@ jobs:
                   "if (NULL == self)",
                   "if (gettimeofday(&timeval, &timezone) != 0)",
                   "if (NULL == self || gettimeofday(&timeval, &timezone) != 0)",
+                  "if (NULL == self || NULL == format)",
+                  "if (formatLength > (size_t)-1 - 1024)",
+                  "UArray_size(u) < capacity",
+                  "written = strftime(buffer, capacity, format, tm);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c": [
                   "Date_now(NULL)",
                   "Date_setToLocalTimeZone(NULL)",
                   "Date_SecondsFrom1970ToNow()",
                   "Date_new did not initialize the wall-clock state",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/date_string_bounds.c": [
+                  "Date_asString(NULL, \"%Y\") != NULL",
+                  "Date_asString(&date, NULL) != NULL",
+                  "#define LONG_FORMAT_LENGTH 1300",
+                  "Date_asString truncated a long literal format",
+                  "Date string bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.c": [
                   "#include <stddef.h>",
@@ -1786,6 +1801,36 @@ jobs:
                          "Date_new did not initialize the wall-clock state"):
               if needle not in date_test:
                   raise SystemExit("Date initialization regression case missing: " + needle)
+
+          date_string_start = date_source.find("UArray *Date_asString(const Date *self, const char *format)")
+          date_string_end = date_source.find("\\n}", date_string_start)
+          date_string_body = date_source[date_string_start:date_string_end] if date_string_start >= 0 and date_string_end > date_string_start else ""
+          date_alloc = date_string_body.find("u = UArray_new();")
+          array_size = date_string_body.find("UArray_setSize_(u, capacity);")
+          storage_check = date_string_body.find("if (NULL == buffer || UArray_size(u) < capacity)")
+          format_call = date_string_body.find("written = strftime(buffer, capacity, format, tm);")
+          shrink_array = date_string_body.find("UArray_setSize_(u, written);")
+          if (not date_string_body or "if (NULL == self || NULL == format)" not in date_string_body or
+                  "tm = localtime(&t);" not in date_string_body or
+                  "if (NULL == tm)" not in date_string_body or
+                  "formatLength > (size_t)-1 - 1024" not in date_string_body or
+                  min(date_alloc, array_size, storage_check, format_call, shrink_array) < 0 or
+                  not (date_alloc < array_size < storage_check < format_call < shrink_array)):
+              raise SystemExit("Date_asString must validate arguments, localtime, capacity arithmetic, allocation, and output bounds")
+          date_string_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_string_bounds.c").read_text()
+          for needle in ('Date_asString(NULL, "%Y") != NULL',
+                         'Date_asString(&date, NULL) != NULL',
+                         "#define LONG_FORMAT_LENGTH 1300",
+                         "Date_asString truncated a long literal format"):
+              if needle not in date_string_test:
+                  raise SystemExit("Date string regression coverage missing: " + needle)
+          date_string_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(date_string_bounds_test",
+                         "${PROJECT_SOURCE_DIR}/tests/date_string_bounds.c",
+                         "TARGET_LINK_LIBRARIES(date_string_bounds_test skipdb m)",
+                         "add_test(NAME date_string_bounds_test COMMAND date_string_bounds_test)"):
+              if needle not in date_string_cmake:
+                  raise SystemExit("Date string bounds CTest registration missing: " + needle)
 
           duration_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Duration.c").read_text()
           declared_clone = "BASEKIT_API Duration *Duration_clone(const Duration *self)" in Path("trunk/user/skipdbv2/skipdbv2/basekit/Duration.h").read_text()
