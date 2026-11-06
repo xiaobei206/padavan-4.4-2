@@ -2520,7 +2520,7 @@ jobs:
               ("select", "List *List_select_(List *self, ListSelectCallback *callback)", "selected = (*callback)(item);"),
           ):
               start = list_source.find(signature)
-              end = list_source.find("\\n}", start)
+              end = list_source.find(chr(10) + "}", start)
               body = list_source[start:end] if start >= 0 and end > start else ""
               callback_pos = body.find(callback_call)
               post_guard = body.find(

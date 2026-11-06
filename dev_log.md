@@ -1,3 +1,10 @@
+## 2026-11-07 00:16 CST — Fix List map/select workflow function-boundary lookup
+
+- CI #373 stopped in the source-contract stage before configure/build. The new contract searched for a literal backslash-`n` sequence because the Python source contained a double-escaped newline, so it could not find the end of either C function.
+- Use `chr(10) + "}"` to locate the closing function boundary without escape ambiguity. No C implementation or regression behavior changed.
+
+---
+
 ## 2026-11-07 00:12 CST — Bound List_map_ and List_select_ to their source snapshot
 
 - Baseline: main commit `124a86966bda32d179e30bbbec8b6e994ee29aa0`; SkipDBv2 Regression run #372 completed successfully.
