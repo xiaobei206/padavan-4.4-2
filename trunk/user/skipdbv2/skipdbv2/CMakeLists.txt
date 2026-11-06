@@ -296,6 +296,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_split_delimiters_test skipdb m)
     add_test(NAME uarray_split_delimiters_test COMMAND uarray_split_delimiters_test)
 
+    ADD_EXECUTABLE(uarray_translate_validation_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_translate_validation.c)
+    TARGET_LINK_LIBRARIES(uarray_translate_validation_test skipdb m)
+    add_test(NAME uarray_translate_validation_test COMMAND uarray_translate_validation_test)
+
     ADD_EXECUTABLE(uarray_search_bounds_test
         ${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c)
     TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)

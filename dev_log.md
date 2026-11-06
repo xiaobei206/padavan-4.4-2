@@ -1,3 +1,23 @@
+## 2026-11-06 17:04 CST — Make UArray byte translation reject invalid inputs safely
+
+### Baseline
+- Main commit `b2f2925897f1b3d9eb37dfa10c3c1ba4de7dcb55`; SkipDBv2 Regression run #306 passed source contracts, configure, full build, and CTest.
+- Scope: `UArray_translate()` only.
+
+### Defect and fix
+- The void translation API called `UArray_error_()` for malformed byte arrays or unequal mapping lengths. That helper exits the process, so a recoverable bad argument could terminate the entire caller.
+- Keep the existing byte-array and equal-length requirements, but fail closed before building the map or mutating the receiver. Valid translation still updates the cached hash.
+
+### Regression and contracts
+- Add `uarray_translate_validation_test` for valid translation, hash invalidation, NULL arguments, malformed array metadata/storage, and mismatched mapping lengths with no partial mutation.
+- Register the test in CMake and extend workflow source contracts for the validation boundary and new target. No public declarations changed.
+
+### Validation
+- Static review confirms all validation precedes the translation map and mutation loops, and no fatal error helper remains in this void API.
+- Mainline CI will validate the complete build and regression suite.
+
+---
+
 ## 2026-11-06 17:01 CST — Preflight UArray split source and delimiter arrays
 
 ### Baseline

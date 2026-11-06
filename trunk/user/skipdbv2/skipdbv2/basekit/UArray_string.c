@@ -572,28 +572,23 @@ void UArray_unquote(UArray *self)
 
 void UArray_translate(UArray *self, UArray *fromChars, UArray *toChars)
 {
-	size_t i;
-	unsigned char map[256];
-	if (NULL == self || NULL == fromChars || NULL == toChars ||
-		self->itemSize != 1 || fromChars->itemSize != 1 || toChars->itemSize != 1 ||
-		(fromChars->size > 0 && NULL == fromChars->data) ||
-		(toChars->size > 0 && NULL == toChars->data) ||
-		(self->size > 0 && NULL == self->data)) {
-		if (self)
-			UArray_error_(self, "UArray_translate requires valid byte arrays");
-		return;
-	}
-	if (fromChars->size != toChars->size) {
-		UArray_error_(self, "UArray_translate: translation strings must be the same length");
-		return;
-	}
-	for (i = 0; i < 256; ++i)
-		map[i] = (unsigned char)i;
-	for (i = 0; i < fromChars->size; ++i)
-		map[fromChars->data[i]] = toChars->data[i];
-	for (i = 0; i < self->size; ++i)
-		self->data[i] = map[self->data[i]];
-	UArray_changed(self);
+    size_t i;
+    unsigned char map[256];
+    if (NULL == self || NULL == fromChars || NULL == toChars ||
+        self->itemSize != 1 || fromChars->itemSize != 1 || toChars->itemSize != 1 ||
+        (fromChars->size > 0 && NULL == fromChars->data) ||
+        (toChars->size > 0 && NULL == toChars->data) ||
+        (self->size > 0 && NULL == self->data))
+        return;
+    if (fromChars->size != toChars->size)
+        return;
+    for (i = 0; i < 256; ++i)
+        map[i] = (unsigned char)i;
+    for (i = 0; i < fromChars->size; ++i)
+        map[fromChars->data[i]] = toChars->data[i];
+    for (i = 0; i < self->size; ++i)
+        self->data[i] = map[self->data[i]];
+    UArray_changed(self);
 }
 
 

@@ -724,6 +724,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_split_delimiters.c",
                   "TARGET_LINK_LIBRARIES(uarray_split_delimiters_test skipdb m)",
                   "add_test(NAME uarray_split_delimiters_test COMMAND uarray_split_delimiters_test)",
+                  "ADD_EXECUTABLE(uarray_translate_validation_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_translate_validation.c",
+                  "TARGET_LINK_LIBRARIES(uarray_translate_validation_test skipdb m)",
+                  "add_test(NAME uarray_translate_validation_test COMMAND uarray_translate_validation_test)",
                   "ADD_EXECUTABLE(bstream_tag_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
                   "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
@@ -1140,6 +1144,9 @@ jobs:
                   "delims->itemSize != sizeof(void *)",
                   "delims->size > (size_t)-1 / delims->itemSize",
                   "if (!UArray_splitInputsAreValid_(self, delims))",
+                  "void UArray_translate(UArray *self, UArray *fromChars, UArray *toChars)",
+                  "self->itemSize != 1 || fromChars->itemSize != 1 || toChars->itemSize != 1",
+                  "if (fromChars->size != toChars->size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_unescape_bounds.c": [
                   "UArray_unescape(single_backslash)",
@@ -1226,6 +1233,13 @@ jobs:
                   "UArray split accepted missing source backing storage",
                   "UArray split accepted an unrepresentable source length",
                   "UArray split delimiter validation test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_translate_validation.c": [
+                  "UArray valid byte translation or hash invalidation failed",
+                  "UArray translation mutated input when mapping lengths differed",
+                  "UArray translation did not safely reject NULL arguments",
+                  "UArray translation mutated data after malformed byte-array input",
+                  "UArray translate validation test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
@@ -1920,6 +1934,18 @@ jobs:
           result_allocation = split_body.find("results = UArray_new()")
           if split_guard < 0 or result_allocation < 0 or split_guard > result_allocation:
               raise SystemExit("UArray split must preflight both inputs before allocating or reading delimiters")
+
+          translate_source = split_source
+          translate_start = translate_source.find("void UArray_translate(UArray *self, UArray *fromChars, UArray *toChars)")
+          translate_end = translate_source.find("size_t UArray_count_", translate_start)
+          translate_body = translate_source[translate_start:translate_end] if translate_start >= 0 and translate_end > translate_start else ""
+          if (
+              not translate_body or
+              "self->itemSize != 1 || fromChars->itemSize != 1 || toChars->itemSize != 1" not in translate_body or
+              "if (fromChars->size != toChars->size)" not in translate_body or
+              "UArray_error_(" in translate_body
+          ):
+              raise SystemExit("UArray byte translation must validate inputs and reject invalid calls without terminating the process")
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
           memory_start = list_source.find("size_t List_memorySize(const List *self)")
           memory_end = list_source.find("\nvoid List_removeAll", memory_start)
