@@ -100,6 +100,7 @@ long UArray_readNumberOfItems_fromCStream_(UArray *self, size_t size, FILE *stre
 	size_t itemsRead, oldSize;
 	UArray *buffer;
 	if (NULL == self || NULL == stream || self->itemSize == 0 ||
+		(self->size > 0 && NULL == self->data) ||
 		size > (size_t)LONG_MAX || size > (size_t)-1 - self->size ||
 		(size > 0 && self->size > (size_t)-1 / self->itemSize))
 		return -1;

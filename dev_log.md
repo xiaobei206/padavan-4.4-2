@@ -1,3 +1,23 @@
+## 2026-11-06 19:07 CST — Reject malformed UArray bounded-read destinations
+
+### Baseline
+- Main commit `4a27c1c779f9b4974bd93c3509a5b3e5241049ad`; SkipDBv2 Regression run #320 passed.
+- Scope: `UArray_readNumberOfItems_fromCStream_()` and its existing stream-I/O test.
+
+### Defect and fix
+- The bounded-read entry point validated the stream, item size, and arithmetic bounds but did not reject a destination whose logical size was nonzero while its data pointer was NULL. The neighboring streaming reader already rejects this malformed state.
+- Reject the malformed destination before allocating the temporary buffer or consuming input.
+
+### Regression and contracts
+- Extend `uarray_stream_io` with a malformed destination fixture. It verifies failure, unchanged destination metadata, and that the input stream position remains at the start; the original allocation is restored before cleanup.
+- Update the existing GitHub Actions source contract for the exact guard and test case. Reuse the existing CMake/CTest target; no new files or exported declarations.
+
+### Validation
+- Static review confirms the guard runs before buffer allocation, `fread`, or `UArray_append_()`.
+- Mainline CI will validate the source contract, compile the test, and run the regression suite.
+
+---
+
 ## 2026-11-06 19:05 CST — Reject hard-linked JFile data and journal files
 
 ### Baseline

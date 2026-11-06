@@ -1358,12 +1358,16 @@ jobs:
                   "ungetc(next, stream)",
                   "if (ferror(stream) || pushbackFailed)",
                   "self->size != oldSize + itemsRead || ferror(stream)",
+                  "self->size > 0 && NULL == self->data) ||\n\t\tsize > (size_t)LONG_MAX",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stream_io.c": [
                   "UArray_readLineFromCStream_",
                   "fopencookie(cookie, \"r\", functions)",
                   "errno = EIO;",
                   "UArray_readNumberOfItems_fromCStream_(array, 5, errorStream) != -1",
+                  "testMalformedDestinationRejected",
+                  "array->data = NULL;",
+                  "UArray bounded read accepted malformed destination storage",
                   "UArray stream I/O test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c": [

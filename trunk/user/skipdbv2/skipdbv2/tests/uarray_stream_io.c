@@ -172,6 +172,41 @@ done:
 	return ok;
 }
 
+
+static int testMalformedDestinationRejected(void)
+{
+	FILE *stream = tmpfile();
+	UArray *array = newByteArray();
+	uint8_t payload = 'x';
+	uint8_t *originalData = NULL;
+	int okay = 0;
+
+	if (NULL == stream || NULL == array)
+		goto done;
+	if (fwrite(&payload, 1, 1, stream) != 1 ||
+		fseek(stream, 0, SEEK_SET) != 0)
+		goto done;
+	UArray_setSize_(array, 1);
+	if (array->size != 1 || NULL == array->data)
+		goto done;
+
+	/* Public structs can be malformed by a caller; reject before appending. */
+	originalData = array->data;
+	array->data = NULL;
+	okay = UArray_readNumberOfItems_fromCStream_(array, 1, stream) == -1 &&
+		array->size == 1 && NULL == array->data && ftell(stream) == 0;
+	array->data = originalData;
+	originalData = NULL;
+
+done:
+	if (array && originalData)
+		array->data = originalData;
+	UArray_free(array);
+	if (stream)
+		fclose(stream);
+	return okay;
+}
+
 int main(void)
 {
 	if (!testLineBoundaries()) {
@@ -180,6 +215,10 @@ int main(void)
 	}
 	if (!testReadCountsAndErrors()) {
 		fprintf(stderr, "UArray stream short-read or error propagation failed\n");
+		return EXIT_FAILURE;
+	}
+	if (!testMalformedDestinationRejected()) {
+		fprintf(stderr, "UArray bounded read accepted malformed destination storage\n");
 		return EXIT_FAILURE;
 	}
 	puts("UArray stream I/O test passed");
