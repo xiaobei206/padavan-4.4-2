@@ -1664,7 +1664,7 @@ jobs:
                   zero_radius_guard > logarithm):
               raise SystemExit("RandomGen lifecycle and zero-radius Gaussian guards are incomplete")
           random_int_start = random_source.find("int RandomGen_randomInt(RandomGen *self)")
-          random_int_end = random_source.find("\\n}", random_int_start)
+          random_int_end = random_source.find("\n}", random_int_start)
           random_int_body = random_source[random_int_start:random_int_end] if random_int_start >= 0 and random_int_end > random_int_start else ""
           if "return self ? (int)(genrand_int32(self) >> 1) : 0;" not in random_int_body:
               raise SystemExit("RandomGen_randomInt must return a nonnegative 31-bit result")

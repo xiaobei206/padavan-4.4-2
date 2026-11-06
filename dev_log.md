@@ -1,3 +1,11 @@
+## 2026-11-06 14:45 CST — Repair RandomGen source-contract delimiter
+
+### CI diagnosis
+- SkipDBv2 Regression run #275 stopped during the source-contract preflight. The production change and test were found, but the new embedded Python check searched for a literal backslash-plus-`n` and extracted an empty `RandomGen_randomInt()` body.
+- Correct the newline delimiter in the existing workflow checker. No production/test logic changed by this repair.
+
+---
+
 ## 2026-11-06 14:43 CST — Keep RandomGen integer output nonnegative
 
 ### Baseline
