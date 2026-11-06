@@ -1,3 +1,22 @@
+## 2026-11-06 15:43 CST — Bound UArray unescape lookahead
+
+### Baseline
+- Main commit `2eba5a09c2f27898891438bbcaa9a54361481108`; SkipDBv2 Regression run #288 passed source-contract preflight, configure, full build, and CTest.
+
+### Defect and fix
+- `UArray_unescape()` fetched `getIndex + 1` for every input byte, including a backslash at the final position. A terminal escape marker therefore read one logical element beyond the array.
+- Read the lookahead only when another element remains; otherwise feed the existing NUL escape case so a lone trailing backslash is preserved as a literal backslash.
+
+### Regression and contracts
+- Add `uarray_unescape_bounds.c` for a single backslash, a trailing backslash after text, newline decoding, escaped-backslash decoding, and a NULL receiver.
+- Register the focused test in CMake/CTest and extend workflow source contracts for the bounded lookahead and test registration.
+
+### Validation
+- Static review confirms the lookahead is guarded by `getIndex < self->size - 1` before calling `UArray_longAt_()`.
+- The workflow triggered by this commit is authoritative for compilation and runtime tests.
+
+---
+
 ## 2026-11-06 15:41 CST — Repair Date helper source-contract delimiter
 
 ### CI failure

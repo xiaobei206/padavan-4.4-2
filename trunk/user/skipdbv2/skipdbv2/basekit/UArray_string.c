@@ -498,7 +498,9 @@ void UArray_unescape(UArray *self)
 		return;
 	while (getIndex < self->size) {
 		long c = UArray_longAt_(self, getIndex);
-		long nextChar = UArray_longAt_(self, getIndex + 1);
+		long nextChar = (getIndex < self->size - 1)
+			? UArray_longAt_(self, getIndex + 1)
+			: '\0';
 		if (c != '\\') {
 			if (getIndex != putIndex)
 				UArray_at_putLong_(self, putIndex, c);

@@ -730,6 +730,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_format_trailing_percent.c",
                   "TARGET_LINK_LIBRARIES(uarray_format_trailing_percent_test skipdb m)",
                   "add_test(NAME uarray_format_trailing_percent_test COMMAND uarray_format_trailing_percent_test)",
+                  "ADD_EXECUTABLE(uarray_unescape_bounds_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_unescape_bounds.c",
+                  "TARGET_LINK_LIBRARIES(uarray_unescape_bounds_test skipdb m)",
+                  "add_test(NAME uarray_unescape_bounds_test COMMAND uarray_unescape_bounds_test)",
                   "ADD_EXECUTABLE(uarray_search_bounds_test",
                   "${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c",
                   "TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)",
@@ -1074,6 +1078,17 @@ jobs:
                   "trailing format marker was not preserved safely",
                   "format consisting only of a percent marker was mishandled",
                   "UArray trailing format marker test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c": [
+                  "long nextChar = (getIndex < self->size - 1)",
+                  "? UArray_longAt_(self, getIndex + 1)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_unescape_bounds.c": [
+                  "UArray_unescape(single_backslash)",
+                  "UArray_unescape(trailing_backslash)",
+                  "a lone trailing backslash was not preserved",
+                  "ordinary escape decoding changed unexpectedly",
+                  "UArray unescape bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",

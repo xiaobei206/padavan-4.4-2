@@ -261,6 +261,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_format_trailing_percent_test skipdb m)
     add_test(NAME uarray_format_trailing_percent_test COMMAND uarray_format_trailing_percent_test)
 
+    ADD_EXECUTABLE(uarray_unescape_bounds_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_unescape_bounds.c)
+    TARGET_LINK_LIBRARIES(uarray_unescape_bounds_test skipdb m)
+    add_test(NAME uarray_unescape_bounds_test COMMAND uarray_unescape_bounds_test)
+
     ADD_EXECUTABLE(uarray_search_bounds_test
         ${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c)
     TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)
