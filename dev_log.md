@@ -1,3 +1,10 @@
+## 2026-11-07 01:11 CST — Match PortableTruncate's seek-error check after the call
+
+- Baseline: main commit `5a089cd67da91f02f4f6ca8179bdf3cbed26311b`; SkipDBv2 Regression run #393 reached the source-contract script but failed because `find("INVALID_SET_FILE_POINTER")` matched the explanatory comment before the Win32 seek call.
+- Minimal in-place fix: search for the sentinel starting at the `SetFilePointer` call so the ordering contract validates the actual failure check. No source or build target changes.
+
+---
+
 ## 2026-11-07 01:10 CST — Correct all PortableTruncate contract block indentation
 
 - The #392 run still stopped in Python parsing: the inserted contract block had inconsistent indentation relative to the surrounding source-contract checks.

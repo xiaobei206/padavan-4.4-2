@@ -4034,7 +4034,7 @@ jobs:
               truncate_body.find("FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,"),
               truncate_body.find("FILE_ATTRIBUTE_NORMAL, NULL)"),
               truncate_body.find("SetFilePointer(file, length, NULL, FILE_BEGIN)"),
-              truncate_body.find("INVALID_SET_FILE_POINTER"),
+              truncate_body.find("INVALID_SET_FILE_POINTER", truncate_body.find("SetFilePointer(file, length, NULL, FILE_BEGIN)")),
               truncate_body.find("!SetEndOfFile(file)"),
           ]
           if not truncate_body or min(truncate_checks) < 0 or not (
