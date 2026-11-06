@@ -15,6 +15,60 @@ static int expect_result(const char *label, const UTF8 *source,
     return 1;
 }
 
+
+static int test_utf32_source_semantics(void)
+{
+    const UTF32 v[] = {0xd800, 0x110000, 0x41};
+    const UTF32 supplementary[] = {0x1f4a9};
+    UTF16 out16[4] = {0xaaaa, 0xbbbb, 0xcccc, 0xdddd};
+    UTF8 out8[8] = {0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa};
+    const UTF32 *s;
+    UTF16 *t16;
+    UTF8 *t8;
+    ConversionResult r;
+
+    s=v; t16=out16;
+    r=ConvertUTF32toUTF16(&s,v+3,&t16,out16+4,strictConversion);
+    if(r!=sourceIllegal || s!=v || t16!=out16 || out16[0]!=0xaaaa) return 0;
+    s=v+1; t16=out16;
+    r=ConvertUTF32toUTF16(&s,v+3,&t16,out16+4,strictConversion);
+    if(r!=sourceIllegal || s!=v+1 || t16!=out16 || out16[0]!=0xaaaa) {
+        fprintf(stderr,"UTF32toUTF16 strict range error consumed the invalid scalar\\n"); return 0;
+    }
+    s=v; t16=out16;
+    r=ConvertUTF32toUTF16(&s,v+3,&t16,out16+4,lenientConversion);
+    if(r!=conversionOK || s!=v+3 || t16!=out16+3 || out16[0]!=0xfffd || out16[1]!=0xfffd || out16[2]!=0x41) {
+        fprintf(stderr,"UTF32toUTF16 lenient replacement failed\\n"); return 0;
+    }
+    {
+        UTF16 small[1]={0xaaaa}; s=supplementary; t16=small;
+        r=ConvertUTF32toUTF16(&s,supplementary+1,&t16,small+1,strictConversion);
+        if(r!=targetExhausted || s!=supplementary || t16!=small || small[0]!=0xaaaa) return 0;
+    }
+    s=v; t8=out8;
+    r=ConvertUTF32toUTF8(&s,v+3,&t8,out8+sizeof(out8),strictConversion);
+    if(r!=sourceIllegal || s!=v || t8!=out8 || out8[0]!=0xaa) return 0;
+    s=v+1; t8=out8;
+    r=ConvertUTF32toUTF8(&s,v+3,&t8,out8+sizeof(out8),strictConversion);
+    if(r!=sourceIllegal || s!=v+1 || t8!=out8 || out8[0]!=0xaa) {
+        fprintf(stderr,"UTF32toUTF8 strict range error consumed the invalid scalar\\n"); return 0;
+    }
+    s=v; t8=out8;
+    r=ConvertUTF32toUTF8(&s,v+3,&t8,out8+sizeof(out8),lenientConversion);
+    if(r!=conversionOK || s!=v+3 || t8!=out8+7 || out8[0]!=0xef || out8[1]!=0xbf || out8[2]!=0xbd ||
+       out8[3]!=0xef || out8[4]!=0xbf || out8[5]!=0xbd || out8[6]!=0x41) {
+        fprintf(stderr,"UTF32toUTF8 lenient replacement failed\\n"); return 0;
+    }
+    {
+        UTF8 small[3]={0xaa,0xaa,0xaa}; s=supplementary; t8=small;
+        r=ConvertUTF32toUTF8(&s,supplementary+1,&t8,small+sizeof(small),strictConversion);
+        if(r!=targetExhausted || s!=supplementary || t8!=small || small[0]!=0xaa || small[1]!=0xaa || small[2]!=0xaa) {
+            fprintf(stderr,"UTF32toUTF8 target exhaustion changed source or output\\n"); return 0;
+        }
+    }
+    return 1;
+}
+
 int main(void)
 {
     const UTF8 empty[] = { 0 };
@@ -36,6 +90,8 @@ int main(void)
         !expect_result("illegal lead byte", bad_lead, bad_lead + 5, false)) {
         return EXIT_FAILURE;
     }
+
+    if (!test_utf32_source_semantics()) return EXIT_FAILURE;
 
     puts("ConvertUTF sequence-boundary test passed");
     return EXIT_SUCCESS;

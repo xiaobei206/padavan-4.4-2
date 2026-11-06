@@ -1,3 +1,24 @@
+## 2026-11-06 17:40 CST — Correct lenient UTF-32 scalar replacement semantics
+
+### Baseline
+- Main commit `cc7ef07d73383573e2f56fd7600368d02ccb6b97`; SkipDBv2 Regression run #309 passed.
+- Scope: the UTF-32 source conversion paths in `ConvertUTF.c` only.
+
+### Defects and fixes
+- `ConvertUTF32toUTF16()` returned `sourceIllegal` for an out-of-range scalar without restoring the source cursor.
+- `ConvertUTF32toUTF8()` encoded isolated surrogate values as invalid UTF-8 in lenient mode, and treated out-of-range scalars as errors even when replacement mode was requested.
+- Both UTF-32 encoders now preserve the offending cursor and emit no partial output on strict scalar errors; lenient mode consistently emits U+FFFD. UTF-8 target capacity is checked before advancing the output pointer.
+
+### Regression and contracts
+- Extend the existing `convert_utf8_bounds` CTest with strict cursor/no-mutation checks, lenient replacement checks for isolated surrogates and out-of-range scalars, and target-exhaustion rollback.
+- Extend the workflow's source contracts for both conversion paths and their regression assertions. Reuse the existing CMake target; no new files, target changes, or exported declarations.
+
+### Validation
+- Static review confirms strict invalid-scalar branches restore the source cursor, lenient branches emit the replacement scalar, and target capacity is checked before pointer advancement.
+- Mainline CI run #310 will validate compilation and the complete regression suite.
+
+---
+
 ## 2026-11-06 17:23 CST — Preserve live-size semantics in LIST_SAFEFOREACH
 
 ### Baseline

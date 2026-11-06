@@ -106,7 +106,9 @@ ConversionResult ConvertUTF32toUTF16 (
 		{
 			if (flags == strictConversion)
 			{
+				--source; /* return to the illegal value itself */
 				result = sourceIllegal;
+				break;
 			}
 			else
 			{
@@ -446,13 +448,13 @@ ConversionResult ConvertUTF32toUTF8 (
 		const UTF32 byteMask = 0xBF;
 		const UTF32 byteMark = 0x80;
 		ch = *source++;
-		if (flags == strictConversion ) {
-			/* UTF-16 surrogate values are illegal in UTF-32 */
-			if (ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END) {
+		if (ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END) {
+			if (flags == strictConversion) {
 				--source; /* return to the illegal value itself */
 				result = sourceIllegal;
 				break;
 			}
+			ch = UNI_REPLACEMENT_CHAR;
 		}
 		/*
 		 * Figure out how many bytes the result will require. Turn any
@@ -462,16 +464,22 @@ ConversionResult ConvertUTF32toUTF8 (
 		} else if (ch < (UTF32)0x800) {          bytesToWrite = 2;
 		} else if (ch < (UTF32)0x10000) {        bytesToWrite = 3;
 		} else if (ch <= UNI_MAX_LEGAL_UTF32) {  bytesToWrite = 4;
-		} else {                                 bytesToWrite = 3;
+		} else {
+			if (flags == strictConversion) {
+				--source; /* return to the illegal value itself */
+				result = sourceIllegal;
+				break;
+			}
+			bytesToWrite = 3;
 			ch = UNI_REPLACEMENT_CHAR;
-			result = sourceIllegal;
 		}
 
-		target += bytesToWrite;
-		if (target > targetEnd) {
+		if ((size_t)(targetEnd - target) < bytesToWrite) {
 			--source; /* Back up source pointer! */
-			target -= bytesToWrite; result = targetExhausted; break;
+			result = targetExhausted;
+			break;
 		}
+		target += bytesToWrite;
 		switch (bytesToWrite) { /* note: everything falls through. */
 			case 4: *--target = (UTF8)((ch | byteMark) & byteMask); ch >>= 6;
 			case 3: *--target = (UTF8)((ch | byteMark) & byteMask); ch >>= 6;

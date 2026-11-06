@@ -1114,6 +1114,9 @@ jobs:
                   "NULL == source || NULL == sourceEnd || source >= sourceEnd",
                   "sourceEnd - source < length",
                   "return isLegalUTF8(source, length);",
+                  "else if (ch > UNI_MAX_LEGAL_UTF32)",
+                  "if ((size_t)(targetEnd - target) < bytesToWrite)",
+                  "ch = UNI_REPLACEMENT_CHAR;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/convert_utf8_bounds.c": [
                   "NULL source",
@@ -1122,6 +1125,12 @@ jobs:
                   "truncated sequence",
                   "overlong sequence",
                   "illegal lead byte",
+                  "test_utf32_source_semantics",
+                  "UTF32toUTF16 strict range error consumed the invalid scalar",
+                  "UTF32toUTF16 lenient replacement failed",
+                  "UTF32toUTF8 strict range error consumed the invalid scalar",
+                  "UTF32toUTF8 lenient replacement failed",
+                  "UTF32toUTF8 target exhaustion changed source or output",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_format.c": [
                   "void UArray_fromVargs_(UArray *self, const char *format, va_list ap)",
@@ -2375,9 +2384,37 @@ jobs:
               raise SystemExit("ConvertUTF sequence validator must reject null/empty ranges and check remaining length before reading")
           convert_test = Path("trunk/user/skipdbv2/skipdbv2/tests/convert_utf8_bounds.c").read_text()
           for needle in ("NULL source", "NULL end", "empty range", "truncated sequence",
-                         "overlong sequence", "illegal lead byte"):
+                         "overlong sequence", "illegal lead byte", "test_utf32_source_semantics",
+                         "UTF32toUTF16 strict range error consumed the invalid scalar",
+                         "UTF32toUTF16 lenient replacement failed",
+                         "UTF32toUTF8 strict range error consumed the invalid scalar",
+                         "UTF32toUTF8 lenient replacement failed",
+                         "UTF32toUTF8 target exhaustion changed source or output"):
               if needle not in convert_test:
-                  raise SystemExit("ConvertUTF boundary regression case missing: " + needle)
+                  raise SystemExit("ConvertUTF regression case missing: " + needle)
+
+          utf32_to16_start = convert_source.find("ConversionResult ConvertUTF32toUTF16")
+          utf32_to16_end = convert_source.find("ConversionResult ConvertUTF16toUTF32", utf32_to16_start)
+          utf32_to16_body = convert_source[utf32_to16_start:utf32_to16_end] if utf32_to16_start >= 0 and utf32_to16_end > utf32_to16_start else ""
+          range_guard = utf32_to16_body.find("else if (ch > UNI_MAX_LEGAL_UTF32)")
+          range_rewind = utf32_to16_body.find("--source;", range_guard)
+          range_error = utf32_to16_body.find("result = sourceIllegal;", range_guard)
+          range_break = utf32_to16_body.find("break;", range_guard)
+          if (not utf32_to16_body or min(range_guard, range_rewind, range_error, range_break) < 0 or
+                  not (range_guard < range_rewind < range_error < range_break)):
+              raise SystemExit("ConvertUTF32toUTF16 strict scalar rejection must preserve the offending source position")
+
+          utf32_to8_start = convert_source.find("ConversionResult ConvertUTF32toUTF8")
+          utf32_to8_end = convert_source.find("ConversionResult ConvertUTF8toUTF32", utf32_to8_start)
+          utf32_to8_body = convert_source[utf32_to8_start:utf32_to8_end] if utf32_to8_start >= 0 and utf32_to8_end > utf32_to8_start else ""
+          utf32_to8_surrogate = utf32_to8_body.find("if (ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END)")
+          utf32_to8_capacity = utf32_to8_body.find("if ((size_t)(targetEnd - target) < bytesToWrite)")
+          utf32_to8_advance = utf32_to8_body.find("target += bytesToWrite;", utf32_to8_capacity)
+          if (not utf32_to8_body or utf32_to8_surrogate < 0 or
+                  utf32_to8_body.count("ch = UNI_REPLACEMENT_CHAR;") < 2 or
+                  utf32_to8_body.count("--source;") < 2 or utf32_to8_capacity < 0 or
+                  utf32_to8_advance < 0 or utf32_to8_capacity > utf32_to8_advance):
+              raise SystemExit("ConvertUTF32toUTF8 must replace lenient invalid scalars, preserve strict cursors, and preflight target capacity")
 
           encoding_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c").read_text()
           truncate_start = encoding_source.find("static int UArray_truncateAfterConvertToEncoding_(UArray *self)")
