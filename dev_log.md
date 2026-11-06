@@ -1,3 +1,13 @@
+## 2026-11-07 07:56 CST — Stop safe reverse iteration after cursor invalidation
+
+- Baseline: main commit `fd7a0b31a8ffbdc6815bb95065f0880653109fea`; SkipDBv2 Regression run #473 passed integration contracts and the full build but failed `list_storage_bounds_test`.
+- Scope: `LIST_SAFEREVERSEFOREACH` in `basekit/List_inline.h`.
+- When a callback reduced the list to one slot, the reverse cursor still referred past the new logical end. Clamping that cursor to the new size caused another callback invocation at index zero, contrary to the existing mutation regression. Stop traversal when the cursor is beyond the current size instead of remapping it to an unrelated slot; keep per-iteration storage validation.
+- Update the existing Actions source contract to require the early-stop guard. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:31 CST — Revalidate storage during safe reverse iteration
 
 - Baseline: main commit `4c50788e432ded69288ad191ffe7312e1c4ca35d`; SkipDBv2 Regression run #472 passed integration contracts, configure, full build, and all 56 tests.

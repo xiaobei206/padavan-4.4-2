@@ -2449,7 +2449,7 @@ jobs:
                   "size_t index, foreachMax = List_hasValidStorage_(foreachList) ? foreachList->size : 0;",
                   "foreachList && List_hasValidStorage_(foreachList) && index < List_size(foreachList)",
                   "while (foreachList && List_hasValidStorage_(foreachList) && index > 0)",
-                  "if (index > foreachList->size) index = foreachList->size;",
+                  "if (index > foreachList->size) break;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_storage_bounds.c": [
                   "malformed_source.memSize = sizeof(void *)",
