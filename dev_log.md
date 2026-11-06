@@ -1,3 +1,10 @@
+## 2026-11-06 22:56 CST — Fix UArray math source-contract search after forward declaration
+
+- CI #354 failed in the Python source-contract step before configure/build because the existing dot-product contract found the newly added elementwise validator forward declaration instead of the later function definition.
+- Narrow the search for the validator definition to begin after `UArray_numericItemSize_()`. This keeps the existing dot-product contract anchored to the implementation while separately checking the new forward declaration in the elementwise contract.
+- No C source or runtime behavior changed; this is an in-place workflow-contract correction for the preceding UArray elementwise arithmetic commit.
+
+---
 ## 2026-11-06 22:53 CST — Validate UArray elementwise arithmetic mutations
 
 - Baseline: main commit `db1d474c78cacab4968141bfb1acca67524609dc`; SkipDBv2 Regression run #353 passed all 55 CTest cases, including the index-compaction guards.

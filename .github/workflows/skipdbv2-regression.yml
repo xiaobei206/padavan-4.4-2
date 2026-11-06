@@ -2276,7 +2276,7 @@ jobs:
                   raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")
 
           dot_size_start = bit_math_source.find("static size_t UArray_numericItemSize_(CTYPE itemType)")
-          dot_guard_start = bit_math_source.find("static int UArray_hasValidNumericStorage_(const UArray *self)")
+          dot_guard_start = bit_math_source.find("static int UArray_hasValidNumericStorage_(const UArray *self)", dot_size_start)
           dot_product_start = bit_math_source.find("double UArray_dotProduct_(const UArray *self, const UArray *other)")
           dot_product_end = bit_math_source.find("// basic scalar math", dot_product_start)
           dot_size_body = bit_math_source[dot_size_start:dot_guard_start] if dot_size_start >= 0 and dot_guard_start > dot_size_start else ""
