@@ -1,8 +1,8 @@
-#include "PortableStrlcpy.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "PortableStrlcpy.h"
 
 #define CHECK(condition, message) do { \
     if (!(condition)) { \

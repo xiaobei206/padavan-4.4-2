@@ -1,3 +1,10 @@
+## 2026-11-07 00:17 CST — Fix PortableStrlcpy regression include order
+
+- CI #381 passed source contracts and CMake configuration, then failed compiling the new test. The test included `PortableStrlcpy.h` before `string.h`; its legacy `strlcpy` macro consequently rewrote the system header declaration.
+- Include standard C headers before the portability header, matching the order already used by `PortableStrlcpy.c`. No implementation or API behavior changed.
+
+---
+
 ## 2026-11-07 00:16 CST — Make PortableStrlcpy reject invalid pointers safely
 
 - Baseline: main commit `31b43e70a4716e9bcc236b6d2567cd9af0820004`; SkipDBv2 Regression run #380 passed source contracts, full build, and CTest.
