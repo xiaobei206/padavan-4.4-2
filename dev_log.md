@@ -1,3 +1,11 @@
+## 2026-11-07 03:33 CST — Repair division-contract Python block placement
+
+- CI run #427 failed before configure because the newly added floating-quotient assertions were inserted before the existing division-contract `if (...):` block had closed.
+- Move the additional checks after that block's existing `raise SystemExit`; no C source or regression behavior changed in this repair.
+- The corrected Actions script now parses the full original division contract before evaluating the new float32/float64 range, non-finite, and test-coverage assertions.
+
+---
+
 ## 2026-11-07 03:29 CST — Preflight floating quotients before integer UArray division
 
 - Baseline: main commit `147a8f9474f543b370fb842cb2140f2b5e6891fc`; SkipDBv2 Regression run #426 passed source contracts, configure, full build, and all CTest cases.

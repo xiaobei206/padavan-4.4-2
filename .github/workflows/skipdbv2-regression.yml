@@ -3098,6 +3098,8 @@ jobs:
               any(f"== {minimum}" not in divide_helper_body for minimum in (
                   "INT8_MIN", "INT16_MIN", "INT32_MIN", "INT64_MIN"
               ))
+          ):
+              raise SystemExit("UArray elementwise divide must preflight storage and integer UB, preserve float division, and invalidate hash on both dispatch paths")
           floating_division_start = divide_helper_body.find(
               "if (other->itemType == CTYPE_float32_t ||"
           )
@@ -3128,8 +3130,6 @@ jobs:
                          "UArray integer division committed a non-finite float quotient"):
               if needle not in division_test:
                   raise SystemExit("UArray floating-to-integer division regression missing: " + needle)
-          ):
-              raise SystemExit("UArray elementwise divide must preflight storage and integer UB, preserve float division, and invalidate hash on both dispatch paths")
 
           scalar_operation_ranges = (
               ("add", "void UArray_addScalarDouble_(UArray *self, double value)", "void UArray_subtractScalarDouble_"),
