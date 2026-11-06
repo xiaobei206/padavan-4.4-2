@@ -651,27 +651,24 @@ void UArray_removeEvenIndexes(UArray *self)
 
 void UArray_reverseItemByteOrders(UArray *self)
 {
-	size_t itemSize = self->itemSize;
+	size_t itemSize, i;
 
-	if (itemSize > 1)
-	{
-		size_t i, max = self->size;
-		uint8_t *d = self->data;
+	if (NULL == self || self->itemSize <= 1 || self->size == 0 ||
+		NULL == self->data ||
+		self->size > (size_t)-1 / self->itemSize)
+		return;
 
-		for(i = 0; i < max; i ++)
-		{
-			size_t j;
+	itemSize = self->itemSize;
+	for (i = 0; i < self->size; ++i) {
+		uint8_t *item = self->data + i * itemSize;
+		size_t j;
 
-			for(j = 0; j < itemSize; j ++)
-			{
-				size_t i1 = i + j;
-				size_t i2 = i + itemSize - j;
-				uint8_t v = d[i1];
-				d[i1] = d[i2];
-				d[i2] = v;
-			}
+		for (j = 0; j < itemSize / 2; ++j) {
+			uint8_t value = item[j];
+			item[j] = item[itemSize - 1 - j];
+			item[itemSize - 1 - j] = value;
 		}
-
-		UArray_changed(self);
 	}
+
+	UArray_changed(self);
 }

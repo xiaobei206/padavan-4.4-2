@@ -1,3 +1,22 @@
+## 2026-11-06 15:46 CST — Correct UArray per-item byte reversal
+
+### Baseline
+- Main commit `e4cee3698225dc24e55e8fffb188f58bf2292f3b`; SkipDBv2 Regression run #289 passed source-contract preflight, configure, full build, and CTest.
+
+### Defect and fix
+- `UArray_reverseItemByteOrders()` used logical element indices as byte offsets, computed the right-hand index without the final-byte adjustment, and swapped across the full item width. It could reverse the wrong bytes and read beyond a single-item array.
+- Validate the receiver, backing data, and byte-count multiplication; reverse each item's bytes in place with symmetric byte offsets and only half-width swaps.
+
+### Regression and contracts
+- Add `uarray_reverse_item_byte_order.c` for three 16-bit items, a single 32-bit item (the out-of-bounds boundary), NULL, empty, and missing-data inputs.
+- Register the focused test in CMake/CTest and extend workflow source and registration contracts.
+
+### Validation
+- Static review confirms byte offsets are based on `i * itemSize`, the paired index is `itemSize - 1 - j`, and multiplication is checked before pointer arithmetic.
+- The workflow triggered by this commit is authoritative for compilation and runtime tests.
+
+---
+
 ## 2026-11-06 15:43 CST — Bound UArray unescape lookahead
 
 ### Baseline
