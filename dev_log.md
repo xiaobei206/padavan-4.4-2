@@ -1,3 +1,17 @@
+## 2026-11-06 13:46 CST — Make List slicing allocation-free
+
+### Scope and changes
+- Replace the temporary-List implementation of `List_sliceInPlace()` with bounded in-place compaction using `memmove` and clearing of discarded pointer slots.
+- Preserve inclusive end-index behavior, negative-index wrapping, empty/reversed ranges, out-of-range starts, and existing List allocation capacity.
+- Validate logical size against both byte-size overflow and allocated capacity before touching storage; remove slicing's temporary-allocation failure path.
+
+### Regression and contracts
+- Add `list_slice_test` for middle slices, end-bound clamping, negative indexes, start-at-size and reversed ranges, cleared tail slots, and capacity preservation.
+- Register the regression with CMake/CTest and extend workflow contracts for the public prototype, allocation-free implementation, regression cases, linkage, and test registration.
+- Latest main CI before this change: SkipDBv2 Regression run #259 passed after the RandomGen contract repair.
+
+---
+
 ## 2026-11-06 13:41 CST — Repair RandomGen source-contract syntax
 
 ### CI failure and repair

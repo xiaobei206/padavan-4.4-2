@@ -52,31 +52,31 @@ static size_t indexWrap(long index, size_t size)
 
 void List_sliceInPlace(List* self, long startIndex, long endIndex)
 {
-	size_t i, start, end, oldSize;
-	List *tmp;
+	size_t start, end, oldSize, retainedSize;
 	if (NULL == self)
 		return;
-	tmp = List_new();
-	if (NULL == tmp)
-		return;
 	oldSize = self->size;
-	if (oldSize > 0 && NULL == self->items) {
-		List_free(tmp);
+	if (oldSize > (size_t)-1 / sizeof(void *) ||
+		oldSize > self->memSize / sizeof(void *) ||
+		(oldSize > 0 && NULL == self->items))
 		return;
-	}
+	if (oldSize == 0)
+		return;
 	start = indexWrap(startIndex, oldSize);
 	end = indexWrap(endIndex, oldSize);
-	if (start <= end) {
-		for (i = start; i < oldSize && i <= end; ++i) {
-			if (NULL == List_append_(tmp, self->items[i]) &&
-				tmp->size == i - start) {
-				List_free(tmp);
-				return;
-			}
-		}
+	if (start >= oldSize || start > end) {
+		memset(self->items, 0, oldSize * sizeof(void *));
+		self->size = 0;
+		return;
 	}
-	List_copy_(self, tmp);
-	List_free(tmp);
+	if (end >= oldSize)
+		end = oldSize - 1;
+	retainedSize = end - start + 1;
+	if (start > 0)
+		memmove(self->items, self->items + start, retainedSize * sizeof(void *));
+	if (retainedSize < oldSize)
+		memset(self->items + retainedSize, 0, (oldSize - retainedSize) * sizeof(void *));
+	self->size = retainedSize;
 }
 
 

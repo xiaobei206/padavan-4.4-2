@@ -704,6 +704,10 @@ jobs:
                   "ADD_EXECUTABLE(list_memory_size_test",
                   "${PROJECT_SOURCE_DIR}/tests/list_memory_size.c",
                   "add_test(NAME list_memory_size_test COMMAND list_memory_size_test)",
+                  "ADD_EXECUTABLE(list_slice_test",
+                  "${PROJECT_SOURCE_DIR}/tests/list_slice.c",
+                  "TARGET_LINK_LIBRARIES(list_slice_test skipdb m)",
+                  "add_test(NAME list_slice_test COMMAND list_slice_test)",
                   "ADD_EXECUTABLE(uarray_stack_resize_test",
                   "${PROJECT_SOURCE_DIR}/tests/uarray_stack_resize.c",
                   "add_test(NAME uarray_stack_resize_test COMMAND uarray_stack_resize_test)",
@@ -1056,6 +1060,16 @@ jobs:
                   "size_t List_memorySize(const List *self)",
                   "self->memSize > (size_t)-1 - sizeof(List)",
                   "return sizeof(List) + self->memSize;",
+                  "void List_sliceInPlace(List* self, long startIndex, long endIndex)",
+                  "oldSize > (size_t)-1 / sizeof(void *)",
+                  "oldSize > self->memSize / sizeof(void *)",
+                  "if (start >= oldSize || start > end)",
+                  "retainedSize = end - start + 1;",
+                  "memmove(self->items, self->items + start, retainedSize * sizeof(void *));",
+                  "memset(self->items + retainedSize, 0, (oldSize - retainedSize) * sizeof(void *));",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/List.h": [
+                  "BASEKIT_API void List_sliceInPlace(List *self, long startIndex, long endIndex);",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack.c": [
                   "static int Stack_isValid_(const Stack *self, size_t *used, size_t *capacity)",
@@ -1088,6 +1102,16 @@ jobs:
                   "list->memSize <= list->size * sizeof(void *)",
                   "List_compact(list)",
                   "list memory size reported logical contents instead of allocated capacity",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/list_slice.c": [
+                  "List_sliceInPlace(NULL, 0, 0);",
+                  "List_sliceInPlace(list, 1, 3);",
+                  "List_sliceInPlace(list, 1, 6);",
+                  "List_sliceInPlace(list, -3, -1);",
+                  "List_sliceInPlace(list, 3, 3);",
+                  "List_sliceInPlace(list, 2, 1);",
+                  "list->items[i] != NULL",
+                  "list slice test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c": [
                   "Stack_copy_(destination, source);",
@@ -1342,6 +1366,30 @@ jobs:
           list_test = Path("trunk/user/skipdbv2/skipdbv2/tests/list_memory_size.c").read_text()
           if list_test.count("List_memorySize(list) != expected") != 3:
               raise SystemExit("List memory accounting regression must cover initial, grown, and compacted allocations")
+
+          slice_start = list_source.find("void List_sliceInPlace(List* self, long startIndex, long endIndex)")
+          slice_end = list_source.find("\nList *List_cloneSlice", slice_start)
+          slice_body = list_source[slice_start:slice_end] if slice_start >= 0 and slice_end > slice_start else ""
+          if (not slice_body or "List_new()" in slice_body or "List_append_(" in slice_body or
+                  "oldSize > (size_t)-1 / sizeof(void *)" not in slice_body or
+                  "oldSize > self->memSize / sizeof(void *)" not in slice_body or
+                  "if (start >= oldSize || start > end)" not in slice_body or
+                  "if (end >= oldSize)" not in slice_body or
+                  "memmove(self->items, self->items + start, retainedSize * sizeof(void *));" not in slice_body or
+                  "self->size = retainedSize;" not in slice_body):
+              raise SystemExit("List slicing must be allocation-free, capacity-bounded, and preserve inclusive end-index semantics")
+          slice_test = Path("trunk/user/skipdbv2/skipdbv2/tests/list_slice.c").read_text()
+          if ("List_sliceInPlace(list, 1, 6)" not in slice_test or
+                  "List_sliceInPlace(list, -3, -1)" not in slice_test or
+                  "List_sliceInPlace(list, 3, 3)" not in slice_test or
+                  "List_sliceInPlace(list, 2, 1)" not in slice_test or
+                  "list slice test passed" not in slice_test):
+              raise SystemExit("List slicing regression must cover end clamping, negative indexes, out-of-range starts, and reversed bounds")
+          if ("ADD_EXECUTABLE(list_slice_test" not in cmake_text or
+                  "${PROJECT_SOURCE_DIR}/tests/list_slice.c" not in cmake_text or
+                  "TARGET_LINK_LIBRARIES(list_slice_test skipdb m)" not in cmake_text or
+                  "add_test(NAME list_slice_test COMMAND list_slice_test)" not in cmake_text):
+              raise SystemExit("List slicing regression is not registered in CMake/CTest")
 
           uarray_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text()
           resize_start = uarray_source.find("void UArray_setSize_(UArray *self, size_t size)")
