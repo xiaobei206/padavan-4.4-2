@@ -1,3 +1,14 @@
+## 2026-11-07 05:56 CST — Make MainArgs accessors NULL- and bounds-safe
+
+- Baseline: main commit `fb74b42d610c21f12577cf7aa2348dd175b6072b`; SkipDBv2 Regression run #440 passed source contracts, configure, full compilation, and CTest after the SkipDB link-level contract repair.
+- Scope: the two public read accessors in `basekit/MainArgs`.
+- The public `MainArgs_argCount` and `MainArgs_argAt_` macros dereferenced the receiver directly; indexed access also trusted both the vector and caller-supplied index. NULL receivers, inconsistent public structs, negative indexes, or indexes at/above argc could therefore trigger invalid memory access.
+- Route the existing macros through small exported checked accessors. The count accessor returns zero for NULL/negative/inconsistent state; indexed access returns NULL for NULL/empty/inconsistent state and any out-of-range index. Existing macro call syntax remains source-compatible, and each argument expression is evaluated once.
+- Extend the existing lifecycle regression for NULL, malformed receiver, negative and upper-bound indexes, and normal access after replacement. Extend the existing Actions source/dynamic contracts. CMake already compiles the basekit source glob and registers `main_args_lifecycle_test`; no build-file or new-file changes.
+- No local C compile or CTest run is claimed; the new mainline run is the validation gate.
+
+---
+
 ## 2026-11-07 05:50 CST — Align SkipDB level-validation source contract
 
 - Baseline: main commit `2748369d79f586aa0132b9fe23ae284834305953`; SkipDBv2 Regression run #439 stopped in the pre-build source-contract step.

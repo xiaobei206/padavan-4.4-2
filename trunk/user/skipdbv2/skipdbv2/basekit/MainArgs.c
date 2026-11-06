@@ -26,6 +26,22 @@ void MainArgs_free(MainArgs *self)
     io_free(self);
 }
 
+int MainArgs_argCount_(const MainArgs *self)
+{
+	if (NULL == self || self->argc < 0 ||
+		(self->argc > 0 && NULL == self->argv))
+		return 0;
+	return self->argc;
+}
+
+const char *MainArgs_argumentAt_(const MainArgs *self, size_t index)
+{
+	if (NULL == self || self->argc <= 0 || NULL == self->argv ||
+		index >= (size_t)self->argc)
+		return NULL;
+	return self->argv[index];
+}
+
 void MainArgs_argc_argv_(MainArgs *self, int argc, const char **argv)
 {
     const char **newArgv = NULL;

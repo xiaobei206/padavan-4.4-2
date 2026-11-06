@@ -15,6 +15,7 @@ int main(void)
     const char *initial[] = { app, option, path };
     const char *replacement[] = { replacement_app, replacement_option };
     const char *null_argument[] = { NULL };
+    MainArgs malformed = { 1, NULL };
 
     if (NULL == args) {
         fprintf(stderr, "MainArgs allocation failed\n");
@@ -31,6 +32,22 @@ int main(void)
         return EXIT_FAILURE;
     }
 
+    if (MainArgs_argCount(args) != 3 ||
+        NULL == MainArgs_argAt_(args, 0) ||
+        strcmp(MainArgs_argAt_(args, 0), "padavan") != 0 ||
+        strcmp(MainArgs_argAt_(args, 1), "--database") != 0 ||
+        strcmp(MainArgs_argAt_(args, 2), "skipdb.db") != 0 ||
+        MainArgs_argAt_(args, 3) != NULL ||
+        MainArgs_argAt_(args, -1) != NULL ||
+        MainArgs_argCount(NULL) != 0 ||
+        MainArgs_argAt_(NULL, 0) != NULL ||
+        MainArgs_argCount(&malformed) != 0 ||
+        MainArgs_argAt_(&malformed, 0) != NULL) {
+        fprintf(stderr, "MainArgs checked accessors accepted invalid receiver or index\n");
+        MainArgs_free(args);
+        return EXIT_FAILURE;
+    }
+
     app[0] = 'X';
     option[0] = 'X';
     path[0] = 'X';
@@ -43,8 +60,9 @@ int main(void)
     }
 
     MainArgs_argc_argv_(args, 2, replacement);
-    if (args->argc != 2 || strcmp(args->argv[0], "skipdb") != 0 ||
-        strcmp(args->argv[1], "--version") != 0) {
+    if (args->argc != 2 || MainArgs_argCount(args) != 2 ||
+        strcmp(MainArgs_argAt_(args, 0), "skipdb") != 0 ||
+        strcmp(MainArgs_argAt_(args, 1), "--version") != 0) {
         fprintf(stderr, "MainArgs replacement failed\n");
         MainArgs_free(args);
         return EXIT_FAILURE;

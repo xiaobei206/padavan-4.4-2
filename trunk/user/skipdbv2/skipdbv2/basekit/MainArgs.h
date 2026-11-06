@@ -24,8 +24,12 @@ BASEKIT_API void MainArgs_free(MainArgs *self);
 
 /* Deep-copies argv; invalid input or allocation failure leaves self unchanged. */
 BASEKIT_API void MainArgs_argc_argv_(MainArgs *self, int argc, const char **argv);
-#define MainArgs_argCount(self) self->argc
-#define MainArgs_argAt_(self, index) self->argv[index]
+
+/* Checked accessors return 0/NULL for invalid or inconsistent argument state. */
+BASEKIT_API int MainArgs_argCount_(const MainArgs *self);
+BASEKIT_API const char *MainArgs_argumentAt_(const MainArgs *self, size_t index);
+#define MainArgs_argCount(self) MainArgs_argCount_(self)
+#define MainArgs_argAt_(self, index) MainArgs_argumentAt_((self), (size_t)(index))
 
 #ifdef __cplusplus
 }
