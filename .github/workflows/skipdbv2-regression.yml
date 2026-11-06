@@ -819,8 +819,12 @@ jobs:
                   "static void Sorting_quickSort_(",
                   "static size_t Sorting_quickSortRearrange_(",
                   "size - 1 > (size_t)INT_MAX",
-                  "if (pivot > lb)",
-                  "if (pivot < ub)",
+                  "while (lb < ub)",
+                  "size_t leftSize = pivot - lb;",
+                  "size_t rightSize = ub - pivot;",
+                  "if (leftSize < rightSize)",
+                  "lb = pivot + 1;",
+                  "ub = pivot - 1;",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Sorting.h": [
                   "#ifndef IOSORTING_DEFINED",
@@ -831,6 +835,8 @@ jobs:
                   "already-sorted input was changed to an invalid order",
                   "reverse-order input was not sorted",
                   "duplicate and negative values were not sorted",
+                  "#define LARGE_SORT_COUNT 4096",
+                  "large reverse-order input was not sorted",
                   "oversized = (size_t)INT_MAX + 2u;",
                   "invalid callbacks or unsupported index range invoked a callback",
                   "Sorting boundary test passed",
@@ -2053,12 +2059,19 @@ jobs:
           quick_sort_start = sorting_source.find("static void Sorting_quickSort_(", quick_sort_declaration + 1)
           quick_sort_end = sorting_source.find("static size_t Sorting_quickSortRearrange_(", quick_sort_start)
           quick_sort_body = sorting_source[quick_sort_start:quick_sort_end] if quick_sort_start >= 0 and quick_sort_end > quick_sort_start else ""
-          left_guard = quick_sort_body.find("if (pivot > lb)")
-          right_guard = quick_sort_body.find("if (pivot < ub)")
-          if (not quick_sort_body or left_guard < 0 or right_guard < 0 or
-                  quick_sort_body.find("pivot - 1") < left_guard or
-                  quick_sort_body.find("pivot + 1") < right_guard):
-              raise SystemExit("Sorting recursion must guard both pivot-side bounds before unsigned arithmetic")
+          left_partition = quick_sort_body.find("size_t leftSize = pivot - lb;")
+          right_partition = quick_sort_body.find("size_t rightSize = ub - pivot;")
+          smaller_partition = quick_sort_body.find("if (leftSize < rightSize)")
+          if (not quick_sort_body or "while (lb < ub)" not in quick_sort_body or
+                  left_partition < 0 or right_partition <= left_partition or
+                  smaller_partition < right_partition or
+                  "Sorting_quickSort_(self, lb, pivot - 1);" not in quick_sort_body or
+                  "Sorting_quickSort_(self, pivot + 1, ub);" not in quick_sort_body or
+                  "lb = pivot + 1;" not in quick_sort_body or
+                  "ub = pivot - 1;" not in quick_sort_body):
+              raise SystemExit("Sorting must recurse only into the smaller partition and iterate over the larger partition")
+          if quick_sort_body.count("Sorting_quickSort_(self,") != 2:
+              raise SystemExit("Sorting must not restore unbounded two-sided recursive calls")
 
           sorting_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/Sorting.h").read_text()
           if ("#ifndef IOSORTING_DEFINED" not in sorting_header or
@@ -2069,6 +2082,8 @@ jobs:
           for needle in ("already-sorted input was changed to an invalid order",
                          "reverse-order input was not sorted",
                          "duplicate and negative values were not sorted",
+                         "#define LARGE_SORT_COUNT 4096",
+                         "large reverse-order input was not sorted",
                          "oversized = (size_t)INT_MAX + 2u;",
                          "Sorting boundary test passed"):
               if needle not in sorting_test:

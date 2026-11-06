@@ -49,16 +49,27 @@ static int Sorting_isSorted_(SDSort *self, size_t size)
 
 static void Sorting_quickSort_(SDSort *self, size_t lb, size_t ub)
 {
-    size_t pivot;
-
-    if (NULL == self || lb >= ub)
+    if (NULL == self)
         return;
 
-    pivot = Sorting_quickSortRearrange_(self, lb, ub);
-    if (pivot > lb)
-        Sorting_quickSort_(self, lb, pivot - 1);
-    if (pivot < ub)
-        Sorting_quickSort_(self, pivot + 1, ub);
+    while (lb < ub) {
+        size_t pivot = Sorting_quickSortRearrange_(self, lb, ub);
+        size_t leftSize = pivot - lb;
+        size_t rightSize = ub - pivot;
+
+        /* Recurse only into the smaller partition; iterate over the larger one. */
+        if (leftSize < rightSize) {
+            if (leftSize > 0)
+                Sorting_quickSort_(self, lb, pivot - 1);
+            lb = pivot + 1;
+        } else {
+            if (rightSize > 0)
+                Sorting_quickSort_(self, pivot + 1, ub);
+            if (pivot == 0)
+                return;
+            ub = pivot - 1;
+        }
+    }
 }
 
 static size_t Sorting_quickSortRearrange_(SDSort *self, size_t lb, size_t ub)

@@ -1,3 +1,23 @@
+## 2026-11-06 14:33 CST — Bound Quicksort recursion depth
+
+### Baseline
+- Main commit `69fbc8719bbe701c3de954d7ffdaba18806bb253`; SkipDBv2 Regression run #270 passed source contracts, configure, full build, and all CTest cases.
+
+### Defect and fix
+- `Sorting_quickSort_` recursively processed both partitions. An unfavorable partition sequence could consume O(n) C stack frames even though the public entry point already bounds indices to `int`.
+- Recurse only into the smaller partition and loop over the larger partition. This bounds active recursion depth to O(log n) without adding a new algorithm layer or changing comparator/swap APIs; worst-case comparison time remains unchanged.
+
+### Regression and contracts
+- Extend the existing `sorting_boundaries_test` with a 4096-element reverse-order input.
+- Update the existing workflow source contracts to require the smaller-partition recursion/large-partition iteration pattern and prevent a return to two recursive calls.
+- Reuse the existing CMake target; no new files or public symbols.
+
+### Validation
+- Structural preflight checks the recursion structure and the retained `INT_MAX` index guard.
+- The workflow triggered by this commit is authoritative for full compilation and the regression suite.
+
+---
+
 ## 2026-11-06 14:30 CST — Reject one-past-end Stack cursors
 
 ### Baseline

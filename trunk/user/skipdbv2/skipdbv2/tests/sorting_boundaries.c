@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define LARGE_SORT_COUNT 4096
+
 typedef struct
 {
     int *values;
@@ -55,6 +57,7 @@ int main(void)
     int duplicates[] = {4, -2, 4, 0, -2, 9, 1};
     int guarded[] = {3, 1, 2};
     int original[] = {3, 1, 2};
+    int large_reverse[LARGE_SORT_COUNT];
     SortContext sort;
     SortContext guard;
     size_t oversized = (size_t)INT_MAX + 2u;
@@ -87,6 +90,19 @@ int main(void)
                                          SDQuickSort);
     CHECK(is_sorted(duplicates, sizeof(duplicates) / sizeof(duplicates[0])),
           "duplicate and negative values were not sorted");
+
+    {
+        size_t i;
+        for (i = 0; i < LARGE_SORT_COUNT; ++i)
+            large_reverse[i] = LARGE_SORT_COUNT - (int)i;
+    }
+    sort.values = large_reverse;
+    sort.comparisons = 0;
+    sort.swaps = 0;
+    Sorting_context_comp_swap_size_type_(&sort, compare_values, swap_values,
+                                         LARGE_SORT_COUNT, SDQuickSort);
+    CHECK(is_sorted(large_reverse, LARGE_SORT_COUNT),
+          "large reverse-order input was not sorted");
 
     guard.values = guarded;
     guard.comparisons = 0;
