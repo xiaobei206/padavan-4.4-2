@@ -1,3 +1,16 @@
+## 2026-11-06 14:06 CST — Fix UTF-32 converted-length regression
+
+### CI repair
+- SkipDBv2 Regression run #262 passed source contracts, configure, and build, but `uarray_encoding_conversion_test` exposed that UTF-32 conversion could retain the preallocated capacity as its logical size.
+- After successful conversion, derive the actual item count from `targetStart`, shrink and verify the output before NUL truncation. Apply the same cursor-based sizing to UTF-16 so both paths avoid depending on unused zero-filled capacity.
+- The original UArray remains untouched if conversion or output resizing fails.
+
+### Validation
+- Keep the regression for the three-byte Euro code point and supplementary-plane UTF-32 value.
+- Add workflow source contracts for cursor-derived size updates and resize verification; rerun the full CI build and CTest.
+
+---
+
 ## 2026-11-06 13:52 CST — Propagate UArray encoding conversion failures
 
 ### Scope and changes

@@ -1004,6 +1004,11 @@ jobs:
                   "return self->size == (size_t)newSize;",
                   "if (!UArray_truncateAfterConvertToEncoding_(out))",
                   "if (NULL == a)",
+                  "if (self->encoding != CENCODING_UTF16) {",
+                  "targetStart - (UTF16 *)out->data",
+                  "if (self->encoding != CENCODING_UTF32) {",
+                  "targetStart - (UTF32 *)out->data",
+                  "if (out->size != convertedSize)",
                   "self->encoding != CENCODING_UTF16",
                   "self->itemType != CTYPE_uint16_t",
                   "self->encoding != CENCODING_UTF32",
@@ -1545,6 +1550,19 @@ jobs:
                   "UArray_setSize_(self, (size_t)newSize);" not in truncate_body or
                   "return self->size == (size_t)newSize;" not in truncate_body):
               raise SystemExit("UArray conversion truncation must propagate failed resize and bound its search index")
+          utf16_start = encoding_source.find("UArray *UArray_asUTF16(const UArray *self)")
+          utf16_end = encoding_source.find("UArray *UArray_asUTF32(const UArray *self)", utf16_start)
+          utf16_body = encoding_source[utf16_start:utf16_end] if utf16_start >= 0 and utf16_end > utf16_start else ""
+          utf32_start = utf16_end
+          utf32_end = encoding_source.find("void UArray_convertToUTF8(UArray *self)", utf32_start)
+          utf32_body = encoding_source[utf32_start:utf32_end] if utf32_start >= 0 and utf32_end > utf32_start else ""
+          if (not utf16_body or "targetStart - (UTF16 *)out->data" not in utf16_body or
+                  "UArray_setSize_(out, convertedSize);" not in utf16_body or
+                  "if (out->size != convertedSize)" not in utf16_body or
+                  not utf32_body or "targetStart - (UTF32 *)out->data" not in utf32_body or
+                  "UArray_setSize_(out, convertedSize);" not in utf32_body or
+                  "if (out->size != convertedSize)" not in utf32_body):
+              raise SystemExit("UTF-16/UTF-32 conversion must size the output from the converter cursor and verify the resize")
           fixed_start = encoding_source.find("int UArray_convertToFixedSizeType(UArray *self)")
           fixed_end = encoding_source.find("\nint UArray_isMultibyte", fixed_start)
           fixed_body = encoding_source[fixed_start:fixed_end] if fixed_start >= 0 and fixed_end > fixed_start else ""

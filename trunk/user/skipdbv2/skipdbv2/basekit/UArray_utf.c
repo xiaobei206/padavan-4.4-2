@@ -360,6 +360,14 @@ UArray *UArray_asUTF16(const UArray *self)
 		UArray_free(out);
 		return NULL;
 	}
+	if (self->encoding != CENCODING_UTF16) {
+		size_t convertedSize = (size_t)(targetStart - (UTF16 *)out->data);
+		UArray_setSize_(out, convertedSize);
+		if (out->size != convertedSize) {
+			UArray_free(out);
+			return NULL;
+		}
+	}
 	if (!UArray_truncateAfterConvertToEncoding_(out)) {
 		UArray_free(out);
 		return NULL;
@@ -434,6 +442,14 @@ UArray *UArray_asUTF32(const UArray *self)
 	if (r != conversionOK) {
 		UArray_free(out);
 		return NULL;
+	}
+	if (self->encoding != CENCODING_UTF32) {
+		size_t convertedSize = (size_t)(targetStart - (UTF32 *)out->data);
+		UArray_setSize_(out, convertedSize);
+		if (out->size != convertedSize) {
+			UArray_free(out);
+			return NULL;
+		}
 	}
 	if (!UArray_truncateAfterConvertToEncoding_(out)) {
 		UArray_free(out);
