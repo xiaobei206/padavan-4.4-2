@@ -82,6 +82,8 @@ static void init_genrand(RandomGen *self, unsigned long s)
 
 void RandomGen_setSeed(RandomGen *self, unsigned long seed)
 {
+	if (NULL == self)
+		return;
 	init_genrand(self, seed);
 }
 
@@ -90,6 +92,8 @@ void RandomGen_setSeed(RandomGen *self, unsigned long seed)
 void RandomGen_chooseRandomSeed(RandomGen *self)
 {
 	unsigned long seed = 0;
+	if (NULL == self)
+		return;
 
 	seed ^= (unsigned long)clock(); // processor time since program start
 	seed ^= (unsigned long)time(NULL); // seconds since 1970
@@ -239,8 +243,12 @@ int main(void)
 RandomGen *RandomGen_new(void)
 {
 	RandomGen *self = (RandomGen *)io_calloc(1, sizeof(RandomGen));
-	unsigned long t1 = (unsigned long)time(NULL);
-	unsigned long t2 = clock();
+	unsigned long t1;
+	unsigned long t2;
+	if (NULL == self)
+		return NULL;
+	t1 = (unsigned long)time(NULL);
+	t2 = (unsigned long)clock();
 	self->mti = RANDOMGEN_N + 1;
 	init_genrand(self, t1 + t2);
 	self->y2 = 0;
@@ -249,17 +257,18 @@ RandomGen *RandomGen_new(void)
 
 void RandomGen_free(RandomGen *self)
 {
-	io_free(self);
+	if (self)
+		io_free(self);
 }
 
 double RandomGen_randomDouble(RandomGen *self)
 {
-	return genrand_real2(self);
+	return self ? genrand_real2(self) : 0.0;
 }
 
 int RandomGen_randomInt(RandomGen *self)
 {
-	return genrand_int32(self);
+	return self ? (int)genrand_int32(self) : 0;
 }
 
 #include <math.h>
@@ -270,13 +279,15 @@ int RandomGen_randomInt(RandomGen *self)
 double RandomGen_gaussian(RandomGen *self, double m, double s)
 {
 		// http://www.taygeta.com/random/gaussian.html
+	if (NULL == self)
+		return 0.0;
 	double x1, x2, w, y1, y2;
 
 	do {
 		x1 = 2.0 * RandomGen_randomDouble(self) - 1.0;
 		x2 = 2.0 * RandomGen_randomDouble(self) - 1.0;
 		w = x1 * x1 + x2 * x2;
-	} while ( w >= 1.0 );
+	} while (w >= 1.0 || w == 0.0);
 
 	w = sqrt( (-2.0 * log( w ) ) / w );
 	y1 = x1 * w;

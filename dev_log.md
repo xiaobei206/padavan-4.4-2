@@ -1,3 +1,21 @@
+## 2026-11-06 12:23 CST — Harden RandomGen lifecycle and Gaussian rejection
+
+### Baseline and scope
+- Base commit: `ff0e5b6ebfa16c57cd2641641be4cbbb9d0644b0`; SkipDBv2 Regression run #231 passed source contracts, full compilation, and CTest.
+- Scope is limited to the `RandomGen` lifecycle and Gaussian sampling in `RandomGen.c`, one regression, its CMake/workflow registration, and this handoff log.
+
+### Changes
+- Handle allocation failure in `RandomGen_new()` before touching the state.
+- Make seed selection, state freeing, and scalar random APIs safe for NULL handles.
+- Reject the zero-radius Box–Muller sample before evaluating `log(0) / 0`, preventing a rare NaN result.
+- Add deterministic-seed, output-range, NULL-handle, and finite-Gaussian regression coverage.
+
+### Validation
+- Source contracts require constructor/entry-point guards and the zero-radius rejection condition; the regression is registered as a standalone CTest linked against the existing basekit library.
+- No local firmware build is claimed; the post-push workflow validates compilation and tests.
+
+---
+
 ## 2026-11-06 12:20 CST — Correct allocator preflight function-body delimiters
 
 ### CI preflight repair

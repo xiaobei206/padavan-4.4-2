@@ -712,6 +712,9 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/basekit/Common.c",
                   "TARGET_COMPILE_DEFINITIONS(common_alloc_test PRIVATE IO_CHECK_ALLOC)",
                   "add_test(NAME common_alloc_test COMMAND common_alloc_test)",
+                  "ADD_EXECUTABLE(random_gen_lifecycle_test",
+                  "${PROJECT_SOURCE_DIR}/tests/random_gen_lifecycle.c",
+                  "add_test(NAME random_gen_lifecycle_test COMMAND random_gen_lifecycle_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -751,6 +754,20 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c": [
+                  "if (NULL == self)",
+                  "return self ? genrand_real2(self) : 0.0;",
+                  "return self ? (int)genrand_int32(self) : 0;",
+                  "w >= 1.0 || w == 0.0",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/random_gen_lifecycle.c": [
+                  "RandomGen_randomDouble(NULL)",
+                  "RandomGen_gaussian(NULL, 12.0, 3.0)",
+                  "RandomGen_setSeed(NULL, 5489UL)",
+                  "RandomGen_randomInt(first) != RandomGen_randomInt(second)",
+                  "value < 1.0",
+                  "!isfinite(gaussian)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Common.c": [
                   "char padding[40 >",
@@ -1148,6 +1165,17 @@ jobs:
                          "io_allocatedBytes() != 0", "Common allocation lifecycle test passed"):
               if needle not in common_test:
                   raise SystemExit("Common allocator lifecycle regression case missing: " + needle)
+
+          random_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c").read_text()
+          if ("if (NULL == self)\\n\\t\\treturn NULL;" not in random_source or
+                  "return self ? genrand_real2(self) : 0.0;" not in random_source or
+                  "w >= 1.0 || w == 0.0" not in random_source):
+              raise SystemExit("RandomGen lifecycle and zero-radius Gaussian guards are incomplete")
+          random_test = Path("trunk/user/skipdbv2/skipdbv2/tests/random_gen_lifecycle.c").read_text()
+          if ("RandomGen_setSeed(NULL, 5489UL)" not in random_test or
+                  "RandomGen_randomInt(first) != RandomGen_randomInt(second)" not in random_test or
+                  "!isfinite(gaussian)" not in random_test):
+              raise SystemExit("RandomGen lifecycle regression does not cover NULL, deterministic seed, and Gaussian output")
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:
