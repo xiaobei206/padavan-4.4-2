@@ -127,6 +127,18 @@ static int test_calendar_year_bounds(void)
         fprintf(stderr, "Date_setYear narrowed an out-of-range tm_year\\n");
         return 0;
     }
+
+    if (sizeof(time_t) >= sizeof(long)) {
+        Date wideLeap = {0};
+        long wideLeapYear = (long)(((long long)INT_MAX + 1900LL) / 400LL * 400LL);
+        Date_fromSeconds_(&wideLeap, 0.0);
+        Date_setYear_(&wideLeap, wideLeapYear);
+        if (Date_year(&wideLeap) != wideLeapYear ||
+            !Date_isLeapYear(&wideLeap)) {
+            fprintf(stderr, "Date_isLeapYear narrowed a representable future year\\n");
+            return 0;
+        }
+    }
 #endif
 
     return 1;

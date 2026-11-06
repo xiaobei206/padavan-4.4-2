@@ -1264,6 +1264,9 @@ jobs:
                   "if (value < INT_MIN || value > INT_MAX)",
                   "!Date_tmYearFromCalendarYear_(v, &tmYear)",
                   "tm->tm_year = tmYear;",
+                  "long long year;",
+                  "year = (long long)tm->tm_year + 1900LL;",
+                  "year % 400LL == 0LL",
                   "static struct tm *Date_localTime_(const Date *self, time_t *timestamp)",
                   "long long currentSeconds, offsetSeconds, newSeconds;",
                   "self->tv.tv_usec < 0 || self->tv.tv_usec >= 1000000",
@@ -1294,6 +1297,9 @@ jobs:
                   "Date_setYear_(&value, LONG_MAX);",
                   "Date_setYear accepted a year whose tm_year subtraction underflows",
                   "Date_setYear narrowed an out-of-range tm_year",
+                  "long wideLeapYear = (long)(((long long)INT_MAX + 1900LL) / 400LL * 400LL);",
+                  "!Date_isLeapYear(&wideLeap)",
+                  "Date_isLeapYear narrowed a representable future year",
                   "const long long exactSeconds = 9007199254740993LL;",
                   "Date timezone conversion lost exact seconds above double precision",
                   "malformed.tv.tv_usec = 1000000;",
@@ -3929,9 +3935,19 @@ jobs:
               raise SystemExit("Date clock initialization must reject NULL receivers and failed system time reads")
           date_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
           for needle in ("Date_now(NULL)", "Date_setToLocalTimeZone(NULL)",
+                         "Date_isLeapYear narrowed a representable future year",
                          "Date_new did not initialize the wall-clock state"):
               if needle not in date_test:
                   raise SystemExit("Date initialization regression case missing: " + needle)
+
+          leap_start = date_source.find("int Date_isLeapYear(const Date *self)")
+          leap_end = date_source.find("// format", leap_start)
+          leap_body = date_source[leap_start:leap_end] if leap_start >= 0 and leap_end > leap_start else ""
+          if (not leap_body or "Date_localTime_(self, &timestamp)" not in leap_body or
+                  "year = (long long)tm->tm_year + 1900LL;" not in leap_body or
+                  "year % 400LL == 0LL" not in leap_body or
+                  "(int)Date_year(self)" in leap_body):
+              raise SystemExit("Date_isLeapYear must apply the Gregorian rule without narrowing tm_year's calendar year")
 
           local_helper_start = date_source.find("static struct tm *Date_localTime_(const Date *self, time_t *timestamp)")
           local_helper_end = date_source.find("\n}", local_helper_start)

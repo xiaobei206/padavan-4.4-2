@@ -403,19 +403,16 @@ unsigned char Date_isDaylightSavingsTime(const Date *self)
 
 int Date_isLeapYear(const Date *self)
 {
-	int year;
-	if (NULL == self)
-		return 0;
-	year = (int)Date_year(self);
+	time_t timestamp;
+	struct tm *tm = Date_localTime_(self, &timestamp);
+	long long year;
 
-	if (((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0))
-	{
-		return 1;
-	}
-	else
-	{
+	if (NULL == tm)
 		return 0;
-	}
+	/* tm_year is an int; retain its full calendar-year range before modulo. */
+	year = (long long)tm->tm_year + 1900LL;
+	return ((year % 4LL == 0LL) && (year % 100LL != 0LL)) ||
+		(year % 400LL == 0LL);
 }
 
 // format --------------------------------------------------------

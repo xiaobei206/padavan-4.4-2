@@ -1,3 +1,13 @@
+## 2026-11-07 02:11 CST — Avoid narrowing calendar years in Date_isLeapYear
+
+- Baseline: main commit `e3b06a6c47362548e11dd26de797ed373f04eb5d`; SkipDBv2 Regression run #408 passed.
+- Scope: the calendar-year arithmetic in `Date_isLeapYear()` and its existing `date_time_init` regression.
+- The function narrowed `Date_year()` from `long` to `int` before applying the Gregorian 4/100/400 rule. A valid future year above `INT_MAX` could therefore be reinterpreted implementation-dependently and produce the wrong leap-year result.
+- Read `tm_year` through the existing NULL-safe local-time helper, widen it to `long long` before adding 1900, and apply the Gregorian divisibility test without narrowing. Add an existing-target regression for a representable year above `INT_MAX` divisible by 400, and extend static/dynamic source contracts. No new files, public API, or CMake changes.
+- No local C build or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 02:09 CST — Preserve required directives across input whitespace in PortableStrptime
 
 - Baseline: main commit `8a32c7174ecbaac13ac36fd7fea51bef51dfee4a`; SkipDBv2 Regression run #407 passed.
