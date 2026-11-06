@@ -535,9 +535,67 @@ done:
 }
 
 
+static int test_remove_items_shared_storage(void)
+{
+	int values[] = {10, 20, 30, 40};
+	List *source = List_new();
+	List *view = List_new();
+	int result = EXIT_FAILURE;
+
+	if (NULL == source || NULL == view) {
+		check(0, "List shared remove fixture allocation failed");
+		goto done;
+	}
+	if (List_append_(source, &values[0]) != &values[0] ||
+		List_append_(source, &values[1]) != &values[1] ||
+		List_append_(source, &values[2]) != &values[2] ||
+		List_append_(source, &values[3]) != &values[3]) {
+		check(0, "List shared remove fixture initialization failed");
+		goto done;
+	}
+
+	io_free(view->items);
+	*view = *source;
+	view->size = 2;
+	List_removeItems_(source, view);
+	if (!check(source->size == 2 &&
+		source->items[0] == &values[2] &&
+		source->items[1] == &values[3],
+		"List_removeItems_ corrupted a shallow source view"))
+		goto done;
+
+	/* Identical views must remove every original value, not every other one. */
+	source->size = 4;
+	source->items[0] = &values[0];
+	source->items[1] = &values[1];
+	source->items[2] = &values[2];
+	source->items[3] = &values[3];
+	view->size = 4;
+	List_removeItems_(source, view);
+	if (!check(source->size == 0,
+		"List_removeItems_ skipped values while traversing identical backing storage"))
+		goto done;
+
+	result = EXIT_SUCCESS;
+
+done:
+	/* Keep the shared allocation owned by source until alias cleanup. */
+	if (source && view && source->items == view->items) {
+		view->items = NULL;
+		view->memSize = 0;
+		view->size = 0;
+	}
+	List_free(view);
+	List_free(source);
+	return result;
+}
+
+
 int main(void)
 {
 	if (test_copy_shared_storage() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (test_remove_items_shared_storage() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (test_append_seq_shared_storage() != EXIT_SUCCESS)
 		return EXIT_FAILURE;

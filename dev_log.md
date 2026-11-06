@@ -1,3 +1,13 @@
+## 2026-11-07 06:36 CST — Snapshot aliased List removal inputs before mutation
+
+- Baseline: main commit `e3cdfd63b94ac76c02aa8b51c58656c1d61dd48e`; SkipDBv2 Regression run #452 passed source contracts, configure, complete build, and all regression tests.
+- Scope: the inline `List_removeItems_()` operation in `basekit/List_inline.h`.
+- The self-removal guard handled only identical `List *` addresses. Distinct structs that shared `items` caused the removal loop to traverse an array while `List_remove_()` shifted its contents, so items were skipped; large lists could also compact/reallocate the source allocation during traversal.
+- Clone the source pointer sequence before mutating a destination that shares its backing array. Allocation failure leaves the destination untouched; non-aliased calls retain the existing no-copy path. Add regression cases for a shorter shallow view and two identical views. Update existing Actions source/test contracts; no new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:33 CST — Advance UDB cursors using validated persisted extents
 
 - Baseline: main commit `2e76f4feed899064ae9271d3f8624977510a9058`; SkipDBv2 Regression run #451 passed source contracts, configure, complete build, and all regression tests.
