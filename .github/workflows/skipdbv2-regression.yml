@@ -707,6 +707,11 @@ jobs:
                   "ADD_EXECUTABLE(uarray_size_in_bytes_test",
                   "${PROJECT_SOURCE_DIR}/tests/uarray_size_in_bytes.c",
                   "add_test(NAME uarray_size_in_bytes_test COMMAND uarray_size_in_bytes_test)",
+                  "ADD_EXECUTABLE(common_alloc_test",
+                  "${PROJECT_SOURCE_DIR}/tests/common_alloc.c",
+                  "${PROJECT_SOURCE_DIR}/basekit/Common.c",
+                  "TARGET_COMPILE_DEFINITIONS(common_alloc_test PRIVATE IO_CHECK_ALLOC)",
+                  "add_test(NAME common_alloc_test COMMAND common_alloc_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -746,6 +751,23 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/Common.c": [
+                  "char padding[40 >",
+                  "size > (size_t)-1 - sizeof(MemoryBlock)",
+                  "MemoryBlock *newBlock;",
+                  "MemoryBlock_insertAfter_(self, prev);",
+                  "count != 0 && size > (size_t)-1 / count",
+                  "if (NULL == ptr)",
+                  "return m ? MemoryBlockToPtr(m) : NULL;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/common_alloc.c": [
+                  "io_malloc(16)",
+                  "io_free(NULL)",
+                  "io_calloc((size_t)-1 / 2 + 1, 2)",
+                  "io_realloc(tracked, (size_t)LONG_MAX)",
+                  "failed realloc lost the original tracked block or counters",
+                  "cpalloc(resized, 32)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStream.c": [
                   "uint8_t BStream_readUint8(BStream *self)",
@@ -1100,6 +1122,32 @@ jobs:
                          "UArray_sizeInBytes(&overflow)"):
               if needle not in uarray_size_test:
                   raise SystemExit("UArray byte-size regression case missing: " + needle)
+
+          common_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Common.c").read_text()
+          realloc_start = common_source.find("MemoryBlock *MemoryBlock_reallocToSize_(MemoryBlock *self, size_t size)")
+          realloc_end = common_source.find("\\n}", realloc_start)
+          realloc_body = common_source[realloc_start:realloc_end] if realloc_start >= 0 and realloc_end > realloc_start else ""
+          detach = realloc_body.find("MemoryBlock_remove(self);")
+          call = realloc_body.find("realloc(self, sizeof(MemoryBlock) + size)")
+          failure = realloc_body.find("if (NULL == newBlock)")
+          restore = realloc_body.find("MemoryBlock_insertAfter_(self, prev);", failure)
+          if (not realloc_body or detach < 0 or call < detach or failure < call or
+                  restore < failure or "allocatedBytes = newAllocatedBytes;" not in realloc_body[restore:]):
+              raise SystemExit("tracked realloc must preserve and relink the original block when realloc fails")
+
+          calloc_body_start = common_source.find("void *io_real_calloc(")
+          calloc_body_end = common_source.find("\\n}", calloc_body_start)
+          calloc_body = common_source[calloc_body_start:calloc_body_end] if calloc_body_start >= 0 and calloc_body_end > calloc_body_start else ""
+          if ("count != 0 && size > (size_t)-1 / count" not in calloc_body or
+                  "return NULL;" not in calloc_body):
+              raise SystemExit("tracked calloc must reject multiplication overflow before allocating")
+
+          common_test = Path("trunk/user/skipdbv2/skipdbv2/tests/common_alloc.c").read_text()
+          for needle in ("io_free(NULL)", "io_calloc((size_t)-1 / 2 + 1, 2)",
+                         "io_realloc(tracked, (size_t)LONG_MAX)",
+                         "io_allocatedBytes() != 0", "Common allocation lifecycle test passed"):
+              if needle not in common_test:
+                  raise SystemExit("Common allocator lifecycle regression case missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

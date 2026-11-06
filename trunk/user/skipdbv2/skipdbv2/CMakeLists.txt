@@ -231,4 +231,10 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_size_in_bytes_test skipdb m)
     add_test(NAME uarray_size_in_bytes_test COMMAND uarray_size_in_bytes_test)
 
+    ADD_EXECUTABLE(common_alloc_test
+        ${PROJECT_SOURCE_DIR}/tests/common_alloc.c
+        ${PROJECT_SOURCE_DIR}/basekit/Common.c)
+    TARGET_COMPILE_DEFINITIONS(common_alloc_test PRIVATE IO_CHECK_ALLOC)
+    add_test(NAME common_alloc_test COMMAND common_alloc_test)
+
 endif()

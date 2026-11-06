@@ -3,6 +3,8 @@
 
 #include "Common.h"
 #include <stdio.h>
+#include <errno.h>
+#include <limits.h>
 
 #ifdef IO_CHECK_ALLOC
 
@@ -90,7 +92,10 @@ struct MemoryBlock
 	int line;
 	MemoryBlock *next;
 	MemoryBlock *prev;
-	char padding[40 - (sizeof(size_t) + sizeof(size_t) + sizeof(char *) + sizeof(int) + sizeof(void *) + sizeof(void *))];
+	char padding[40 > (sizeof(size_t) + sizeof(size_t) + sizeof(char *) +
+		sizeof(int) + sizeof(void *) + sizeof(void *)) ?
+		40 - (sizeof(size_t) + sizeof(size_t) + sizeof(char *) +
+		sizeof(int) + sizeof(void *) + sizeof(void *)) : 1];
 };
 
 MemoryBlock *PtrToMemoryBlock(void *ptr)
@@ -128,30 +133,72 @@ void MemoryBlock_insertAfter_(MemoryBlock *self, MemoryBlock *other)
 
 MemoryBlock *MemoryBlock_newWithSize_file_line_(size_t size, char *file, int line)
 {
-	MemoryBlock *self = calloc(1, sizeof(MemoryBlock) + size);
+	MemoryBlock *head;
+	MemoryBlock *self;
+	if (size > (size_t)-1 - sizeof(MemoryBlock) ||
+		allocatedBytes < 0 ||
+		size > (size_t)(LONG_MAX - allocatedBytes)) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	head = baseblock();
+	if (NULL == head) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	self = (MemoryBlock *)calloc(1, sizeof(MemoryBlock) + size);
+	if (NULL == self)
+		return NULL;
 	self->size = size;
 	self->allocNum = allocs;
 	self->file = file;
 	self->line = line;
-	MemoryBlock_insertAfter_(self, baseblock());
+	MemoryBlock_insertAfter_(self, head);
 
-	allocs ++;
-	allocatedBytes += size;
+	allocs++;
+	allocatedBytes += (long)size;
 	if (allocatedBytes > maxAllocatedBytes) maxAllocatedBytes = allocatedBytes;
 	return self;
 }
 
 MemoryBlock *MemoryBlock_reallocToSize_(MemoryBlock *self, size_t size)
 {
-	MemoryBlock *prev = self->prev;
+	MemoryBlock *prev;
+	MemoryBlock *newBlock;
+	long retainedBytes;
+	long newAllocatedBytes;
+	if (NULL == self || size > (size_t)-1 - sizeof(MemoryBlock)) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	if (allocatedBytes < 0 || self->size > (size_t)allocatedBytes) {
+		errno = EINVAL;
+		return NULL;
+	}
+	retainedBytes = allocatedBytes - (long)self->size;
+	if (size > (size_t)(LONG_MAX - retainedBytes)) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	newAllocatedBytes = retainedBytes + (long)size;
+	prev = self->prev;
+	if (NULL == prev) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	/* realloc failure leaves the original block alive; restore its list link. */
 	MemoryBlock_remove(self);
-	allocatedBytes -= self->size;
-	allocatedBytes += size;
-	reallocs ++;
-	self = realloc(self, sizeof(MemoryBlock) + size);
-	self->size = size;
-	MemoryBlock_insertAfter_(self, prev);
-	return self;
+	newBlock = (MemoryBlock *)realloc(self, sizeof(MemoryBlock) + size);
+	if (NULL == newBlock) {
+		MemoryBlock_insertAfter_(self, prev);
+		return NULL;
+	}
+	newBlock->size = size;
+	MemoryBlock_insertAfter_(newBlock, prev);
+	allocatedBytes = newAllocatedBytes;
+	reallocs++;
+	return newBlock;
 }
 
 void MemoryBlock_free(MemoryBlock *self)
@@ -183,11 +230,15 @@ void MemoryBlock_show(MemoryBlock *self)
 void *io_real_malloc(size_t size, char *file, int line)
 {
 	MemoryBlock *m = MemoryBlock_newWithSize_file_line_(size, file, line);
-	return MemoryBlockToPtr(m);
+	return m ? MemoryBlockToPtr(m) : NULL;
 }
 
 void *io_real_calloc(size_t count, size_t size, char *file, int line)
 {
+	if (count != 0 && size > (size_t)-1 / count) {
+		errno = ENOMEM;
+		return NULL;
+	}
 	return io_real_malloc(count * size, file, line);
 }
 
@@ -196,7 +247,7 @@ void *io_real_realloc(void *ptr, size_t size, char *file, int line)
 	if (ptr)
 	{
 		MemoryBlock *m = MemoryBlock_reallocToSize_(PtrToMemoryBlock(ptr), size);
-		return MemoryBlockToPtr(m);
+		return m ? MemoryBlockToPtr(m) : NULL;
 	}
 
 	return io_real_malloc(size, file, line);
@@ -204,6 +255,8 @@ void *io_real_realloc(void *ptr, size_t size, char *file, int line)
 
 void io_free(void *ptr)
 {
+	if (NULL == ptr)
+		return;
 	MemoryBlock_free(PtrToMemoryBlock(ptr));
 }
 
@@ -269,7 +322,10 @@ void io_showUnfreed(void)
 void *cpalloc(const void *p, size_t size)
 {
 	void *n = io_malloc(size);
-	if(p) memcpy(n, p, size);
+	if (NULL == n)
+		return NULL;
+	if (p && size > 0)
+		memcpy(n, p, size);
 	return n;
 }
 

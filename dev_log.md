@@ -1,3 +1,23 @@
+## 2026-11-06 12:18 CST — Preserve tracked allocations across allocator failures
+
+### Baseline and scope
+- Base commit: `85dac34af4ac8dce7a45fb682cd087d9c8d18540`; SkipDBv2 Regression run #229 passed source contracts, compilation, and CTest.
+- Scope is limited to the `IO_CHECK_ALLOC` implementation in `Common.c`, one isolated allocator lifecycle regression, its CMake/workflow registration, and this handoff log.
+
+### Changes
+- Make the allocation-tracker header layout valid on both 32-bit and 64-bit targets.
+- Reject allocation-size addition and calloc multiplication overflow before calling the system allocator.
+- Keep the original tracked block linked and accounting unchanged when realloc fails; return NULL rather than dereferencing a failed tracker allocation.
+- Make `io_free(NULL)` a no-op and prevent `cpalloc()` from copying through a failed allocation.
+- Add an isolated `IO_CHECK_ALLOC` CTest target covering overflow rejection, failed and successful realloc, NULL free, copy allocation, and counter recovery.
+
+### Validation
+- Static preflight verifies realloc restores the old list node on failure and calloc validates multiplication before allocation.
+- The new test compiles `Common.c` independently with `IO_CHECK_ALLOC` to exercise the otherwise-disabled debug allocator without linking duplicate symbols from `skipdb`.
+- No local firmware build is claimed; the next remote regression run is authoritative for the allocator test and complete suite.
+
+---
+
 ## 2026-11-06 12:14 CST — Correct UArray byte-size preflight newline matching
 
 ### CI finding
