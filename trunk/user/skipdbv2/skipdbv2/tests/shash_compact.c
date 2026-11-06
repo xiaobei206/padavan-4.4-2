@@ -21,6 +21,54 @@ static int check(int condition, const char *message)
 	return 0;
 }
 
+static int shashGrowRejectsInvalidState(int corruption)
+{
+	SHash *hash = SHash_new();
+	SHashRecord *originalRecords;
+	unsigned int originalTableSize, originalLog2, originalMask, originalNumKeys;
+	int unchanged;
+
+	if (NULL == hash)
+		return 0;
+	SHash_setKeysEqualCallback(hash, keys_equal);
+	SHash_setHashForKeyCallback(hash, hash_key);
+	originalRecords = hash->records;
+	originalTableSize = hash->tableSize;
+	originalLog2 = hash->log2tableSize;
+	originalMask = hash->mask;
+	originalNumKeys = hash->numKeys;
+
+	switch (corruption) {
+		case 0:
+			hash->tableSize = 1; /* backing allocation remains sufficient for this empty fixture */
+			break;
+		case 1:
+			hash->mask ^= 1u;
+			break;
+		case 2:
+			hash->numKeys = hash->tableSize * 2 + 1;
+			break;
+		default:
+			SHash_free(hash);
+			return 0;
+	}
+
+	{
+		unsigned int malformedTableSize = hash->tableSize;
+		unsigned int malformedMask = hash->mask;
+		unsigned int malformedNumKeys = hash->numKeys;
+		SHash_grow(hash);
+		unchanged = hash->records == originalRecords &&
+			hash->tableSize == malformedTableSize &&
+			hash->log2tableSize == originalLog2 &&
+			hash->mask == malformedMask &&
+			hash->numKeys == malformedNumKeys;
+	}
+	SHash_free(hash);
+	return unchanged && originalTableSize == 2 && originalMask == 1 &&
+		originalNumKeys == 0;
+}
+
 int main(void)
 {
 	SHash *hash;
@@ -29,6 +77,16 @@ int main(void)
 	size_t oldMemory;
 
 	SHash_compact(NULL);
+	if (!check(shashGrowRejectsInvalidState(0),
+		"SHash_grow accepted inconsistent table geometry"))
+		return EXIT_FAILURE;
+	if (!check(shashGrowRejectsInvalidState(1),
+		"SHash_grow accepted an inconsistent hash mask"))
+		return EXIT_FAILURE;
+	if (!check(shashGrowRejectsInvalidState(2),
+		"SHash_grow accepted an impossible key count"))
+		return EXIT_FAILURE;
+
 	hash = SHash_new();
 	if (!check(hash != NULL, "SHash allocation failed"))
 		return EXIT_FAILURE;

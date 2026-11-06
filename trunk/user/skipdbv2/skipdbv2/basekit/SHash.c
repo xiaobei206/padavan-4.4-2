@@ -257,8 +257,11 @@ void SHash_grow(SHash *self)
 	SHashRecord *oldRecords;
 	unsigned int oldTableSize;
 	int log2tableSize;
-	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
-		self->log2tableSize >= 20 ||
+	if (NULL == self || NULL == self->records ||
+		self->log2tableSize < 1 || self->log2tableSize >= 20 ||
+		self->tableSize != (1u << self->log2tableSize) ||
+		self->mask != self->tableSize - 1 ||
+		self->numKeys > self->tableSize * 2 ||
 		NULL == self->keysEqual || NULL == self->hashForKey)
 		return;
 	saved = *self;

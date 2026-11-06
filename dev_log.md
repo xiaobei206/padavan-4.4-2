@@ -1,3 +1,23 @@
+## 2026-11-06 16:10 CST — Validate SHash growth metadata before rehash
+
+### Baseline
+- Main commit `2ee5cccecd2bd6385f553525975db2c83c8cde40`; SkipDBv2 Regression run #294 passed source contracts, configure, full build, and all 49 CTest cases.
+
+### Changes
+- Harden `SHash_grow()` against malformed table geometry, mismatched hash masks, invalid log2 values, and key counts beyond the physical two-table record capacity.
+- Keep the callbacks required by SHash and allow the legitimate transient `numKeys > tableSize` state that occurs immediately before a normal growth operation.
+- Invalid metadata now returns without reallocating or freeing the existing record table.
+
+### Regression and contracts
+- Extend the existing `shash_compact_test` with independent malformed geometry, mask, and impossible-count fixtures. Normal growth across the threshold remains covered by its existing 12-key insertion sequence.
+- Extend the existing workflow source/test contracts. No new files, public declarations, or CMake target changes.
+
+### Validation
+- Static review confirms the log2 bound short-circuits before the shift and all geometry/count checks precede source-table iteration.
+- The post-commit workflow is authoritative for full compilation and runtime regression.
+
+---
+
 ## 2026-11-06 16:09 CST — Preserve valid over-capacity PHash growth
 
 ### CI diagnosis

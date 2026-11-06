@@ -934,11 +934,18 @@ jobs:
                   "if (!failed && candidate.numKeys == self->numKeys)",
                   "*self = candidate;",
                   "io_free(oldRecords);",
+                  "self->log2tableSize < 1 || self->log2tableSize >= 20",
+                  "self->tableSize != (1u << self->log2tableSize)",
+                  "self->mask != self->tableSize - 1",
+                  "self->numKeys > self->tableSize * 2",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c": [
                   "SHash_compact did not reduce the table while preserving count",
                   "SHash_compact lost a retained key/value mapping",
                   "SHash_compact did not return an empty table to its minimum size",
+                  "SHash_grow accepted inconsistent table geometry",
+                  "SHash_grow accepted an inconsistent hash mask",
+                  "SHash_grow accepted an impossible key count",
                   "SHash compact test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PHash.c": [
