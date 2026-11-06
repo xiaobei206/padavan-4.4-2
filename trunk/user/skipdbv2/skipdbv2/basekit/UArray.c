@@ -678,12 +678,24 @@ void UArray_sizeTo_(UArray *self, size_t size)
 
 // copy
 
+static int UArray_hasValidItemLayout_(const UArray *self)
+{
+	size_t expectedItemSize;
+
+	if (NULL == self)
+		return 0;
+	expectedItemSize = CTYPE_size(self->itemType);
+	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+		self->size > (size_t)-1 / expectedItemSize ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	return 1;
+}
+
 void UArray_copy_(UArray *self, const UArray *other)
 {
 	if (NULL == self || NULL == other || self == other ||
-		other->itemSize == 0 ||
-		other->size > (size_t)-1 / other->itemSize ||
-		(other->size > 0 && NULL == other->data))
+		!UArray_hasValidItemLayout_(other))
 		return;
 
 	UArray_setItemType_(self, other->itemType);
@@ -703,11 +715,8 @@ void UArray_copy_(UArray *self, const UArray *other)
 void UArray_copyItems_(UArray *self, const UArray *other)
 {
 	if (NULL == self || NULL == other ||
-		self->itemSize == 0 || other->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize ||
-		other->size > (size_t)-1 / other->itemSize ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
+		!UArray_hasValidItemLayout_(self) ||
+		!UArray_hasValidItemLayout_(other))
 		return;
 	if (self->size != other->size)
 	{

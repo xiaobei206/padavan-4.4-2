@@ -1,3 +1,14 @@
+## 2026-11-07 03:09 CST — Reject malformed UArray element layouts before typed copies
+
+- Baseline: main commit `168041dc8810aa368222e6b26bc62749a3b3bde7`; SkipDBv2 Regression run #422 passed source contracts, configure, full build, and all CTest cases.
+- Scope: `UArray_copy_()` and `UArray_copyItems_()` in `basekit/UArray.c`.
+- The typed-copy path accepted a nonzero `itemSize` that disagreed with `CTYPE_size(itemType)`. When the declared C type differed from the destination, `DUARRAY_OP` indexed using the C type width and could read beyond malformed source storage or write beyond malformed destination storage.
+- Add one private layout validator and run it before `UArray_copy_()` changes destination metadata and before `UArray_copyItems_()` performs typed access. Reject invalid CTYPE widths, overflowing extents, and missing non-empty storage.
+- Extend the existing `uarray_stack_resize` regression and strict Actions source/dynamic contracts. Reuse the registered CTest target; no new files, public declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 02:51 CST — Preserve Stack source storage when copying into a shallow alias
 
 - Baseline: main commit `bc5f3ad53f9448955e1f441d79e793424318a932`; SkipDBv2 Regression run #421 passed source contracts, configure, full build, and all CTest cases.

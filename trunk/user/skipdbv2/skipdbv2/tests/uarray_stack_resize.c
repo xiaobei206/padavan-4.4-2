@@ -5,6 +5,71 @@
 #include <string.h>
 
 
+static int testCopyRejectsMismatchedItemLayouts(void)
+{
+    uint8_t shortSourceBytes[] = {0x11, 0x22};
+    uint8_t shortTargetBytes[] = {0xa1, 0xb2};
+    uint64_t targetValues[] = {
+        UINT64_C(0x1122334455667788), UINT64_C(0x8877665544332211)
+    };
+    uint64_t sourceValues[] = {
+        UINT64_C(0x0102030405060708), UINT64_C(0x1020304050607080)
+    };
+    const uint64_t expectedTarget[] = {
+        UINT64_C(0x1122334455667788), UINT64_C(0x8877665544332211)
+    };
+    const uint8_t expectedShortTarget[] = {0xa1, 0xb2};
+    UArray malformedSource = UArray_stackAllocedWithData_type_size_(
+        shortSourceBytes, CTYPE_uint32_t, 2);
+    UArray target = UArray_stackAllocedWithData_type_size_(
+        targetValues, CTYPE_uint64_t, 2);
+    UArray malformedTarget = UArray_stackAllocedWithData_type_size_(
+        shortTargetBytes, CTYPE_uint32_t, 2);
+    UArray validSource = UArray_stackAllocedWithData_type_size_(
+        sourceValues, CTYPE_uint64_t, 2);
+    uint8_t copyTargetBytes[] = {0x31, 0x42};
+    UArray *copyTarget = UArray_newWithData_type_size_copy_(
+        copyTargetBytes, CTYPE_uint8_t, 2, 1);
+    int okay = 0;
+
+    if (NULL == copyTarget) {
+        fprintf(stderr, "UArray malformed-layout copy target allocation failed\n");
+        goto done;
+    }
+
+    malformedSource.itemSize = sizeof(uint8_t);
+    UArray_copyItems_(&target, &malformedSource);
+    if (memcmp(targetValues, expectedTarget, sizeof(expectedTarget)) != 0) {
+        fprintf(stderr, "UArray typed copy accepted malformed source item width\n");
+        goto done;
+    }
+
+    malformedTarget.itemSize = sizeof(uint8_t);
+    UArray_copyItems_(&malformedTarget, &validSource);
+    if (memcmp(shortTargetBytes, expectedShortTarget, sizeof(expectedShortTarget)) != 0) {
+        fprintf(stderr, "UArray typed copy accepted malformed destination item width\n");
+        goto done;
+    }
+
+    UArray_copy_(copyTarget, &malformedSource);
+    if (copyTarget->itemType != CTYPE_uint8_t ||
+        copyTarget->itemSize != sizeof(uint8_t) || copyTarget->size != 2 ||
+        memcmp(copyTarget->data, copyTargetBytes, sizeof(copyTargetBytes)) != 0) {
+        fprintf(stderr, "UArray copy changed destination state for malformed source layout\n");
+        goto done;
+    }
+
+    okay = 1;
+done:
+    UArray_free(copyTarget);
+    UArray_stackFree(&validSource);
+    UArray_stackFree(&malformedTarget);
+    UArray_stackFree(&target);
+    UArray_stackFree(&malformedSource);
+    return okay;
+}
+
+
 static int testIndexCompaction(void)
 {
     const uint16_t source[] = {0x1111, 0x2222, 0x3333, 0x4444, 0x5555};
@@ -175,6 +240,10 @@ int main(void)
 
     if (!testDuplicateIndexes()) {
         fprintf(stderr, "UArray_duplicateIndexes failed safety or duplication checks\n");
+        goto done;
+    }
+    if (!testCopyRejectsMismatchedItemLayouts()) {
+        fprintf(stderr, "UArray typed copy accepted inconsistent element layout metadata\n");
         goto done;
     }
     if (testIndexCompaction() != EXIT_SUCCESS) {
