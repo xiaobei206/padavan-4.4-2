@@ -704,6 +704,9 @@ jobs:
                   "ADD_EXECUTABLE(uarray_stack_resize_test",
                   "${PROJECT_SOURCE_DIR}/tests/uarray_stack_resize.c",
                   "add_test(NAME uarray_stack_resize_test COMMAND uarray_stack_resize_test)",
+                  "ADD_EXECUTABLE(uarray_size_in_bytes_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_size_in_bytes.c",
+                  "add_test(NAME uarray_size_in_bytes_test COMMAND uarray_size_in_bytes_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -756,6 +759,17 @@ jobs:
                   "newData = (uint8_t *)io_malloc(newSizeInBytes + 1)",
                   "copyBytes = oldSizeInBytes < newSizeInBytes",
                   "self->stackAllocated = 0;",
+                  "size_t UArray_sizeInBytes(const UArray *self)",
+                  "self->size > (size_t)-1 / self->itemSize",
+                  "return self->size * self->itemSize;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c": [
+                  "UArray_sizeInBytes(NULL)",
+                  "UArray_sizeInBytes(&valid)",
+                  "UArray_sizeInBytes(&empty)",
+                  "invalid.itemSize = 0;",
+                  "overflow.size = (size_t)-1 / overflow.itemSize + 1;",
+                  "overflowing UArray byte size did not return zero",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/List.c": [
                   "size_t List_memorySize(const List *self)",
@@ -1067,6 +1081,25 @@ jobs:
                   "memcmp(grow_source, grown_expected" not in resize_test or
                   "shrink_source[3] != 0xd4" not in resize_test):
               raise SystemExit("UArray stack-resize regression must cover detach, growth, shrink, and source preservation")
+
+          uarray_size_source = (Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text())
+          size_start = uarray_size_source.find("size_t UArray_sizeInBytes(const UArray *self)")
+          size_end = uarray_size_source.find("\\n}", size_start)
+          size_body = uarray_size_source[size_start:size_end] if size_start >= 0 and size_end > size_start else ""
+          null_guard = size_body.find("NULL == self")
+          zero_item_guard = size_body.find("self->itemSize == 0")
+          overflow_guard = size_body.find("self->size > (size_t)-1 / self->itemSize")
+          byte_multiply = size_body.find("return self->size * self->itemSize;")
+          if (not size_body or null_guard < 0 or zero_item_guard < 0 or
+                  overflow_guard < 0 or byte_multiply < 0 or
+                  max(null_guard, zero_item_guard, overflow_guard) > byte_multiply):
+              raise SystemExit("UArray byte-size query must reject null, zero-item-size, and multiplication-overflow states before multiplying")
+          uarray_size_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c").read_text()
+          for needle in ("UArray_sizeInBytes(NULL)", "UArray_sizeInBytes(&valid)",
+                         "UArray_sizeInBytes(&empty)", "UArray_sizeInBytes(&invalid)",
+                         "UArray_sizeInBytes(&overflow)"):
+              if needle not in uarray_size_test:
+                  raise SystemExit("UArray byte-size regression case missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

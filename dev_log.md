@@ -1,3 +1,22 @@
+## 2026-11-06 12:12 CST — Guard UArray byte-size queries against invalid state and overflow
+
+### Baseline and scope
+- Base commit: `ca58a60d832a1dafc87657114ca5db3cd795d2a3`; SkipDBv2 Regression run #227 passed source contracts, compilation, and CTest.
+- Scope is limited to `UArray_sizeInBytes()`, one focused basekit regression, its existing CMake/workflow registration, and this handoff log.
+
+### Changes
+- Return zero for a NULL UArray, a zero item size, or a size/item-width multiplication that would overflow `size_t`.
+- Keep valid and empty-array behavior unchanged; no public API or structure changes.
+- Add regression coverage for NULL, valid, empty, zero-item-size, and overflowing metadata states.
+- Register the regression in the existing SkipDBv2 CTest suite and enforce its source/build contract in the existing workflow.
+
+### Validation
+- Static preflight verifies all invalid-state and overflow guards precede the byte multiplication and checks that every edge case is represented in the regression.
+- Existing `BASEKIT_SRC` glob already compiles `UArray.c`; the new test is explicitly registered in CMake and the workflow source contracts.
+- No local firmware build is claimed; the post-push SkipDBv2 Regression run is authoritative for compilation and CTest.
+
+---
+
 ## 2026-11-06 11:15 CST — Detach borrowed UArray storage before resizing
 
 ### Baseline and scope

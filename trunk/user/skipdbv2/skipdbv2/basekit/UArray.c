@@ -660,6 +660,9 @@ size_t UArray_size(const UArray *self)
 
 size_t UArray_sizeInBytes(const UArray *self)
 {
+	if (NULL == self || self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize)
+		return 0;
 	return self->size * self->itemSize;
 }
 
