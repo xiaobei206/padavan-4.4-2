@@ -1440,6 +1440,9 @@ jobs:
                   "UArray trailing format marker and hex-byte test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c": [
+                  "if (!UArray_hasValidStringItemLayout_(self) ||",
+                  "void UArray_reverse(UArray *self)",
+                  "self->itemSize > sizeof(b)",
                   "static size_t UArray_stringExpectedItemSize_(CTYPE itemType)",
                   "!UArray_hasValidStringItemLayout_(self)",
                   "for (i = 0; i < delims->size; ++i)",
@@ -1604,6 +1607,11 @@ jobs:
                   "float64_t d = a[i] - b[i];",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_reverse_item_byte_order.c": [
+                  "UArray_reverse(&itemOrder)",
+                  "UArray_swapIndex_withIndex_(&itemOrder, 0, 3)",
+                  "UArray_reverse accepted malformed CTYPE/itemSize geometry",
+                  "UArray_swapIndex_withIndex_ accepted malformed CTYPE/itemSize geometry",
+                  "UArray reverse helpers accepted a mismatched element type",
                   "UArray_reverseItemByteOrders(NULL)",
                   "CTYPE_uint16_t, 3",
                   "CTYPE_uint32_t, 1",
@@ -3423,6 +3431,31 @@ jobs:
                          "UArray translation accepted a non-byte target CTYPE"):
               if needle not in translate_test:
                   raise SystemExit("UArray translation CTYPE validation regression missing: " + needle)
+          reverse_ranges = (
+              ("void UArray_swapIndex_withIndex_(UArray *self, size_t i, size_t j)",
+               "BASEKIT_API void UArray_reverse(UArray *self)"),
+              ("BASEKIT_API void UArray_reverse(UArray *self)",
+               "/*\\n#define UARRAY_MATCHPREFIXLENGTH_TYPES"),
+          )
+          for start_signature, end_signature in reverse_ranges:
+              start = split_source.find(start_signature)
+              end = split_source.find(end_signature, start + len(start_signature)) if start >= 0 else -1
+              body = split_source[start:end] if start >= 0 and end > start else ""
+              layout_guard = body.find("UArray_hasValidStringItemLayout_(self)")
+              offset_calculation = body.find("data + i * itemSize")
+              if offset_calculation < 0:
+                  offset_calculation = body.find("data + (i * itemSize)")
+              if (not body or layout_guard < 0 or
+                      (offset_calculation >= 0 and layout_guard > offset_calculation) or
+                      "self->itemSize > sizeof(b)" not in body):
+                  raise SystemExit("UArray reverse/swap must validate CTYPE layout before calculating per-item byte offsets")
+          reverse_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_reverse_item_byte_order.c").read_text()
+          for needle in ("UArray_reverse(&itemOrder)",
+                         "UArray_swapIndex_withIndex_(&itemOrder, 0, 3)",
+                         "UArray_reverse accepted malformed CTYPE/itemSize geometry",
+                         "UArray_swapIndex_withIndex_ accepted malformed CTYPE/itemSize geometry"):
+              if needle not in reverse_test:
+                  raise SystemExit("UArray reverse/swap malformed-layout regression missing: " + needle)
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
           memory_start = list_source.find("size_t List_memorySize(const List *self)")
           memory_end = list_source.find("\nvoid List_removeAll", memory_start)

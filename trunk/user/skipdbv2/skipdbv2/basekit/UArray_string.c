@@ -250,10 +250,9 @@ BASEKIT_API void UArray_swapIndex_withIndex_(UArray *self, size_t i, size_t j)
 	void *ip, *jp;
 	UArrayValueUnion b;
 
-	if (NULL == self || i >= self->size || j >= self->size ||
-		NULL == self->data || self->itemSize == 0 ||
-		self->itemSize > sizeof(b) ||
-		self->size > (size_t)-1 / self->itemSize || i == j)
+	if (!UArray_hasValidStringItemLayout_(self) ||
+		i >= self->size || j >= self->size ||
+		self->itemSize > sizeof(b) || i == j)
 		return;
 	itemSize = self->itemSize;
 	data = self->data;
@@ -273,9 +272,8 @@ BASEKIT_API void UArray_reverse(UArray *self)
 	size_t i = 0, j, itemSize;
 	UArrayValueUnion b;
 	uint8_t *data;
-	if (NULL == self || self->size < 2 || NULL == self->data ||
-		self->itemSize == 0 || self->itemSize > sizeof(b) ||
-		self->size > (size_t)-1 / self->itemSize)
+	if (!UArray_hasValidStringItemLayout_(self) ||
+		self->size < 2 || self->itemSize > sizeof(b))
 		return;
 	itemSize = self->itemSize;
 	data = self->data;

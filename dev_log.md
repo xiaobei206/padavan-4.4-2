@@ -1,3 +1,14 @@
+## 2026-11-07 03:39 CST — Guard UArray reverse/swap byte offsets with CTYPE layout checks
+
+- Baseline: main commit `e9a1c4b34cd0f54c710b3a303ad72917073c26a6`; SkipDBv2 Regression run #429 passed source contracts, configure, full build, and all CTest cases.
+- Scope: `UArray_reverse()` and `UArray_swapIndex_withIndex_()` in `basekit/UArray_string.c`.
+- Both mutators calculated byte offsets from `itemSize` after checking only that it was nonzero and below the temporary union size. A forged width larger than the declared CTYPE width could therefore make them access beyond the actual array allocation.
+- Reuse `UArray_hasValidStringItemLayout_()` before any per-item address calculation, retaining each function's existing index and temporary-buffer bounds checks.
+- Extend the existing `uarray_reverse_item_byte_order` CTest with valid item-order/hash behavior and malformed width/type no-op regressions. Strengthen static and dynamic Actions contracts. No new files, public API, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 03:36 CST — Validate CTYPE geometry before UArray byte translation
 
 - Baseline: main commit `129c44ba2398f061a2ee9573d6a65493ec62e7af`; SkipDBv2 Regression run #428 passed source contracts, configure, full build, and all CTest cases.
