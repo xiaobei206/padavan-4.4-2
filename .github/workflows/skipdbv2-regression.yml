@@ -990,8 +990,8 @@ jobs:
                   "overlong sequence",
                   "illegal lead byte",
               ],
-                  "if (self->mti < 0 || self->mti > N+1)",
               "trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c": [
+                  "if (self->mti < 0 || self->mti > N+1)",
                   "if (NULL == self)",
                   "return self ? genrand_real2(self) : 0.0;",
                   "return self ? (int)genrand_int32(self) : 0;",

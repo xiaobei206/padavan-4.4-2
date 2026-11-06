@@ -1,3 +1,16 @@
+## 2026-11-06 13:41 CST — Repair RandomGen source-contract syntax
+
+### CI failure and repair
+- Baseline commit: `9c957505e56c0c80d02bc00a3eea1fce446b53a1`; SkipDBv2 Regression run #256 failed in the pre-build source-contract step with a Python `SyntaxError`, before CMake configuration, compilation, or CTest.
+- The RandomGen index-bound string had accidentally been left outside the `RandomGen.c` entry in the source-contract dictionary, making the embedded Python invalid.
+- Move that existing contract string into the `RandomGen.c` needle list. No C implementation, test, CMake target, or workflow behavior was otherwise changed.
+
+### Validation
+- Checked the workflow source context and the failure log; this is a contract-script syntax repair, not a RandomGen runtime failure.
+- The post-push SkipDBv2 Regression run is authoritative; no local firmware build is claimed.
+
+---
+
 ## 2026-11-06 13:28 CST — Guard RandomGen state-index bounds
 
 ### Baseline and scope
