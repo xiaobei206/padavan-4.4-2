@@ -1,3 +1,11 @@
+## 2026-11-07 03:40 CST — Refresh stale UArray string source contract
+
+- CI run #430 stopped in the XY-C1 source-contract check because the `UArray_string.c` manifest still required the old inline `self->size / self->itemSize` check in `UArray_splitInputsAreValid_()`.
+- The implementation now delegates that geometry check to `UArray_hasValidStringItemLayout_()`; the contract is updated to require the actual shared-validator guard rather than a removed duplicate expression.
+- No C implementation or test behavior changed in this CI repair.
+
+---
+
 ## 2026-11-07 03:39 CST — Guard UArray reverse/swap byte offsets with CTYPE layout checks
 
 - Baseline: main commit `e9a1c4b34cd0f54c710b3a303ad72917073c26a6`; SkipDBv2 Regression run #429 passed source contracts, configure, full build, and all CTest cases.

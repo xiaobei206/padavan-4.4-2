@@ -1457,7 +1457,7 @@ jobs:
                   "long nextChar = (getIndex < self->size - 1)",
                   "? UArray_longAt_(self, getIndex + 1)",
                   "static int UArray_splitInputsAreValid_(const UArray *self, const PtrUArray *delims)",
-                  "self->size > (size_t)-1 / self->itemSize",
+                  "if (!UArray_hasValidStringItemLayout_(self) ||",
                   "delims->itemSize != sizeof(void *)",
                   "delims->size > (size_t)-1 / delims->itemSize",
                   "if (!UArray_splitInputsAreValid_(self, delims))",
