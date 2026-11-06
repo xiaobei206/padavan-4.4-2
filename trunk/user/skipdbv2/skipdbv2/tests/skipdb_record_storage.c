@@ -10,6 +10,38 @@ static int datum_matches(Datum datum, const unsigned char *bytes, size_t length)
         (datum.data != NULL && memcmp(datum.data, bytes, length) == 0));
 }
 
+static int test_reads_stop_after_error(void)
+{
+    static const unsigned char bytes[] = { 0x11, 0x22, 0x33 };
+    BStream *reader = BStream_new();
+    const char *error;
+    size_t index;
+    int passed = 0;
+
+    if (NULL == reader)
+        return 0;
+
+    BStream_setData_length_(reader, (unsigned char *)bytes, sizeof(bytes));
+    (void)BStream_readUint32(reader);
+    error = BStream_errorString(reader);
+    if (NULL == error || strcmp(error, "truncated binary stream") != 0)
+        goto done;
+
+    index = reader->index;
+    if (BStream_readUint8(reader) != 0 || reader->index != index)
+        goto done;
+    if (BStream_readDataOfLength_(reader, 1) != NULL || reader->index != index)
+        goto done;
+    if (strcmp(BStream_errorString(reader), "truncated binary stream") != 0)
+        goto done;
+
+    passed = 1;
+
+done:
+    BStream_free(reader);
+    return passed;
+}
+
 static int rejects_stream(const unsigned char *bytes, size_t length)
 {
     BStream *reader = BStream_new();
@@ -41,6 +73,11 @@ int main(void)
     unsigned char *with_tail = NULL;
     size_t encoded_length;
     int result = EXIT_FAILURE;
+
+    if (!test_reads_stop_after_error()) {
+        fprintf(stderr, "binary stream consumed data after a sticky read error\n");
+        goto done;
+    }
 
     source = SkipDBRecord_new();
     restored = SkipDBRecord_new();

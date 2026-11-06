@@ -334,10 +334,13 @@ unsigned char BStream_readByte(BStream *self)
 uint8_t BStream_readUint8(BStream *self)
 {
 	const unsigned char *bytes;
-	if (NULL == self || NULL == self->ba) {
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		self->ba->itemSize != 1) {
 		BStream_error_(self, "invalid binary stream");
 		return 0;
 	}
+	if (UArray_size(self->errorBa) != 0)
+		return 0;
 	if (self->index < UArray_size(self->ba)) {
 		bytes = UArray_bytes(self->ba);
 		if (NULL == bytes) {
@@ -418,10 +421,13 @@ unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)
 {
 	size_t available;
 	const unsigned char *bytes;
-	if (NULL == self || NULL == self->ba || self->ba->itemSize != 1) {
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
+		self->ba->itemSize != 1) {
 		BStream_error_(self, "invalid binary stream data read");
 		return NULL;
 	}
+	if (UArray_size(self->errorBa) != 0)
+		return NULL;
 	available = UArray_size(self->ba);
 	if (self->index > available || length > available - self->index) {
 		BStream_error_(self, "truncated binary stream data");

@@ -1,3 +1,21 @@
+## 2026-11-06 11:06 CST — Keep BStream reads terminal after the first error
+
+### Baseline and scope
+- Base commit: `f7036b994d97255eb818b3080e2e5e54e37df770`; SkipDBv2 Regression run #224 completed successfully.
+- Scope is limited to BStream's raw byte/slice read boundary, the existing `skipdb_record_storage_test`, its workflow source contracts, and this handoff log.
+
+### Changes
+- Make `BStream_readUint8()` and `BStream_readDataOfLength_()` honor the stream's latched error before reading or advancing the cursor.
+- Validate the byte-array and error-state prerequisites at both raw read entry points; preserve the original error instead of allowing a later raw read to consume bytes after a failed parse.
+- Extend the existing record-storage regression: a truncated 32-bit read is followed by byte and slice reads, which must both leave the cursor and original error unchanged.
+- The existing CMake target already links `skipdb` (whose basekit source glob includes `BStream.c`) and registers `skipdb_record_storage_test`; no new target or source path is needed.
+
+### Validation
+- Static preflight confirms both sticky-error guards precede the first cursor/bounds read, the regression covers both bypass APIs, and workflow contracts verify the source ordering.
+- No local firmware build is available; the next remote SkipDBv2 Regression run is authoritative for compilation and CTest.
+
+---
+
 ## 2026-11-06 10:49 CST — Fix Stack inline mark declaration order
 
 ### CI finding

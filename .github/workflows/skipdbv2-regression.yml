@@ -302,6 +302,12 @@ jobs:
                   "negative level was accepted by record link lookup",
                   "truncated record stream accepted",
                   "stream trailing data accepted",
+                  "static int test_reads_stop_after_error(void)",
+                  "BStream_readUint32(reader)",
+                  "BStream_readUint8(reader) != 0",
+                  "BStream_readDataOfLength_(reader, 1) != NULL",
+                  "binary stream consumed data after a sticky read error",
+                  "\"truncated binary stream\"",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c": [
                   "void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)",
@@ -685,7 +691,9 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/skipdb/SkipDBRecordStorage.c",
                   "skipdb_record_storage_test",
                   "add_test(NAME skipdb_record_storage_test COMMAND skipdb_record_storage_test)",
+                  "FILE(GLOB_RECURSE BASEKIT_SRC ${PROJECT_SOURCE_DIR}/basekit/*.c)",
                   "ADD_LIBRARY(skipdb STATIC ${BASEKIT_SRC} ${JFILE_SRC} ${UDB_SRC} ${SKIPDB_SRC})",
+                  "${PROJECT_SOURCE_DIR}/tests/skipdb_record_storage.c",
                   "jfile_journal_test",
                   "add_test(NAME jfile_journal_test COMMAND jfile_journal_test)",
                   "ADD_EXECUTABLE(stack_lifecycle_test",
@@ -729,6 +737,12 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/BStream.c": [
+                  "uint8_t BStream_readUint8(BStream *self)",
+                  "unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)",
+                  "BStream_error_(self, \"truncated binary stream byte\")",
+                  "BStream_error_(self, \"truncated binary stream data\")",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack.c": [
                   "static int Stack_isValid_(const Stack *self, size_t *used, size_t *capacity)",
@@ -964,6 +978,26 @@ jobs:
                   if needle not in content:
                       raise SystemExit(f"missing XY-C1 integration contract: {path}: {needle}")
               print(f"OK: {path}")
+
+          bstream_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/BStream.c").read_text()
+          uint8_start = bstream_source.find("uint8_t BStream_readUint8(BStream *self)")
+          data_start = bstream_source.find("unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)")
+          if uint8_start < 0 or data_start < 0:
+              raise SystemExit("BStream raw read entry points are missing")
+          uint8_end = bstream_source.find("\nvoid BStream_readNumber_size_", uint8_start)
+          data_end = bstream_source.find("\nvoid BStream_readUArray_", data_start)
+          uint8_body = bstream_source[uint8_start:uint8_end] if uint8_end > uint8_start else ""
+          data_body = bstream_source[data_start:data_end] if data_end > data_start else ""
+          uint8_error_guard = uint8_body.find("if (UArray_size(self->errorBa) != 0)")
+          uint8_read = uint8_body.find("if (self->index < UArray_size(self->ba))")
+          data_error_guard = data_body.find("if (UArray_size(self->errorBa) != 0)")
+          data_bounds = data_body.find("available = UArray_size(self->ba)")
+          if (not uint8_body or uint8_error_guard < 0 or uint8_read < 0 or
+                  uint8_error_guard > uint8_read):
+              raise SystemExit("BStream byte reads must stop before touching the cursor after a latched error")
+          if (not data_body or data_error_guard < 0 or data_bounds < 0 or
+                  data_error_guard > data_bounds):
+              raise SystemExit("BStream slice reads must stop before bounds checks or cursor movement after a latched error")
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:
