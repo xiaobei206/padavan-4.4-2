@@ -97,11 +97,6 @@ IOINLINE void Stack_push_(Stack *self, void *item)
 	*(self->top) = item;
 }
 
-IOINLINE void Stack_pushMark(Stack *self)
-{
-	(void)Stack_pushMarkPoint(self);
-}
-
 IOINLINE intptr_t Stack_pushMarkPoint(Stack *self)
 {
 	size_t oldUsed;
@@ -119,6 +114,11 @@ IOINLINE intptr_t Stack_pushMarkPoint(Stack *self)
 		return 0;
 	self->lastMark = (intptr_t)(self->top - self->items);
 	return self->lastMark;
+}
+
+IOINLINE void Stack_pushMark(Stack *self)
+{
+	(void)Stack_pushMarkPoint(self);
 }
 
 IOINLINE void *Stack_pop(Stack *self)

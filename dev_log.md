@@ -1,3 +1,19 @@
+## 2026-11-06 10:49 CST — Fix Stack inline mark declaration order
+
+### CI finding
+- Commit `a0b4e8dd67fa2a40150fc0b1d247a06923092072` passed source contracts and CMake configuration in SkipDBv2 Regression run #223, but compilation stopped in `Stack_inline.h`.
+- `Stack_pushMark()` called `Stack_pushMarkPoint()` before the latter's inline definition, producing an implicit declaration and conflicting type under the CI compiler.
+
+### Repair
+- Move the `Stack_pushMark()` wrapper below the `Stack_pushMarkPoint()` definition so the compiler sees the complete signature before its call.
+- No public declaration, behavior, build registration, test, or new file is added.
+
+### Validation
+- Static preflight confirms the mark-point definition now precedes the wrapper and the existing contract needles remain satisfied.
+- The next SkipDBv2 Regression run will validate compilation and the full CTest suite.
+
+---
+
 ## 2026-11-06 10:48 CST — Align Stack mark guard source contract with implementation
 
 ### CI finding
