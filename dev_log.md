@@ -1,3 +1,11 @@
+## 2026-11-07 07:01 CST — Repair record-storage regression build
+
+- Baseline: main commit `8617adcdbb6704fc3b6933474cf6c665e4a2d027`; SkipDBv2 Regression run #459 failed during compilation because the new record-move regression referenced an undefined `has_value()` helper in `udb_record_storage.c`.
+- Replace those helper calls with direct `Datum` length and byte comparisons. Keep the occupied-destination test intact and add workflow source-contract checks for the inline assertions. No production behavior changed in this repair; no new files or CMake changes.
+- CI retry is required before further refactoring.
+
+---
+
 ## 2026-11-07 07:00 CST — Refuse UDB record moves onto occupied extents
 
 - Baseline: main commit `234cd05b9fd81b71f4e6395deefca51b3775feaf`; SkipDBv2 Regression run #458 passed source contracts, configure, complete build, and all regression tests.

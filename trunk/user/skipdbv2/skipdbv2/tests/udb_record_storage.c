@@ -415,10 +415,15 @@ int main(void)
         goto done;
     }
     UDB_commitTransaction(foreign_db);
-    if (!UDB_isOpen(foreign_db) ||
-        !has_value(foreign_db, foreign_pid2, "occupied-destination")) {
-        fprintf(stderr, "occupied destination fixture commit failed\n");
-        goto done;
+    {
+        Datum destination_value = UDB_at_(foreign_db, foreign_pid2);
+        if (!UDB_isOpen(foreign_db) || destination_value.data == NULL ||
+            destination_value.size != sizeof("occupied-destination") ||
+            memcmp(destination_value.data, "occupied-destination",
+                sizeof("occupied-destination")) != 0) {
+            fprintf(stderr, "occupied destination fixture commit failed\n");
+            goto done;
+        }
     }
 
     foreign_record = UDBRecords_firstRecord(foreign_db->records);
@@ -451,10 +456,13 @@ int main(void)
     UDB_commitTransaction(foreign_db);
     {
         Datum first_value = UDB_at_(foreign_db, foreign_pid);
+        Datum destination_value = UDB_at_(foreign_db, foreign_pid2);
         if (!UDB_isOpen(foreign_db) || !UDB_isOpen(db) ||
             first_value.data == NULL || first_value.size != 1 ||
-            first_value.data[0] != 0x7b ||
-            !has_value(foreign_db, foreign_pid2, "occupied-destination")) {
+            first_value.data[0] != 0x7b || destination_value.data == NULL ||
+            destination_value.size != sizeof("occupied-destination") ||
+            memcmp(destination_value.data, "occupied-destination",
+                sizeof("occupied-destination")) != 0) {
             fprintf(stderr, "occupied destination row changed after rejected move\n");
             goto done;
         }
