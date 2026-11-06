@@ -1,3 +1,14 @@
+## 2026-11-07 00:19 CST — Stop Datum detection when callbacks invalidate the source span
+
+- Baseline: main commit `0c1c7c54764563f7209944e3b0d3c3a358229e57`; SkipDBv2 Regression run #383 passed source contracts, full build, and all CTest cases.
+- Scope: `Datum_detect_with_()` and its existing `datum_boundaries` test.
+- The detector snapshots the input pointer and length before invoking user callbacks. A callback that replaces or resizes the Datum could leave subsequent suffix scans reading the stale allocation.
+- After every callback, compare the original Datum pointer and extent with its current state; stop with `-1` before reusing stale storage if either changed. Document this callback mutation rule in the public header.
+- Extend the existing boundary test with a callback that changes both pointer and size while reporting a match; require one callback invocation and an invalidated-search result. Update workflow source contracts. Reuse existing CMake/CTest target; no new files or registrations.
+- No local C build is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:18 CST — Avoid quadratic Sorting partitions for duplicate-heavy inputs
 
 - Baseline: main commit `83a74f0b2a722da05d9395598910b94d2f9c06d8`; SkipDBv2 Regression run #382 passed source contracts, full build, and CTest.

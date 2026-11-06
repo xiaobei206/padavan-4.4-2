@@ -971,6 +971,7 @@ jobs:
                   "static int Datum_compareStorageState_(const Datum *self, const Datum *other, int *handled)",
                   "int state = Datum_compareStorageState_(self, other, &handled);",
                   "if (!Datum_hasValidStorage_(self) || !Datum_hasValidStorage_(other))",
+                  "if (self->data != data || self->size != size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/datum_boundaries.c": [
                   "malformed Datum comparison must be antisymmetric",
@@ -4051,9 +4052,17 @@ jobs:
               raise SystemExit("Datum detector return semantics must be documented in the public header")
           if "#include <limits.h>" not in datum_source or detector_start < 0:
               raise SystemExit("Datum detector implementation or INT_MAX declaration is missing")
+          detector_order = [detector_body.find(x) for x in (
+              "result = (*func)(target, &suffix);",
+              "if (self->data != data || self->size != size)",
+              "if (1 == result)",
+              "if (-1 == result)")]
+          if min(detector_order) < 0 or detector_order != sorted(detector_order):
+              raise SystemExit("Datum detector must stop before reusing a callback-invalidated source span")
           for needle in ("!Datum_hasValidStorage_(self)", "NULL == func",
                          "self->size > (size_t)INT_MAX",
                          "result = (*func)(target, &suffix);",
+                         "if (self->data != data || self->size != size)",
                          "if (1 == result)", "if (-1 == result)", "return (int)i"):
               if needle not in detector_body:
                   raise SystemExit("Datum detector bounds or callback contract missing: " + needle)
@@ -4061,7 +4070,8 @@ jobs:
                          "Datum detection did not scan every unmatched byte",
                          "Datum detection did not honor callback early stop",
                          "Datum detection did not reject empty or invalid inputs before callbacks",
-                         "Datum detection must reject unrepresentable offsets"):
+                         "Datum detection must reject unrepresentable offsets",
+                         "Datum detection continued after callback invalidated its byte span"):
               if needle not in datum_test:
                   raise SystemExit("Datum detector regression case missing: " + needle)
 

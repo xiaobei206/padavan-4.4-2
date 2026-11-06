@@ -11,6 +11,24 @@ typedef struct {
 	size_t matchedSuffixSize;
 } DetectContext;
 
+typedef struct {
+	Datum *datum;
+	unsigned char *replacement;
+	size_t replacementSize;
+	size_t calls;
+} MutatingDetectContext;
+
+static int mutateDatumDuringDetect_(void *target, Datum *candidate)
+{
+	MutatingDetectContext *context = (MutatingDetectContext *)target;
+	if (NULL == context || NULL == candidate || NULL == context->datum)
+		return -1;
+	context->calls++;
+	context->datum->data = context->replacement;
+	context->datum->size = context->replacementSize;
+	return 1;
+}
+
 static int detectFirstByte_(void *target, Datum *candidate)
 {
 	DetectContext *context = (DetectContext *)target;
@@ -48,6 +66,9 @@ int main(void)
 	Datum empty = Datum_Empty();
 	Datum malformed = { 3, NULL };
 	Datum malformedLarger = { 5, NULL };
+	const unsigned char replacementBytes[] = { 'z', 'z', 'z' };
+	Datum mutatedSearchable;
+	MutatingDetectContext mutation;
 	Datum searchable = Datum_FromData_length_((unsigned char *)searchableBytes, sizeof(searchableBytes));
 	DetectContext detect = { 'h', 0, 0, 0 };
 	Datum at;
@@ -72,6 +93,18 @@ int main(void)
 		detect.calls == 3,
 		"Datum detection did not honor callback early stop"))
 		return EXIT_FAILURE;
+	mutatedSearchable = searchable;
+	mutation.datum = &mutatedSearchable;
+	mutation.replacement = (unsigned char *)replacementBytes;
+	mutation.replacementSize = sizeof(replacementBytes);
+	mutation.calls = 0;
+	if (!check(Datum_detect_with_(&mutatedSearchable, mutateDatumDuringDetect_, &mutation) == -1 &&
+		mutation.calls == 1 &&
+		mutatedSearchable.data == (unsigned char *)replacementBytes &&
+		mutatedSearchable.size == sizeof(replacementBytes),
+		"Datum detection continued after callback invalidated its byte span"))
+		return EXIT_FAILURE;
+
 	detect.calls = 0;
 	if (!check(Datum_detect_with_(&empty, detectFirstByte_, &detect) == -1 &&
 		detect.calls == 0 &&

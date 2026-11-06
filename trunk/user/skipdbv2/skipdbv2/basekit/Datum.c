@@ -231,6 +231,8 @@ int Datum_detect_with_(Datum *self, DatumDetectWithFunc *func, void *target)
 		suffix.data = data + i;
 		suffix.size = size - i;
 		result = (*func)(target, &suffix);
+		if (self->data != data || self->size != size)
+			return -1;
 		if (1 == result)
 			return (int)i;
 		if (-1 == result)
