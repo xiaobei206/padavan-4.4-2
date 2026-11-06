@@ -182,7 +182,6 @@ int UArray_readLineFromCStream_(UArray *self, FILE *stream)
 	uint8_t buffer[CHUNK_SIZE];
 
 	if (NULL == self || NULL == stream || self->itemSize != 1 ||
-		UArray_SizeOfCtype(self->itemType) != 1 ||
 		(self->size > 0 && NULL == self->data))
 		return 0;
 

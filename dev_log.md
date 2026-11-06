@@ -1,3 +1,18 @@
+## 2026-11-06 16:04 CST — Repair UArray stream link failure
+
+### CI diagnosis
+- SkipDBv2 Regression run #291 passed source-contract preflight, CMake configure, and compilation of all objects, but the new stream test failed at link time with an undefined reference to `UArray_SizeOfCtype`.
+- The header contains a declaration for that name, but the linked Basekit library does not provide its implementation. It was an invalid dependency introduced by the preceding refactor, not a test or CMake registration problem.
+
+### Fix
+- Remove the unresolved call and retain the stream reader's existing `self->itemSize == 1` guard as the byte-width check.
+- Strengthen the existing workflow source contract to require that guard. No test, build target, or public declaration changes.
+
+### Validation
+- Static review confirms the stream reader now depends only on implemented, declared UArray APIs. The next mainline workflow must complete linking and CTest.
+
+---
+
 ## 2026-11-06 16:02 CST — Harden UArray stream line and read-error handling
 
 ### Baseline

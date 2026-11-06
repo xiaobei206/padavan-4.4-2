@@ -1163,6 +1163,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c": [
                   "static int UArray_streamAppendLineChunk_(UArray *self,",
                   "UArray_stackAllocedWithData_type_size_((void *)bytes,",
+                  "self->itemSize != 1",
                   "int ch = fgetc(stream);",
                   "ungetc(next, stream)",
                   "if (ferror(stream) || pushbackFailed)",
