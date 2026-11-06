@@ -985,6 +985,14 @@ jobs:
                   "BStream write accepted malformed existing backing storage",
                   "BStream tagged write silently accepted a NULL payload",
                   "BStream tagged write accepted malformed existing backing storage",
+                  "static int testBStreamReadValidation(void)",
+                  "BStream plain array read silently accepted a NULL destination",
+                  "BStream plain array read accepted an aliased destination",
+                  "BStream plain array read accepted an out-of-range cursor",
+                  "BStream plain array read accepted malformed destination storage",
+                  "BStream plain array read round trip failed",
+                  "BStream tagged array read accepted an aliased destination",
+                  "BStream tagged array read round trip failed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
                   "int gettimeofday(struct timeval *tv, struct timezone *tz)",
@@ -1255,6 +1263,11 @@ jobs:
                   "(self->ba->size > 0 && NULL == self->ba->data)",
                   "BStream_error_(self, \"invalid tagged binary stream write\");",
                   "self->ba->itemSize != 1 ||",
+                  "static int BStream_canReadArray_(BStream *self, const UArray *destination,",
+                  "destination->itemSize == 0",
+                  "destination->size > (size_t)-1 / destination->itemSize",
+                  'BStream_canReadArray_(self, b, "invalid binary stream array read")',
+                  'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")',
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray.c": [
                   "int CTYPE_forName(const char *name)",
@@ -1644,6 +1657,46 @@ jobs:
                   data_error_guard > data_bounds):
               raise SystemExit("BStream slice reads must stop before bounds checks or cursor movement after a latched error")
 
+
+          array_helper_start = bstream_source.find(
+              "static int BStream_canReadArray_(BStream *self, const UArray *destination,"
+          )
+          plain_array_start = bstream_source.find("void BStream_readUArray_(BStream *self, UArray *b)")
+          tagged_array_start = bstream_source.find("void BStream_readTaggedUArray_(BStream *self, UArray *b)")
+          plain_array_end = bstream_source.find("\\nUArray *BStream_readUArray(", plain_array_start)
+          tagged_array_end = bstream_source.find("\\nUArray *BStream_readTaggedUArray(", tagged_array_start)
+          array_helper_body = (
+              bstream_source[array_helper_start:plain_array_start]
+              if array_helper_start >= 0 and plain_array_start > array_helper_start
+              else ""
+          )
+          plain_array_body = (
+              bstream_source[plain_array_start:plain_array_end]
+              if plain_array_start >= 0 and plain_array_end > plain_array_start
+              else ""
+          )
+          tagged_array_body = (
+              bstream_source[tagged_array_start:tagged_array_end]
+              if tagged_array_start >= 0 and tagged_array_end > tagged_array_start
+              else ""
+          )
+          if (
+              not array_helper_body or
+              "destination->itemSize == 0" not in array_helper_body or
+              "self->index > self->ba->size" not in array_helper_body or
+              "destination->size > (size_t)-1 / destination->itemSize" not in array_helper_body
+          ):
+              raise SystemExit("BStream array-read preflight is missing storage or cursor validation")
+          if (
+              not plain_array_body or
+              'BStream_canReadArray_(self, b, "invalid binary stream array read")' not in plain_array_body
+          ):
+              raise SystemExit("plain BStream array reads must validate before consuming input")
+          if (
+              not tagged_array_body or
+              'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")' not in tagged_array_body
+          ):
+              raise SystemExit("tagged BStream array reads must validate before consuming input")
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
           memory_start = list_source.find("size_t List_memorySize(const List *self)")
           memory_end = list_source.find("\nvoid List_removeAll", memory_start)

@@ -1,3 +1,23 @@
+## 2026-11-06 16:35 CST — Fail closed on invalid BStream array reads
+
+### Baseline
+- Main commit `87283fc7619b47e77922528a664a32c3df47b146`; SkipDBv2 Regression run #297 passed source contracts, configure, the full build, and the configured CTest suite.
+- Scope: BStream array-read validation only. Wire encoding, public declarations, and writer behavior remain unchanged.
+
+### Defect and fix
+- `BStream_readUArray_()` and `BStream_readTaggedUArray_()` silently returned for invalid destinations, aliased stream storage, malformed backing arrays, and invalid stream cursors. Callers could not distinguish rejected input from an empty result because no sticky error was recorded.
+- Add one private preflight that validates stream byte storage, cursor bounds, and destination UArray geometry before either reader consumes input. Invalid arguments now latch a read-specific error and preserve the cursor.
+
+### Regression and contracts
+- Extend the existing `bstream_tag_boundaries_test` with NULL/aliased destinations, out-of-range cursor, malformed destination storage, and successful plain/tagged array round trips.
+- Extend the existing workflow source contracts to verify the private helper is defined before its callers and both read paths invoke it. Reuse the existing CMake target; no new files, exported symbols, or target changes.
+
+### Validation
+- Static structural checks confirm the helper is private, its integer division is short-circuited by the nonzero item-size guard, and preflight runs before any read/tag consumption.
+- The pushed SkipDBv2 Regression workflow is authoritative for compilation and the full CTest run.
+
+---
+
 ## 2026-11-06 16:15 CST — Escape BStream source contract string correctly
 
 ### CI diagnosis

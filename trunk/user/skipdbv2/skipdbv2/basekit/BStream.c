@@ -461,31 +461,48 @@ unsigned char *BStream_readDataOfLength_(BStream *self, size_t length)
 }
 
 
-void BStream_readUArray_(BStream *self, UArray *b)
+static int BStream_canReadArray_(BStream *self, const UArray *destination,
+    const char *errorMessage)
 {
-	int32_t encoded_size;
-	unsigned char *data;
-	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
-		NULL == b || b == self->ba || self->ba->itemSize != 1 ||
-		UArray_size(self->errorBa) != 0)
-		return;
-	encoded_size = BStream_readInt32(self);
-	if (UArray_size(self->errorBa) != 0)
-		return;
-	if (encoded_size < 0) {
-		BStream_error_(self, "negative binary array length");
-		return;
-	}
-	data = BStream_readDataOfLength_(self, (size_t)encoded_size);
-	if (encoded_size > 0 && NULL == data)
-		return;
-	UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t,
-		(size_t)encoded_size, 1);
-	if (b->itemSize != 1 || b->size != (size_t)encoded_size ||
-		(encoded_size > 0 && NULL == b->data))
-		BStream_error_(self, "unable to allocate binary array");
+    if (NULL == self)
+        return 0;
+    if (NULL == self->ba || NULL == self->errorBa ||
+        NULL == destination || destination == self->ba ||
+        self->ba->itemSize != 1 ||
+        (self->ba->size > 0 && NULL == self->ba->data) ||
+        self->index > self->ba->size ||
+        destination->itemSize == 0 ||
+        destination->size > (size_t)-1 / destination->itemSize ||
+        (destination->size > 0 && NULL == destination->data)) {
+        BStream_error_(self, errorMessage);
+        return 0;
+    }
+    return UArray_size(self->errorBa) == 0;
 }
 
+
+void BStream_readUArray_(BStream *self, UArray *b)
+{
+    int32_t encoded_size;
+    unsigned char *data;
+    if (!BStream_canReadArray_(self, b, "invalid binary stream array read"))
+        return;
+    encoded_size = BStream_readInt32(self);
+    if (UArray_size(self->errorBa) != 0)
+        return;
+    if (encoded_size < 0) {
+        BStream_error_(self, "negative binary array length");
+        return;
+    }
+    data = BStream_readDataOfLength_(self, (size_t)encoded_size);
+    if (encoded_size > 0 && NULL == data)
+        return;
+    UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t,
+        (size_t)encoded_size, 1);
+    if (b->itemSize != 1 || b->size != (size_t)encoded_size ||
+        (encoded_size > 0 && NULL == b->data))
+        BStream_error_(self, "unable to allocate binary array");
+}
 
 UArray *BStream_readUArray(BStream *self)
 {
@@ -893,31 +910,28 @@ double BStream_readTaggedDouble(BStream *self)
 
 void BStream_readTaggedUArray_(BStream *self, UArray *b)
 {
-	int32_t encoded_size;
-	unsigned char *data;
-	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
-		NULL == b || b == self->ba || self->ba->itemSize != 1 ||
-		UArray_size(self->errorBa) != 0)
-		return;
-	if (BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1) != 0)
-		return;
-	encoded_size = BStream_readTaggedInt32(self);
-	if (UArray_size(self->errorBa) != 0)
-		return;
-	if (encoded_size < 0) {
-		BStream_error_(self, "negative tagged array length");
-		return;
-	}
-	data = BStream_readDataOfLength_(self, (size_t)encoded_size);
-	if (encoded_size > 0 && NULL == data)
-		return;
-	UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t,
-		(size_t)encoded_size, 1);
-	if (b->itemSize != 1 || b->size != (size_t)encoded_size ||
-		(encoded_size > 0 && NULL == b->data))
-		BStream_error_(self, "unable to allocate tagged array");
+    int32_t encoded_size;
+    unsigned char *data;
+    if (!BStream_canReadArray_(self, b, "invalid tagged binary stream array read"))
+        return;
+    if (BStream_readTag(self, BSTREAM_UNSIGNED_INT, 1, 1) != 0)
+        return;
+    encoded_size = BStream_readTaggedInt32(self);
+    if (UArray_size(self->errorBa) != 0)
+        return;
+    if (encoded_size < 0) {
+        BStream_error_(self, "negative tagged array length");
+        return;
+    }
+    data = BStream_readDataOfLength_(self, (size_t)encoded_size);
+    if (encoded_size > 0 && NULL == data)
+        return;
+    UArray_setData_type_size_copy_(b, data, CTYPE_uint8_t,
+        (size_t)encoded_size, 1);
+    if (b->itemSize != 1 || b->size != (size_t)encoded_size ||
+        (encoded_size > 0 && NULL == b->data))
+        BStream_error_(self, "unable to allocate tagged array");
 }
-
 
 UArray *BStream_readTaggedUArray(BStream *self)
 {

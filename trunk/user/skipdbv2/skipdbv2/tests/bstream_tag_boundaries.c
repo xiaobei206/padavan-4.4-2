@@ -129,6 +129,121 @@ static int testBStreamWriteValidation(void)
 	return EXIT_SUCCESS;
 }
 
+static int testBStreamReadValidation(void)
+{
+    const unsigned char payload[] = { 0x51, 0x52, 0x53, 0x54 };
+    UArray source = UArray_stackAllocedWithData_type_size_(
+        (void *)payload, CTYPE_uint8_t, sizeof(payload));
+    BStream *stream = BStream_new();
+    UArray *destination = UArray_new();
+    unsigned char *originalData;
+    size_t originalSize;
+    const char *error;
+
+    if (NULL == stream || NULL == destination) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream read validation allocation failed");
+    }
+
+    BStream_writeUArray_(stream, &source);
+    if (NULL != BStream_errorString(stream) &&
+        BStream_errorString(stream)[0] != '\0') {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream plain array read fixture write failed");
+    }
+    stream->index = 0;
+    BStream_readUArray_(stream, NULL);
+    error = BStream_errorString(stream);
+    if (NULL == error || error[0] == '\0' || stream->index != 0) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream plain array read silently accepted a NULL destination");
+    }
+
+    BStream_empty(stream);
+    BStream_writeUArray_(stream, &source);
+    stream->index = 0;
+    BStream_readUArray_(stream, stream->ba);
+    error = BStream_errorString(stream);
+    if (NULL == error || error[0] == '\0' || stream->index != 0) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream plain array read accepted an aliased destination");
+    }
+
+    BStream_empty(stream);
+    BStream_writeUArray_(stream, &source);
+    stream->index = stream->ba->size + 1;
+    BStream_readUArray_(stream, destination);
+    error = BStream_errorString(stream);
+    if (NULL == error || error[0] == '\0' ||
+        stream->index != stream->ba->size + 1) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream plain array read accepted an out-of-range cursor");
+    }
+
+    BStream_empty(stream);
+    BStream_writeUArray_(stream, &source);
+    stream->index = 0;
+    originalData = destination->data;
+    originalSize = destination->size;
+    destination->size = 1;
+    destination->data = NULL;
+    BStream_readUArray_(stream, destination);
+    error = BStream_errorString(stream);
+    destination->size = originalSize;
+    destination->data = originalData;
+    if (NULL == error || error[0] == '\0' || stream->index != 0) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream plain array read accepted malformed destination storage");
+    }
+
+    BStream_empty(stream);
+    BStream_writeUArray_(stream, &source);
+    stream->index = 0;
+    BStream_readUArray_(stream, destination);
+    if ((NULL != BStream_errorString(stream) &&
+         BStream_errorString(stream)[0] != '\0') ||
+        destination->size != sizeof(payload) || NULL == destination->data ||
+        memcmp(destination->data, payload, sizeof(payload)) != 0) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream plain array read round trip failed");
+    }
+
+    BStream_empty(stream);
+    BStream_writeTaggedUArray_(stream, &source);
+    stream->index = 0;
+    BStream_readTaggedUArray_(stream, stream->ba);
+    error = BStream_errorString(stream);
+    if (NULL == error || error[0] == '\0' || stream->index != 0) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream tagged array read accepted an aliased destination");
+    }
+
+    BStream_empty(stream);
+    BStream_writeTaggedUArray_(stream, &source);
+    stream->index = 0;
+    BStream_readTaggedUArray_(stream, destination);
+    if ((NULL != BStream_errorString(stream) &&
+         BStream_errorString(stream)[0] != '\0') ||
+        destination->size != sizeof(payload) || NULL == destination->data ||
+        memcmp(destination->data, payload, sizeof(payload)) != 0) {
+        BStream_free(stream);
+        UArray_free(destination);
+        return fail("BStream tagged array read round trip failed");
+    }
+
+    BStream_free(stream);
+    UArray_free(destination);
+    return EXIT_SUCCESS;
+}
+
 int main(void)
 {
 	unsigned int arrayFlag, type, byteCount;
@@ -167,6 +282,8 @@ int main(void)
 	if (testBStreamClone() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamWriteValidation() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (testBStreamReadValidation() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	puts("BStreamTag boundaries test passed");
 	return EXIT_SUCCESS;
