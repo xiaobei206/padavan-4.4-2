@@ -1117,6 +1117,7 @@ jobs:
                   "else if (ch > UNI_MAX_LEGAL_UTF32)",
                   "if ((size_t)(targetEnd - target) < bytesToWrite)",
                   "ch = UNI_REPLACEMENT_CHAR;",
+                  "if ((size_t)(sourceEnd - source) <= (size_t)extraBytesToRead)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/convert_utf8_bounds.c": [
                   "NULL source",
@@ -1131,6 +1132,13 @@ jobs:
                   "UTF32toUTF8 strict range error consumed the invalid scalar",
                   "UTF32toUTF8 lenient replacement failed",
                   "UTF32toUTF8 target exhaustion changed source or output",
+                  "test_utf8_conversion_bounds",
+                  "ConvertUTF8toUTF16 truncated source changed cursor or output",
+                  "ConvertUTF8toUTF32 truncated source changed cursor or output",
+                  "ConvertUTF8toUTF16 malformed input was accepted or consumed",
+                  "ConvertUTF8toUTF32 malformed input was accepted or consumed",
+                  "ConvertUTF8toUTF16 oversized sequence lead was accepted",
+                  "ConvertUTF8toUTF32 oversized sequence lead was accepted",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_format.c": [
                   "void UArray_fromVargs_(UArray *self, const char *format, va_list ap)",
@@ -2415,6 +2423,18 @@ jobs:
                   utf32_to8_body.count("--source;") < 2 or utf32_to8_capacity < 0 or
                   utf32_to8_advance < 0 or utf32_to8_capacity > utf32_to8_advance):
               raise SystemExit("ConvertUTF32toUTF8 must replace lenient invalid scalars, preserve strict cursors, and preflight target capacity")
+
+          for function_name, next_name in (("ConvertUTF8toUTF16", "ConvertUTF32toUTF8"),
+                                           ("ConvertUTF8toUTF32", None)):
+              decoder_start = convert_source.find("ConversionResult " + function_name)
+              decoder_end = convert_source.find("ConversionResult " + next_name, decoder_start) if next_name else convert_source.find("/* ---------------------------------------------------------------------", decoder_start)
+              decoder_body = convert_source[decoder_start:decoder_end] if decoder_start >= 0 and decoder_end > decoder_start else ""
+              remaining_guard = decoder_body.find("if ((size_t)(sourceEnd - source) <= (size_t)extraBytesToRead)")
+              sequence_validation = decoder_body.find("isLegalUTF8(source, extraBytesToRead+1)")
+              sequence_decode = decoder_body.find("switch (extraBytesToRead)")
+              if (not decoder_body or min(remaining_guard, sequence_validation, sequence_decode) < 0 or
+                      not (remaining_guard < sequence_validation < sequence_decode)):
+                  raise SystemExit(function_name + " must check remaining source bytes before validating or decoding a multibyte sequence")
 
           encoding_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c").read_text()
           truncate_start = encoding_source.find("static int UArray_truncateAfterConvertToEncoding_(UArray *self)")

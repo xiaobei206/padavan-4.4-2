@@ -372,7 +372,7 @@ ConversionResult ConvertUTF8toUTF16 (
 	while (source < sourceEnd) {
 		UTF32 ch = 0;
 		unsigned short extraBytesToRead = trailingBytesForUTF8[*source];
-		if (source + extraBytesToRead >= sourceEnd) {
+		if ((size_t)(sourceEnd - source) <= (size_t)extraBytesToRead) {
 			result = sourceExhausted; break;
 		}
 		/* Do this check whether lenient or strict */
@@ -504,7 +504,7 @@ ConversionResult ConvertUTF8toUTF32 (
 	while (source < sourceEnd) {
 		UTF32 ch = 0;
 		unsigned short extraBytesToRead = trailingBytesForUTF8[*source];
-		if (source + extraBytesToRead >= sourceEnd) {
+		if ((size_t)(sourceEnd - source) <= (size_t)extraBytesToRead) {
 			result = sourceExhausted; break;
 		}
 		/* Do this check whether lenient or strict */

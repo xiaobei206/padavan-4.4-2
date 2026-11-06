@@ -69,6 +69,80 @@ static int test_utf32_source_semantics(void)
     return 1;
 }
 
+
+static int test_utf8_conversion_bounds(void)
+{
+    const UTF8 truncated[] = {0xf0, 0x9f};
+    const UTF8 malformed[] = {0xe2, 0x28, 0xa1};
+    const UTF8 oversized_lead[] = {0xf8, 0x88, 0x80, 0x80, 0x80, 0x80};
+    UTF16 out16[4] = {0xaaaa, 0xbbbb, 0xcccc, 0xdddd};
+    UTF32 out32[4] = {0xaaaaaaaa, 0xbbbbbbbb, 0xcccccccc, 0xdddddddd};
+    const UTF8 *source8;
+    UTF16 *target16;
+    UTF32 *target32;
+    ConversionResult r;
+
+    source8 = truncated;
+    target16 = out16;
+    r = ConvertUTF8toUTF16(&source8, truncated + sizeof(truncated),
+                           &target16, out16 + 4, strictConversion);
+    if (r != sourceExhausted || source8 != truncated || target16 != out16 ||
+        out16[0] != 0xaaaa) {
+        fprintf(stderr, "ConvertUTF8toUTF16 truncated source changed cursor or output\\n");
+        return 0;
+    }
+
+    source8 = truncated;
+    target32 = out32;
+    r = ConvertUTF8toUTF32(&source8, truncated + sizeof(truncated),
+                           &target32, out32 + 4, strictConversion);
+    if (r != sourceExhausted || source8 != truncated || target32 != out32 ||
+        out32[0] != 0xaaaaaaaa) {
+        fprintf(stderr, "ConvertUTF8toUTF32 truncated source changed cursor or output\\n");
+        return 0;
+    }
+
+    source8 = malformed;
+    target16 = out16;
+    r = ConvertUTF8toUTF16(&source8, malformed + sizeof(malformed),
+                           &target16, out16 + 4, strictConversion);
+    if (r != sourceIllegal || source8 != malformed || target16 != out16 ||
+        out16[0] != 0xaaaa) {
+        fprintf(stderr, "ConvertUTF8toUTF16 malformed input was accepted or consumed\\n");
+        return 0;
+    }
+
+    source8 = malformed;
+    target32 = out32;
+    r = ConvertUTF8toUTF32(&source8, malformed + sizeof(malformed),
+                           &target32, out32 + 4, strictConversion);
+    if (r != sourceIllegal || source8 != malformed || target32 != out32 ||
+        out32[0] != 0xaaaaaaaa) {
+        fprintf(stderr, "ConvertUTF8toUTF32 malformed input was accepted or consumed\\n");
+        return 0;
+    }
+
+    source8 = oversized_lead;
+    target16 = out16;
+    r = ConvertUTF8toUTF16(&source8, oversized_lead + sizeof(oversized_lead),
+                           &target16, out16 + 4, strictConversion);
+    if (r != sourceIllegal || source8 != oversized_lead || target16 != out16) {
+        fprintf(stderr, "ConvertUTF8toUTF16 oversized sequence lead was accepted\\n");
+        return 0;
+    }
+
+    source8 = oversized_lead;
+    target32 = out32;
+    r = ConvertUTF8toUTF32(&source8, oversized_lead + sizeof(oversized_lead),
+                           &target32, out32 + 4, strictConversion);
+    if (r != sourceIllegal || source8 != oversized_lead || target32 != out32) {
+        fprintf(stderr, "ConvertUTF8toUTF32 oversized sequence lead was accepted\\n");
+        return 0;
+    }
+
+    return 1;
+}
+
 int main(void)
 {
     const UTF8 empty[] = { 0 };
@@ -91,7 +165,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    if (!test_utf32_source_semantics()) return EXIT_FAILURE;
+    if (!test_utf32_source_semantics() || !test_utf8_conversion_bounds()) return EXIT_FAILURE;
 
     puts("ConvertUTF sequence-boundary test passed");
     return EXIT_SUCCESS;

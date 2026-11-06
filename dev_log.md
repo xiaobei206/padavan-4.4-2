@@ -1,3 +1,23 @@
+## 2026-11-06 17:51 CST — Bound UTF-8 decoder reads by remaining source length
+
+### Baseline
+- Main commit `52533d55ccbc40d78e8e09d1e7ef4b494ac7a538`; SkipDBv2 Regression run #310 passed.
+- Scope: UTF-8 source-length preflight in `ConvertUTF8toUTF16()` and `ConvertUTF8toUTF32()`.
+
+### Defect and fix
+- Both decoders formed `source + extraBytesToRead` before checking whether the requested sequence remained inside the source array. A truncated multibyte sequence could therefore form a pointer beyond one-past the buffer, which is undefined behavior even before the bounds comparison.
+- Replace the pointer-addition check with a remaining-byte comparison. The first-byte read remains guarded by the existing non-empty source loop; validation and decode now happen only after the complete sequence length is known to fit.
+
+### Regression and contracts
+- Extend the existing `convert_utf8_bounds` CTest with truncated two-byte buffers, malformed continuation bytes, and oversized five/six-byte leads through both UTF-16 and UTF-32 decoders. Verify failures preserve source and destination cursors and output.
+- Extend the workflow's implementation, test, and function-order contracts. Reuse the existing CMake target; no new files, public declarations, or target changes.
+
+### Validation
+- Static checks confirm both decoders compare remaining bytes before UTF-8 validation and sequence decoding, and the tests exercise both conversion paths.
+- Mainline CI run #311 will validate compilation and the complete regression suite.
+
+---
+
 ## 2026-11-06 17:40 CST — Correct lenient UTF-32 scalar replacement semantics
 
 ### Baseline
