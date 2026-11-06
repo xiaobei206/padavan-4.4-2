@@ -262,6 +262,70 @@ static int append_source_during_select(void *item)
     return 1;
 }
 
+static int test_append_seq_shared_storage(void)
+{
+	int values[] = {10, 20, 30};
+	List *source = List_new();
+	List *destination = List_new();
+	void **sharedItems = NULL;
+	int result = EXIT_FAILURE;
+
+	if (NULL == source || NULL == destination) {
+		check(0, "List shared append fixture allocation failed");
+		goto done;
+	}
+	if (List_append_(source, &values[0]) != &values[0] ||
+		List_append_(source, &values[1]) != &values[1] ||
+		List_append_(source, &values[2]) != &values[2]) {
+		check(0, "List shared append fixture initialization failed");
+		goto done;
+	}
+	List_preallocateToSize_(source, 8);
+	if (!check(source->memSize >= 8 * sizeof(void *),
+		"List shared append fixture capacity setup failed"))
+		goto done;
+
+	io_free(destination->items);
+	*destination = *source;
+	destination->size = 1;
+	sharedItems = source->items;
+
+	List_appendSeq_(destination, source);
+	if (!check(destination->items != sharedItems && source->items == sharedItems,
+		"List_appendSeq_ did not detach a destination sharing source storage"))
+		goto done;
+	if (!check(destination->size == 4 &&
+		destination->items[0] == &values[0] &&
+		destination->items[1] == &values[0] &&
+		destination->items[2] == &values[1] &&
+		destination->items[3] == &values[2],
+		"List_appendSeq_ corrupted overlapping source/destination views"))
+		goto done;
+	if (!check(source->size == 3 &&
+		source->items[0] == &values[0] &&
+		source->items[1] == &values[1] &&
+		source->items[2] == &values[2],
+		"List_appendSeq_ modified the shared source view"))
+		goto done;
+
+	result = EXIT_SUCCESS;
+
+done:
+	/*
+	 * Before copy-on-write succeeds, both structs still refer to the source
+	 * allocation. Leave that allocation owned by source during cleanup.
+	 */
+	if (destination && source && destination->items == source->items) {
+		destination->items = NULL;
+		destination->memSize = 0;
+		destination->size = 0;
+	}
+	List_free(destination);
+	List_free(source);
+	return result;
+}
+
+
 static int test_map_select_source_mutation(void)
 {
     int values[] = {10, 20};
@@ -409,6 +473,8 @@ done:
 
 int main(void)
 {
+	if (test_append_seq_shared_storage() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 	if (test_map_select_source_mutation() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (test_live_callback_traversals() != EXIT_SUCCESS)

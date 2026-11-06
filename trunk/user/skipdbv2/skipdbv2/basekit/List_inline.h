@@ -158,34 +158,74 @@ IOINLINE void *List_append_(List *self, void *item)
 
 IOINLINE void List_appendSeq_(List *self, const List *otherList)
 {
-	size_t i, oldSize;
+	size_t i, oldSize, appendSize, newSize;
 	if (!List_hasValidStorage_(self) || !List_hasValidStorage_(otherList) ||
 		otherList->size > (size_t)-1 - self->size)
 		return;
+	oldSize = self->size;
+	appendSize = otherList->size;
+	newSize = oldSize + appendSize;
+	if (newSize > (size_t)-1 / sizeof(void *))
+		return;
 	if (self == otherList) {
-		oldSize = self->size;
 		if (oldSize == 0)
 			return;
 		if (NULL == self->items)
 			return;
-		List_ifNeededSizeTo_(self, oldSize * 2);
-		if (oldSize * 2 > self->memSize / sizeof(void *))
+		List_ifNeededSizeTo_(self, newSize);
+		if (newSize > self->memSize / sizeof(void *))
 			return;
 		memmove(self->items + oldSize, self->items,
-			oldSize * sizeof(void *));
-		self->size += oldSize;
+			appendSize * sizeof(void *));
+		self->size = newSize;
 		return;
 	}
-	oldSize = self->size;
+	if (appendSize == 0)
+		return;
 	if ((oldSize > 0 && NULL == self->items) ||
-		(otherList->size > 0 && NULL == otherList->items))
+		(NULL == otherList->items))
 		return;
-	List_ifNeededSizeTo_(self, oldSize + otherList->size);
-	if (oldSize + otherList->size > self->memSize / sizeof(void *))
+
+	/*
+	 * Separate List structs may still share one backing allocation. Appending
+	 * in place would overwrite source elements when the views overlap; realloc
+	 * could also invalidate the other List's pointer. Detach the destination
+	 * first so both views retain independent storage and ownership.
+	 */
+	if (self->items == otherList->items) {
+		size_t requiredBytes = newSize * sizeof(void *);
+		size_t newMemSize = self->memSize;
+		void **newItems;
+		if (newMemSize < otherList->memSize)
+			newMemSize = otherList->memSize;
+		if (newMemSize < sizeof(void *))
+			newMemSize = sizeof(void *);
+		while (newMemSize < requiredBytes) {
+			if (newMemSize > (size_t)-1 / LIST_RESIZE_FACTOR) {
+				newMemSize = requiredBytes;
+				break;
+			}
+			newMemSize *= LIST_RESIZE_FACTOR;
+		}
+		newItems = (void **)io_calloc(1, newMemSize);
+		if (NULL == newItems)
+			return;
+		if (oldSize > 0)
+			memcpy(newItems, self->items, oldSize * sizeof(void *));
+		memcpy(newItems + oldSize, otherList->items,
+			appendSize * sizeof(void *));
+		self->items = newItems;
+		self->memSize = newMemSize;
+		self->size = newSize;
 		return;
-	for (i = 0; i < otherList->size; ++i)
+	}
+
+	List_ifNeededSizeTo_(self, newSize);
+	if (newSize > self->memSize / sizeof(void *))
+		return;
+	for (i = 0; i < appendSize; ++i)
 		self->items[oldSize + i] = otherList->items[i];
-	self->size = oldSize + otherList->size;
+	self->size = newSize;
 }
 
 

@@ -1,3 +1,14 @@
+## 2026-11-07 02:43 CST — Detach aliased List storage before sequence append
+
+- Baseline: main commit `462c45fe8f953a87ce6ac9d991ce154dd351229b`; SkipDBv2 Regression run #418 passed.
+- Scope: `List_appendSeq_()` in `basekit/List_inline.h` and the existing `list_storage_bounds` regression.
+- Distinct `List` structs can expose the same backing `items` allocation. Appending one view to another in place can overwrite source elements when the logical views overlap; growing the destination can also invalidate the source view through `realloc()`.
+- Detect shared backing storage and copy both logical views into a new zero-initialized destination allocation before publishing it. Keep the original allocation and source view intact, so the two lists have independent storage and can be freed independently. Add a regression with an overlapping one-element destination view and a three-element source, then strengthen the existing static/dynamic Actions contracts.
+- Reuse the registered `list_storage_bounds_test` CMake target; no new files, API changes, or build-list updates.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 02:39 CST — Preserve PHash source storage across shallow-alias copies
 
 - Baseline: main commit `593f91324945dd087a2411a02c0f683178e80629`; SkipDBv2 Regression run #417 passed.

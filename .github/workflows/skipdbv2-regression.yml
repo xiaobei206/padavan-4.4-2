@@ -3449,6 +3449,23 @@ jobs:
               first_items_use = body.find("self->items")
               if not body or guard < 0 or (first_items_use >= 0 and guard > first_items_use):
                   raise SystemExit("List inline storage validation must precede backing-array access: " + signature)
+          append_seq_start = list_inline_source.find(
+              "IOINLINE void List_appendSeq_(List *self, const List *otherList)"
+          )
+          append_seq_end = list_inline_source.find("\\n}", append_seq_start)
+          append_seq_body = (
+              list_inline_source[append_seq_start:append_seq_end]
+              if append_seq_start >= 0 and append_seq_end > append_seq_start
+              else ""
+          )
+          for needle in ("self->items == otherList->items",
+                         "io_calloc(1, newMemSize)",
+                         "memcpy(newItems, self->items,",
+                         "memcpy(newItems + oldSize, otherList->items,",
+                         "self->items = newItems;",
+                         "self->size = newSize;"):
+              if needle not in append_seq_body:
+                  raise SystemExit("List shared-storage append must detach before copying: " + needle)
           for signature, next_signature in (
                   ("void List_copy_(List *self, const List *otherList)", "int List_equals_("),
                   ("int List_equals_(const List *self, const List *otherList)", "/* --- sizing"),
@@ -3476,6 +3493,9 @@ jobs:
                          "LIST_SAFEREVERSEFOREACH(&malformed_source, safe_reverse_index, safe_reverse_value, ++callback_count)",
                          "LIST_DO_(&malformed_source, count_visit)",
                          "List_appendSeq_(target, &malformed_source)",
+                         "test_append_seq_shared_storage",
+                         "List_appendSeq_(destination, source);",
+                         "destination->items != sharedItems && source->items == sharedItems",
                          "List_at_put_(&malformed_target, 0, &values[2])",
                          "List_removeTrueFor_(&malformed_target, remove_everything)",
                          "malformed_target.items[1] == saved_target_items[1]",
