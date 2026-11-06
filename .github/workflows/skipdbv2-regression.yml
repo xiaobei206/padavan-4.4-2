@@ -1141,6 +1141,21 @@ jobs:
                   "INVALID_SET_FILE_POINTER",
                   "!SetEndOfFile(file)",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/PortableUsleep.c": [
+                  "static DWORD PortableUsleep_sleepMilliseconds_(unsigned int us)",
+                  "us / 1000U + (us % 1000U != 0U)",
+                  "int usleep(unsigned int us)",
+                  "if (us == 0)",
+                  "QueryPerformanceFrequency(&freq)",
+                  "freq.QuadPart <= 0",
+                  "QueryPerformanceCounter(&start)",
+                  "if (ticks >= (double)LLONG_MAX)",
+                  "if (us >= 2000U)",
+                  "Sleep((DWORD)(us / 1000U - 1U))",
+                  "if (!QueryPerformanceCounter(&now))",
+                  "Sleep(2)",
+                  "now.QuadPart - start.QuadPart >= required_ticks",
+              ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
                   "int gettimeofday(struct timeval *tv, struct timezone *tz)",
                   "if (NULL == tv)",
@@ -4090,6 +4105,30 @@ jobs:
                   truncate_checks[3] < truncate_checks[4] < truncate_checks[5] <
                   truncate_checks[6] < truncate_checks[7]):
               raise SystemExit("PortableTruncate must validate the path/length and use correct Win32 sharing, attributes, and seek failure checks")
+
+          usleep_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableUsleep.c").read_text()
+          usleep_start = usleep_source.find("int usleep(unsigned int us)")
+          usleep_end = usleep_source.find("\n}", usleep_start)
+          usleep_body = usleep_source[usleep_start:usleep_end] if usleep_start >= 0 and usleep_end > usleep_start else ""
+          usleep_order = [usleep_body.find(token) for token in (
+              "if (us == 0)",
+              "QueryPerformanceFrequency(&freq)",
+              "!QueryPerformanceCounter(&start)",
+              "ticks = (double)freq.QuadPart",
+              "if (ticks >= (double)LLONG_MAX)",
+              "required_ticks = (LONGLONG)ticks;",
+              "if (us >= 2000U)",
+              "Sleep((DWORD)(us / 1000U - 1U));",
+              "if (!QueryPerformanceCounter(&now))",
+              "Sleep(2);",
+              "now.QuadPart - start.QuadPart >= required_ticks",
+          )]
+          if (not usleep_body or min(usleep_order) < 0 or usleep_order != sorted(usleep_order) or
+                  "static LARGE_INTEGER freq" in usleep_source or "QueryPerformanceCounter(&e)" in usleep_source or
+                  "do\n" in usleep_body or
+                  "static DWORD PortableUsleep_sleepMilliseconds_(unsigned int us)" not in usleep_source or
+                  "Sleep(PortableUsleep_sleepMilliseconds_(us));" not in usleep_body):
+              raise SystemExit("PortableUsleep must avoid shared clock state and full-interval busy-waiting, and must check the high-resolution clock with a safe sleep fallback")
 
           gettimeofday_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c").read_text()
           gettimeofday_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.h").read_text()

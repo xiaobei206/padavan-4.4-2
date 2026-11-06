@@ -1,3 +1,13 @@
+## 2026-11-07 01:20 CST — Bound Windows PortableUsleep busy-waiting and clock failures
+
+- Baseline: main commit `e3a4a6becfbf9711c1b0ec459859e78e01eca94a`; latest mainline regression run #397 passed.
+- Scope: the Windows `usleep()` compatibility implementation in `basekit/PortableUsleep.c`.
+- The previous implementation spun continuously for the entire requested interval, shared an unsynchronized static performance-counter frequency across threads, and ignored failures from both QueryPerformance APIs. Those failures could use uninitialized counters or a zero frequency and return too early.
+- Query the clock per call, return immediately for zero delay, validate frequency/start counter, and use a rounded-up `Sleep()` fallback if the high-resolution clock fails or the tick conversion is out of range. For normal waits, let the OS sleep for all but the final <2 ms and spin only for the remaining fraction; if a later counter read fails, sleep the maximum residual interval.
+- Add strict static and ordered dynamic Actions source contracts; the existing recursive basekit source glob already includes this translation unit. No new files. CI does not execute the Windows-only branch natively, so platform runtime behavior remains to be verified by a Windows build.
+
+---
+
 ## 2026-11-07 01:17 CST — Make allocator diagnostics type-safe and failure-safe
 
 - Baseline: main commit `eb4a5e0c50e15b6d18a82ce38a915cae820f0c96`; SkipDBv2 Regression run #396 passed.
