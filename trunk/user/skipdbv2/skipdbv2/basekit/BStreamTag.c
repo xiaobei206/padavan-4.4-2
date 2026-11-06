@@ -27,8 +27,11 @@ BStreamTag BStreamTag_FromUnsignedChar(unsigned char c)
 
 unsigned char BStreamTag_asUnsignedChar(BStreamTag *self)
 {
-	BStreamTag t = *self;
+	BStreamTag t;
 	unsigned char c = 0;
+	if (NULL == self)
+		return 0;
+	t = *self;
 	c = c | t.isArray << 7;
 	c = c | t.type << 5;
 	c = c | t.byteCount;
@@ -48,11 +51,15 @@ BStreamTag BStreamTag_TagArray_type_byteCount_(unsigned int a, unsigned int t, u
 
 int BStreamTag_isEqual_(BStreamTag *self, BStreamTag *other)
 {
-	return (BStreamTag_asUnsignedChar(self) == BStreamTag_asUnsignedChar(other));
+	if (NULL == self || NULL == other)
+		return 0;
+	return BStreamTag_asUnsignedChar(self) == BStreamTag_asUnsignedChar(other);
 }
 
 void BStreamTag_print(BStreamTag *self)
 {
+	if (NULL == self)
+		return;
 	printf("[Tag ");
 	printf("isArray: %i ", self->isArray);
 	printf("type: %i ", self->type);
@@ -62,6 +69,8 @@ void BStreamTag_print(BStreamTag *self)
 
 char *BStreamTag_typeName(BStreamTag *self)
 {
+	if (NULL == self)
+		return "UNKNOWN TYPE";
 	switch (self->type)
 	{
 		case BSTREAM_UNSIGNED_INT:

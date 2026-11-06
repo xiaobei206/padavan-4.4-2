@@ -211,6 +211,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(jfile_journal_test skipdb m)
     add_test(NAME jfile_journal_test COMMAND jfile_journal_test)
 
+    ADD_EXECUTABLE(bstream_tag_boundaries_test
+        ${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c)
+    TARGET_LINK_LIBRARIES(bstream_tag_boundaries_test skipdb m)
+    add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)
+
     ADD_EXECUTABLE(stack_lifecycle_test
         ${PROJECT_SOURCE_DIR}/tests/stack_lifecycle.c)
     TARGET_LINK_LIBRARIES(stack_lifecycle_test skipdb m)

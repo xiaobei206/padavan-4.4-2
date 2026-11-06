@@ -1,3 +1,20 @@
+## 2026-11-06 13:25 CST — Harden BStreamTag NULL handling
+
+### Baseline and scope
+- Base commit: `f94e8c15ed38c4ad30ec5e40fbf588342a2f08be`; SkipDBv2 Regression run #253 passed.
+- Scope is limited to BStreamTag public helpers and a focused wire-format boundary test.
+
+### Changes
+- Make tag encoding, equality, printing, and type-name lookup safe for NULL inputs.
+- Keep NULL equality distinct from a valid encoded zero tag.
+- Exercise all 256 valid wire-format combinations through encode/decode/equality round trips.
+- Register the regression in CMake and extend the workflow's source contracts.
+
+### Validation
+- No local firmware build is claimed; the post-push SkipDBv2 Regression run validates compilation and runtime behavior.
+
+---
+
 ## 2026-11-06 13:19 CST — Bound Sorting callback indexes and recursion
 
 ### Baseline and scope

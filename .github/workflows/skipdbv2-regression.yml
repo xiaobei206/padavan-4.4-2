@@ -696,6 +696,9 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/skipdb_record_storage.c",
                   "jfile_journal_test",
                   "add_test(NAME jfile_journal_test COMMAND jfile_journal_test)",
+                  "ADD_EXECUTABLE(bstream_tag_boundaries_test",
+                  "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
+                  "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
                   "ADD_EXECUTABLE(stack_lifecycle_test",
                   "add_test(NAME stack_lifecycle_test COMMAND stack_lifecycle_test)",
                   "ADD_EXECUTABLE(list_memory_size_test",
@@ -894,6 +897,17 @@ jobs:
                   "PHash_compact lost a retained key/value mapping",
                   "PHash_compact did not return an empty table to its minimum size",
                   "PHash compact test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c": [
+                  "if (NULL == self)",
+                  "if (NULL == self || NULL == other)",
+                  "return BStreamTag_asUnsignedChar(self) == BStreamTag_asUnsignedChar(other);",
+                  "return \"UNKNOWN TYPE\";",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c": [
+                  "BStreamTag null arguments were not handled safely",
+                  "BStreamTag wire-format round trip failed",
+                  "BStreamTag boundaries test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
                   "int gettimeofday(struct timeval *tv, struct timezone *tz)",
@@ -1623,6 +1637,30 @@ jobs:
                          "add_test(NAME phash_compact_test COMMAND phash_compact_test)"):
               if needle not in phash_cmake:
                   raise SystemExit("PHash compaction CTest registration missing: " + needle)
+
+          bstream_tag_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c").read_text()
+          bstream_tag_test = Path("trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c").read_text()
+          bstream_tag_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for signature, guard in (("unsigned char BStreamTag_asUnsignedChar(", "if (NULL == self)"),
+                                   ("int BStreamTag_isEqual_(", "if (NULL == self || NULL == other)"),
+                                   ("void BStreamTag_print(", "if (NULL == self)"),
+                                   ("char *BStreamTag_typeName(", "if (NULL == self)")):
+              begin = bstream_tag_source.find(signature)
+              end = bstream_tag_source.find("\n}", begin)
+              body = bstream_tag_source[begin:end + 2] if begin >= 0 and end > begin else ""
+              if guard not in body:
+                  raise SystemExit("BStreamTag public helper is missing its NULL guard: " + signature)
+          for needle in ("BStreamTag_asUnsignedChar(NULL) != 0",
+                         "BStreamTag_isEqual_(NULL, NULL) != 0",
+                         "decoded.byteCount != byteCount",
+                         "BStreamTag boundaries test passed"):
+              if needle not in bstream_tag_test:
+                  raise SystemExit("BStreamTag boundary regression case missing: " + needle)
+          for needle in ("ADD_EXECUTABLE(bstream_tag_boundaries_test",
+                         "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
+                         "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)"):
+              if needle not in bstream_tag_cmake:
+                  raise SystemExit("BStreamTag boundary CTest registration missing: " + needle)
 
           dynlib_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c").read_text()
           replace_start = dynlib_source.find("static int DynLib_replaceString_(")
