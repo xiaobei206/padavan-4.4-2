@@ -114,6 +114,7 @@ int main(void)
     {
         UDBRecord metadata_probe;
         size_t journal_before, journal_after;
+        long max_before;
         int save_accepted;
 
         memset(&metadata_probe, 0, sizeof(metadata_probe));
@@ -128,6 +129,19 @@ int main(void)
         if (save_accepted || journal_after != journal_before) {
             (void)JFile_clipLog(db->records->file);
             fprintf(stderr, "record header writer accepted reserved metadata offset\n");
+            goto done;
+        }
+
+        /* An append header may start at EOF, but never beyond it. */
+        max_before = db->records->file->maxPos;
+        UDBRecord_setPos_(&metadata_probe, (PID_TYPE)max_before + (PID_TYPE)1);
+        journal_before = JFile_logSize(db->records->file);
+        save_accepted = UDBRecord_saveHeader(&metadata_probe);
+        journal_after = JFile_logSize(db->records->file);
+        if (save_accepted || journal_after != journal_before ||
+            db->records->file->maxPos != max_before) {
+            (void)JFile_clipLog(db->records->file);
+            fprintf(stderr, "record header writer accepted a position past EOF\n");
             goto done;
         }
     }

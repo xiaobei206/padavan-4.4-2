@@ -58,7 +58,11 @@ int UDBRecord_saveHeader(UDBRecord *self)
     if (NULL == self || NULL == self->file || NULL == self->file->file ||
         self->file->maxPos < 0 ||
         self->pos < (PID_TYPE)sizeof(PID_TYPE) ||
-        self->pos > (PID_TYPE)LONG_MAX)
+        self->pos > (PID_TYPE)LONG_MAX ||
+        self->pos > (PID_TYPE)self->file->maxPos ||
+        self->pos > (PID_TYPE)LONG_MAX - (PID_TYPE)sizeof(UDBRecordHeader) ||
+        (self->pos < (PID_TYPE)self->file->maxPos &&
+         (PID_TYPE)self->file->maxPos - self->pos < sizeof(UDBRecordHeader)))
         return 0;
 
     old_pos = self->file->pos;

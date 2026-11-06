@@ -1,3 +1,13 @@
+## 2026-11-07 07:08 CST — Reject record-header writes beyond the data extent
+
+- Baseline: main commit `357e616178b2da7117f40784b4a896ffbf054ead`; SkipDBv2 Regression run #462 passed source contracts, full build, and all 56 regression tests.
+- Scope: physical bounds validation in `udb/UDBRecordWrite.c`.
+- `UDBRecord_saveHeader()` rejected metadata offset zero but accepted any larger PID-sized offset up to `LONG_MAX`. In journaled mode, a caller-supplied position beyond EOF could extend the predicted data extent and commit a sparse gap or corrupt later record traversal.
+- Reject positions beyond the current logical file end and reject existing-file positions whose full header would cross EOF; retain the exact-EOF case required for valid appends and guard signed-offset overflow. Extend the existing storage regression and Actions source contracts; no new files, public symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:05 CST — Guard UDB diagnostic entry points
 
 - Baseline: main commit `1f0dccea4366ab9f753f48a2ce56a8bf55f6c569`; SkipDBv2 Regression run #461 passed the full build and all 56 regression tests.
