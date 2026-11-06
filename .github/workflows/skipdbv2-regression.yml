@@ -3309,8 +3309,6 @@ jobs:
 
           stack_inline_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h").read_text()
           for stack_signature in (
-              "IOINLINE void Stack_do_(const Stack *self, StackDoCallback *callback)",
-              "IOINLINE void Stack_doUntilMark_(const Stack *self, StackDoCallback *callback)",
               "IOINLINE size_t Stack_totalSize(const Stack *self)",
               "IOINLINE int Stack_popMarkPoint_(Stack *self, intptr_t mark)",
               "IOINLINE void *Stack_at_(const Stack *self, int i)",

@@ -1,3 +1,11 @@
+## 2026-11-07 00:07 CST — Align Stack callback source contract with snapshot validation
+
+- CI #375 stopped in the workflow source-contract stage before configure/build. The pre-existing generic cursor-reader assertion required inline raw-pointer guards in `Stack_do_()` and `Stack_doUntilMark_()`; these two functions now delegate storage/mark validation to `Stack_clone()` before accessing any cursor.
+- Remove only these two callback traversal functions from the raw cursor-reader guard list. Keep the existing pointer-bound assertions for `Stack_totalSize()`, `Stack_popMarkPoint_()`, and `Stack_at_()`; the new dedicated snapshot-lifecycle contract continues to verify clone, callback traversal, and release ordering.
+- No C implementation or regression test changed.
+
+---
+
 ## 2026-11-07 00:25 CST — Isolate Stack callback traversal from source mutation
 
 - Baseline: main commit `30faa535d7118785000b241d2731ff0c73974342`; SkipDBv2 Regression run #374 completed successfully.
