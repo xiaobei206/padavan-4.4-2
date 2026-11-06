@@ -1,3 +1,14 @@
+## 2026-11-07 03:20 CST — Accept space-padded %e, %k and %l fields
+
+- Baseline: main commit `808cc1e380363c1aa19e9e6d40926c45268d0490`; SkipDBv2 Regression run #424 passed source contracts, configure, full build, and all CTest cases.
+- Scope: numeric field parsing for `%e`, `%k`, and `%l` in `PortableStrptime.c`.
+- These directives were recognized but rejected their specified single-column space-padded values because the parser required the first input byte to be a digit. This also made direct parsing of common space-padded day/hour fields fail.
+- Consume one optional literal space for the three space-padded directives before the existing digit and range checks. Keep `%d`, `%H`, and `%I` strict and preserve all existing range validation.
+- Extend the existing `portable_strptime_bounds` test with standalone padded day/hour cases and the built-in composite `%C` format. Strengthen static and dynamic Actions source contracts. Reuse the registered CTest target; no new files, public API, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 03:15 CST — Validate BStream array layouts before overlap and decode
 
 - Baseline: main commit `4add9d4ddd291f39e39321d6487e0d4520d3de56`; SkipDBv2 Regression run #423 passed source contracts, configure, full build, and all CTest cases.

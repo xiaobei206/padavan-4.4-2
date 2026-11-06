@@ -1218,6 +1218,9 @@ jobs:
                   "PortableGettimeofday test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableStrptime.c": [
+                  "if (c == 'k' && *buf == ' ')",
+                  "if (c == 'l' && *buf == ' ')",
+                  "if (c == 'e' && *buf == ' ')",
                   "static int readndigits(char **const buf, const size_t count)",
                   "return i == 0 ? -1 : result;",
                   "tm->tm_year = i <= 68 ? i + 100 : i;",
@@ -1230,6 +1233,18 @@ jobs:
                   "tm->tm_yday = i - 1;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c": [
+                  "char space_day[] = \" 6\";",
+                  "char space_hour24[] = \" 7\";",
+                  "char space_hour12[] = \" 7\";",
+                  "char composite_space_date[] = \"Friday, November,  6, 2026\";",
+                  "io_strptime(space_day, space_day_format, &parsed)",
+                  "io_strptime(space_hour24, space_hour24_format, &parsed)",
+                  "io_strptime(space_hour12, space_hour12_format, &parsed)",
+                  "io_strptime(composite_space_date, composite_date_format, &parsed)",
+                  "space-padded day-of-month directive did not parse correctly",
+                  "space-padded 24-hour directive did not parse correctly",
+                  "space-padded 12-hour directive did not parse correctly",
+                  "composite %C date format did not parse its padded day field",
                   "io_strptime(NULL, format, &parsed)",
                   "char year_00[] = \"00\";",
                   "parsed.tm_year != 100",
@@ -4351,6 +4366,26 @@ jobs:
                   "tm->tm_yday = i - 1;" not in day_directive or
                   "*buf == 0" in day_directive):
               raise SystemExit("PortableStrptime %j must reject missing/out-of-range ordinals and convert 1-based input to zero-based tm_yday")
+          space_padded_directives = (
+              ("case 'H':", "case 'I':", "case 'k'", "if (c == 'k' && *buf == ' ')"),
+              ("case 'I':", "case 'd':", "case 'l'", "if (c == 'l' && *buf == ' ')"),
+              ("case 'd':", "case 'm':", "case 'e'", "if (c == 'e' && *buf == ' ')"),
+          )
+          for start_token, end_token, directive, padding_guard in space_padded_directives:
+              start = parser.find(start_token)
+              end = parser.find(end_token, start + len(start_token)) if start >= 0 else -1
+              body = parser[start:end] if start >= 0 and end > start else ""
+              guard_position = body.find(padding_guard)
+              digit_position = body.find("isdigit((unsigned char)*buf)")
+              if not body or guard_position < 0 or digit_position < 0 or guard_position > digit_position:
+                  raise SystemExit("PortableStrptime " + directive + " must consume its single space pad before digit validation")
+          strptime_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c").read_text()
+          for needle in ("io_strptime(space_day, space_day_format, &parsed)",
+                         "io_strptime(space_hour24, space_hour24_format, &parsed)",
+                         "io_strptime(space_hour12, space_hour12_format, &parsed)",
+                         "io_strptime(composite_space_date, composite_date_format, &parsed)"):
+              if needle not in strptime_test:
+                  raise SystemExit("PortableStrptime space-padding regression missing: " + needle)
           strptime_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c").read_text()
           for needle in ("io_strptime(malformed_after_year, format, &invalid)",
                          "io_strptime(malformed_after_month, format, &invalid)",

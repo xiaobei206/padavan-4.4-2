@@ -35,6 +35,14 @@ int main(void)
     char year_68[] = "68";
     char year_69[] = "69";
     char year_99[] = "99";
+    char space_day[] = " 6";
+    char space_hour24[] = " 7";
+    char space_hour12[] = " 7";
+    char composite_space_date[] = "Friday, November,  6, 2026";
+    char space_day_format[] = "%e";
+    char space_hour24_format[] = "%k";
+    char space_hour12_format[] = "%l";
+    char composite_date_format[] = "%C";
 
     memset(&parsed, 0, sizeof(parsed));
     if (io_strptime(NULL, format, &parsed) != NULL ||
@@ -122,6 +130,33 @@ int main(void)
     if (io_strptime(year_99, year_format, &parsed) != year_99 + 2 ||
         parsed.tm_year != 99) {
         fprintf(stderr, "two-digit year 99 did not map to 1999\\n");
+        return EXIT_FAILURE;
+    }
+
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(space_day, space_day_format, &parsed) != space_day + 2 ||
+        parsed.tm_mday != 6) {
+        fprintf(stderr, "space-padded day-of-month directive did not parse correctly\n");
+        return EXIT_FAILURE;
+    }
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(space_hour24, space_hour24_format, &parsed) != space_hour24 + 2 ||
+        parsed.tm_hour != 7) {
+        fprintf(stderr, "space-padded 24-hour directive did not parse correctly\n");
+        return EXIT_FAILURE;
+    }
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(space_hour12, space_hour12_format, &parsed) != space_hour12 + 2 ||
+        parsed.tm_hour != 7) {
+        fprintf(stderr, "space-padded 12-hour directive did not parse correctly\n");
+        return EXIT_FAILURE;
+    }
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(composite_space_date, composite_date_format, &parsed) !=
+            composite_space_date + strlen(composite_space_date) ||
+        parsed.tm_wday != 5 || parsed.tm_mon != 10 || parsed.tm_mday != 6 ||
+        parsed.tm_year != 126) {
+        fprintf(stderr, "composite %C date format did not parse its padded day field\n");
         return EXIT_FAILURE;
     }
 

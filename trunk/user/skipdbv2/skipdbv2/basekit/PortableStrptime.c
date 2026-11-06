@@ -221,6 +221,8 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 				case 'H':
 				case 'k':
+						if (c == 'k' && *buf == ' ')
+								buf++;
 						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
@@ -234,6 +236,8 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 				case 'I':
 				case 'l':
+						if (c == 'l' && *buf == ' ')
+								buf++;
 						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
@@ -247,6 +251,8 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 				case 'd':
 				case 'e':
+						if (c == 'e' && *buf == ' ')
+								buf++;
 						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
