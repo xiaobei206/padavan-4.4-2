@@ -2432,7 +2432,8 @@ jobs:
           negate_end = bit_math_source.find("// basic vector math", negate_start)
           negate_body = bit_math_source[negate_start:negate_end] if negate_start >= 0 and negate_end > negate_start else ""
           negate_helper_start = bit_math_source.find(
-              "static int UArray_hasUnsafeNegation_(const UArray *self)\\n{"
+              "static int UArray_hasUnsafeNegation_(const UArray *self)",
+              negate_start
           )
           negate_helper_end = bit_math_source.find("/* Preflight every affected element", negate_helper_start)
           negate_helper_body = bit_math_source[negate_helper_start:negate_helper_end] if negate_helper_start >= 0 and negate_helper_end > negate_helper_start else ""

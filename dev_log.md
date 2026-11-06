@@ -1,3 +1,11 @@
+## 2026-11-06 23:30 CST — Fix UArray negate helper source-contract lookup
+
+- CI #365 stopped in the workflow source-contract stage before configure/build. The negate boundary-helper lookup depended on an incorrectly escaped newline and therefore failed to locate the definition.
+- Search for the helper signature starting at the `UArray_negate()` implementation. The prototype remains earlier in the file, so this unambiguously selects the later implementation without newline escaping.
+- No C logic or regression test changed.
+
+---
+
 ## 2026-11-06 23:27 CST — Guard UArray_negate against invalid storage and signed overflow
 
 - Baseline: main commit `619e1fa7e8087a20843a6b0b0987dd9f67ca19c3`; SkipDBv2 Regression run #364 completed successfully.
