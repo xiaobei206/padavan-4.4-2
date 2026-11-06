@@ -3452,7 +3452,7 @@ jobs:
           append_seq_start = list_inline_source.find(
               "IOINLINE void List_appendSeq_(List *self, const List *otherList)"
           )
-          append_seq_end = list_inline_source.find("\\n}", append_seq_start)
+          append_seq_end = list_inline_source.find(chr(10) + "}", append_seq_start)
           append_seq_body = (
               list_inline_source[append_seq_start:append_seq_end]
               if append_seq_start >= 0 and append_seq_end > append_seq_start

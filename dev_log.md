@@ -1,3 +1,11 @@
+## 2026-11-07 02:45 CST — Make List append source-contract boundary unambiguous
+
+- Baseline: main commit `c4b25098b7157ca352af1bd85df0d452238f2976`; the List shared-storage implementation and regression are awaiting the first CI result.
+- The newly added ordered-source contract used a double-escaped newline pattern, which would search for a literal backslash sequence instead of the end-of-function newline. Resolve the boundary with `chr(10) + "}"`, matching the existing robust workflow-contract convention.
+- Workflow contract only; no C implementation, regression logic, CMake target, or source path changed.
+
+---
+
 ## 2026-11-07 02:43 CST — Detach aliased List storage before sequence append
 
 - Baseline: main commit `462c45fe8f953a87ce6ac9d991ce154dd351229b`; SkipDBv2 Regression run #418 passed.
