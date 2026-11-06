@@ -35,6 +35,20 @@ int main(void)
  if(!SkipDB_isOpen(source)||SkipDB_count(source)!=4||!value_is(source,"alpha","1")||
   !value_is(source,"gamma","4")||!SkipDB_exists(source,Datum_FromCString_("beta"))){
   fprintf(stderr,"read/count/lookup contract failed\n");goto done;}
+ /* A corrupt negative root level is not an empty-list search result. */
+ {
+  int saved_level=source->header->level;
+  source->header->level=-1;
+  (void)SkipDB_at_(source,Datum_FromCString_("alpha"));
+  if(SkipDB_isOpen(source)){
+   source->header->level=saved_level;
+   fprintf(stderr,"negative root level was treated as an empty search\n");goto done;
+  }
+  if(!SkipDB_open(source)||!SkipDB_isOpen(source)||SkipDB_count(source)!=4||
+     !value_is(source,"alpha","1")){
+   fprintf(stderr,"SkipDB failed to recover after rejecting invalid search level\n");goto done;
+  }
+ }
  record=SkipDB_list_first(source,prefix,&cursor);
  if(!key_is(record,"alpha")||!key_is(SkipDB_list_next(source,prefix,cursor),"alpine")||
   SkipDB_list_next(source,prefix,cursor)!=NULL){fprintf(stderr,"prefix traversal boundary failed\n");goto done;}

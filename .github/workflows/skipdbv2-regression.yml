@@ -291,6 +291,10 @@ jobs:
                   "SkipDBRecord_find_quick_",
                   "SkipDBRecord_willRemove_",
                   "SkipDBRecord_previousRecord(SkipDBRecord *self)",
+                  "if (!SkipDBRecord_hasValidLevel_(current))",
+                  "if (!SkipDBRecord_hasValidLevel_(r) || r->level == 0)",
+                  "invalid record level during key traversal",
+                  "invalid forward record level during key traversal",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordStorage.c": [
                   "static int SkipDBRecord_streamIsReady_(SkipDBRecord *self, BStream *s)",
@@ -390,6 +394,9 @@ jobs:
                   "source->header=NULL;",
                   "commit proceeded with missing root record",
                   "transaction abort fixture write failed",
+                  "source->header->level=-1;",
+                  "negative root level was treated as an empty search",
+                  "SkipDB failed to recover after rejecting invalid search level",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecords.c": [
                   "UDBRecords *UDBRecords_new(void)",

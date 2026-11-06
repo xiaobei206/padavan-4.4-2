@@ -1,3 +1,14 @@
+## 2026-11-07 05:49 CST — Reject invalid record levels before SkipDB search traversal
+
+- Baseline: main commit `8b616b6543e11d850a48d4963a800cd25b2653b2`; SkipDBv2 Regression run #438 passed the XY-C1 source contracts, configure, complete build, and regression tests.
+- Scope: skip-list search traversal in `skipdb/SkipDBRecordLinks.c`.
+- `SkipDBRecord_find_quick_()` previously calculated the initial level before validating the root record. A negative/corrupt level could silently turn a lookup into a false “not found”; extreme negative values also make the subtraction unsafe. A resolved forward node's level was likewise trusted before resetting the traversal level.
+- Validate the starting record before deriving its level, and validate every non-root forward target (including its pointer array and nonzero level) before comparing or descending. On invalid metadata, clear the update path and close UDB rather than returning a plausible miss.
+- Extend the existing `skipdb_core_layers_test` with a negative-root-level corruption fixture and verify clean reopen/data recovery. Add source/runtime assertions to the existing Actions workflow. Reuse the registered test target; no new files, declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile and runtime gate.
+
+---
+
 ## 2026-11-07 05:26 CST — Reject embedded NUL bytes in UArray file paths
 
 - Baseline: main commit `cf06b1b3f34dbc46672a4cec09715e3326e97a20`; SkipDBv2 Regression run #437 passed the complete configure, build, and CTest sequence after the preceding UDB correction.

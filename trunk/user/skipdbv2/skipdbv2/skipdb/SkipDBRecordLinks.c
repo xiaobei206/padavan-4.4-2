@@ -167,6 +167,13 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 	else
 		step_limit += SKIPDB_MAX_LEVEL;
 	current = self;
+	/* A corrupt start level must not turn a failed search into a false miss. */
+	if (!SkipDBRecord_hasValidLevel_(current)) {
+		fprintf(stderr, "SkipDB: invalid record level during key traversal\n");
+		SkipDB_clearUpdate(db);
+		UDB_close(db->udb);
+		return NULL;
+	}
 
 #ifdef USE_SUFFIX_MATCHING
 	{
@@ -193,6 +200,13 @@ SkipDBRecord *SkipDBRecord_find_quick_(SkipDBRecord *self, Datum key, int quick)
 			if (NULL == r) {
 				level--;
 				continue;
+			}
+			/* A non-root forward target must have a usable pointer level. */
+			if (!SkipDBRecord_hasValidLevel_(r) || r->level == 0) {
+				fprintf(stderr, "SkipDB: invalid forward record level during key traversal\n");
+				SkipDB_clearUpdate(db);
+				UDB_close(db->udb);
+				return NULL;
 			}
 			if (NULL == r->key) {
 				SkipDB_clearUpdate(db);
