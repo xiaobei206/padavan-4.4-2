@@ -1843,6 +1843,13 @@ jobs:
                   "LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v, arg));",
                   "void *List_detect_(List *self, ListDetectCallback *callback)",
                   "LIST_SAFEFOREACH(self, i, v, if (v && (*callback)(v)) return v; );",
+                  "List *List_map_(List *self, ListCollectCallback *callback)",
+                  "List *List_select_(List *self, ListSelectCallback *callback)",
+                  "size_t originalSize = self ? self->size : 0;",
+                  "mapped = (*callback)(item);",
+                  "selected = (*callback)(item);",
+                  "List_append_(r, self->items[i]);",
+                  "A size change invalidates the source traversal contract.",
                   "void List_mapInPlace_(List *self, ListCollectCallback *callback)",
                   "originalSize = self->size;",
                   "if (!List_hasValidStorage_(self) || self->size != originalSize)",
@@ -1952,6 +1959,10 @@ jobs:
                   "List_removeTrueFor_(&malformed_target, remove_everything)",
                   "malformed_target.items[1] == saved_target_items[1]",
                   "List_asStackAllocatedUArray(&malformed_source)",
+                  "List map/select mutation fixture allocation failed",
+                  "List map/select mutation fixture append failed",
+                  "List_map_ continued iterating after callback appended to its source",
+                  "List_select_ continued iterating after callback appended to its source",
                   "List live callback traversal allocation failed",
                   "List live callback traversal fixture append failed",
                   "List_do_(do_list, shrink_metadata_for_do);",
@@ -2504,6 +2515,28 @@ jobs:
           list_source = Path(
               "trunk/user/skipdbv2/skipdbv2/basekit/List.c"
           ).read_text()
+          for label, signature, callback_call in (
+              ("map", "List *List_map_(List *self, ListCollectCallback *callback)", "mapped = (*callback)(item);"),
+              ("select", "List *List_select_(List *self, ListSelectCallback *callback)", "selected = (*callback)(item);"),
+          ):
+              start = list_source.find(signature)
+              end = list_source.find("\\n}", start)
+              body = list_source[start:end] if start >= 0 and end > start else ""
+              callback_pos = body.find(callback_call)
+              post_guard = body.find(
+                  "if (!List_hasValidStorage_(self) || self->size != originalSize)",
+                  callback_pos
+              )
+              if (
+                  not body or
+                  "size_t originalSize = self ? self->size : 0;" not in body or
+                  "i < originalSize" not in body or
+                  callback_pos < 0 or post_guard <= callback_pos or
+                  "List_free(r);" not in body or
+                  "return NULL;" not in body
+              ):
+                  raise SystemExit(f"List_{label} must stop and discard its result if a callback changes source storage size")
+
           list_callback_operations = (
               ("do", "void List_do_(List *self, ListDoCallback *callback)", "void List_do_with_", "LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v));"),
               ("do_with", "void List_do_with_(List *self, ListDoWithCallback *callback, void *arg)", "void List_mapInPlace_", "LIST_SAFEFOREACH(self, i, v, if (v) (*callback)(v, arg));"),

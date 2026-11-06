@@ -302,14 +302,34 @@ List *List_map_(List *self, ListCollectCallback *callback)
 {
 	List *r;
 	size_t i;
+	size_t originalSize = self ? self->size : 0;
+
 	if (NULL == callback || (self && !List_hasValidStorage_(self)))
 		return NULL;
 	r = List_new();
 	if (NULL == r)
 		return NULL;
-	for (i = 0; self && i < self->size; ++i) {
-		size_t oldSize = r->size;
-		List_append_(r, (*callback)(self->items[i]));
+
+	for (i = 0; self && i < originalSize; ++i) {
+		void *item;
+		void *mapped;
+		size_t oldSize;
+
+		if (!List_hasValidStorage_(self) || self->size != originalSize) {
+			List_free(r);
+			return NULL;
+		}
+		item = self->items[i];
+		mapped = (*callback)(item);
+
+		/* A size change invalidates the source traversal contract. */
+		if (!List_hasValidStorage_(self) || self->size != originalSize) {
+			List_free(r);
+			return NULL;
+		}
+
+		oldSize = r->size;
+		List_append_(r, mapped);
 		if (oldSize == (size_t)-1 || r->size != oldSize + 1) {
 			List_free(r);
 			return NULL;
@@ -322,14 +342,35 @@ List *List_select_(List *self, ListSelectCallback *callback)
 {
 	List *r;
 	size_t i;
+	size_t originalSize = self ? self->size : 0;
+
 	if (NULL == callback || (self && !List_hasValidStorage_(self)))
 		return NULL;
 	r = List_new();
 	if (NULL == r)
 		return NULL;
-	for (i = 0; self && i < self->size; ++i) {
-		if ((*callback)(self->items[i])) {
-			size_t oldSize = r->size;
+
+	for (i = 0; self && i < originalSize; ++i) {
+		void *item;
+		int selected;
+		size_t oldSize;
+
+		if (!List_hasValidStorage_(self) || self->size != originalSize) {
+			List_free(r);
+			return NULL;
+		}
+		item = self->items[i];
+		selected = (*callback)(item);
+
+		/* A size change invalidates the source traversal contract. */
+		if (!List_hasValidStorage_(self) || self->size != originalSize) {
+			List_free(r);
+			return NULL;
+		}
+
+		if (selected) {
+			oldSize = r->size;
+			/* Preserve the legacy behavior of selecting the current slot value. */
 			List_append_(r, self->items[i]);
 			if (oldSize == (size_t)-1 || r->size != oldSize + 1) {
 				List_free(r);

@@ -243,6 +243,74 @@ done:
 }
 
 
+
+static List *transform_callback_source;
+static void *transform_callback_append_item;
+static size_t transform_callback_calls;
+
+static void *append_source_during_map(void *item)
+{
+    if (transform_callback_calls++ == 0)
+        List_append_(transform_callback_source, transform_callback_append_item);
+    return item;
+}
+
+static int append_source_during_select(void *item)
+{
+    if (transform_callback_calls++ == 0)
+        List_append_(transform_callback_source, transform_callback_append_item);
+    return 1;
+}
+
+static int test_map_select_source_mutation(void)
+{
+    int values[] = {10, 20};
+    List *map_source = List_new();
+    List *select_source = List_new();
+    List *mapped = NULL;
+    List *selected = NULL;
+    int result = EXIT_FAILURE;
+
+    if (!map_source || !select_source) {
+        check(0, "List map/select mutation fixture allocation failed");
+        goto done;
+    }
+    if (List_append_(map_source, &values[0]) != &values[0] ||
+        List_append_(select_source, &values[0]) != &values[0]) {
+        check(0, "List map/select mutation fixture append failed");
+        goto done;
+    }
+
+    transform_callback_source = map_source;
+    transform_callback_append_item = &values[1];
+    transform_callback_calls = 0;
+    mapped = List_map_(map_source, append_source_during_map);
+    if (!check(NULL == mapped && transform_callback_calls == 1 &&
+        map_source->size == 2 && map_source->items[1] == &values[1],
+        "List_map_ continued iterating after callback appended to its source"))
+        goto done;
+
+    transform_callback_source = select_source;
+    transform_callback_calls = 0;
+    selected = List_select_(select_source, append_source_during_select);
+    if (!check(NULL == selected && transform_callback_calls == 1 &&
+        select_source->size == 2 && select_source->items[1] == &values[1],
+        "List_select_ continued iterating after callback appended to its source"))
+        goto done;
+
+    result = EXIT_SUCCESS;
+
+done:
+    transform_callback_source = NULL;
+    transform_callback_append_item = NULL;
+    transform_callback_calls = 0;
+    List_free(mapped);
+    List_free(selected);
+    List_free(map_source);
+    List_free(select_source);
+    return result;
+}
+
 static List *traversal_callback_list;
 static size_t traversal_callback_calls;
 
@@ -341,6 +409,8 @@ done:
 
 int main(void)
 {
+	if (test_map_select_source_mutation() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 	if (test_live_callback_traversals() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (test_remove_true_for_reentrancy() != EXIT_SUCCESS)

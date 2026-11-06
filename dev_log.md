@@ -1,3 +1,14 @@
+## 2026-11-07 00:12 CST — Bound List_map_ and List_select_ to their source snapshot
+
+- Baseline: main commit `124a86966bda32d179e30bbbec8b6e994ee29aa0`; SkipDBv2 Regression run #372 completed successfully.
+- Scope: callback-driven construction in `List_map_()` and `List_select_()`.
+- Both loops used the live `self->size` as their traversal bound. A callback that appended to its source could silently extend the current operation and, if it continued appending, make mapping/selection unbounded.
+- Capture the original source size and validate storage plus unchanged size before and after each callback. If user code structurally resizes the source, free the partial result and return `NULL`. Preserve NULL-source empty-list behavior and the existing selected-slot value semantics.
+- Extend `list_storage_bounds` with one-shot append callbacks for map/select and strengthen their source contracts. Reuse the existing CMake target; no new files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:02 CST — Make List filter reallocation fixture deterministic
 
 - CI #371 isolated the failure to the test's pointer-movement precondition: the filter fixture allocated its second List before the realloc blocker, so the allocator could still extend the first List's backing block in place.
