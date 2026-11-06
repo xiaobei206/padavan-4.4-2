@@ -154,14 +154,14 @@ IOINLINE void Stack_popMark(Stack *self)
 	mark = self->lastMark;
 	if (mark <= 0 || (size_t)mark > (size_t)(self->top - self->items))
 		return;
+	previous = (intptr_t)self->items[mark];
+	if (previous < 0 || previous >= mark)
+		return;
 
 #ifdef STACK_POP_CALLBACK
 	if (self->popCallback)
 		Stack_doUntilMark_(self, self->popCallback);
 #endif
-	previous = (intptr_t)self->items[mark];
-	if (previous < 0 || previous >= mark)
-		return;
 	self->top = self->items + (size_t)mark - 1;
 	self->lastMark = previous;
 }
@@ -184,11 +184,11 @@ IOINLINE int Stack_popMarkPoint_(Stack *self, intptr_t mark)
 		intptr_t previous;
 		if ((size_t)cursor > used)
 			return 0;
-		if (cursor == mark)
-			break;
-		previous = (intptr_t)self->items[cursor];
+		previous = (intptr_t)self->items[(size_t)cursor];
 		if (previous < 0 || previous >= cursor)
 			return 0;
+		if (cursor == mark)
+			break;
 		cursor = previous;
 	}
 	if (cursor != mark)

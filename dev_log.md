@@ -1,3 +1,23 @@
+## 2026-11-06 18:21 CST — Preflight the complete Stack mark chain before rollback
+
+### Baseline
+- Main commit `7193f2ee22ebc4acaecd7fec58fa2e50a915ac4b`; SkipDBv2 Regression run #312 passed.
+- Scope: Stack mark-pop and mark-point rollback in `Stack_inline.h`.
+
+### Defect and fix
+- `Stack_popMarkPoint_()` stopped validating as soon as it found the requested mark, so it did not validate that mark's predecessor before popping newer marks. A corrupt target predecessor could therefore cause a partial rollback while the function still returned success.
+- Validate every predecessor in the chain, including the requested mark, before the first mutation. `Stack_popMark()` now validates its predecessor before invoking optional pop callbacks.
+
+### Regression and contracts
+- Extend the existing `stack_lifecycle_test` with a malformed target mark and malformed current mark. Verify rejected rollback leaves the top cursor, last mark, and stack contents unchanged.
+- Extend workflow source contracts for validation order, regression assertions, and the existing CMake/CTest registration. No new files, public declarations, or target changes.
+
+### Validation
+- Static review confirms the complete mark chain is checked before unwinding and callback invocation follows predecessor validation.
+- Mainline CI run #313 will validate compilation and the full regression suite.
+
+---
+
 ## 2026-11-06 17:55 CST — Normalize malformed UTF-16 surrogate input
 
 ### Baseline

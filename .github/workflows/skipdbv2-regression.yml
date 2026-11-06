@@ -2301,14 +2301,56 @@ jobs:
               if ("NULL == self->memEnd" not in stack_body or
                       "self->top >= self->memEnd" not in stack_body):
                   raise SystemExit("Stack cursor reader must reject a missing allocation end and one-past-end cursor: " + stack_signature)
+          stack_pop_mark_start = stack_inline_source.find("IOINLINE void Stack_popMark(Stack *self)")
+          stack_pop_mark_end = stack_inline_source.find("\n}", stack_pop_mark_start)
+          stack_pop_mark_body = (
+              stack_inline_source[stack_pop_mark_start:stack_pop_mark_end]
+              if stack_pop_mark_start >= 0 and stack_pop_mark_end > stack_pop_mark_start
+              else ""
+          )
+          pop_mark_previous = stack_pop_mark_body.find("previous = (intptr_t)self->items[mark];")
+          pop_mark_callback = stack_pop_mark_body.find("#ifdef STACK_POP_CALLBACK")
+          if (pop_mark_previous < 0 or pop_mark_callback < 0 or
+                  pop_mark_previous > pop_mark_callback or
+                  stack_pop_mark_body.find("previous >= mark") < 0):
+              raise SystemExit("Stack_popMark must validate the predecessor before invoking pop callbacks")
+
+          stack_pop_point_start = stack_inline_source.find("IOINLINE int Stack_popMarkPoint_(Stack *self, intptr_t mark)")
+          stack_pop_point_end = stack_inline_source.find("\n}", stack_pop_point_start)
+          stack_pop_point_body = (
+              stack_inline_source[stack_pop_point_start:stack_pop_point_end]
+              if stack_pop_point_start >= 0 and stack_pop_point_end > stack_pop_point_start
+              else ""
+          )
+          pop_point_previous = stack_pop_point_body.find("previous = (intptr_t)self->items[(size_t)cursor];")
+          pop_point_validation = stack_pop_point_body.find("previous >= cursor")
+          pop_point_target = stack_pop_point_body.find("if (cursor == mark)")
+          if (min(pop_point_previous, pop_point_validation, pop_point_target) < 0 or
+                  not (pop_point_previous < pop_point_validation < pop_point_target)):
+              raise SystemExit("Stack_popMarkPoint_ must validate the target mark's predecessor before any mark is popped")
+
           stack_test = Path("trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c").read_text()
           for needle in ("invalid_bounds.top = invalid_bounds.memEnd;",
                          "Stack_totalSize(&invalid_bounds) != 0",
                          "Stack_popMarkPoint_(&invalid_bounds, outer_mark) != 0",
                          "Stack_do_(&invalid_bounds, count_stack_item);",
-                         "stack bounds callback ran on invalid storage"):
+                         "stack bounds callback ran on invalid storage",
+                         "invalid_chain = Stack_clone(marks);",
+                         "invalid_chain->items[outer_mark] = (void *)outer_mark;",
+                         "Stack_popMarkPoint_(invalid_chain, outer_mark) != 0",
+                         "invalid target mark partially changed the stack",
+                         "invalid_chain->items[inner_mark] = (void *)inner_mark;",
+                         "invalid current mark changed the stack"):
               if needle not in stack_test:
-                  raise SystemExit("Stack lifecycle regression lost one-past-end cursor coverage: " + needle)
+                  raise SystemExit("Stack lifecycle regression lost malformed mark-chain coverage: " + needle)
+
+          stack_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(stack_lifecycle_test",
+                         "${PROJECT_SOURCE_DIR}/tests/stack_lifecycle.c",
+                         "TARGET_LINK_LIBRARIES(stack_lifecycle_test skipdb m)",
+                         "add_test(NAME stack_lifecycle_test COMMAND stack_lifecycle_test)"):
+              if needle not in stack_cmake:
+                  raise SystemExit("Stack lifecycle regression is not registered in CMake/CTest: " + needle)
 
           common_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Common.c").read_text()
           endian_start = common_source.find("int io_isBigEndian(void)")

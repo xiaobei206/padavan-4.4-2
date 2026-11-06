@@ -18,6 +18,7 @@ int main(void)
 	Stack *destination = NULL;
 	Stack *clone = NULL;
 	Stack *marks = NULL;
+	Stack *invalid_chain = NULL;
 	int values[VALUE_COUNT];
 	intptr_t outer_mark;
 	size_t i;
@@ -126,6 +127,41 @@ int main(void)
 			goto done;
 		}
 	}
+	invalid_chain = Stack_clone(marks);
+	if (NULL == invalid_chain) {
+		fprintf(stderr, "malformed mark-chain clone failed\\n");
+		goto done;
+	}
+	{
+		intptr_t inner_mark = invalid_chain->lastMark;
+		void **saved_top = invalid_chain->top;
+		intptr_t saved_last_mark = invalid_chain->lastMark;
+
+		/* Corrupt the target mark's predecessor, not the newer mark. */
+		invalid_chain->items[outer_mark] = (void *)outer_mark;
+		if (Stack_popMarkPoint_(invalid_chain, outer_mark) != 0 ||
+			invalid_chain->top != saved_top ||
+			invalid_chain->lastMark != saved_last_mark ||
+			Stack_totalSize(invalid_chain) != 5 ||
+			Stack_top(invalid_chain) != &values[2]) {
+			fprintf(stderr, "invalid target mark partially changed the stack\\n");
+			goto done;
+		}
+
+		/* A malformed current mark must also be rejected before popping. */
+		invalid_chain->items[inner_mark] = (void *)inner_mark;
+		saved_top = invalid_chain->top;
+		saved_last_mark = invalid_chain->lastMark;
+		Stack_popMark(invalid_chain);
+		if (invalid_chain->top != saved_top ||
+			invalid_chain->lastMark != saved_last_mark) {
+			fprintf(stderr, "invalid current mark changed the stack\\n");
+			goto done;
+		}
+	}
+	Stack_free(invalid_chain);
+	invalid_chain = NULL;
+
 	if (!Stack_popMarkPoint_(marks, outer_mark) ||
 		Stack_totalSize(marks) != 1 || Stack_top(marks) != &values[0]) {
 		fprintf(stderr, "nested mark rollback failed\\n");
@@ -151,6 +187,7 @@ int main(void)
 	puts("stack lifecycle test passed");
 
 done:
+	Stack_free(invalid_chain);
 	Stack_free(clone);
 	Stack_free(marks);
 	Stack_free(destination);
