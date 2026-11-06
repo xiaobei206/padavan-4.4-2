@@ -1,3 +1,14 @@
+## 2026-11-06 23:01 CST — Guard UArray unary math transforms
+
+- Baseline: main commit `43f04fa30e56dbc3d481b98e4bc41fc9d2ba3c39`; SkipDBv2 Regression run #357 completed successfully.
+- Scope: the generated unary math family in `basekit/UArray_math.c` (trigonometric, hyperbolic, exponential, logarithmic, square-root, rounding, and absolute-value transforms).
+- The shared `UARRAY_DOP` macro iterated unvalidated array metadata, silently omitted the pointer-sized type only because the assignment switch had no matching case, and never invalidated the receiver's cached hash after writing values.
+- Validate numeric storage before dispatch, explicitly reject `CTYPE_uintptr_t`, leave empty arrays untouched, and clear the hash after each nonempty transform. Preserve the existing scalar math and conversion behavior for valid numeric inputs.
+- Extend the existing `uarray_math_extrema` test with the complete generated transform family, NULL/empty/malformed storage, pointer-sized arrays, and hash lifecycle. Tighten the workflow source contracts; reuse the existing CMake target and add no files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:00 CST — Guard UArray scalar arithmetic mutations
 
 - Baseline: main commit `928c5c1c4812b05cefc9a99d1c6f9b2e221916e3`; SkipDBv2 Regression run #356 passed all 55 CTest cases after the elementwise arithmetic cache fix.

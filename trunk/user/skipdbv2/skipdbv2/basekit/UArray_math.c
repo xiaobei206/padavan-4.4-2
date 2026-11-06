@@ -488,7 +488,14 @@ void UArray_logicalAnd_(UArray *self, const UArray *other)
 // trigonometry
 
 #define UARRAY_DOP(OP) \
-void UArray_ ## OP (UArray *self) { UARRAY_FOREACHASSIGN(self, i, v, OP((double)v)); }
+void UArray_ ## OP (UArray *self) \
+{ \
+	if (!UArray_hasValidNumericStorage_(self) || \
+		self->itemType == CTYPE_uintptr_t || self->size == 0) \
+		return; \
+	UARRAY_FOREACHASSIGN(self, i, v, OP((double)v)); \
+	UArray_changed(self); \
+}
 
 UARRAY_DOP(sin);
 UARRAY_DOP(cos);

@@ -506,6 +506,128 @@ cleanup:
     return result;
 }
 
+
+typedef void (*UArrayUnaryTransform_)(UArray *);
+typedef double (*UArrayUnaryMathFunction_)(double);
+
+typedef struct {
+    UArrayUnaryTransform_ transform;
+    UArrayUnaryMathFunction_ expected;
+} UArrayUnaryTransformCase_;
+
+static int test_unary_transforms(void)
+{
+    static const double initial[] = {0.25, 0.5};
+    static const uintptr_t pointerValues[] = {1, 2};
+    static const UArrayUnaryTransformCase_ transforms[] = {
+        {UArray_sin, sin},
+        {UArray_cos, cos},
+        {UArray_tan, tan},
+        {UArray_asin, asin},
+        {UArray_acos, acos},
+        {UArray_atan, atan},
+        {UArray_sinh, sinh},
+        {UArray_cosh, cosh},
+        {UArray_tanh, tanh},
+        {UArray_exp, exp},
+        {UArray_log, log},
+        {UArray_log10, log10},
+        {UArray_sqrt, sqrt},
+        {UArray_ceil, ceil},
+        {UArray_floor, floor},
+        {UArray_abs, fabs}
+    };
+    UArray *values = UArray_newWithData_type_size_copy_(
+        (void *)initial, CTYPE_float64_t, 2, 1);
+    UArray *empty = UArray_new();
+    UArray *pointerArray = UArray_newWithData_type_size_copy_(
+        (void *)pointerValues, CTYPE_uintptr_t, 2, 1);
+    UArray invalid;
+    size_t i;
+    int result = EXIT_FAILURE;
+
+    if (NULL == values || NULL == empty || NULL == pointerArray) {
+        fail("UArray unary transform allocation failed");
+        goto cleanup;
+    }
+
+    for (i = 0; i < sizeof(transforms) / sizeof(transforms[0]); ++i) {
+        memcpy(values->data, initial, sizeof(initial));
+        values->hash = (uintptr_t)(0x1000u + i);
+        transforms[i].transform(values);
+        transforms[i].transform(NULL);
+        if (values->hash != 0 ||
+            !nearEnough(UArray_rawDoubleAt_(values, 0),
+                        transforms[i].expected(initial[0]))) {
+            fail("UArray unary transform changed values or retained the cached hash");
+            goto cleanup;
+        }
+    }
+
+    empty->hash = 0x5151;
+    pointerArray->hash = 0x6161;
+    for (i = 0; i < sizeof(transforms) / sizeof(transforms[0]); ++i) {
+        transforms[i].transform(empty);
+        transforms[i].transform(pointerArray);
+    }
+    if (empty->hash != 0x5151 || empty->size != 0) {
+        fail("UArray unary transforms changed empty receiver state");
+        goto cleanup;
+    }
+    if (pointerArray->hash != 0x6161 ||
+        memcmp(pointerArray->data, pointerValues, sizeof(pointerValues)) != 0) {
+        fail("UArray unary transforms accepted pointer-sized item type");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.data = NULL;
+    invalid.hash = 0x7171;
+    for (i = 0; i < sizeof(transforms) / sizeof(transforms[0]); ++i)
+        transforms[i].transform(&invalid);
+    if (invalid.data != NULL || invalid.hash != 0x7171) {
+        fail("UArray unary transforms accepted missing backing storage");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemSize = 0;
+    invalid.hash = 0x8181;
+    for (i = 0; i < sizeof(transforms) / sizeof(transforms[0]); ++i)
+        transforms[i].transform(&invalid);
+    if (invalid.itemSize != 0 || invalid.hash != 0x8181) {
+        fail("UArray unary transforms accepted zero-width storage");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemType = (CTYPE)9999;
+    invalid.hash = 0x9191;
+    for (i = 0; i < sizeof(transforms) / sizeof(transforms[0]); ++i)
+        transforms[i].transform(&invalid);
+    if (invalid.itemType != (CTYPE)9999 || invalid.hash != 0x9191) {
+        fail("UArray unary transforms accepted unsupported item type");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    invalid.hash = 0xa1a1;
+    for (i = 0; i < sizeof(transforms) / sizeof(transforms[0]); ++i)
+        transforms[i].transform(&invalid);
+    if (invalid.hash != 0xa1a1) {
+        fail("UArray unary transforms accepted overflowing storage geometry");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(values);
+    UArray_free(empty);
+    UArray_free(pointerArray);
+    return result;
+}
+
 int main(void)
 {
     if (test_scalar_mutations() != EXIT_SUCCESS)
@@ -515,6 +637,8 @@ int main(void)
     if (test_reductions() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_normalize() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (test_unary_transforms() != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
 
