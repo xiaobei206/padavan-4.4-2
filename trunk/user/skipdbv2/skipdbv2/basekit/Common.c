@@ -349,7 +349,7 @@ int io_isBigEndian(void)
 {
 	int i = 0x1;
 	uint8_t *s = (uint8_t *)(&i);
-	return s[0];
+	return s[0] == 0;
 }
 
 uint32_t io_uint32InBigEndian(uint32_t i)

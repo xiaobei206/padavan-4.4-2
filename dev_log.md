@@ -1,3 +1,22 @@
+## 2026-11-06 14:49 CST — Correct Common byte-order detection
+
+### Baseline
+- Main commit `04b9fe2f04cabfa82cf86a9545108829508baef2`; SkipDBv2 Regression run #277 passed source contracts, configure, full build, and CTest.
+
+### Defect and fix
+- `io_isBigEndian()` returned the first byte of integer 1. That yields 1 on little-endian systems and 0 on big-endian systems—the reverse of the function's contract. `io_uint32InBigEndian()` consequently applied byte swapping on the wrong architectures.
+- Return the boolean condition `s[0] == 0`, so the byte-swap helper can correctly preserve values on big-endian systems and swap on little-endian systems.
+
+### Regression and contracts
+- Extend the existing Common allocator test binary with a host-order probe and expected 32-bit big-endian conversion.
+- Extend static/dynamic workflow source contracts for the corrected probe and both regression assertions. Existing CMake target is reused.
+
+### Validation
+- Structural preflight verifies the corrected byte-order predicate and the two runtime assertions.
+- The workflow triggered by this commit is authoritative for compilation and test results.
+
+---
+
 ## 2026-11-06 14:47 CST — Guard trailing percent in UArray formatter
 
 ### Baseline

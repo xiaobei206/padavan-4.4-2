@@ -1,6 +1,7 @@
 #include "Common.h"
 
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,18 @@ int main(void)
     unsigned char *resized;
     unsigned char *copy;
     void *overflowed;
+    uint32_t endianProbe = 0x01020304U;
+    int expectedBigEndian = ((const unsigned char *)&endianProbe)[0] == 0x01;
+    uint32_t expectedNetwork = expectedBigEndian ? endianProbe : 0x04030201U;
+
+    if (io_isBigEndian() != expectedBigEndian) {
+        fprintf(stderr, "Common endian probe returned the opposite byte order\n");
+        return EXIT_FAILURE;
+    }
+    if (io_uint32InBigEndian(endianProbe) != expectedNetwork) {
+        fprintf(stderr, "32-bit big-endian conversion did not match host byte order\n");
+        return EXIT_FAILURE;
+    }
 
     io_resetMaxAllocatedBytes();
     tracked = (unsigned char *)io_malloc(16);

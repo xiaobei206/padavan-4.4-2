@@ -1132,6 +1132,9 @@ jobs:
                   "count != 0 && size > (size_t)-1 / count",
                   "if (NULL == ptr)",
                   "return m ? MemoryBlockToPtr(m) : NULL;",
+                  "int io_isBigEndian(void)",
+                  "return s[0] == 0;",
+                  "uint32_t io_uint32InBigEndian(uint32_t i)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/common_alloc.c": [
                   "io_malloc(16)",
@@ -1140,6 +1143,9 @@ jobs:
                   "io_realloc(tracked, (size_t)LONG_MAX)",
                   "failed realloc lost the original tracked block or counters",
                   "cpalloc(resized, 32)",
+                  "int expectedBigEndian = ((const unsigned char *)&endianProbe)[0] == 0x01;",
+                  "io_isBigEndian() != expectedBigEndian",
+                  "io_uint32InBigEndian(endianProbe) != expectedNetwork",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStream.c": [
                   "uint8_t BStream_readUint8(BStream *self)",
@@ -1657,6 +1663,16 @@ jobs:
                   raise SystemExit("Stack lifecycle regression lost one-past-end cursor coverage: " + needle)
 
           common_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Common.c").read_text()
+          endian_start = common_source.find("int io_isBigEndian(void)")
+          endian_end = common_source.find("uint32_t io_uint32InBigEndian(uint32_t i)", endian_start)
+          endian_body = common_source[endian_start:endian_end] if endian_start >= 0 and endian_end > endian_start else ""
+          if "return s[0] == 0;" not in endian_body:
+              raise SystemExit("Common endian probe must report big-endian only when the first byte of integer 1 is zero")
+          endian_test = Path("trunk/user/skipdbv2/skipdbv2/tests/common_alloc.c").read_text()
+          for needle in ("io_isBigEndian() != expectedBigEndian",
+                         "io_uint32InBigEndian(endianProbe) != expectedNetwork"):
+              if needle not in endian_test:
+                  raise SystemExit("Common endian regression coverage missing: " + needle)
           realloc_start = common_source.find("MemoryBlock *MemoryBlock_reallocToSize_(MemoryBlock *self, size_t size)")
           realloc_end = common_source.find("\n}", realloc_start)
           realloc_body = common_source[realloc_start:realloc_end] if realloc_start >= 0 and realloc_end > realloc_start else ""
