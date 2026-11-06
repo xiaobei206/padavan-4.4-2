@@ -2263,14 +2263,16 @@ jobs:
               zero_guard = body.find("if (minSize == 0)")
               float_dispatch = body.find(f"vfloat32_{'add' if label == 'add' else 'sub' if label == 'subtract' else 'mult'}(")
               generic_dispatch = body.find(f"DUARRAY_OP(UARRAY_BASICOP_TYPES, {'+=' if label == 'add' else '-=' if label == 'subtract' else '*='}, self, other);")
-              changed = body.find("UArray_changed(self);")
+              float_changed = body.find("UArray_changed(self);", float_dispatch)
+              generic_changed = body.rfind("UArray_changed(self);", 0, generic_dispatch) if generic_dispatch >= 0 else -1
               if (
                   not body or self_guard < 0 or other_guard < 0 or
                   first_type_access < 0 or self_guard > first_type_access or
                   other_guard > first_type_access or
                   "minSize = self->size < other->size ? self->size : other->size;" not in body or
                   zero_guard < 0 or float_dispatch < 0 or generic_dispatch < 0 or
-                  changed < 0 or changed < float_dispatch or changed < generic_dispatch or
+                  float_changed <= float_dispatch or
+                  generic_changed < 0 or generic_changed >= generic_dispatch or
                   "UArray_minSizeWith_(" in body
               ):
                   raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")

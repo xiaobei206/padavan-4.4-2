@@ -92,9 +92,15 @@ void UArray_add_(UArray *self, const UArray *other)
 		return;
 
 	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
+	{
 		vfloat32_add((float32_t *)self->data, (float32_t *)other->data, minSize);
+	}
 	else
+	{
+		/* UARRAY_BASICOP_TYPES returns from this function after dispatch. */
+		UArray_changed(self);
 		DUARRAY_OP(UARRAY_BASICOP_TYPES, +=, self, other);
+	}
 
 	UArray_changed(self);
 }
@@ -112,9 +118,15 @@ void UArray_subtract_(UArray *self, const UArray *other)
 		return;
 
 	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
+	{
 		vfloat32_sub((float32_t *)self->data, (float32_t *)other->data, minSize);
+	}
 	else
+	{
+		/* UARRAY_BASICOP_TYPES returns from this function after dispatch. */
+		UArray_changed(self);
 		DUARRAY_OP(UARRAY_BASICOP_TYPES, -=, self, other);
+	}
 
 	UArray_changed(self);
 }
@@ -132,9 +144,15 @@ void UArray_multiply_(UArray *self, const UArray *other)
 		return;
 
 	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
+	{
 		vfloat32_mult((float32_t *)self->data, (float32_t *)other->data, minSize);
+	}
 	else
+	{
+		/* UARRAY_BASICOP_TYPES returns from this function after dispatch. */
+		UArray_changed(self);
 		DUARRAY_OP(UARRAY_BASICOP_TYPES, *=, self, other);
+	}
 
 	UArray_changed(self);
 }

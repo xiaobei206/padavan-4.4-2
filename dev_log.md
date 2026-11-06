@@ -1,3 +1,10 @@
+## 2026-11-06 22:57 CST — Fix UArray generic arithmetic cache invalidation
+
+- CI #355 built successfully but `uarray_math_extrema_test` failed in the first generic elementwise add assertion: `UARRAY_BASICOP_TYPES` contains an early `return`, so the post-dispatch `UArray_changed(self)` was unreachable for generic type combinations. The float32 fast path did not have this issue.
+- Move cache invalidation into the generic branch immediately before the dispatch macro (which returns after performing the operation), while keeping post-operation invalidation for the float32 path. Extend the workflow contract to assert the different but necessary orderings for both paths.
+- Keep the regression test and existing CMake target unchanged. No new files or unrelated C changes.
+
+---
 ## 2026-11-06 22:56 CST — Fix UArray math source-contract search after forward declaration
 
 - CI #354 failed in the Python source-contract step before configure/build because the existing dot-product contract found the newly added elementwise validator forward declaration instead of the later function definition.
