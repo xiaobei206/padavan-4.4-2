@@ -1,3 +1,10 @@
+## 2026-11-07 01:10 CST — Correct all PortableTruncate contract block indentation
+
+- The #392 run still stopped in Python parsing: the inserted contract block had inconsistent indentation relative to the surrounding source-contract checks.
+- Replace the whole block and align the list body, continued condition, and error path with the neighboring checks.
+
+---
+
 ## 2026-11-07 01:10 CST — Correct remaining PortableTruncate contract indentation
 
 - Baseline: main commit `26ce3f2a481a27d27f89996ae5230af3a272b48e`; SkipDBv2 Regression run #392 still failed before configure because `truncate_source` remained over-indented in the workflow's embedded Python script.
