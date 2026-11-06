@@ -1,3 +1,10 @@
+## 2026-11-07 00:15 CST — Correct Date workflow function-boundary delimiter
+
+- CI #379 reached the updated Date contract but still stopped before configure/build. Its Python function-boundary lookup contained a double-escaped newline, so it searched for the literal characters `\\n` instead of the source newline and extracted an empty function body.
+- Reduce the delimiter to the workflow's normal single newline escape. The integer-order assertions and regression checks remain unchanged; no C source or test logic changed.
+
+---
+
 ## 2026-11-07 00:14 CST — Repair Date timezone workflow contract
 
 - CI #378 stopped in the pre-build source-contract step. The workflow's older Date-specific ordering check still required the replaced `double` conversion and `Date_splitSeconds_()` call, so it rejected the new checked-integer implementation before CMake or compilation.

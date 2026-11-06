@@ -3803,7 +3803,7 @@ jobs:
               raise SystemExit("Date_setSecond_ must validate tm_sec conversion and normalized microseconds")
 
           timezone_start = date_source.find("void Date_convertToTimeZone_(Date *self, struct timezone tz)")
-          timezone_end = date_source.find("\\n// time", timezone_start)
+          timezone_end = date_source.find("\n// time", timezone_start)
           timezone_body = date_source[timezone_start:timezone_end] if timezone_start >= 0 and timezone_end > timezone_start else ""
           timezone_order = [timezone_body.find(x) for x in (
               "if (NULL == self || self->tv.tv_usec < 0 || self->tv.tv_usec >= 1000000)",
