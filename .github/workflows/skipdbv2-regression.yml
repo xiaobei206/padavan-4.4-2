@@ -733,6 +733,10 @@ jobs:
                   "ADD_EXECUTABLE(main_args_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/main_args_lifecycle.c",
                   "add_test(NAME main_args_lifecycle_test COMMAND main_args_lifecycle_test)",
+                  "ADD_EXECUTABLE(dynlib_lifecycle_test",
+                  "${PROJECT_SOURCE_DIR}/tests/dynlib_lifecycle.c",
+                  "TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})",
+                  "add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -772,6 +776,29 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c": [
+                  "static int DynLib_replaceString_",
+                  "copy = (char *)io_malloc(length + 1);",
+                  "memcpy(copy, value, length + 1);",
+                  "*target = copy;",
+                  "static void DynLib_clearLoaderError_",
+                  "static int DynLib_captureLoaderError_",
+                  "symbol = dlsym(self->handle, symbolName);",
+                  "void DynLib_close(DynLib *self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/DynLib.h": [
+                  "BASEKIT_API void DynLib_updateError(DynLib *self);",
+                  "BASEKIT_API unsigned char DynLib_hasError(DynLib *self);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/dynlib_lifecycle.c": [
+                  "DynLib_free(NULL);",
+                  "DynLib_updateError(NULL);",
+                  "TEST_LIBRARY",
+                  "__skipdb_dynlib_missing_init__",
+                  "__skipdb_dynlib_missing_symbol__",
+                  "__skipdb_dynlib_missing_free__",
+                  "DynLib lifecycle test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/MainArgs.c": [
                   "static void MainArgs_freeArguments_",
@@ -1434,6 +1461,65 @@ jobs:
                          "MainArgs retained borrowed argument storage"):
               if needle not in main_args_test:
                   raise SystemExit("MainArgs lifecycle regression case missing: " + needle)
+
+          dynlib_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c").read_text()
+          replace_start = dynlib_source.find("static int DynLib_replaceString_(")
+          replace_end = dynlib_source.find("static void DynLib_clearLoaderError_(", replace_start)
+          replace_body = dynlib_source[replace_start:replace_end] if replace_start >= 0 and replace_end > replace_start else ""
+          positions = [replace_body.find(token) for token in (
+              "io_malloc(length + 1)", "if (NULL == copy)",
+              "memcpy(copy, value, length + 1)", "*target = copy;", "io_free(oldValue);")]
+          if not replace_body or min(positions) < 0 or positions != sorted(positions):
+              raise SystemExit("DynLib string replacement must copy and publish before releasing old storage")
+
+          open_start = dynlib_source.find("void DynLib_open(DynLib *self)")
+          open_end = dynlib_source.find("unsigned char DynLib_isOpen(", open_start)
+          open_body = dynlib_source[open_start:open_end] if open_start >= 0 and open_end > open_start else ""
+          init_lookup = open_body.find("DynLib_pointerForSymbolName_(self, self->initFuncName)")
+          init_close = open_body.find("dlclose(handle)", init_lookup)
+          if (not open_body or "if (NULL == self || self->handle)" not in open_body or
+                  init_lookup < 0 or init_close < 0 or init_close < init_lookup):
+              raise SystemExit("DynLib open must be idempotent and close a handle after failed init lookup")
+
+          close_start = dynlib_source.find("void DynLib_close(DynLib *self)")
+          close_end = dynlib_source.find("void *DynLib_pointerForSymbolName_(", close_start)
+          close_body = dynlib_source[close_start:close_end] if close_start >= 0 and close_end > close_start else ""
+          callback_lookup = close_body.find("DynLib_pointerForSymbolName_(self, self->freeFuncName)")
+          handle_close = close_body.find("dlclose(handle)")
+          if (not close_body or "if (NULL == self || NULL == self->handle)" not in close_body or
+                  callback_lookup < 0 or handle_close < 0 or handle_close < callback_lookup):
+              raise SystemExit("DynLib close must release the handle even when callback lookup fails")
+
+          symbol_start = dynlib_source.find("void *DynLib_pointerForSymbolName_(DynLib *self, const char *symbolName)")
+          symbol_body = dynlib_source[symbol_start:] if symbol_start >= 0 else ""
+          clear_error = symbol_body.find("DynLib_clearLoaderError_();")
+          lookup = symbol_body.find("symbol = dlsym(self->handle, symbolName);")
+          capture_error = symbol_body.find("DynLib_captureLoaderError_(self)")
+          if (not symbol_body or "if (NULL == self)" not in symbol_body or
+                  "if (NULL == symbolName || 0 == symbolName[0])" not in symbol_body or
+                  clear_error < 0 or lookup < 0 or capture_error < 0 or
+                  not (clear_error < lookup < capture_error)):
+              raise SystemExit("DynLib lookup must validate arguments and clear/call/capture loader errors in order")
+
+          dynlib_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/DynLib.h").read_text()
+          if ("DynLib_updateError(DynLib *self);" not in dynlib_header or
+                  "DynLib_hasError(DynLib *self);" not in dynlib_header):
+              raise SystemExit("DynLib error functions must have public declarations")
+
+          dynlib_test = Path("trunk/user/skipdbv2/skipdbv2/tests/dynlib_lifecycle.c").read_text()
+          for needle in ("DynLib_free(NULL);", "TEST_LIBRARY",
+                         "__skipdb_dynlib_missing_init__", "__skipdb_dynlib_missing_symbol__",
+                         "__skipdb_dynlib_missing_free__", "DynLib lifecycle test passed"):
+              if needle not in dynlib_test:
+                  raise SystemExit("DynLib lifecycle regression case missing: " + needle)
+
+          dynlib_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(dynlib_lifecycle_test",
+                         "${PROJECT_SOURCE_DIR}/tests/dynlib_lifecycle.c",
+                         "TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})",
+                         "add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test)"):
+              if needle not in dynlib_cmake:
+                  raise SystemExit("DynLib regression CMake registration missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

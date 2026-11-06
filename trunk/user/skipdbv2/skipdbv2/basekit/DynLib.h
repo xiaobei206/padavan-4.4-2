@@ -41,8 +41,10 @@ BASEKIT_API void DynLib_setFreeFuncName_(DynLib *self, const char *name);
 BASEKIT_API char *DynLib_freeFuncName(DynLib *self);
 BASEKIT_API void DynLib_setFreeArg_(DynLib *self, void *arg);
 
-BASEKIT_API void DynLib_setError_(DynLib *self, const char *path);
+BASEKIT_API void DynLib_setError_(DynLib *self, const char *error);
 BASEKIT_API char *DynLib_error(DynLib *self);
+BASEKIT_API void DynLib_updateError(DynLib *self);
+BASEKIT_API unsigned char DynLib_hasError(DynLib *self);
 
 BASEKIT_API void DynLib_open(DynLib *self);
 BASEKIT_API unsigned char DynLib_isOpen(DynLib *self);

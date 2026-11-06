@@ -1,234 +1,310 @@
 /*
-//metadoc DynLib license BSD revised
-/*metadoc DynLib history
-	based on DllHandle.c, contributed by Daniel A. Koepke
-	Reorg, Steve Dekorte, 2003-08-30
-	Window fix, Chuck Adams, 2004-02-06
-*/
-
+ * Cross-platform dynamic library lifecycle and symbol lookup.
+ */
 #include "Base.h"
 #include "DynLib.h"
-#include "PortableStrlcpy.h"
-
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #if defined(__WIN32__) || defined(WIN32) || defined(_WIN32) || defined(_MSC_VER)
 #include <windows.h>
-
-#define RTLD_NOW    0    /* don't support link flags */
+#define RTLD_NOW 0
 #define RTLD_GLOBAL 0
 
 static void *dlopen(const char *path, int mode)
 {
-	void *result;
-	result = (void *)LoadLibraryEx(path, NULL, 0);
-	if (result)
-		SetLastError(ERROR_SUCCESS);
-
-	return result;
+    HMODULE module;
+    (void)mode;
+    module = LoadLibraryExA(path, NULL, 0);
+    if (module)
+        SetLastError(ERROR_SUCCESS);
+    return (void *)module;
 }
 
 static int dlclose(void *handle)
 {
-	return FreeLibrary((HANDLE)handle);
+    if (NULL == handle) {
+        SetLastError(ERROR_INVALID_HANDLE);
+        return -1;
+    }
+    return FreeLibrary((HMODULE)handle) ? 0 : -1;
 }
 
 static const char *dlerror(void)
 {
-	// XXX this will leak the error string
+    static char message[256];
+    DWORD error = GetLastError();
 
-	LPSTR buf;
-	DWORD err;
-	err = GetLastError();
-	if (err == ERROR_SUCCESS)
-		return (char*)0;
-
-	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER
-				  | FORMAT_MESSAGE_IGNORE_INSERTS
-				  | FORMAT_MESSAGE_FROM_SYSTEM,
-				  NULL, err,
-				  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				  (LPSTR)&buf, 0, NULL);
-	return buf;
+    if (ERROR_SUCCESS == error)
+        return NULL;
+    if (0 == FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM |
+                            FORMAT_MESSAGE_IGNORE_INSERTS,
+                            NULL, error,
+                            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                            message, (DWORD)sizeof(message), NULL))
+        return "Windows dynamic loader operation failed";
+    return message;
 }
 
 static void *dlsym(void *handle, const char *symbol)
 {
-	return (void*)GetProcAddress((HANDLE)handle, symbol);
+    if (NULL == handle || NULL == symbol) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return NULL;
+    }
+    SetLastError(ERROR_SUCCESS);
+    return (void *)GetProcAddress((HMODULE)handle, symbol);
 }
-
-
 #else
 #include <dlfcn.h>
 #endif
 
+/* Copy before publishing so failed allocation and aliased input are safe. */
+static int DynLib_replaceString_(char **target, const char *value)
+{
+    size_t length;
+    char *copy;
+    char *oldValue;
+
+    if (NULL == target || NULL == value)
+        return 0;
+    length = strlen(value);
+    if ((size_t)-1 == length)
+        return 0;
+
+    copy = (char *)io_malloc(length + 1);
+    if (NULL == copy)
+        return 0;
+    memcpy(copy, value, length + 1);
+
+    oldValue = *target;
+    *target = copy;
+    io_free(oldValue);
+    return 1;
+}
+
+static void DynLib_clearLoaderError_(void)
+{
+#if defined(__WIN32__) || defined(WIN32) || defined(_WIN32) || defined(_MSC_VER)
+    SetLastError(ERROR_SUCCESS);
+#else
+    (void)dlerror();
+#endif
+}
+
+/* Loader error strings are transient; retain a private copy in DynLib. */
+static int DynLib_captureLoaderError_(DynLib *self)
+{
+    const char *message;
+
+    if (NULL == self)
+        return 0;
+    message = dlerror();
+    if (message) {
+        DynLib_setError_(self, message);
+        return 1;
+    }
+    DynLib_setError_(self, NULL);
+    return 0;
+}
+
 DynLib *DynLib_new(void)
 {
-	DynLib *self = (DynLib *)io_calloc(1, sizeof(DynLib));
-	DynLib_setPath_(self, "");
-	return self;
+    DynLib *self = (DynLib *)io_calloc(1, sizeof(DynLib));
+    if (NULL == self)
+        return NULL;
+    if (!DynLib_replaceString_(&self->path, "")) {
+        io_free(self);
+        return NULL;
+    }
+    return self;
 }
 
 void DynLib_free(DynLib *self)
 {
-	//DynLib_close(self);
-	if (self->path) io_free(self->path);
-	if (self->initFuncName) io_free(self->initFuncName);
-	if (self->freeFuncName) io_free(self->freeFuncName);
-	if (self->error) io_free(self->error);
-	io_free(self);
+    if (NULL == self)
+        return;
+
+    /* Destruction does not call the optional plugin callback, as historically. */
+    if (self->handle) {
+        DynLib_clearLoaderError_();
+        (void)dlclose(self->handle);
+        self->handle = NULL;
+    }
+    io_free(self->path);
+    io_free(self->initFuncName);
+    io_free(self->freeFuncName);
+    io_free(self->error);
+    io_free(self);
 }
 
 void DynLib_setPath_(DynLib *self, const char *path)
 {
-	size_t len = strlen(path);
-	char *ptr = (char*)io_realloc(self->path, len + 1);
-	PortableStrlcpy(ptr, path, len + 1);
-	self->path = ptr;
+    if (self)
+        (void)DynLib_replaceString_(&self->path, path);
 }
 
 char *DynLib_path(DynLib *self)
 {
-	return self->path;
+    return self ? self->path : NULL;
 }
 
 void DynLib_setInitFuncName_(DynLib *self, const char *name)
 {
-	size_t len = strlen(name);
-	char* ptr = (char*)io_realloc(self->initFuncName, len + 1);
-	PortableStrlcpy(ptr, name, len + 1);
-	self->initFuncName = ptr;
+    if (self)
+        (void)DynLib_replaceString_(&self->initFuncName, name);
 }
 
 char *DynLib_initFuncName(DynLib *self)
 {
-	return self->initFuncName;
+    return self ? self->initFuncName : NULL;
 }
 
 void DynLib_setInitArg_(DynLib *self, void *arg)
 {
-	self->initArg = arg;
+    if (self)
+        self->initArg = arg;
 }
 
 void DynLib_setFreeFuncName_(DynLib *self, const char *name)
 {
-	size_t len = strlen(name);
-	char* ptr = (char*)io_realloc(self->freeFuncName, len + 1);
-	PortableStrlcpy(ptr, name, len + 1);
-	self->freeFuncName = ptr;
+    if (self)
+        (void)DynLib_replaceString_(&self->freeFuncName, name);
 }
 
 char *DynLib_freeFuncName(DynLib *self)
 {
-	return self->freeFuncName;
+    return self ? self->freeFuncName : NULL;
 }
 
 void DynLib_setFreeArg_(DynLib *self, void *arg)
 {
-	self->freeArg = arg;
+    if (self)
+        self->freeArg = arg;
 }
 
-void DynLib_setError_(DynLib *self,const char *error)
+void DynLib_setError_(DynLib *self, const char *error)
 {
-	if (error)
-	{
-		self->error = strcpy((char *)io_realloc(self->error, strlen(error)+1), error);
-	}
-	else
-	{
-		if (self->error) io_free(self->error);
-		self->error = NULL;
-	}
+    if (NULL == self)
+        return;
+    if (NULL == error) {
+        io_free(self->error);
+        self->error = NULL;
+        return;
+    }
+    (void)DynLib_replaceString_(&self->error, error);
 }
 
 char *DynLib_error(DynLib *self)
 {
-	return self->error;
+    return self ? self->error : NULL;
 }
 
 void DynLib_updateError(DynLib *self)
 {
-	DynLib_setError_(self, dlerror());
+    (void)DynLib_captureLoaderError_(self);
 }
 
 unsigned char DynLib_hasError(DynLib *self)
 {
-	return self->error != NULL;
+    return (self && self->error) ? 1 : 0;
 }
 
 void DynLib_open(DynLib *self)
 {
-	self->handle = dlopen(self->path, RTLD_NOW | RTLD_GLOBAL); /* RTLD_LAZY); */
-	//self->handle = dlopen(self->path, RTLD_NOW | RTLD_LAZY);
-	DynLib_updateError(self);
+    void *function;
 
-	if (DynLib_hasError(self))
-	{
-		return;
-	}
+    if (NULL == self || self->handle)
+        return;
+    DynLib_setError_(self, NULL);
+    if (NULL == self->path || 0 == self->path[0]) {
+        DynLib_setError_(self, "library path is empty");
+        return;
+    }
 
-	if (self->initFuncName)
-	{
-		void *f = DynLib_pointerForSymbolName_(self, self->initFuncName);
+    DynLib_clearLoaderError_();
+    self->handle = dlopen(self->path, RTLD_NOW | RTLD_GLOBAL);
+    if (NULL == self->handle) {
+        if (!DynLib_captureLoaderError_(self))
+            DynLib_setError_(self, "library could not be opened");
+        return;
+    }
+    (void)DynLib_captureLoaderError_(self);
 
-		if (!f)
-		{
-			DynLib_setError_(self, "init function not found");
-			return;
-		}
-
-		if (self->initArg)
-		{
-			//printf("DynLib: opening with 1 arg %p\n", self->initArg);
-			(*(DynLibOneArgFunction *)f)(self->initArg);
-		}
-		else
-		{
-			(*(DynLibNoArgFunction *)f)();
-		}
-	}
+    if (self->initFuncName && self->initFuncName[0]) {
+        function = DynLib_pointerForSymbolName_(self, self->initFuncName);
+        if (NULL == function) {
+            void *handle = self->handle;
+            DynLib_clearLoaderError_();
+            if (0 == dlclose(handle))
+                self->handle = NULL;
+            else if (!DynLib_captureLoaderError_(self))
+                DynLib_setError_(self, "library could not be closed after init lookup failure");
+            return;
+        }
+        if (self->initArg)
+            (*(DynLibOneArgFunction *)function)(self->initArg);
+        else
+            (*(DynLibNoArgFunction *)function)();
+    }
 }
 
 unsigned char DynLib_isOpen(DynLib *self)
 {
-	return self->handle != NULL;
+    return (self && self->handle) ? 1 : 0;
 }
 
 void DynLib_close(DynLib *self)
 {
-	if (self->freeFuncName)
-	{
-		void *f = DynLib_pointerForSymbolName_(self, self->freeFuncName);
+    void *function;
+    void *handle;
+    int callbackFailed = 0;
 
-		if (!f)
-		{
-			DynLib_setError_(self, "io_free function not found");
-			return;
-		}
+    if (NULL == self || NULL == self->handle)
+        return;
+    if (self->freeFuncName && self->freeFuncName[0]) {
+        function = DynLib_pointerForSymbolName_(self, self->freeFuncName);
+        if (function) {
+            if (self->freeArg)
+                (*(DynLibOneArgFunction *)function)(self->freeArg);
+            else
+                (*(DynLibNoArgFunction *)function)();
+        } else {
+            callbackFailed = 1;
+        }
+    }
 
-		if (self->freeArg)
-		{
-			(*(DynLibOneArgFunction *)f)(self->freeArg);
-		}
-		else
-		{
-			(*(DynLibNoArgFunction *)f)();
-		}
-	}
-
-	if (self->handle)
-	{
-		dlclose(self->handle);
-	}
-
-	self->handle = NULL;
+    handle = self->handle;
+    DynLib_clearLoaderError_();
+    if (0 == dlclose(handle)) {
+        self->handle = NULL;
+        if (!callbackFailed)
+            DynLib_setError_(self, NULL);
+    } else if (!DynLib_captureLoaderError_(self)) {
+        DynLib_setError_(self, "library could not be closed");
+    }
 }
 
 void *DynLib_pointerForSymbolName_(DynLib *self, const char *symbolName)
 {
-	DynLib_setError_(self, dlerror());
-	return dlsym(self->handle, symbolName);
-}
+    void *symbol;
 
+    if (NULL == self)
+        return NULL;
+    if (NULL == symbolName || 0 == symbolName[0]) {
+        DynLib_setError_(self, "symbol name is empty");
+        return NULL;
+    }
+    if (NULL == self->handle) {
+        DynLib_setError_(self, "library is not open");
+        return NULL;
+    }
+
+    DynLib_setError_(self, NULL);
+    DynLib_clearLoaderError_();
+    symbol = dlsym(self->handle, symbolName);
+    if (DynLib_captureLoaderError_(self))
+        return NULL;
+    if (NULL == symbol)
+        DynLib_setError_(self, "symbol was not found");
+    return symbol;
+}

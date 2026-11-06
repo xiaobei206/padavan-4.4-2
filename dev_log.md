@@ -1,3 +1,24 @@
+## 2026-11-06 13:05 CST — Harden DynLib allocation, loader errors, and handle lifecycle
+
+### Baseline and scope
+- Base commit: `7b881e7c61274ce5b4438fa0508dd8e33f20ae0e`; the latest mainline SkipDBv2 Regression run #241 passed.
+- Scope is limited to the basekit DynLib implementation/API, one lifecycle regression, its CMake registration, existing workflow source contracts, and this handoff log.
+
+### Changes
+- Make construction and string replacement allocation-safe; copy replacement strings before publishing and freeing the previous value, including when the input aliases the current string.
+- Make public accessors, setters, open/close, error, and symbol lookup paths safe for NULL receivers and invalid inputs.
+- Correct the POSIX loader-error sequence around `dlopen`, `dlsym`, and `dlclose`; capture transient error messages into DynLib-owned storage.
+- Keep repeated open/close idempotent, release a newly opened handle when configured init lookup fails, and close the OS handle even when the configured free callback cannot be resolved.
+- Ensure object destruction releases an open OS handle without invoking the optional plugin free callback, preserving the existing destructor behavior.
+- Add the existing error-update/query functions to the public header declarations.
+
+### Validation
+- Add a focused CTest for NULL safety, aliased string replacement, load failure/recovery, failed init lookup cleanup, repeated open, symbol lookup recovery, failed free callback cleanup, and destruction with an open handle.
+- Register the test against the existing basekit source glob and link the platform dynamic-loader library through `CMAKE_DL_LIBS`.
+- Extend existing workflow source contracts to verify transactional string ownership, loader error ordering, handle cleanup, public declarations, regression coverage, and CMake registration. Remote Linux regression is authoritative for compilation and execution.
+
+---
+
 ## 2026-11-06 12:47 CST — Make MainArgs argument replacement transactional
 
 ### Baseline and scope
