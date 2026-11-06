@@ -1,3 +1,13 @@
+## 2026-11-06 22:10 CST — Validate UArray hex conversion byte layout
+
+- Mainline CI #343 passed with the dot-product input validation.
+- Scope: UArray_asNewHexStringUArray() and the existing uarray_format_trailing_percent regression.
+- The hex converter checked itemSize == 1 but then fetched each element through UArray_longAt_(), whose typed dispatch follows itemType. A corrupted wide itemType paired with one-byte storage could read past the allocation.
+- Restrict this byte-string API to uint8_t/int8_t items and read the raw byte directly. Extend the existing format regression and workflow source contract; no new files or CMake changes.
+- No local C compilation is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-06 22:05 CST — Validate UArray dot-product input geometry
 
 - Mainline CI #342 passed with the UArray string-iteration layout checks.

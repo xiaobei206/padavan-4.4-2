@@ -31,8 +31,51 @@ int main(void)
         goto done;
     }
 
+    {
+        const unsigned char raw_bytes[] = { 0x00, 0xab, 0xff };
+        UArray *bytes = UArray_newWithData_type_size_copy_(
+            (void *)raw_bytes, CTYPE_uint8_t, sizeof(raw_bytes), 1);
+        UArray *hex = NULL;
+        if (NULL == bytes) {
+            fprintf(stderr, "UArray hex conversion fixture allocation failed\n");
+            goto done;
+        }
+        hex = UArray_asNewHexStringUArray(bytes);
+        if (!equals_bytes(hex, "00abff", 6)) {
+            fprintf(stderr, "UArray hex conversion changed byte order or casing\n");
+            UArray_free(hex);
+            UArray_free(bytes);
+            goto done;
+        }
+        UArray_free(hex);
+        hex = NULL;
+
+        bytes->itemType = CTYPE_int8_t;
+        hex = UArray_asNewHexStringUArray(bytes);
+        if (!equals_bytes(hex, "00abff", 6)) {
+            fprintf(stderr, "UArray hex conversion rejected a valid signed byte array\n");
+            UArray_free(hex);
+            UArray_free(bytes);
+            goto done;
+        }
+        UArray_free(hex);
+        hex = NULL;
+
+        /* A one-byte width paired with a wider type must never be read as a wide value. */
+        bytes->itemType = CTYPE_uint64_t;
+        hex = UArray_asNewHexStringUArray(bytes);
+        bytes->itemType = CTYPE_uint8_t;
+        if (NULL != hex) {
+            fprintf(stderr, "UArray hex conversion accepted malformed byte type\n");
+            UArray_free(hex);
+            UArray_free(bytes);
+            goto done;
+        }
+        UArray_free(bytes);
+    }
+
     result = EXIT_SUCCESS;
-    puts("UArray trailing format marker test passed");
+    puts("UArray trailing format marker and hex-byte test passed");
 
 done:
     UArray_free(normal);

@@ -1228,12 +1228,18 @@ jobs:
                   "if (*format == 0)",
                   "UArray_appendCString_(self, \"%\");",
                   "A trailing format marker must not advance past the terminator.",
+                  "self->itemType != CTYPE_uint8_t && self->itemType != CTYPE_int8_t",
+                  "unsigned char value = self->data[i];",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_format_trailing_percent.c": [
                   "UArray_newWithFormat_(\"prefix%\")",
                   "UArray_newWithFormat_(\"%\")",
                   "trailing format marker was not preserved safely",
                   "format consisting only of a percent marker was mishandled",
+                  "UArray hex conversion changed byte order or casing",
+                  "UArray hex conversion rejected a valid signed byte array",
+                  "UArray hex conversion accepted malformed byte type",
+                  "UArray trailing format marker and hex-byte test passed",
                   "UArray trailing format marker test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c": [
@@ -2216,6 +2222,20 @@ jobs:
               pointer_setter_body.find("UArray_hasValidPointerStorage_(self)") > pointer_setter_body.find("UArray_setSize_(self, pos + 1)")
           ):
               raise SystemExit("UArray pointer setter must reject malformed arrays before resizing")
+
+          format_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_format.c").read_text()
+          hex_start = format_source.find("UArray *UArray_asNewHexStringUArray(UArray *self)")
+          hex_body = format_source[hex_start:] if hex_start >= 0 else ""
+          hex_guard = hex_body.find("self->itemType != CTYPE_uint8_t && self->itemType != CTYPE_int8_t")
+          hex_read = hex_body.find("unsigned char value = self->data[i];")
+          if (
+              not hex_body or
+              hex_guard < 0 or
+              hex_read < 0 or
+              hex_guard > hex_read or
+              "UArray_longAt_(self, i)" in hex_body
+          ):
+              raise SystemExit("UArray hex conversion must validate byte-array metadata and read bounded raw bytes")
 
           split_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c").read_text()
           string_iteration_ranges = (

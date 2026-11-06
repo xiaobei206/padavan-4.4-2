@@ -120,7 +120,9 @@ UArray *UArray_asNewHexStringUArray(UArray *self)
 	static const char digits[] = "0123456789abcdef";
 	UArray *out;
 	size_t i, newSize;
-	if (NULL == self || self->itemSize != 1 ||
+	if (NULL == self ||
+		(self->itemType != CTYPE_uint8_t && self->itemType != CTYPE_int8_t) ||
+		self->itemSize != sizeof(uint8_t) ||
 		self->size > (size_t)-1 / 2 ||
 		(self->size > 0 && NULL == self->data))
 		return NULL;
@@ -135,7 +137,7 @@ UArray *UArray_asNewHexStringUArray(UArray *self)
 		return NULL;
 	}
 	for (i = 0; i < self->size; ++i) {
-		unsigned char value = (unsigned char)UArray_longAt_(self, i);
+		unsigned char value = self->data[i];
 		out->data[i * 2] = (uint8_t)digits[value >> 4];
 		out->data[i * 2 + 1] = (uint8_t)digits[value & 0x0f];
 	}
