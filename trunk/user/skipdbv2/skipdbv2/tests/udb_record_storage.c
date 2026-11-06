@@ -8,9 +8,11 @@
 int main(void)
 {
     UDB *db = NULL;
+    UDB *foreign_db = NULL;
     UDBRecord *record = NULL;
     UDBRecord *clone = NULL;
     UDBRecord *probe = NULL;
+    UDBRecord *foreign_record = NULL;
     unsigned char payload[] = {0x41, 0x00, 0x7f, 0x80, 0xff, 0x5a};
     Datum input = {sizeof(payload), payload};
     Datum invalid = {1, NULL};
@@ -18,7 +20,8 @@ int main(void)
     PID_TYPE saved_pos;
     long saved_file_end;
     char path[128];
-    int path_len;
+    char foreign_path[128];
+    int path_len, foreign_path_len;
     int result = EXIT_FAILURE;
 
     db = UDB_new();
@@ -179,13 +182,85 @@ int main(void)
         goto done;
     }
 
+    /*
+     * UDBRecords record cursors are scoped to one JFile. A foreign record
+     * must never be interpreted at the same byte offset in this database,
+     * or tombstoned through the other database's file handle.
+     */
+    foreign_db = UDB_new();
+    if (NULL == foreign_db) {
+        fprintf(stderr, "foreign UDB allocation failed\n");
+        goto done;
+    }
+    foreign_path_len = snprintf(foreign_path, sizeof(foreign_path),
+        "udb_record_storage_foreign_%ld", (long)getpid());
+    if (foreign_path_len < 0 ||
+        (size_t)foreign_path_len >= sizeof(foreign_path)) {
+        fprintf(stderr, "unable to construct foreign database path\n");
+        goto done;
+    }
+    UDB_setPath_(foreign_db, foreign_path);
+    UDB_delete(foreign_db);
+    UDB_open(foreign_db);
+    if (!UDB_isOpen(foreign_db)) {
+        fprintf(stderr, "foreign UDB open failed\n");
+        goto done;
+    }
+    {
+        unsigned char foreign_payload = 0x7b;
+        Datum foreign_datum = {1, &foreign_payload};
+        PID_TYPE foreign_pid;
+        UDB_beginTransaction(foreign_db);
+        foreign_pid = UDB_put_(foreign_db, foreign_datum);
+        if (!UDB_isOpen(foreign_db) || foreign_pid == 0) {
+            fprintf(stderr, "foreign UDB fixture append failed\n");
+            goto done;
+        }
+        UDB_commitTransaction(foreign_db);
+        if (!UDB_isOpen(foreign_db)) {
+            fprintf(stderr, "foreign UDB fixture commit failed\n");
+            goto done;
+        }
+    }
+    foreign_record = UDBRecords_firstRecord(foreign_db->records);
+    if (NULL == foreign_record || foreign_record->file != foreign_db->records->file ||
+        UDBRecord_size(foreign_record) != 1 || UDBRecord_isEmpty(foreign_record)) {
+        fprintf(stderr, "foreign UDB record fixture was not readable\n");
+        goto done;
+    }
+
+    /* The foreign record ends inside this DB's longer record payload. */
+    if (UDBRecords_recordAfter_(db->records, foreign_record) != NULL ||
+        !UDB_isOpen(db)) {
+        fprintf(stderr, "UDBRecords_recordAfter_ accepted a foreign record file\n");
+        goto done;
+    }
+
+    /* Make the foreign file writable so a missing owner guard is observable. */
+    UDB_beginTransaction(foreign_db);
+    if (UDBRecords_removeRecord_(db->records, foreign_record) != 0 ||
+        !UDBRecord_readHeader(foreign_record) ||
+        UDBRecord_isEmpty(foreign_record)) {
+        fprintf(stderr, "UDBRecords_removeRecord_ mutated a foreign record\n");
+        goto done;
+    }
+    UDB_commitTransaction(foreign_db);
+    if (!UDB_isOpen(foreign_db) || !UDB_isOpen(db)) {
+        fprintf(stderr, "cross-store record rejection damaged a database\n");
+        goto done;
+    }
+
     result = EXIT_SUCCESS;
     puts("udb record storage test passed");
 
 done:
+    if (foreign_record && (!foreign_db || foreign_record != foreign_db->records->record))
+        UDBRecord_free(foreign_record);
     if (clone) UDBRecord_free(clone);
     if (probe) UDBRecord_free(probe);
     if (record) UDBRecord_free(record);
+    UDB_delete(foreign_db);
+    UDB_free(foreign_db);
     UDB_delete(db);
     UDB_free(db);
     return result;

@@ -1,3 +1,13 @@
+## 2026-11-07 06:06 CST — Reject cross-file UDB record cursor and removal operations
+
+- Baseline: main commit `eb143b3e28ded87da1b1959263139bc8509567c3`; SkipDBv2 Regression run #444 passed source contracts, configure, full build, and all regression tests.
+- Scope: physical record cursor ownership in `udb/UDBRecordsCursor.c`.
+- `UDBRecords_recordAfter_()` accepted a record belonging to another `JFile`, then interpreted its offset against the receiver's record file. A foreign row ending inside a local record could be mistaken for a truncated header and close the wrong database. `UDBRecords_removeRecord_()` likewise tombstoned the supplied record through its own foreign file handle, then updated the receiver's free-list metadata with that foreign offset.
+- Require `record->file == self->file` before either operation; leave foreign records and both databases untouched on mismatch. Extend the existing `udb_record_storage_test` with two independent UDB files, a deliberately short foreign row, a wrong-store traversal check, and a write-enabled foreign tombstone check. Update the existing Actions contracts. No new files, declarations, headers, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:01 CST — Keep SkipDB cursor ownership registration consistent
 
 - Baseline: main commit `d0becbde4bb4d19cf501b985f2c7f08dbf56b652`; SkipDBv2 Regression run #443 passed source contracts, configure, complete build, and all regression tests.

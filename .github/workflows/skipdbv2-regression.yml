@@ -438,6 +438,8 @@ jobs:
                   "UDBRecords_nextPosition_(self->record, &nextPos)",
                   "UDBRecords_nextPosition_(record, &nextPos)",
                   "int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)",
+                  "NULL == self->file || record->file != self->file",
+                  "record->file != self->file)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsFreeList.c": [
                   "static int UDBRecords_isValidEmptyPosition_(PID_TYPE pos, size_t file_size)",
@@ -601,6 +603,12 @@ jobs:
                   "truncated record header was accepted",
                   "removal accepted a truncated record position",
                   "record tombstone did not survive commit",
+                  "UDBRecords_recordAfter_(db->records, foreign_record) != NULL",
+                  "UDBRecords_recordAfter_ accepted a foreign record file",
+                  "UDBRecords_removeRecord_(db->records, foreign_record) != 0",
+                  "UDBRecords_removeRecord_ mutated a foreign record",
+                  "foreign_record->file != foreign_db->records->file",
+                  "UDB_delete(foreign_db);",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBWrite.c": [
                   "static int UDB_rollbackJournalAppend(JFile *file, long log_start,",

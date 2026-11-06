@@ -50,7 +50,8 @@ UDBRecord *UDBRecords_nextRecord(UDBRecords *self)
 UDBRecord *UDBRecords_recordAfter_(UDBRecords *self, UDBRecord *record)
 {
 	PID_TYPE nextPos;
-	if (NULL == self || NULL == record || NULL == self->record)
+	if (NULL == self || NULL == record || NULL == self->record ||
+		NULL == self->file || record->file != self->file)
 		return NULL;
 	if (!UDBRecords_nextPosition_(record, &nextPos))
 		return NULL;
@@ -96,7 +97,8 @@ UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)
 int UDBRecords_removeRecord_(UDBRecords *self, UDBRecord *record)
 {
 	PID_TYPE pos;
-	if (NULL == self || NULL == record || NULL == self->file)
+	if (NULL == self || NULL == record || NULL == self->file ||
+		record->file != self->file)
 		return 0;
 	pos = UDBRecord_pos(record);
 	if (!UDBRecord_remove(record))
