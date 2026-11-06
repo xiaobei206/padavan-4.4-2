@@ -1,3 +1,23 @@
+## 2026-11-06 19:05 CST — Reject hard-linked JFile data and journal files
+
+### Baseline
+- Main commit `6aeb298670a0891b31ba9241623a9d96caedda6e`; SkipDBv2 Regression run #319 passed.
+- Scope: `JFile_openManagedFile_()` and the existing journal recovery regression.
+
+### Defect and fix
+- JFile already refused symlinks and verified file type, ownership, and inode identity, but it still accepted regular files with multiple hard links. This left the data-file and journal paths aliasable despite the new UDB commit-marker checks.
+- Require the opened inode's link count to equal one in the shared managed-file verifier. The same check now applies to existing data files and journals, as well as newly created files.
+
+### Regression and contracts
+- Extend `jfile_journal` to verify that opening an aliased data file and opening a normal data path with an aliased journal both fail closed. Retain the existing symlink and journal-recovery cases.
+- Update GitHub Actions source contracts; reuse the existing CMake/CTest target with no new files or exported declarations.
+
+### Validation
+- Static review confirms the opened descriptor is checked with `fstat` before it is wrapped as a `FILE *`, and failure follows the existing cleanup path.
+- Mainline CI will compile the modified persistence code and run the source-contract and regression suites.
+
+---
+
 ## 2026-11-06 19:03 CST — Reject hard-linked UDB commit markers and journals
 
 ### Baseline

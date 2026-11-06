@@ -91,6 +91,53 @@ int main(void)
 		goto done;
 	}
 
+	/* Both managed data files and journals must be single-link files. */
+	if (link(path, link_path) != 0) {
+		fprintf(stderr, "unable to create hard-linked data-file fixture\n");
+		goto done;
+	}
+	linked_file = JFile_new();
+	if (NULL == linked_file) {
+		fprintf(stderr, "unable to allocate hard-linked data-file fixture\n");
+		goto done;
+	}
+	JFile_setPath_(linked_file, link_path);
+	JFile_open(linked_file);
+	if (linked_file->file != NULL || linked_file->log != NULL) {
+		fprintf(stderr, "managed file open accepted a hard-linked data file\n");
+		goto done;
+	}
+	JFile_close(linked_file);
+	JFile_free(linked_file);
+	linked_file = NULL;
+	if (unlink(link_path) != 0) {
+		fprintf(stderr, "unable to remove hard-linked data-file fixture\n");
+		goto done;
+	}
+
+	if (link(file->logPath, link_path) != 0) {
+		fprintf(stderr, "unable to create hard-linked journal fixture\n");
+		goto done;
+	}
+	linked_file = JFile_new();
+	if (NULL == linked_file) {
+		fprintf(stderr, "unable to allocate hard-linked journal fixture\n");
+		goto done;
+	}
+	JFile_setPath_(linked_file, path);
+	JFile_open(linked_file);
+	if (linked_file->file != NULL || linked_file->log != NULL) {
+		fprintf(stderr, "managed file open accepted a hard-linked journal\n");
+		goto done;
+	}
+	JFile_close(linked_file);
+	JFile_free(linked_file);
+	linked_file = NULL;
+	if (unlink(link_path) != 0) {
+		fprintf(stderr, "unable to remove hard-linked journal fixture\n");
+		goto done;
+	}
+
 	/* A pre-existing symlink must never be followed as a managed data file. */
 	if (symlink(path, link_path) != 0) {
 		fprintf(stderr, "unable to create managed-file symlink fixture\n");
@@ -206,13 +253,13 @@ int main(void)
 		if (fd >= 0 && close(fd) != 0)
 			write_failed = 1;
 		if (write_failed) {
-			fprintf(stderr, "unable to create zero-length journal fixture\\n");
+			fprintf(stderr, "unable to create zero-length journal fixture\n");
 			goto done;
 		}
 	}
 	file->log = JFile_openManagedFile_(file->logPath, NULL);
 	if (NULL == file->log || JFile_verifyLog(file)) {
-		fprintf(stderr, "zero-length journal record was accepted\\n");
+		fprintf(stderr, "zero-length journal record was accepted\n");
 		goto done;
 	}
 
@@ -220,9 +267,11 @@ int main(void)
 
 done:
 	if (linked_file) {
-		JFile_remove(linked_file);
+		JFile_close(linked_file);
 		JFile_free(linked_file);
 	}
+	if (link_path[0])
+		unlink(link_path);
 	JFile_remove(file);
 	JFile_free(file);
 	return result;

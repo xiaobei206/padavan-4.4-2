@@ -173,7 +173,7 @@ static int JFile_verifyManagedFile_(int fd, const struct stat *before, int exist
 	}
 	if (fstat(fd, &after) != 0)
 		return -1;
-	if (!S_ISREG(after.st_mode) || after.st_uid != geteuid() ||
+	if (!S_ISREG(after.st_mode) || after.st_nlink != 1 || after.st_uid != geteuid() ||
 		(existed && (NULL == before || before->st_dev != after.st_dev ||
 			before->st_ino != after.st_ino))) {
 		errno = EPERM;
