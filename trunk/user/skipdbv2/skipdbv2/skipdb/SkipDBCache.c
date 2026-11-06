@@ -88,10 +88,77 @@ void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)
 		PHash_removeKey_(self->pidToRecord, (void *)SkipDBRecord_pid(r));
 }
 
+
+/* Bound every eviction walk and verify both directions of the cache-age chain. */
+static int SkipDB_cacheAgeListIsValid_(SkipDB *self)
+{
+	SkipDBRecord *record;
+	SkipDBRecord *younger = NULL;
+	size_t visited = 0;
+
+	if (NULL == self ||
+		((self->youngestRecord == NULL) != (self->cachedRecordCount == 0)))
+		return 0;
+
+	for (record = self->youngestRecord; record != NULL;
+		record = record->olderRecord) {
+		if (visited >= self->cachedRecordCount ||
+			record->youngerRecord != younger)
+			return 0;
+		younger = record;
+		visited++;
+	}
+	return visited == self->cachedRecordCount;
+}
+
+/* Break an older-link cycle and rebuild reverse links before cache teardown. */
+static void SkipDB_repairCacheAgeListForCleanup_(SkipDB *self)
+{
+	SkipDBRecord *slow, *fast;
+	SkipDBRecord *record, *younger = NULL;
+	size_t count = 0;
+
+	if (NULL == self)
+		return;
+
+	slow = self->youngestRecord;
+	fast = self->youngestRecord;
+	while (fast != NULL && fast->olderRecord != NULL) {
+		slow = slow->olderRecord;
+		fast = fast->olderRecord->olderRecord;
+		if (slow == fast) {
+			SkipDBRecord *cycleEntry;
+			SkipDBRecord *cycleTail;
+
+			slow = self->youngestRecord;
+			while (slow != fast) {
+				slow = slow->olderRecord;
+				fast = fast->olderRecord;
+			}
+			cycleEntry = slow;
+			cycleTail = cycleEntry;
+			while (cycleTail->olderRecord != cycleEntry)
+				cycleTail = cycleTail->olderRecord;
+			cycleTail->olderRecord = NULL;
+			break;
+		}
+	}
+
+	for (record = self->youngestRecord; record != NULL;
+		record = record->olderRecord) {
+		record->youngerRecord = younger;
+		younger = record;
+		count++;
+	}
+	self->cachedRecordCount = count;
+}
+
+
 void SkipDB_freeAllCachedRecords(SkipDB *self)
 {
 	if (NULL == self)
 		return;
+	SkipDB_repairCacheAgeListForCleanup_(self);
 	SkipDB_clearUpdate(self);
 	//SkipDBRecord *r = self->youngestRecord;
 	//self->headerPid = SkipDBRecord_pid(self->header);
@@ -197,6 +264,13 @@ void SkipDB_freeExcessCachedRecords(SkipDB *self)
 
 	if (self->cachedRecordCount > self->cacheHighWaterMark)
 	{
+		if (!SkipDB_cacheAgeListIsValid_(self)) {
+			fprintf(stderr, "SkipDB: refusing cache eviction with an invalid age list\n");
+			SkipDB_clearUpdate(self);
+			if (self->udb)
+				UDB_close(self->udb);
+			return;
+		}
 		/* Keep the root in the cache and clear marks left by earlier passes
 		 * before applying the current cursor/recent-record protection set. */
 		SkipDB_noteAccessedRecord_(self, self->header);

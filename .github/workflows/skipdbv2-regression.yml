@@ -313,6 +313,13 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c": [
                   "void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)",
                   "PHash_at_(self->pidToRecord, (void *)SkipDBRecord_pid(r)) == r",
+                  "static int SkipDB_cacheAgeListIsValid_(SkipDB *self)",
+                  "visited >= self->cachedRecordCount",
+                  "record->youngerRecord != younger",
+                  "static void SkipDB_repairCacheAgeListForCleanup_(SkipDB *self)",
+                  "cycleTail->olderRecord = NULL;",
+                  "SkipDB_repairCacheAgeListForCleanup_(self);",
+                  "SkipDB: refusing cache eviction with an invalid age list",
                   "void SkipDB_noteDirtyRecord_(SkipDB *self, SkipDBRecord *r)",
                   "static void SkipDB_clearCacheMarks_(SkipDB *self)",
                   "static void SkipDB_markRecentCacheRecords_(SkipDB *self, size_t lowMark)",
@@ -369,6 +376,10 @@ jobs:
                   "SkipDB_mergeInto_(source,target)",
                   "SkipDB_lastRecord(source)",
                   "cache eviction/lazy reload failed",
+                  "oldest->olderRecord = youngest;",
+                  "youngest->youngerRecord = oldest;",
+                  "cyclic cache age list was not rejected before eviction",
+                  "cache age-list cycle was not repaired during reopen cleanup",
                   "source->header=NULL;",
                   "commit proceeded with missing root record",
                   "transaction abort fixture write failed",
@@ -2489,6 +2500,34 @@ jobs:
           ).read_text()
           if record_cache_source.count("SkipDBRecord_hasValidCachePointers_(") != 3:
               raise SystemExit("SkipDB cache pointer metadata validation is not centralized")
+
+          cache_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c"
+          ).read_text()
+          age_validator_start = cache_source.find("static int SkipDB_cacheAgeListIsValid_(SkipDB *self)")
+          age_validator_end = cache_source.find("\n}", age_validator_start)
+          age_validator = cache_source[age_validator_start:age_validator_end] if age_validator_start >= 0 and age_validator_end > age_validator_start else ""
+          eviction_start = cache_source.find("void SkipDB_freeExcessCachedRecords(SkipDB *self)")
+          eviction_end = cache_source.find("\nvoid SkipDB_clearCache(", eviction_start)
+          eviction_body = cache_source[eviction_start:eviction_end] if eviction_start >= 0 and eviction_end > eviction_start else ""
+          cleanup_start = cache_source.find("void SkipDB_freeAllCachedRecords(SkipDB *self)")
+          cleanup_end = cache_source.find("\nvoid SkipDB_setCacheHighWaterMark_", cleanup_start)
+          cleanup_body = cache_source[cleanup_start:cleanup_end] if cleanup_start >= 0 and cleanup_end > cleanup_start else ""
+          validator_order = [age_validator.find(token) for token in (
+              "if (NULL == self ||",
+              "visited >= self->cachedRecordCount",
+              "record->youngerRecord != younger",
+              "return visited == self->cachedRecordCount;",
+          )]
+          eviction_guard = eviction_body.find("if (!SkipDB_cacheAgeListIsValid_(self))")
+          eviction_mutation = eviction_body.find("SkipDB_noteAccessedRecord_(self, self->header);")
+          cleanup_repair = cleanup_body.find("SkipDB_repairCacheAgeListForCleanup_(self);")
+          if (
+              not age_validator or min(validator_order) < 0 or validator_order != sorted(validator_order) or
+              eviction_guard < 0 or eviction_mutation < 0 or eviction_guard > eviction_mutation or
+              cleanup_repair < 0 or cleanup_repair > cleanup_body.find("while (self->youngestRecord)")
+          ):
+              raise SystemExit("SkipDB cache-age list must be bounded before eviction and normalized before teardown")
 
           record_write_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordWrite.c"

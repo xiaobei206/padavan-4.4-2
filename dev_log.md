@@ -1,3 +1,15 @@
+## 2026-11-07 04:58 CST — Bound SkipDB cache-age traversal and recover cycles
+
+- Baseline: main commit `41f6250563ec6d97b7de6562395a8749c4aade97`; SkipDBv2 Regression run #433 completed successfully after the UArray path-boundary correction.
+- Scope: cache age-list integrity and cleanup in `skipdb/SkipDBCache.c`, exercised by the existing `skipdb_core_layers` regression.
+- Cache eviction walked the `olderRecord` chain in several phases without a traversal bound or reciprocal-link check. A cycle could therefore hang a transaction commit indefinitely; cleanup also assumed the chain was acyclic.
+- Add a private preflight that verifies the age-list count and every `youngerRecord` back-link before eviction mutates marks, links, or records. Invalid state now aborts the active UDB transaction rather than partially evicting cache entries.
+- Before full cache teardown, use cycle detection to cut an older-link cycle, rebuild reverse links, and recompute the cache count so close/reopen cleanup can release the cache without looping.
+- Extend the existing core-layer test with a cyclic age-list fixture: commit must fail closed, and reopening must repair and reload persisted records. Existing CMake/CTest target is reused; no new files or public API.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 04:49 CST — Normalize trailing separators in UArray path boundaries
 
 - Baseline: main commit `95a33bd84b0749119122337db0e963c9ef5b81d4`; SkipDBv2 Regression run #432 passed source contracts, configure, full build, and all CTest cases.

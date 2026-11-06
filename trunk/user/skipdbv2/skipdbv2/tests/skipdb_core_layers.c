@@ -72,6 +72,44 @@ int main(void)
  if(!key_is(SkipDB_firstRecord(source),"alpha")||!key_is(SkipDB_lastRecord(source),"gamma")||
   !key_is(SkipDB_goto_(source,Datum_FromCString_("al")),"alpha")){
   fprintf(stderr,"first/last/lower-bound query failed\n");goto done;}
+
+	/* A cyclic age chain must abort eviction before any node is freed. */
+	{
+		SkipDBRecord *youngest = source->youngestRecord;
+		SkipDBRecord *oldest = youngest;
+		size_t cache_steps = 1;
+
+		if (NULL == youngest || source->cachedRecordCount < 2) {
+			fprintf(stderr, "cache age-list cycle fixture is unavailable\n");
+			goto done;
+		}
+		while (oldest->olderRecord != NULL &&
+			cache_steps < source->cachedRecordCount) {
+			oldest = oldest->olderRecord;
+			cache_steps++;
+		}
+		if (oldest->olderRecord != NULL ||
+			cache_steps != source->cachedRecordCount) {
+			fprintf(stderr, "cache age-list fixture count is inconsistent\n");
+			goto done;
+		}
+		oldest->olderRecord = youngest;
+		youngest->youngerRecord = oldest;
+		SkipDB_setCacheHighWaterMark_(source, 0);
+		SkipDB_beginTransaction(source);
+		SkipDB_commitTransaction(source);
+		if (SkipDB_isOpen(source)) {
+			fprintf(stderr, "cyclic cache age list was not rejected before eviction\n");
+			goto done;
+		}
+		if (!SkipDB_open(source) || !SkipDB_isOpen(source) ||
+			SkipDB_count(source) != 3 ||
+			!value_is(source, "alpha", "updated") ||
+			!value_is(source, "gamma", "4")) {
+			fprintf(stderr, "cache age-list cycle was not repaired during reopen cleanup\n");
+			goto done;
+		}
+	}
  /* A failed sync must abort, not commit the still-open UDB transaction. */
  {
   SkipDBRecord *saved_header=source->header;
