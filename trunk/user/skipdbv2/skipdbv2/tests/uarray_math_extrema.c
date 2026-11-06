@@ -1,9 +1,137 @@
 #include "UArray.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <float.h>
+#include <math.h>
+
 static int fail(const char *s) { fprintf(stderr, "%s\n", s); return EXIT_FAILURE; }
+static int nearEnough(double a, double b) { return fabs(a - b) <= 1e-12; }
+
+static int test_normalize(void)
+{
+    const double normalValues[] = {3.0, 4.0};
+    const double zeroValues[] = {0.0, 0.0};
+    const double largeValues[] = {DBL_MAX, DBL_MAX};
+    const double tinyValues[] = {DBL_MIN, DBL_MIN};
+    const double nonfiniteValues[] = {1.0, INFINITY};
+    UArray *normal = UArray_newWithData_type_size_copy_((void *)normalValues, CTYPE_float64_t, 2, 1);
+    UArray *zero = UArray_newWithData_type_size_copy_((void *)zeroValues, CTYPE_float64_t, 2, 1);
+    UArray *large = UArray_newWithData_type_size_copy_((void *)largeValues, CTYPE_float64_t, 2, 1);
+    UArray *tiny = UArray_newWithData_type_size_copy_((void *)tinyValues, CTYPE_float64_t, 2, 1);
+    UArray *nonfinite = UArray_newWithData_type_size_copy_((void *)nonfiniteValues, CTYPE_float64_t, 2, 1);
+    UArray *empty = UArray_new();
+    int result = EXIT_FAILURE;
+
+    if (!normal || !zero || !large || !tiny || !nonfinite || !empty) {
+        fail("UArray normalization allocation failed");
+        goto cleanup;
+    }
+
+    normal->hash = 0x1234;
+    UArray_normalize(normal);
+    if (!nearEnough(UArray_rawDoubleAt_(normal, 0), 0.6) ||
+        !nearEnough(UArray_rawDoubleAt_(normal, 1), 0.8) ||
+        normal->hash != 0) {
+        fail("UArray normalization failed for the 3-4 vector or retained its cached hash");
+        goto cleanup;
+    }
+
+    zero->hash = 0x2345;
+    UArray_normalize(zero);
+    if (UArray_rawDoubleAt_(zero, 0) != 0.0 ||
+        UArray_rawDoubleAt_(zero, 1) != 0.0 ||
+        zero->hash != 0x2345) {
+        fail("UArray normalization changed a zero vector");
+        goto cleanup;
+    }
+
+    UArray_normalize(large);
+    if (!nearEnough(UArray_rawDoubleAt_(large, 0), 0.7071067811865475) ||
+        !nearEnough(UArray_rawDoubleAt_(large, 1), 0.7071067811865475)) {
+        fail("UArray normalization failed for DBL_MAX values");
+        goto cleanup;
+    }
+
+    UArray_normalize(tiny);
+    if (!nearEnough(UArray_rawDoubleAt_(tiny, 0), 0.7071067811865475) ||
+        !nearEnough(UArray_rawDoubleAt_(tiny, 1), 0.7071067811865475)) {
+        fail("UArray normalization failed for DBL_MIN values");
+        goto cleanup;
+    }
+
+    nonfinite->hash = 0x3456;
+    UArray_normalize(nonfinite);
+    if (UArray_rawDoubleAt_(nonfinite, 0) != 1.0 ||
+        !isinf(UArray_rawDoubleAt_(nonfinite, 1)) ||
+        nonfinite->hash != 0x3456) {
+        fail("UArray normalization modified non-finite input");
+        goto cleanup;
+    }
+
+    {
+        uint8_t *originalData = normal->data;
+        normal->hash = 0x4567;
+        normal->data = NULL;
+        UArray_normalize(normal);
+        normal->data = originalData;
+        if (normal->hash != 0x4567 ||
+            !nearEnough(UArray_rawDoubleAt_(normal, 0), 0.6)) {
+            fail("UArray normalization accepted missing backing storage");
+            goto cleanup;
+        }
+    }
+
+    {
+        size_t originalItemSize = normal->itemSize;
+        normal->hash = 0x5678;
+        normal->itemSize = 0;
+        UArray_normalize(normal);
+        normal->itemSize = originalItemSize;
+        if (normal->hash != 0x5678 ||
+            !nearEnough(UArray_rawDoubleAt_(normal, 1), 0.8)) {
+            fail("UArray normalization accepted mismatched item width");
+            goto cleanup;
+        }
+    }
+
+    {
+        size_t originalSize = normal->size;
+        normal->hash = 0x6789;
+        normal->size = (size_t)-1 / normal->itemSize + 1;
+        UArray_normalize(normal);
+        normal->size = originalSize;
+        if (normal->hash != 0x6789 ||
+            !nearEnough(UArray_rawDoubleAt_(normal, 0), 0.6)) {
+            fail("UArray normalization accepted overflowing geometry");
+            goto cleanup;
+        }
+    }
+
+    empty->hash = 0x789a;
+    UArray_normalize(empty);
+    UArray_normalize(NULL);
+    if (empty->size != 0 || empty->hash != 0x789a) {
+        fail("UArray normalization changed an empty array");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(normal);
+    UArray_free(zero);
+    UArray_free(large);
+    UArray_free(tiny);
+    UArray_free(nonfinite);
+    UArray_free(empty);
+    return result;
+}
+
 int main(void)
 {
+    if (test_normalize() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+
+
     const int32_t negatives[] = {-11, -4, -19};
     const int32_t positives[] = {5, 12, 8};
     UArray *n = UArray_newWithData_type_size_copy_((void *)negatives, CTYPE_int32_t, 3, 1);

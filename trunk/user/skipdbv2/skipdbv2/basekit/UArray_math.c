@@ -496,13 +496,42 @@ BASEKIT_API void UArray_Min(UArray *self, const UArray *other)
 
 void UArray_normalize(UArray *self)
 {
-	double a;
-	UArray *s = UArray_clone(self);
-	UArray_square(s);
-	a = UArray_sumAsDouble(s);
-	UArray_free(s);
-	a = sqrt(a);
-	UArray_divideScalarDouble_(self, a);
+	size_t i;
+	double scale = 0.0;
+	double sum = 0.0;
+	double inverseNorm;
+
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t)
+		return;
+
+	for (i = 0; i < self->size; ++i)
+	{
+		double value = UArray_rawDoubleAt_(self, i);
+		double magnitude;
+
+		if (!isfinite(value))
+			return;
+		magnitude = fabs(value);
+		if (magnitude > scale)
+			scale = magnitude;
+	}
+
+	if (scale == 0.0)
+		return;
+
+	for (i = 0; i < self->size; ++i)
+	{
+		double scaledValue = UArray_rawDoubleAt_(self, i) / scale;
+		sum += scaledValue * scaledValue;
+	}
+
+	if (!(sum > 0.0) || !isfinite(sum))
+		return;
+
+	inverseNorm = 1.0 / sqrt(sum);
+	UARRAY_FOREACHASSIGN(self, i, v, ((double)v / scale) * inverseNorm);
+	UArray_changed(self);
 }
 
 void UArray_crossProduct_(UArray *self, const UArray *other)

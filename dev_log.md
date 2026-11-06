@@ -1,3 +1,13 @@
+## 2026-11-06 22:30 CST — Make UArray normalization scale-safe and allocation-free
+
+- Baseline: main commit `3ae2e440aa62e4f16c2f77b5277a737cff03ea18`; SkipDBv2 Regression run #348 passed all 55 CTest cases.
+- Scope: `UArray_normalize()` in the existing basekit math module and its `uarray_math_extrema` regression.
+- The previous implementation cloned and squared the array without checking allocation failure, then divided by a zero, underflowed, or overflowed norm. A failed clone could be dereferenced; zero vectors and extreme finite values could be corrupted.
+- Replace the temporary clone with a three-pass scaled norm: validate numeric storage and supported type, reject non-finite values before mutation, scale by the largest absolute element, accumulate bounded ratios, then normalize in place and invalidate the cached hash. Empty/zero, malformed, pointer-sized, and non-finite inputs remain unchanged.
+- Extend the existing test and workflow source contract for normal vectors, zero vectors, DBL_MAX/DBL_MIN ranges, non-finite input, malformed storage, and hash invalidation. Reuse the existing CMake/CTest target; no new files or build-list changes.
+- No local C compilation or CTest result is claimed; the next mainline CI run is the compile/runtime gate.
+
+---
 ## 2026-11-06 22:27 CST — Validate UArray UTF-8 multibyte iteration layout
 
 - Mainline CI #347 passed after the UArray cross-product storage guard.

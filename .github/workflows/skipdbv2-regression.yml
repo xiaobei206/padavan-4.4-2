@@ -1351,6 +1351,16 @@ jobs:
                   "UArray extrema accepted zero-width storage",
                   "UArray extrema accepted overflowing geometry",
                   "UArray math extrema test passed",
+                  "UArray normalization allocation failed",
+                  "UArray normalization failed for the 3-4 vector or retained its cached hash",
+                  "UArray normalization changed a zero vector",
+                  "UArray normalization failed for DBL_MAX values",
+                  "UArray normalization failed for DBL_MIN values",
+                  "UArray normalization modified non-finite input",
+                  "UArray normalization accepted missing backing storage",
+                  "UArray normalization accepted mismatched item width",
+                  "UArray normalization accepted overflowing geometry",
+                  "UArray normalization changed an empty array",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c": [
                   "UArray float32 cross product changed",
@@ -2217,6 +2227,30 @@ jobs:
               "self->size < 3 || other->size < 3" not in cross_body
           ):
               raise SystemExit("UArray cross product must validate both float32 layouts and three-item bounds before typed access")
+
+          normalize_start = bit_math_source.find("void UArray_normalize(UArray *self)")
+          normalize_end = bit_math_source.find("void UArray_crossProduct_", normalize_start)
+          normalize_body = bit_math_source[normalize_start:normalize_end] if normalize_start >= 0 and normalize_end > normalize_start else ""
+          normalize_storage_guard = normalize_body.find("UArray_hasValidNumericStorage_(self)")
+          normalize_finite_guard = normalize_body.find("if (!isfinite(value))")
+          normalize_zero_guard = normalize_body.find("if (scale == 0.0)")
+          normalize_mutation = normalize_body.find("UARRAY_FOREACHASSIGN(self, i, v, ((double)v / scale) * inverseNorm);")
+          if (
+              not normalize_body or
+              normalize_storage_guard < 0 or
+              normalize_finite_guard < 0 or
+              normalize_zero_guard < 0 or
+              normalize_mutation < 0 or
+              normalize_storage_guard > normalize_finite_guard or
+              normalize_finite_guard > normalize_mutation or
+              normalize_zero_guard > normalize_mutation or
+              "self->itemType == CTYPE_uintptr_t" not in normalize_body or
+              "if (!(sum > 0.0) || !isfinite(sum))" not in normalize_body or
+              "UArray_changed(self);" not in normalize_body or
+              "UArray_clone(" in normalize_body or
+              "UArray_square(" in normalize_body
+          ):
+              raise SystemExit("UArray normalization must validate storage and finite/nonzero scale before an allocation-free mutation")
 
           distance_start = bit_math_source.find("double UArray_distanceTo_(const UArray *self, const UArray *other)")
           distance_end = bit_math_source.find("\n// hash", distance_start)
