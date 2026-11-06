@@ -1,3 +1,13 @@
+## 2026-11-06 22:47 CST — Guard UArray index compaction
+
+- Baseline: main commit `c7338c3aef367699fed7fea6b61acd45306e9b6f`; SkipDBv2 Regression run #352 passed all 55 CTest cases, including the bitwise mutation guards.
+- Scope: `UArray_removeOddIndexes()` and `UArray_removeEvenIndexes()` in the existing basekit math module.
+- Both routines dereferenced the receiver and formed byte offsets from unchecked `itemSize` and `size`; NULL data and overflowing geometry could reach `memcpy`. They also changed bytes before shrinking, so a failed shrink allocation could leave a stale cached hash.
+- Validate the backing byte extent before pointer arithmetic, derive item count from the validated extent, and invalidate the hash immediately after in-place compaction (before the potentially failing shrink).
+- Extend the existing `uarray_stack_resize` regression and workflow source contract for retained-item order, hash state, NULL, zero-width, and overflowing storage. Reuse the existing CMake target; no new files or CMake changes.
+- No local C compilation or CTest result is claimed; mainline CI remains the build/runtime gate.
+
+---
 ## 2026-11-06 22:42 CST — Harden UArray bitwise mutation storage and hash lifecycle
 
 - Baseline: main commit `77fabdf63c62e130f59dfc792361568d13957024`; SkipDBv2 Regression run #351 passed all 55 CTest cases.

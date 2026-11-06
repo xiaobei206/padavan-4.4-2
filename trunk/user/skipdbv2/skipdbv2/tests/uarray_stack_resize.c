@@ -5,6 +5,84 @@
 #include <string.h>
 
 
+static int testIndexCompaction(void)
+{
+    const uint16_t source[] = {0x1111, 0x2222, 0x3333, 0x4444, 0x5555};
+    const uint16_t expectedOddRemoval[] = {0x1111, 0x3333, 0x5555};
+    const uint16_t expectedEvenRemoval[] = {0x2222, 0x4444};
+    UArray *oddRemoval = UArray_newWithData_type_size_copy_(
+        (void *)source, CTYPE_uint16_t, 5, 1);
+    UArray *evenRemoval = UArray_newWithData_type_size_copy_(
+        (void *)source, CTYPE_uint16_t, 5, 1);
+    UArray invalid;
+    int result = EXIT_FAILURE;
+
+    if (NULL == oddRemoval || NULL == evenRemoval) {
+        fprintf(stderr, "UArray index compaction allocation failed\n");
+        goto cleanup;
+    }
+
+    oddRemoval->hash = (uintptr_t)0x1234;
+    UArray_removeOddIndexes(oddRemoval);
+    if (oddRemoval->size != 3 ||
+        memcmp(oddRemoval->data, expectedOddRemoval, sizeof(expectedOddRemoval)) != 0 ||
+        oddRemoval->hash != 0) {
+        fprintf(stderr, "UArray_removeOddIndexes changed retained items or hash state\n");
+        goto cleanup;
+    }
+
+    evenRemoval->hash = (uintptr_t)0x5678;
+    UArray_removeEvenIndexes(evenRemoval);
+    if (evenRemoval->size != 2 ||
+        memcmp(evenRemoval->data, expectedEvenRemoval, sizeof(expectedEvenRemoval)) != 0 ||
+        evenRemoval->hash != 0) {
+        fprintf(stderr, "UArray_removeEvenIndexes changed retained items or hash state\n");
+        goto cleanup;
+    }
+
+    UArray_removeOddIndexes(NULL);
+    UArray_removeEvenIndexes(NULL);
+
+    invalid = *oddRemoval;
+    invalid.data = NULL;
+    invalid.hash = (uintptr_t)0x1111;
+    UArray_removeOddIndexes(&invalid);
+    UArray_removeEvenIndexes(&invalid);
+    if (invalid.size != oddRemoval->size || invalid.data != NULL ||
+        invalid.hash != (uintptr_t)0x1111) {
+        fprintf(stderr, "UArray index compaction accepted missing backing storage\n");
+        goto cleanup;
+    }
+
+    invalid = *oddRemoval;
+    invalid.itemSize = 0;
+    invalid.hash = (uintptr_t)0x2222;
+    UArray_removeOddIndexes(&invalid);
+    UArray_removeEvenIndexes(&invalid);
+    if (invalid.size != oddRemoval->size ||
+        invalid.hash != (uintptr_t)0x2222) {
+        fprintf(stderr, "UArray index compaction accepted zero-width storage\n");
+        goto cleanup;
+    }
+
+    invalid = *oddRemoval;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    invalid.hash = (uintptr_t)0x3333;
+    UArray_removeOddIndexes(&invalid);
+    UArray_removeEvenIndexes(&invalid);
+    if (invalid.size != (size_t)-1 / invalid.itemSize + 1 ||
+        invalid.hash != (uintptr_t)0x3333) {
+        fprintf(stderr, "UArray index compaction accepted overflowing storage geometry\n");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(oddRemoval);
+    UArray_free(evenRemoval);
+    return result;
+}
+
 static int testDuplicateIndexes(void)
 {
     uint16_t source[] = {0x1234, 0x5678, 0x9abc};
@@ -97,6 +175,10 @@ int main(void)
 
     if (!testDuplicateIndexes()) {
         fprintf(stderr, "UArray_duplicateIndexes failed safety or duplication checks\n");
+        goto done;
+    }
+    if (testIndexCompaction() != EXIT_SUCCESS) {
+        fprintf(stderr, "UArray index compaction failed safety or retained-item checks\n");
         goto done;
     }
 

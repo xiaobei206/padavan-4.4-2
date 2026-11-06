@@ -1707,6 +1707,13 @@ jobs:
                   "source[0] != 0x1234",
                   "UArray item-count overflow modified duplicate storage",
                   "UArray item-byte overflow modified duplicate storage",
+                  "UArray index compaction allocation failed",
+                  "UArray_removeOddIndexes changed retained items or hash state",
+                  "UArray_removeEvenIndexes changed retained items or hash state",
+                  "UArray index compaction accepted missing backing storage",
+                  "UArray index compaction accepted zero-width storage",
+                  "UArray index compaction accepted overflowing storage geometry",
+                  "UArray index compaction failed safety or retained-item checks",
                   "UArray_duplicateIndexes failed safety or duplication checks",
                   "UArray_stackAllocedWithData_type_size_",
                   "UArray_setSize_(&grown, 5)",
@@ -2330,6 +2337,25 @@ jobs:
               "float32_t d = a[i] - b[i];" in float64_branch
           ):
               raise SystemExit("UArray float64 distance must retain a float64 intermediate")
+
+          index_compaction_ranges = (
+              ("remove odd indexes", "void UArray_removeOddIndexes(UArray *self)", "void UArray_removeEvenIndexes"),
+              ("remove even indexes", "void UArray_removeEvenIndexes(UArray *self)", "void UArray_reverseItemByteOrders"),
+          )
+          for label, start_marker, end_marker in index_compaction_ranges:
+              start = bit_math_source.find(start_marker)
+              end = bit_math_source.find(end_marker, start)
+              body = bit_math_source[start:end] if start >= 0 and end > start else ""
+              storage_guard = body.find("UArray_hasValidBitStorage_(self, &byteCount)")
+              first_copy = body.find("memcpy(dest, src, itemSize);")
+              changed = body.find("UArray_changed(self);")
+              resize = body.find("UArray_setSize_(self, di);")
+              if (
+                  not body or storage_guard < 0 or first_copy < 0 or
+                  storage_guard > first_copy or changed < 0 or resize < 0 or
+                  changed > resize or "max = byteCount / itemSize;" not in body
+              ):
+                  raise SystemExit(f"UArray {label} must validate byte geometry before compaction and invalidate hash before shrinking")
 
           pointer_array_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text()
           pointer_helper_start = pointer_array_source.find("static int UArray_hasValidPointerStorage_(const UArray *self)")

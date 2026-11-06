@@ -792,46 +792,59 @@ BASEKIT_API void UArray_duplicateIndexes(UArray *self)
 
 void UArray_removeOddIndexes(UArray *self)
 {
-	size_t itemSize = self->itemSize;
-	size_t di = 1;
-	size_t si = 2;
-	size_t max = self->size;
-	uint8_t *b = self->data;
+	size_t byteCount;
+	size_t itemSize, di = 1, si = 2, max;
+	uint8_t *b;
 
-	if (max == 0)
-	{
+	if (!UArray_hasValidBitStorage_(self, &byteCount))
 		return;
-	}
 
+	itemSize = self->itemSize;
+	max = byteCount / itemSize;
+	if (max <= 1)
+		return;
+
+	b = self->data;
 	while (si < max)
 	{
-		uint8_t *src  = b + (si * itemSize);
+		uint8_t *src = b + (si * itemSize);
 		uint8_t *dest = b + (di * itemSize);
 		memcpy(dest, src, itemSize);
-		si = si + 2;
-		di = di + 1;
+		si += 2;
+		++di;
 	}
 
+	/* Compaction changes bytes even if the following shrink allocation fails. */
+	UArray_changed(self);
 	UArray_setSize_(self, di);
 }
 
 void UArray_removeEvenIndexes(UArray *self)
 {
-	size_t itemSize = self->itemSize;
-	size_t di = 0;
-	size_t si = 1;
-	size_t max = self->size;
-	uint8_t *b = self->data;
+	size_t byteCount;
+	size_t itemSize, di = 0, si = 1, max;
+	uint8_t *b;
 
+	if (!UArray_hasValidBitStorage_(self, &byteCount))
+		return;
+
+	itemSize = self->itemSize;
+	max = byteCount / itemSize;
+	if (max == 0)
+		return;
+
+	b = self->data;
 	while (si < max)
 	{
-		uint8_t *src  = b + (si * itemSize);
+		uint8_t *src = b + (si * itemSize);
 		uint8_t *dest = b + (di * itemSize);
 		memcpy(dest, src, itemSize);
-		si = si + 2;
-		di = di + 1;
+		si += 2;
+		++di;
 	}
 
+	/* Compaction changes bytes even if the following shrink allocation fails. */
+	UArray_changed(self);
 	UArray_setSize_(self, di);
 }
 
