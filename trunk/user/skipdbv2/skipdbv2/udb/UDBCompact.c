@@ -1,6 +1,8 @@
 /* UDB record-space compaction operations. */
 #include "UDB.h"
 #include <sys/types.h>
+#include <sys/time.h>
+#include <limits.h>
 
 // compact --------------------------------------------------- 
 
@@ -20,13 +22,16 @@ int UDB_compact(UDB *self)
 {
 	int count = 0;
 	int compactions;
-	
-	do 
-	{
+
+	do {
 		compactions = UDB_compactStepFor_(self, 0.1);
+		if (compactions > INT_MAX - count)
+			return INT_MAX;
 		count += compactions;
-	} while (compactions);
-	
+		if (count == INT_MAX)
+			return count;
+	} while (compactions > 0);
+
 	return count;
 }
 
@@ -46,12 +51,11 @@ static int UDB_compactionStreamsAreOpen_(UDB *self)
 		self->records->file->log != NULL;
 }
 
-int UDB_compactStepFor_(UDB *self, double maxSeconds)
+static int UDB_compactStepOnce_(UDB *self)
 {
 	UDBRecord *firstEmptyRecord, *record;
 	PID_TYPE oldEmptyPos, newEmptyPos, newSize;
 
-	(void)maxSeconds;
 	if (NULL == self || !self->isOpen || self->withinTransaction ||
 		NULL == self->records || NULL == self->index)
 		return 0;
@@ -138,5 +142,35 @@ int UDB_compactStepFor_(UDB *self, double maxSeconds)
 
 	UDB_commitTransaction(self);
 	return self->isOpen ? 1 : 0;
+}
+
+/*
+ * A nonpositive budget preserves the single-step API. Positive budgets perform
+ * whole compaction operations until the requested time slice expires or no
+ * further progress is possible.
+ */
+int UDB_compactStepFor_(UDB *self, double maxSeconds)
+{
+	struct timeval started, now;
+	int count = 0;
+	int has_time_budget = maxSeconds > 0.0 &&
+		gettimeofday(&started, NULL) == 0;
+
+	for (;;) {
+		double elapsed;
+		if (!UDB_compactStepOnce_(self))
+			return count;
+		if (count < INT_MAX)
+			++count;
+		if (count == INT_MAX || !has_time_budget)
+			return count;
+		if (gettimeofday(&now, NULL) != 0)
+			return count;
+		elapsed = (double)now.tv_sec - (double)started.tv_sec +
+			((double)now.tv_usec - (double)started.tv_usec) / 1000000.0;
+		/* A wall-clock adjustment must not extend a compaction slice. */
+		if (elapsed < 0.0 || elapsed >= maxSeconds)
+			return count;
+	}
 }
 

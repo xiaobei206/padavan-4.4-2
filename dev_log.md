@@ -1,3 +1,13 @@
+## 2026-11-07 06:50 CST — Honor UDB compaction time slices
+
+- Baseline: main commit `12c784c219925e43db8727aa615b14bf4a17b7f1`; SkipDBv2 Regression run #454 passed source contracts, configure, full build, and all regression tests.
+- Scope: compaction scheduling in `udb/UDBCompact.c`.
+- `UDB_compactStepFor_(self, maxSeconds)` ignored its time budget and performed at most one physical compaction operation; the public `UDB_compact()` consequently re-entered the transaction machinery for every tiny step instead of allowing a bounded slice to make multiple units of progress.
+- Isolate the existing atomic operation as `UDB_compactStepOnce_()`; let positive budgets repeat whole operations until the elapsed wall-clock slice expires or progress ends. Nonpositive budgets still perform at most one operation. Clock-read failures fall back to one step, backward clock adjustments do not extend a slice, and the integer operation count saturates rather than overflowing. Extend the existing compaction regression to verify that one positive time slice merges the adjacent hole and truncates the trailing extent. Update existing Actions contracts; no new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:46 CST — Keep Stack mark chains valid when ordinary pop reaches a mark
 
 - Baseline: main commit `00ec98bd155b3df120d76d7af2311949736b33c8`; SkipDBv2 Regression run #453 passed source contracts, configure, full build, and all regression tests.

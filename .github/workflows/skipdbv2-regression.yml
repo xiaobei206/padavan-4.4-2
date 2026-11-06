@@ -535,13 +535,19 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/udb/UDBCompact.c": [
                   "static int UDB_compactionStreamsAreOpen_(UDB *self)",
                   "UDB_compactionStreamsAreOpen_(self)",
+                  "static int UDB_compactStepOnce_(UDB *self)",
                   "int UDB_compactStepFor_(UDB *self, double maxSeconds)",
+                  "gettimeofday(&started, NULL)",
+                  "elapsed >= maxSeconds",
+                  "if (compactions > INT_MAX - count)",
                   "UDBRecord_totalSize(record) > UDBRecord_totalSize(firstEmptyRecord)",
                   "UDBRecords_truncate_(self->records, (off_t)tail_pos)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_reserved_pid.c": [
                   "UDBCommitMarker_write(&db->commitMarker, 1)",
                   "UDB_compactStep(db)",
+                  "UDB_compactStepFor_(db, 5.0)",
+                  "time-sliced compaction did not merge and truncate in one call",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_record_api.c": [
                   "invalid.size = 1",
