@@ -1,3 +1,11 @@
+## 2026-11-06 16:50 CST — Repair UArray distance CI boundary matcher
+
+- Run #302 reached the source-contract phase and stopped before configure/build because the newly added Python check escaped the newline delimiter twice, leaving the distance-function slice empty.
+- Corrected the workflow boundary matcher to search for an actual newline before the next section marker. The float64 implementation and regression case are unchanged.
+- The next run will re-evaluate the source contract and then proceed to build and CTest.
+
+---
+
 ## 2026-11-06 16:49 CST — Preserve float64 precision in UArray distance
 
 ### Baseline
