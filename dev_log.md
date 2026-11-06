@@ -1,3 +1,23 @@
+## 2026-11-06 19:32 CST — Validate UArray distance vector storage
+
+### Baseline
+- Main commit `a2e9998aa0a1ef50863b81e1bcbfc133cbbf75d4`; SkipDBv2 Regression run #326 passed.
+- Scope: `UArray_distanceTo_()` and its existing precision regression.
+
+### Defect and fix
+- The function dereferenced both receivers before checking for NULL. Matching floating-point `itemType` alone also allowed inconsistent `itemSize` metadata or missing backing storage to reach typed reads.
+- Add a private validator for float32/float64 vectors, require exact C-type width, representable item-byte geometry, and backing storage before reading. Preserve the existing zero result for unequal lengths, unsupported types, and invalid inputs; use const input pointers.
+
+### Regression and contracts
+- Extend `uarray_distance_precision` with NULL receiver, missing-storage, malformed-width, overflowing-geometry, and non-floating-type cases.
+- Update the existing GitHub Actions source contracts. Reuse the current CMake/CTest target; no new files or public declarations.
+
+### Validation
+- Static review confirms distance loops execute only after both arrays pass validation and their type and element counts match. Existing float32, tiny float64, large float64, and unequal-length behavior remains covered.
+- Mainline CI run #327 will compile the change and execute the full regression suite.
+
+---
+
 ## 2026-11-06 19:30 CST — Validate UArray storage before unescaping
 
 ### Baseline

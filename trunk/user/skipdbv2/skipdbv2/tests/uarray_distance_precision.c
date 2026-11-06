@@ -72,6 +72,55 @@ int main(void)
         goto failed;
     }
 
+    if (UArray_distanceTo_(NULL, floatB) != 0.0 ||
+        UArray_distanceTo_(floatA, NULL) != 0.0) {
+        fail("UArray distance accepted NULL input");
+        goto failed;
+    }
+
+    {
+        unsigned char *originalData = floatA->data;
+        floatA->data = NULL;
+        distance = UArray_distanceTo_(floatA, floatB);
+        floatA->data = originalData;
+        if (distance != 0.0) {
+            fail("UArray distance accepted missing backing storage");
+            goto failed;
+        }
+    }
+
+    {
+        size_t originalItemSize = floatA->itemSize;
+        floatA->itemSize = sizeof(float32_t) - 1;
+        distance = UArray_distanceTo_(floatA, floatB);
+        floatA->itemSize = originalItemSize;
+        if (distance != 0.0) {
+            fail("UArray distance accepted malformed item width");
+            goto failed;
+        }
+    }
+
+    {
+        size_t originalSize = floatA->size;
+        floatA->size = (size_t)-1 / sizeof(float32_t) + 1;
+        distance = UArray_distanceTo_(floatA, floatB);
+        floatA->size = originalSize;
+        if (distance != 0.0) {
+            fail("UArray distance accepted overflowing item geometry");
+            goto failed;
+        }
+    }
+
+    {
+        floatA->itemType = CTYPE_int32_t;
+        distance = UArray_distanceTo_(floatA, floatB);
+        floatA->itemType = CTYPE_float32_t;
+        if (distance != 0.0) {
+            fail("UArray distance accepted non-floating item type");
+            goto failed;
+        }
+    }
+
     UArray_free(floatA); UArray_free(floatB);
     UArray_free(tinyA); UArray_free(tinyB);
     UArray_free(largeA); UArray_free(largeB);

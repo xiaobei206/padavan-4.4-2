@@ -489,49 +489,61 @@ void UArray_crossProduct_(UArray *self, const UArray *other)
 	}
 }
 
+static int UArray_hasValidDistanceVector_(const UArray *self)
+{
+	size_t expectedItemSize;
+
+	if (NULL == self)
+		return 0;
+	if (CTYPE_float32_t == self->itemType)
+		expectedItemSize = sizeof(float32_t);
+	else if (CTYPE_float64_t == self->itemType)
+		expectedItemSize = sizeof(float64_t);
+	else
+		return 0;
+
+	if (self->itemSize != expectedItemSize ||
+		self->size > (size_t)-1 / expectedItemSize ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	return 1;
+}
+
 double UArray_distanceTo_(const UArray *self, const UArray *other)
 {
-	if (self->itemType == CTYPE_float32_t &&
-		other->itemType == CTYPE_float32_t)
+	size_t i;
+	double sum = 0;
+
+	if (!UArray_hasValidDistanceVector_(self) ||
+		!UArray_hasValidDistanceVector_(other) ||
+		self->itemType != other->itemType ||
+		self->size != other->size)
+		return 0;
+
+	if (self->itemType == CTYPE_float32_t)
 	{
-		float32_t *a = (float32_t *)self->data;
-		float32_t *b = (float32_t *)other->data;
-		size_t max = self->size > other->size ? self->size : other->size;
-		double sum = 0;
+		const float32_t *a = (const float32_t *)self->data;
+		const float32_t *b = (const float32_t *)other->data;
 
-		if (self->size == other->size)
+		for (i = 0; i < self->size; ++i)
 		{
-			size_t i;
-
-			for (i = 0; i < max; i ++)
-			{
-				float32_t d = a[i] - b[i];
-				sum += d * d;
-			}
+			float32_t d = a[i] - b[i];
+			sum += d * d;
 		}
-
-		return (double)sqrt((double)sum);
+		return (double)sqrt(sum);
 	}
-	else if (self->itemType == CTYPE_float64_t &&
-		other->itemType == CTYPE_float64_t)
+
+	if (self->itemType == CTYPE_float64_t)
 	{
-		float64_t *a = (float64_t *)self->data;
-		float64_t *b = (float64_t *)other->data;
-		size_t max = self->size > other->size ? self->size : other->size;
-		double sum = 0;
+		const float64_t *a = (const float64_t *)self->data;
+		const float64_t *b = (const float64_t *)other->data;
 
-		if (self->size == other->size)
+		for (i = 0; i < self->size; ++i)
 		{
-			size_t i;
-
-			for (i = 0; i < max; i ++)
-			{
-				float64_t d = a[i] - b[i];
-				sum += d * d;
-			}
+			float64_t d = a[i] - b[i];
+			sum += d * d;
 		}
-
-		return (double)sqrt((double)sum);
+		return sqrt(sum);
 	}
 
 	return 0;
