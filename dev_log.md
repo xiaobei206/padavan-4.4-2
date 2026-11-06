@@ -1,3 +1,16 @@
+## 2026-11-06 15:41 CST — Repair Date helper source-contract delimiter
+
+### CI failure
+- SkipDBv2 Regression run #287 stopped in source-contract preflight because the new private-helper scan searched for the two literal characters backslash and `n`, instead of the newline before the helper's closing brace.
+
+### Fix
+- Correct the embedded Python delimiter to match the existing newline-based function scans. No Date implementation or test changes.
+
+### Validation
+- The helper scan now uses the same newline delimiter as the adjacent Date function-boundary checks; the next run will validate the remaining Date contracts, build, and CTest.
+
+---
+
 ## 2026-11-06 15:36 CST — Guard Date receiver and time-component access
 
 ### Baseline

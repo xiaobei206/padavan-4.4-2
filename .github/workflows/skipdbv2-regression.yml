@@ -2057,7 +2057,7 @@ jobs:
                   raise SystemExit("Date initialization regression case missing: " + needle)
 
           local_helper_start = date_source.find("static struct tm *Date_localTime_(const Date *self, time_t *timestamp)")
-          local_helper_end = date_source.find("\\n}", local_helper_start)
+          local_helper_end = date_source.find("\n}", local_helper_start)
           local_helper = date_source[local_helper_start:local_helper_end] if local_helper_start >= 0 and local_helper_end > local_helper_start else ""
           if (not local_helper or
                   "if (NULL == self || NULL == timestamp)" not in local_helper or
