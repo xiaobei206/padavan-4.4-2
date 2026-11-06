@@ -1,3 +1,13 @@
+## 2026-11-07 05:22 CST — Restore nonzero UDB PID mapping writes
+
+- Baseline: main commit `b8a59323c4a51005047e1a0b952c1cef1c5c1e2e` (`fix(udb): reject mappings for unreserved PIDs`). The preceding SkipDBv2 Regression run #435 passed against commit `08a2873b6a0c72db2f00b4bf19b7a60e586a4f4c`; no CI result for the b8a5932 revision was recorded when this correction was prepared.
+- Scope: write control flow in `udb/UDBIndexMap.c`, specifically `UDBIndex_setPos_forPid_()`.
+- Moving the existing-mapping/reservation guard ahead of the write left a stale outer `if (pos == 0)` around the write path. Nonzero PID assignments therefore skipped the index write and reached the end of the function without returning a result, breaking inserts and replacements.
+- Remove the stale outer conditional so both zero (release) and nonzero (assign/replace) operations perform the validated fixed-width write. Preserve the post-write release/unreserve/forget handling. The existing `udb_index_layers` regression already covers fresh PID assignment and replacement; the workflow source contract already checks that the ownership guard precedes the write.
+- No new files, declarations, public API, CMake changes, or test-target changes. No local C compilation or CTest run is claimed; the pushed source correction triggers the existing mainline regression workflow.
+
+---
+
 ## 2026-11-07 05:15 CST — Reject UDB index mappings for unreserved PIDs
 
 - Baseline: main commit `08a2873b6a0c72db2f00b4bf19b7a60e586a4f4c`; SkipDBv2 Regression run #435 completed successfully.
