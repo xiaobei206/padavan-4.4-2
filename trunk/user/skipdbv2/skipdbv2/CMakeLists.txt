@@ -216,4 +216,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(stack_lifecycle_test skipdb m)
     add_test(NAME stack_lifecycle_test COMMAND stack_lifecycle_test)
 
+    ADD_EXECUTABLE(list_memory_size_test
+        ${PROJECT_SOURCE_DIR}/tests/list_memory_size.c)
+    TARGET_LINK_LIBRARIES(list_memory_size_test skipdb m)
+    add_test(NAME list_memory_size_test COMMAND list_memory_size_test)
+
 endif()

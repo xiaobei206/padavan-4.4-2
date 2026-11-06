@@ -1,3 +1,21 @@
+## 2026-11-06 11:12 CST — Report List allocated capacity in memorySize
+
+### Baseline and scope
+- Base commit: `3c251bf96817d786cd8e91020a0f89bbe4edcb31`; SkipDBv2 Regression run #225 passed source contracts, compilation, and CTest.
+- Scope is limited to `List_memorySize()`, one focused List regression, its CMake/workflow registration, and this handoff log.
+
+### Changes
+- Correct `List_memorySize()` to report the List object plus its allocated backing-buffer capacity (`memSize`), not only the number of live elements (`size`).
+- Base overflow protection on the byte-sized allocation field, avoiding an incorrect capacity calculation and guarding the object-plus-buffer sum.
+- Add a dedicated regression for a new empty List, a grown List with spare capacity, and a compacted List.
+- Register the test in the existing CMake suite and enforce the implementation, test, and build registration through the existing workflow source contracts.
+
+### Validation
+- Static preflight confirms the implementation uses the allocated byte count and the regression exercises all three allocation states.
+- No local firmware build is available; the next remote SkipDBv2 Regression run is authoritative for source contracts, compilation, and CTest.
+
+---
+
 ## 2026-11-06 11:06 CST — Keep BStream reads terminal after the first error
 
 ### Baseline and scope

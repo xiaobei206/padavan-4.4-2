@@ -698,6 +698,9 @@ jobs:
                   "add_test(NAME jfile_journal_test COMMAND jfile_journal_test)",
                   "ADD_EXECUTABLE(stack_lifecycle_test",
                   "add_test(NAME stack_lifecycle_test COMMAND stack_lifecycle_test)",
+                  "ADD_EXECUTABLE(list_memory_size_test",
+                  "${PROJECT_SOURCE_DIR}/tests/list_memory_size.c",
+                  "add_test(NAME list_memory_size_test COMMAND list_memory_size_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -744,6 +747,11 @@ jobs:
                   "BStream_error_(self, \"truncated binary stream byte\")",
                   "BStream_error_(self, \"truncated binary stream data\")",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/List.c": [
+                  "size_t List_memorySize(const List *self)",
+                  "self->memSize > (size_t)-1 - sizeof(List)",
+                  "return sizeof(List) + self->memSize;",
+              ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack.c": [
                   "static int Stack_isValid_(const Stack *self, size_t *used, size_t *capacity)",
                   "static int Stack_copyState_(Stack *self, const Stack *other)",
@@ -756,6 +764,14 @@ jobs:
                   "mark <= 0",
                   "if (cursor != mark)",
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/list_memory_size.c": [
+                  "List_new()",
+                  "List_append_(list, &values[i])",
+                  "List_memorySize(list) != expected",
+                  "list->memSize <= list->size * sizeof(void *)",
+                  "List_compact(list)",
+                  "list memory size reported logical contents instead of allocated capacity",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c": [
                   "Stack_copy_(destination, source);",
@@ -998,6 +1014,18 @@ jobs:
           if (not data_body or data_error_guard < 0 or data_bounds < 0 or
                   data_error_guard > data_bounds):
               raise SystemExit("BStream slice reads must stop before bounds checks or cursor movement after a latched error")
+
+          list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
+          memory_start = list_source.find("size_t List_memorySize(const List *self)")
+          memory_end = list_source.find("\nvoid List_removeAll", memory_start)
+          memory_body = list_source[memory_start:memory_end] if memory_start >= 0 and memory_end > memory_start else ""
+          if ("self->memSize > (size_t)-1 - sizeof(List)" not in memory_body or
+                  "return sizeof(List) + self->memSize;" not in memory_body or
+                  "self->size * sizeof(void *)" in memory_body):
+              raise SystemExit("List memory accounting must include allocated capacity with overflow protection")
+          list_test = Path("trunk/user/skipdbv2/skipdbv2/tests/list_memory_size.c").read_text()
+          if list_test.count("List_memorySize(list) != expected") != 3:
+              raise SystemExit("List memory accounting regression must cover initial, grown, and compacted allocations")
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:
