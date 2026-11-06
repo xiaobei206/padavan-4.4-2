@@ -113,6 +113,119 @@ static int shashCuckooFailurePreservesState(void)
 	return okay;
 }
 
+
+static int shashOperationsRejectInvalidGeometry(int corruption)
+{
+	SHash *hash = NULL, *destination = NULL, *clone = NULL;
+	int key = 101, value = 202, otherKey = 303, otherValue = 404;
+	int replacement = 505;
+	SHashRecord originalRecords[4], destinationRecords[4], incoming;
+	unsigned int savedTableSize = 0, savedLog2 = 0, savedMask = 0;
+	unsigned int savedNumKeys = 0, savedBalance = 0, iterationCount = 0;
+	void *savedNullValue = NULL;
+	int savedState = 0, okay = 0;
+
+	hash = SHash_new();
+	destination = SHash_new();
+	if (NULL == hash || NULL == destination)
+		goto done;
+	SHash_setKeysEqualCallback(hash, keys_equal);
+	SHash_setHashForKeyCallback(hash, hash_key);
+	SHash_setKeysEqualCallback(destination, keys_equal);
+	SHash_setHashForKeyCallback(destination, hash_key);
+	SHash_at_put_(hash, &key, &value);
+	SHash_at_put_(destination, &otherKey, &otherValue);
+	if (hash->tableSize != 2 || hash->numKeys != 1 ||
+		destination->tableSize != 2 || destination->numKeys != 1)
+		goto done;
+
+	memcpy(originalRecords, hash->records, sizeof(originalRecords));
+	memcpy(destinationRecords, destination->records, sizeof(destinationRecords));
+	savedTableSize = hash->tableSize;
+	savedLog2 = hash->log2tableSize;
+	savedMask = hash->mask;
+	savedNumKeys = hash->numKeys;
+	savedBalance = hash->balance;
+	savedNullValue = hash->nullRecord.value;
+	savedState = 1;
+	hash->nullRecord.value = &replacement;
+
+	switch (corruption) {
+		case 0:
+			hash->tableSize = 1;
+			break;
+		case 1:
+			hash->mask ^= 1u;
+			break;
+		case 2:
+			hash->numKeys = hash->tableSize * 2 + 1;
+			break;
+		case 3:
+			hash->log2tableSize = 0;
+			break;
+		case 4:
+			/* The real allocation stays four records despite this claim. */
+			hash->tableSize = 1u << 20;
+			break;
+		default:
+			goto done;
+	}
+
+	if (SHash_hasValidStorage_(hash) ||
+		SHash_count(hash) != 0 ||
+		SHash_memorySize(hash) != 0 ||
+		SHash_recordAt_(hash, &otherKey) != &hash->nullRecord ||
+		SHash_at_(hash, &otherKey) != NULL ||
+		SHashKey_hasKey_(hash, &key) ||
+		SHash_cuckoo_(hash, &(SHashRecord){&otherKey, &otherValue}) != NULL)
+		goto done;
+
+	clone = SHash_clone(hash);
+	if (clone)
+		goto done;
+	incoming.key = &otherKey;
+	incoming.value = &otherValue;
+	if (SHash_cuckoo_(hash, &incoming) != NULL ||
+		incoming.key != &otherKey || incoming.value != &otherValue)
+		goto done;
+
+	SHash_at_put_(hash, &otherKey, &otherValue);
+	SHash_removeKey_(hash, &key);
+	SHash_removeValue_(hash, &value);
+	SHash_clean(hash);
+	SHash_compact(hash);
+	SHash_grow(hash);
+	if (SHash_firstKeyForValue_(hash, &value) != NULL)
+		goto done;
+
+	SHash_copy_(destination, hash);
+	SHash_copy_(hash, destination);
+	SHASH_FOREACH(hash, iterKey, iterValue, ++iterationCount);
+
+	if (iterationCount != 0 ||
+		0 != memcmp(originalRecords, hash->records, sizeof(originalRecords)) ||
+		0 != memcmp(destinationRecords, destination->records, sizeof(destinationRecords)) ||
+		destination->numKeys != 1 ||
+		SHash_at_(destination, &otherKey) != &otherValue)
+		goto done;
+
+	okay = 1;
+
+done:
+	if (savedState && hash) {
+		hash->tableSize = savedTableSize;
+		hash->log2tableSize = savedLog2;
+		hash->mask = savedMask;
+		hash->numKeys = savedNumKeys;
+		hash->balance = savedBalance;
+		hash->nullRecord.value = savedNullValue;
+	}
+	SHash_free(clone);
+	SHash_free(destination);
+	SHash_free(hash);
+	return okay;
+}
+
 int main(void)
 {
 	SHash *hash;
@@ -134,6 +247,11 @@ int main(void)
 	if (!check(shashGrowRejectsInvalidState(2),
 		"SHash_grow accepted an impossible key count"))
 		return EXIT_FAILURE;
+	for (i = 0; i < 5; ++i) {
+		if (!check(shashOperationsRejectInvalidGeometry((int)i),
+			"SHash operations accessed an invalid table geometry"))
+			return EXIT_FAILURE;
+	}
 
 	hash = SHash_new();
 	if (!check(hash != NULL, "SHash allocation failed"))

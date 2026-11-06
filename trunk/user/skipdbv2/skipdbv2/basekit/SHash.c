@@ -17,6 +17,10 @@ void SHash_print(SHash *self)
 		printf("SHash <null>\n");
 		return;
 	}
+	if (!SHash_hasValidStorage_(self)) {
+		printf("<invalid table>\n");
+		return;
+	}
 	memory = SHash_memorySize(self);
 	printf("log2tableSize = %u\n", self->log2tableSize);
 	printf("tableSize = %u\n", self->tableSize);
@@ -44,7 +48,7 @@ void SHash_print(SHash *self)
 		(count[0] + count[1]) ? ((double)count[0] - (double)count[1]) /
 		((double)count[0] + (double)count[1]) : 0.0);
 }
-void SHash_tableInit_(SHash* self, int log2tableSize)
+static void SHash_tableInit_(SHash* self, int log2tableSize)
 {
 	SHashRecord *records;
 	unsigned int tableSize;
@@ -83,7 +87,7 @@ SHash *SHash_new(void)
 SHash *SHash_clone(SHash *self)
 {
 	SHash *child;
-	if (NULL == self || NULL == self->records)
+	if (!SHash_hasValidStorage_(self))
 		return NULL;
 	child = SHash_new();
 	if (NULL == child)
@@ -111,7 +115,7 @@ void SHash_free(SHash *self)
 
 size_t SHash_memorySize(SHash *self)
 {
-	if (NULL == self || self->tableSize >
+	if (!SHash_hasValidStorage_(self) || self->tableSize >
 		((size_t)-1 - sizeof(SHash)) / (2 * sizeof(SHashRecord)))
 		return 0;
 	return sizeof(SHash) + ((size_t)self->tableSize * 2 * sizeof(SHashRecord));
@@ -124,7 +128,7 @@ void SHash_compact(SHash *self)
 	unsigned int oldTableSize, targetLog2;
 	int log2tableSize;
 
-	if (NULL == self || NULL == self->records ||
+	if (!SHash_hasValidStorage_(self) ||
 		self->log2tableSize < 1 || self->log2tableSize > 20 ||
 		self->tableSize != (1u << self->log2tableSize) ||
 		self->mask != self->tableSize - 1 ||
@@ -184,7 +188,7 @@ void SHash_copy_(SHash *self, SHash *other)
 	SHash copy;
 	size_t bytes;
 	if (NULL == self || NULL == other || self == other ||
-		NULL == other->records || other->tableSize == 0 ||
+		!SHash_hasValidStorage_(self) || !SHash_hasValidStorage_(other) ||
 		other->tableSize > (size_t)-1 / (2 * sizeof(SHashRecord)))
 		return;
 	bytes = (size_t)other->tableSize * 2 * sizeof(SHashRecord);
@@ -214,7 +218,7 @@ SHashRecord *SHash_cuckoo_(SHash *self, SHashRecord* thisRecord)
 	SHashRecord *record;
 	size_t swapCount = 0;
 
-	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+	if (!SHash_hasValidStorage_(self) ||
 		NULL == thisRecord || NULL == thisRecord->key ||
 		NULL == self->keysEqual || NULL == self->hashForKey)
 		return NULL;
@@ -280,7 +284,7 @@ void SHash_grow(SHash *self)
 	SHashRecord *oldRecords;
 	unsigned int oldTableSize;
 	int log2tableSize;
-	if (NULL == self || NULL == self->records ||
+	if (!SHash_hasValidStorage_(self) ||
 		self->log2tableSize < 1 || self->log2tableSize >= 20 ||
 		self->tableSize != (1u << self->log2tableSize) ||
 		self->mask != self->tableSize - 1 ||
@@ -328,7 +332,7 @@ void SHash_growWithRecord(SHash *self, SHashRecord* thisRecord)
 {
 	void *key, *value;
 	unsigned int oldTableSize;
-	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+	if (!SHash_hasValidStorage_(self) ||
 		NULL == thisRecord || NULL == thisRecord->key ||
 		NULL == self->keysEqual || NULL == self->hashForKey)
 		return;
@@ -344,7 +348,7 @@ void SHash_growWithRecord(SHash *self, SHashRecord* thisRecord)
 void SHash_removeValue_(SHash *self, void *value)
 {
 	size_t i, count;
-	if (NULL == self || NULL == self->records || self->tableSize == 0)
+	if (!SHash_hasValidStorage_(self))
 		return;
 	count = (size_t)self->tableSize * 2;
 	for (i = 0; i < count; ++i) {
@@ -362,7 +366,7 @@ void SHash_removeValue_(SHash *self, void *value)
 void *SHash_firstKeyForValue_(SHash *self, void *v)
 {
 	size_t i, count;
-	if (NULL == self || NULL == self->records || self->tableSize == 0)
+	if (!SHash_hasValidStorage_(self))
 		return NULL;
 	count = (size_t)self->tableSize * 2;
 	for (i = 0; i < count; ++i) {

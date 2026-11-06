@@ -1000,7 +1000,18 @@ jobs:
                   "malformed Datum must not match its own prefix or suffix",
                   "Datum boundary test passed",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/SHash_inline.h": [
+                  "IOINLINE int SHash_hasValidStorage_(const SHash *self)",
+                  "self->log2tableSize == 0 || self->log2tableSize > 20",
+                  "self->tableSize != (1u << self->log2tableSize)",
+                  "self->mask != self->tableSize - 1",
+                  "self->numKeys > self->tableSize * 2",
+                  "SHash_hasValidStorage_(self)",
+              ],
               "trunk/user/skipdbv2/skipdbv2/basekit/SHash.c": [
+                  "static void SHash_tableInit_(SHash* self, int log2tableSize)",
+                  "SHash_hasValidStorage_(self)",
+                  "SHash_hasValidStorage_(other)",
                   "void SHash_compact(SHash *self)",
                   "SHash_tableInit_(&candidate, log2tableSize)",
                   "SHash_cuckoo_(&candidate, &thisRecord)",
@@ -1017,6 +1028,8 @@ jobs:
                   "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c": [
+                  "static int shashOperationsRejectInvalidGeometry(int corruption)",
+                  "SHash operations accessed an invalid table geometry",
                   "SHash_compact did not reduce the table while preserving count",
                   "SHash_compact lost a retained key/value mapping",
                   "SHash_compact did not return an empty table to its minimum size",

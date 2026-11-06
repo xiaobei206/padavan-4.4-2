@@ -1,3 +1,14 @@
+## 2026-11-07 01:34 CST — Validate SHash geometry before table access
+
+- Baseline: main commit `11433b678edbbeb9420ce79f8c9ee07e58c64a44`; SkipDBv2 Regression run #399 passed.
+- Scope: the callback-driven string-key cuckoo hash table in `basekit/SHash.c` and its existing inline API.
+- As with the pointer-key table, grow and compact checked their capacity metadata, but hot-path lookup, insert, delete, cleanup, enumeration, and copy/clone did not share that invariant. A damaged `tableSize` or `mask` could route the custom hash callback into an out-of-bounds slot; copy could also trust an invalid record extent.
+- Add a shared geometry validator without requiring optional equality/hash callbacks, preserving the documented ability to create an empty SHash before configuring its callbacks. Gate all indexed/bulk operations and both sides of copy; retain callback-specific checks in operations that need them. Make the table initializer file-local.
+- Extend the existing `shash_compact` test across five malformed geometry states, including a four-record allocation advertising a maximum-sized table, and add matching Actions source contracts. No new files, public API, or CMake targets.
+- No local C build is claimed; CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 01:31 CST — Validate PHash geometry before hot-path access
 
 - Baseline: main commit `f96e49e290d73172737eb61b7ec92071c5aeca65`; SkipDBv2 Regression run #398 passed.

@@ -19,9 +19,21 @@
 #define SHASH_RECORDS_AT_HASH_(self, tableIndex, hash) \
 (self->records + self->tableSize*tableIndex + (hash & self->mask))
 
+/* Validate table geometry before any indexed access or bulk traversal. */
+IOINLINE int SHash_hasValidStorage_(const SHash *self)
+{
+	if (NULL == self || NULL == self->records ||
+		self->log2tableSize == 0 || self->log2tableSize > 20 ||
+		self->tableSize != (1u << self->log2tableSize) ||
+		self->mask != self->tableSize - 1 ||
+		self->numKeys > self->tableSize * 2)
+		return 0;
+	return 1;
+}
+
 IOINLINE unsigned int SHash_count(SHash *self)
 {
-	return self ? self->numKeys : 0;
+	return SHash_hasValidStorage_(self) ? self->numKeys : 0;
 }
 
 
@@ -67,7 +79,7 @@ IOINLINE unsigned int SHash_hash_more(SHash *self, unsigned int hash)
 
 IOINLINE void SHash_clean(SHash *self)
 {
-	if (NULL == self || NULL == self->records || self->tableSize == 0)
+	if (!SHash_hasValidStorage_(self))
 		return;
 	memset(self->records, 0, sizeof(SHashRecord) * (size_t)self->tableSize * 2);
 	self->numKeys = 0;
@@ -78,7 +90,7 @@ IOINLINE SHashRecord *SHash_recordAt_(SHash *self, void *key)
 {
 	unsigned int hash;
 	SHashRecord *record;
-	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+	if (!SHash_hasValidStorage_(self) ||
 		NULL == key || NULL == self->keysEqual || NULL == self->hashForKey)
 		return self ? &self->nullRecord : NULL;
 	hash = SHash_hash(self, key);
@@ -93,7 +105,10 @@ IOINLINE SHashRecord *SHash_recordAt_(SHash *self, void *key)
 
 IOINLINE void *SHash_at_(SHash *self, void *key)
 {
-	SHashRecord *record = SHash_recordAt_(self, key);
+	SHashRecord *record;
+	if (!SHash_hasValidStorage_(self) || NULL == key)
+		return NULL;
+	record = SHash_recordAt_(self, key);
 	return record ? record->value : NULL;
 }
 
@@ -101,7 +116,7 @@ IOINLINE void *SHash_at_(SHash *self, void *key)
 IOINLINE int SHashKey_hasKey_(SHash *self, void *key)
 {
 	SHashRecord *record;
-	if (NULL == self || NULL == key)
+	if (!SHash_hasValidStorage_(self) || NULL == key)
 		return 0;
 	record = SHash_recordAt_(self, key);
 	return record && record != &self->nullRecord && record->key &&
@@ -113,7 +128,7 @@ IOINLINE void SHash_at_put_(SHash *self, void *key, void *value)
 {
 	SHashRecord thisRecord;
 	SHashRecord *record;
-	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
+	if (!SHash_hasValidStorage_(self) ||
 		NULL == key || NULL == self->keysEqual || NULL == self->hashForKey)
 		return;
 	record = SHash_recordAt_(self, key);
@@ -139,7 +154,7 @@ IOINLINE void SHash_at_put_(SHash *self, void *key, void *value)
 IOINLINE void SHash_removeKey_(SHash *self, void *key)
 {
 	SHashRecord *record;
-	if (NULL == self || NULL == key)
+	if (!SHash_hasValidStorage_(self) || NULL == key)
 		return;
 	record = SHash_recordAt_(self, key);
 	if (record && record != &self->nullRecord && record->key &&
@@ -159,7 +174,7 @@ IOINLINE void SHash_removeKey_(SHash *self, void *key)
 	unsigned int _i, _j; \
 	void *pkey; \
 	void *pvalue; \
-	if (_self && _self->records && _self->tableSize) { \
+	if (SHash_hasValidStorage_(_self)) { \
 	for (_j = 0; _j < 2; _j ++) \
 	for (_i = 0; _i < _self->tableSize; _i ++) { \
 		SHashRecord *_record = SHASH_RECORDS_AT_(_self, _j, _i); \
