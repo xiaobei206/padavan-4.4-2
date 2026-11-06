@@ -13,6 +13,7 @@ int main(void)
     Duration *copy;
     Duration *extreme;
     Duration *not_a_number;
+    Duration *long_span = NULL;
     UArray *formatted;
 
     if (Duration_clone(NULL) != NULL ||
@@ -81,6 +82,31 @@ int main(void)
         goto failure;
     }
 
+    {
+        const double year_seconds = 365.0 * 24.0 * 60.0 * 60.0;
+        const double span_seconds = 100.0 * year_seconds + 2.0 * 86400.0 +
+            3.0 * 3600.0 + 4.0 * 60.0 + 5.25;
+        long_span = Duration_newWithSeconds_(span_seconds);
+        if (NULL == long_span ||
+            Duration_years(long_span) != 100 ||
+            Duration_days(long_span) != 2 ||
+            Duration_hours(long_span) != 3 ||
+            Duration_minutes(long_span) != 4 ||
+            fabs(Duration_seconds(long_span) - 5.25) > 0.000001) {
+            fprintf(stderr, "positive multi-decade Duration components were corrupted\n");
+            goto failure;
+        }
+        Duration_fromSeconds_(long_span, -span_seconds);
+        if (Duration_years(long_span) != -100 ||
+            Duration_days(long_span) != -2 ||
+            Duration_hours(long_span) != -3 ||
+            Duration_minutes(long_span) != -4 ||
+            fabs(Duration_seconds(long_span) + 5.25) > 0.000001) {
+            fprintf(stderr, "negative multi-decade Duration components were corrupted\n");
+            goto failure;
+        }
+    }
+
     extreme = Duration_newWithSeconds_(HUGE_VAL);
     not_a_number = Duration_newWithSeconds_(NAN);
     if (NULL == extreme || NULL == not_a_number ||
@@ -94,6 +120,7 @@ int main(void)
         goto failure;
     }
 
+    Duration_free(long_span);
     Duration_free(extreme);
     Duration_free(not_a_number);
     Duration_free(duration);
@@ -103,6 +130,7 @@ int main(void)
     return EXIT_SUCCESS;
 
 failure:
+    Duration_free(long_span);
     Duration_free(duration);
     Duration_free(clone);
     Duration_free(copy);

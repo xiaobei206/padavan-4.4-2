@@ -1964,8 +1964,13 @@ jobs:
           component_body = duration_source[component_start:component_end] if component_start >= 0 and component_end > component_start else ""
           if ("if (NULL == self)" not in component_body or "isnan(t)" not in component_body or
                   "(double)INT_MAX * SECONDS_IN_YEAR" not in component_body or
-                  "(double)INT_MIN * SECONDS_IN_YEAR" not in component_body):
-              raise SystemExit("Duration component conversion must handle NULL, NaN, and out-of-range years")
+                  "(double)INT_MIN * SECONDS_IN_YEAR" not in component_body or
+                  "t -= c.years * SECONDS_IN_YEAR;" not in component_body or
+                  "t -= c.days * SECONDS_IN_DAY;" not in component_body or
+                  "t -= c.hours * SECONDS_IN_HOUR;" not in component_body or
+                  "t -= c.minutes * SECONDS_IN_MINUTE;" not in component_body or
+                  "t -= (int)(c.years" in component_body):
+              raise SystemExit("Duration components must use bounded extraction and double-precision remainder arithmetic")
           format_start = duration_source.find("UArray *Duration_asUArrayWithFormat_(")
           format_end = duration_source.find("void Duration_print(", format_start)
           format_body = duration_source[format_start:format_end] if format_start >= 0 and format_end > format_start else ""
@@ -1974,6 +1979,11 @@ jobs:
           duration_test = Path("trunk/user/skipdbv2/skipdbv2/tests/duration_lifecycle.c").read_text()
           for needle in ("Duration_clone(NULL)", "Duration_copy_(NULL, NULL)",
                          "Duration_newWithSeconds_(HUGE_VAL)", "Duration_newWithSeconds_(NAN)",
+                         "Duration_years(long_span) != 100", "Duration_days(long_span) != 2",
+                         "Duration_hours(long_span) != 3", "Duration_minutes(long_span) != 4",
+                         "Duration_seconds(long_span) - 5.25", "Duration_years(long_span) != -100",
+                         "Duration_days(long_span) != -2", "Duration_hours(long_span) != -3",
+                         "Duration_minutes(long_span) != -4", "Duration_seconds(long_span) + 5.25",
                          "Duration lifecycle test passed"):
               if needle not in duration_test:
                   raise SystemExit("Duration lifecycle regression case missing: " + needle)

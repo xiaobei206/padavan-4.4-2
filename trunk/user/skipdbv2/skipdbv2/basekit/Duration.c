@@ -98,10 +98,14 @@ DurationComponents Duration_asComponents(const Duration *self)
 		c.years = INT_MIN;
 		return c;
 	}
-	c.years   = (int)(t / SECONDS_IN_YEAR);   t -= (int)(c.years   * SECONDS_IN_YEAR);
-	c.days    = (int)(t / SECONDS_IN_DAY);    t -= (int)(c.days    * SECONDS_IN_DAY);
-	c.hours   = (int)(t / SECONDS_IN_HOUR);   t -= (int)(c.hours   * SECONDS_IN_HOUR);
-	c.minutes = (int)(t / SECONDS_IN_MINUTE); t -= (int)(c.minutes * SECONDS_IN_MINUTE);
+	c.years   = (int)(t / SECONDS_IN_YEAR);
+	t -= c.years * SECONDS_IN_YEAR;
+	c.days    = (int)(t / SECONDS_IN_DAY);
+	t -= c.days * SECONDS_IN_DAY;
+	c.hours   = (int)(t / SECONDS_IN_HOUR);
+	t -= c.hours * SECONDS_IN_HOUR;
+	c.minutes = (int)(t / SECONDS_IN_MINUTE);
+	t -= c.minutes * SECONDS_IN_MINUTE;
 	c.seconds = (t);
 	return c;
 }

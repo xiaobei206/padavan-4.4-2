@@ -1,3 +1,23 @@
+## 2026-11-06 15:15 CST — Prevent overflow in Duration component conversion
+
+### Baseline
+- Main commit `778b5bb42814f63cdcc14ef4b7c914416f10c4a7`; SkipDBv2 Regression run #281 passed source-contract preflight, configure, full build, and CTest.
+
+### Defect and fix
+- `Duration_asComponents()` converted the year component multiplied by seconds per year back to `int`. Even a 100-year duration exceeds `INT_MAX` seconds, so that floating-to-integer conversion is out of range and has undefined behavior; the resulting remainder then corrupts day, hour, minute, and second components.
+- Keep component extraction bounded by the existing year-range checks, but subtract each extracted component using double-precision arithmetic. Preserve the existing NaN and out-of-range saturation behavior.
+
+### Regression and contracts
+- Extend the existing `duration_lifecycle.c` test with positive and negative 100-year spans including day/time remainders.
+- Strengthen the existing workflow source contract to require double-precision remainder arithmetic and both regression directions.
+- Reuse the registered `duration_lifecycle_test` CMake target; no new source files or targets.
+
+### Validation
+- Static review confirms no seconds-per-year product is converted back to `int`, and the test exercises both signs with nonzero lower components.
+- The workflow triggered by this commit is authoritative for compilation and CTest.
+
+---
+
 ## 2026-11-06 15:05 CST — Fix UArray lookup source-contract scan
 
 ### CI failure
