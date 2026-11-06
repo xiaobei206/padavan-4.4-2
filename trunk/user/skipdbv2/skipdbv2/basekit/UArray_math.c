@@ -6,6 +6,7 @@
 #include "UArray.h"
 #include <math.h>
 #include <float.h>
+#include <stdint.h>
 
 #warning Uncomment the IO_USE_SIMD define to turn on SIMD acceleration
 //#define IO_USE_SIMD 1
@@ -78,6 +79,7 @@ void UArray_negate(const UArray *self)
 // basic vector math
 
 static int UArray_hasValidNumericStorage_(const UArray *self);
+static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count);
 
 void UArray_add_(UArray *self, const UArray *other)
 {
@@ -159,13 +161,35 @@ void UArray_multiply_(UArray *self, const UArray *other)
 
 void UArray_divide_(UArray *self, const UArray *other)
 {
+	size_t minSize;
+
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other) ||
+		self->itemType == CTYPE_uintptr_t ||
+		other->itemType == CTYPE_uintptr_t)
+		return;
+
+	minSize = self->size < other->size ? self->size : other->size;
+	if (minSize == 0)
+		return;
+
+	if (self->itemType != CTYPE_float32_t &&
+		self->itemType != CTYPE_float64_t &&
+		UArray_hasUnsafeIntegerDivision_(self, other, minSize))
+		return;
+
 	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
 	{
-		vfloat32_div((float32_t *)self->data, (float32_t *)other->data, UArray_minSizeWith_(self, other));
-		return;
+		vfloat32_div((float32_t *)self->data, (float32_t *)other->data, minSize);
+	}
+	else
+	{
+		/* UARRAY_BASICOP_TYPES returns from this function after dispatch. */
+		UArray_changed(self);
+		DUARRAY_OP(UARRAY_BASICOP_TYPES, /=, self, other);
 	}
 
-	DUARRAY_OP(UARRAY_BASICOP_TYPES, /=, self, other);
+	UArray_changed(self);
 }
 
 #define UARRAY_DOT(OP2, TYPE1, self, TYPE2, other)\
@@ -208,6 +232,40 @@ static int UArray_hasValidNumericStorage_(const UArray *self)
 		(self->size > 0 && NULL == self->data))
 		return 0;
 	return 1;
+}
+
+
+/* Preflight every affected element before integer division can partially mutate the receiver. */
+static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count)
+{
+	size_t i;
+
+	for (i = 0; i < count; ++i) {
+		double divisor = UArray_rawDoubleAt_(other, i);
+
+		if (divisor == 0.0)
+			return 1;
+		if (divisor != -1.0)
+			continue;
+
+		switch (self->itemType) {
+			case CTYPE_int8_t:
+				if (((const int8_t *)self->data)[i] == INT8_MIN) return 1;
+				break;
+			case CTYPE_int16_t:
+				if (((const int16_t *)self->data)[i] == INT16_MIN) return 1;
+				break;
+			case CTYPE_int32_t:
+				if (((const int32_t *)self->data)[i] == INT32_MIN) return 1;
+				break;
+			case CTYPE_int64_t:
+				if (((const int64_t *)self->data)[i] == INT64_MIN) return 1;
+				break;
+			default:
+				break;
+		}
+	}
+	return 0;
 }
 
 

@@ -1,3 +1,14 @@
+## 2026-11-06 23:06 CST — Guard UArray elementwise division
+
+- Baseline: main commit `a16642520ed3b77c25ff4dc1c196cbeb9a63c4ef`; SkipDBv2 Regression run #358 completed successfully.
+- Scope: `UArray_divide_()` and its existing elementwise division regression.
+- The division path dereferenced both operands before validating them, trusted storage geometry in the float32 fast path and generic dispatcher, and never invalidated the receiver hash. Integer zero divisors and signed minimum divided by negative one could invoke undefined behavior; a later zero divisor could also leave earlier elements already modified.
+- Validate both numeric layouts, reject pointer-sized operands, retain the common-prefix behavior, and preflight the entire affected range before integer division. Treat integer zero division and signed MIN/-1 as an all-or-nothing no-op; preserve IEEE floating-point division-by-zero behavior. Invalidate the hash on both the float32 fast path and generic path.
+- Extend the existing `uarray_math_extrema` test and workflow source contracts for mixed-width results, both floating paths, atomic zero handling, signed overflow, malformed inputs, and hash lifecycle. Reuse the existing CMake target; no new files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:01 CST — Guard UArray unary math transforms
 
 - Baseline: main commit `43f04fa30e56dbc3d481b98e4bc41fc9d2ba3c39`; SkipDBv2 Regression run #357 completed successfully.

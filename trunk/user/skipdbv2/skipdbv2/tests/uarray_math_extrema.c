@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <float.h>
 #include <math.h>
+#include <stdint.h>
 
 static int fail(const char *s) { fprintf(stderr, "%s\n", s); return EXIT_FAILURE; }
 static int nearEnough(double a, double b) { return fabs(a - b) <= 1e-12; }
@@ -507,6 +508,197 @@ cleanup:
 }
 
 
+
+static int test_elementwise_division(void)
+{
+    const int32_t integerNumerators[] = {12, -15, 8};
+    const int16_t integerDivisors[] = {3, 5};
+    const int32_t integerExpected[] = {4, -3, 8};
+    const float32_t float32Numerators[] = {6.0f, -8.0f};
+    const float32_t float32Divisors[] = {2.0f, 4.0f};
+    const float32_t float32Expected[] = {3.0f, -2.0f};
+    const double float64Numerators[] = {9.0, 16.0};
+    const double float64Divisors[] = {3.0, 4.0};
+    const int32_t atomicNumerators[] = {12, 15};
+    const int32_t zeroDivisors[] = {3, 0};
+    const int32_t signedMinimum[] = {INT32_MIN};
+    const int32_t negativeOne[] = {-1};
+    const float32_t ieeeNumerators[] = {1.0f, 0.0f};
+    const float32_t ieeeZeroDivisors[] = {0.0f, 0.0f};
+    UArray *integerLeft = UArray_newWithData_type_size_copy_(
+        (void *)integerNumerators, CTYPE_int32_t, 3, 1);
+    UArray *integerRight = UArray_newWithData_type_size_copy_(
+        (void *)integerDivisors, CTYPE_int16_t, 2, 1);
+    UArray *float32Left = UArray_newWithData_type_size_copy_(
+        (void *)float32Numerators, CTYPE_float32_t, 2, 1);
+    UArray *float32Right = UArray_newWithData_type_size_copy_(
+        (void *)float32Divisors, CTYPE_float32_t, 2, 1);
+    UArray *float64Left = UArray_newWithData_type_size_copy_(
+        (void *)float64Numerators, CTYPE_float64_t, 2, 1);
+    UArray *float64Right = UArray_newWithData_type_size_copy_(
+        (void *)float64Divisors, CTYPE_float64_t, 2, 1);
+    UArray *atomicLeft = UArray_newWithData_type_size_copy_(
+        (void *)atomicNumerators, CTYPE_int32_t, 2, 1);
+    UArray *zeroRight = UArray_newWithData_type_size_copy_(
+        (void *)zeroDivisors, CTYPE_int32_t, 2, 1);
+    UArray *minimumLeft = UArray_newWithData_type_size_copy_(
+        (void *)signedMinimum, CTYPE_int32_t, 1, 1);
+    UArray *negativeOneRight = UArray_newWithData_type_size_copy_(
+        (void *)negativeOne, CTYPE_int32_t, 1, 1);
+    UArray *ieeeLeft = UArray_newWithData_type_size_copy_(
+        (void *)ieeeNumerators, CTYPE_float32_t, 2, 1);
+    UArray *ieeeRight = UArray_newWithData_type_size_copy_(
+        (void *)ieeeZeroDivisors, CTYPE_float32_t, 2, 1);
+    UArray *empty = UArray_new();
+    const uintptr_t pointerValues[] = {3, 5};
+    UArray *pointerArray = UArray_newWithData_type_size_copy_(
+        (void *)pointerValues, CTYPE_uintptr_t, 2, 1);
+    UArray invalid;
+    int result = EXIT_FAILURE;
+
+    if (!integerLeft || !integerRight || !float32Left || !float32Right ||
+        !float64Left || !float64Right || !atomicLeft || !zeroRight ||
+        !minimumLeft || !negativeOneRight || !ieeeLeft || !ieeeRight ||
+        !empty || !pointerArray) {
+        fail("UArray division allocation failed");
+        goto cleanup;
+    }
+
+    integerLeft->hash = 0x1111;
+    UArray_divide_(integerLeft, integerRight);
+    if (memcmp(integerLeft->data, integerExpected, sizeof(integerExpected)) != 0 ||
+        integerLeft->hash != 0) {
+        fail("UArray integer division changed mixed-width prefix results or retained the cached hash");
+        goto cleanup;
+    }
+
+    float32Left->hash = 0x2222;
+    UArray_divide_(float32Left, float32Right);
+    if (memcmp(float32Left->data, float32Expected, sizeof(float32Expected)) != 0 ||
+        float32Left->hash != 0) {
+        fail("UArray float32 division changed results or retained the cached hash");
+        goto cleanup;
+    }
+
+    float64Left->hash = 0x3333;
+    UArray_divide_(float64Left, float64Right);
+    if (UArray_rawDoubleAt_(float64Left, 0) != 3.0 ||
+        UArray_rawDoubleAt_(float64Left, 1) != 4.0 ||
+        float64Left->hash != 0) {
+        fail("UArray float64 division changed results or retained the cached hash");
+        goto cleanup;
+    }
+
+    atomicLeft->hash = 0x4444;
+    UArray_divide_(atomicLeft, zeroRight);
+    if (memcmp(atomicLeft->data, atomicNumerators, sizeof(atomicNumerators)) != 0 ||
+        atomicLeft->hash != 0x4444) {
+        fail("UArray integer division partially mutated around a zero divisor");
+        goto cleanup;
+    }
+
+    minimumLeft->hash = 0x5555;
+    UArray_divide_(minimumLeft, negativeOneRight);
+    if (memcmp(minimumLeft->data, signedMinimum, sizeof(signedMinimum)) != 0 ||
+        minimumLeft->hash != 0x5555) {
+        fail("UArray signed minimum divided by negative one was not rejected");
+        goto cleanup;
+    }
+
+    ieeeLeft->hash = 0x6666;
+    UArray_divide_(ieeeLeft, ieeeRight);
+    if (!isinf(((float32_t *)ieeeLeft->data)[0]) ||
+        !isnan(((float32_t *)ieeeLeft->data)[1]) ||
+        ieeeLeft->hash != 0) {
+        fail("UArray floating-point division lost IEEE zero-divisor behavior");
+        goto cleanup;
+    }
+
+    empty->hash = 0x7777;
+    UArray_divide_(empty, integerRight);
+    UArray_divide_(NULL, integerRight);
+    UArray_divide_(integerLeft, NULL);
+    if (empty->size != 0 || empty->hash != 0x7777) {
+        fail("UArray empty division changed receiver state");
+        goto cleanup;
+    }
+
+    invalid = *integerLeft;
+    invalid.data = NULL;
+    invalid.hash = 0x8888;
+    UArray_divide_(&invalid, integerRight);
+    if (invalid.data != NULL || invalid.hash != 0x8888) {
+        fail("UArray division accepted missing receiver storage");
+        goto cleanup;
+    }
+
+    invalid = *integerRight;
+    invalid.data = NULL;
+    integerLeft->hash = 0x9999;
+    UArray_divide_(integerLeft, &invalid);
+    if (integerLeft->hash != 0x9999 ||
+        memcmp(integerLeft->data, integerExpected, sizeof(integerExpected)) != 0) {
+        fail("UArray division accepted missing operand storage");
+        goto cleanup;
+    }
+
+    invalid = *integerLeft;
+    invalid.itemSize = 0;
+    invalid.hash = 0xaaaa;
+    UArray_divide_(&invalid, integerRight);
+    if (invalid.hash != 0xaaaa) {
+        fail("UArray division accepted malformed item width");
+        goto cleanup;
+    }
+
+    invalid = *integerLeft;
+    invalid.itemType = (CTYPE)9999;
+    invalid.hash = 0xbbbb;
+    UArray_divide_(&invalid, integerRight);
+    if (invalid.hash != 0xbbbb) {
+        fail("UArray division accepted unsupported item type");
+        goto cleanup;
+    }
+
+    invalid = *integerLeft;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    invalid.hash = 0xcccc;
+    UArray_divide_(&invalid, integerRight);
+    if (invalid.hash != 0xcccc) {
+        fail("UArray division accepted overflowing storage geometry");
+        goto cleanup;
+    }
+
+    pointerArray->hash = 0xdddd;
+    integerLeft->hash = 0xeeee;
+    UArray_divide_(pointerArray, integerRight);
+    UArray_divide_(integerLeft, pointerArray);
+    if (pointerArray->hash != 0xdddd || integerLeft->hash != 0xeeee ||
+        memcmp(pointerArray->data, pointerValues, sizeof(pointerValues)) != 0 ||
+        memcmp(integerLeft->data, integerExpected, sizeof(integerExpected)) != 0) {
+        fail("UArray division accepted pointer-sized item type");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(integerLeft);
+    UArray_free(integerRight);
+    UArray_free(float32Left);
+    UArray_free(float32Right);
+    UArray_free(float64Left);
+    UArray_free(float64Right);
+    UArray_free(atomicLeft);
+    UArray_free(zeroRight);
+    UArray_free(minimumLeft);
+    UArray_free(negativeOneRight);
+    UArray_free(ieeeLeft);
+    UArray_free(ieeeRight);
+    UArray_free(empty);
+    UArray_free(pointerArray);
+    return result;
+}
+
 typedef void (*UArrayUnaryTransform_)(UArray *);
 typedef double (*UArrayUnaryMathFunction_)(double);
 
@@ -633,6 +825,8 @@ int main(void)
     if (test_scalar_mutations() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_elementwise_mutations() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (test_elementwise_division() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_reductions() != EXIT_SUCCESS)
         return EXIT_FAILURE;

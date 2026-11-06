@@ -1302,6 +1302,13 @@ jobs:
                   "double UArray_maxAsDouble(const UArray *self)",
                   "maximum = UArray_rawDoubleAt_(self, 0);",
                   "double UArray_minAsDouble(const UArray *self)",
+                  "static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count);",
+                  "if (divisor == 0.0)",
+                  "if (divisor != -1.0)",
+                  "== INT8_MIN",
+                  "== INT16_MIN",
+                  "== INT32_MIN",
+                  "== INT64_MIN",
                   "#define UARRAY_DOP(OP) \\",
                   "void UArray_ ## OP (UArray *self) \\",
                   "self->itemType == CTYPE_uintptr_t || self->size == 0",
@@ -1435,6 +1442,21 @@ jobs:
                   "UArray unary transforms accepted unsupported item type",
                   "UArray unary transforms accepted overflowing storage geometry",
                   "if (test_unary_transforms() != EXIT_SUCCESS)",
+                  "UArray division allocation failed",
+                  "UArray integer division changed mixed-width prefix results or retained the cached hash",
+                  "UArray float32 division changed results or retained the cached hash",
+                  "UArray float64 division changed results or retained the cached hash",
+                  "UArray integer division partially mutated around a zero divisor",
+                  "UArray signed minimum divided by negative one was not rejected",
+                  "UArray floating-point division lost IEEE zero-divisor behavior",
+                  "UArray empty division changed receiver state",
+                  "UArray division accepted missing receiver storage",
+                  "UArray division accepted missing operand storage",
+                  "UArray division accepted malformed item width",
+                  "UArray division accepted unsupported item type",
+                  "UArray division accepted overflowing storage geometry",
+                  "UArray division accepted pointer-sized item type",
+                  "if (test_elementwise_division() != EXIT_SUCCESS)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c": [
                   "UArray float32 cross product changed",
@@ -2318,6 +2340,55 @@ jobs:
                   "UArray_minSizeWith_(" in body
               ):
                   raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")
+
+          division_prototype = bit_math_source.find(
+              "static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count);"
+          )
+          divide_start = bit_math_source.find("void UArray_divide_(UArray *self, const UArray *other)")
+          divide_end = bit_math_source.find("#define UARRAY_DOT", divide_start)
+          divide_body = bit_math_source[divide_start:divide_end] if divide_start >= 0 and divide_end > divide_start else ""
+          divide_self_guard = divide_body.find("UArray_hasValidNumericStorage_(self)")
+          divide_other_guard = divide_body.find("UArray_hasValidNumericStorage_(other)")
+          divide_first_type_access = min(
+              position for position in (divide_body.find("self->itemType"), divide_body.find("other->itemType"))
+              if position >= 0
+          ) if divide_body and ("self->itemType" in divide_body or "other->itemType" in divide_body) else -1
+          divide_zero_guard = divide_body.find("if (minSize == 0)")
+          divide_unsafe_guard = divide_body.find("UArray_hasUnsafeIntegerDivision_(self, other, minSize)")
+          divide_float_dispatch = divide_body.find("vfloat32_div(")
+          divide_generic_dispatch = divide_body.find("DUARRAY_OP(UARRAY_BASICOP_TYPES, /=, self, other);")
+          divide_float_changed = divide_body.find("UArray_changed(self);", divide_float_dispatch)
+          divide_generic_changed = divide_body.rfind("UArray_changed(self);", 0, divide_generic_dispatch) if divide_generic_dispatch >= 0 else -1
+          divide_helper_start = bit_math_source.find(
+              "static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count)\\n{"
+          )
+          divide_helper_end = bit_math_source.find("double UArray_dotProduct_", divide_helper_start)
+          divide_helper_body = bit_math_source[divide_helper_start:divide_helper_end] if divide_helper_start >= 0 and divide_helper_end > divide_helper_start else ""
+          if (
+              division_prototype < 0 or divide_start < 0 or
+              division_prototype > divide_start or
+              not divide_body or
+              divide_self_guard < 0 or divide_other_guard < 0 or
+              divide_first_type_access < 0 or
+              divide_self_guard > divide_first_type_access or
+              divide_other_guard > divide_first_type_access or
+              "self->itemType == CTYPE_uintptr_t" not in divide_body or
+              "other->itemType == CTYPE_uintptr_t" not in divide_body or
+              "minSize = self->size < other->size ? self->size : other->size;" not in divide_body or
+              divide_zero_guard < 0 or divide_unsafe_guard < 0 or
+              divide_unsafe_guard > divide_float_dispatch or
+              divide_unsafe_guard > divide_generic_dispatch or
+              divide_float_dispatch < 0 or divide_generic_dispatch < 0 or
+              divide_float_changed <= divide_float_dispatch or
+              divide_generic_changed < 0 or divide_generic_changed >= divide_generic_dispatch or
+              not divide_helper_body or
+              "if (divisor == 0.0)" not in divide_helper_body or
+              "if (divisor != -1.0)" not in divide_helper_body or
+              any(f"== {minimum}" not in divide_helper_body for minimum in (
+                  "INT8_MIN", "INT16_MIN", "INT32_MIN", "INT64_MIN"
+              ))
+          ):
+              raise SystemExit("UArray elementwise divide must preflight storage and integer UB, preserve float division, and invalidate hash on both dispatch paths")
 
           scalar_operation_ranges = (
               ("add", "void UArray_addScalarDouble_(UArray *self, double value)", "void UArray_subtractScalarDouble_"),
