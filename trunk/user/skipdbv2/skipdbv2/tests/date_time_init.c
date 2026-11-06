@@ -5,11 +5,70 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static int test_timezone_conversion(void)
+{
+    Date date = {0};
+    Date before;
+    struct timezone utc = { 0, 0 };
+    struct timezone east = { -60, 0 };
+
+    date.tv.tv_sec = (time_t)1000000000;
+    date.tv.tv_usec = 250000;
+    date.tz = utc;
+    Date_convertToTimeZone_(&date, east);
+    if (date.tv.tv_sec != (time_t)1000003600 ||
+        date.tv.tv_usec != 250000 ||
+        date.tz.tz_minuteswest != east.tz_minuteswest ||
+        date.tz.tz_dsttime != east.tz_dsttime) {
+        fprintf(stderr, "Date timezone conversion changed the wrong instant or zone\\n");
+        return 0;
+    }
+
+    date.tv.tv_sec = (time_t)LONG_MAX;
+    date.tv.tv_usec = 0;
+    date.tz = utc;
+    before = date;
+    Date_convertToTimeZone_(&date, east);
+    if (date.tv.tv_sec != before.tv.tv_sec ||
+        date.tv.tv_usec != before.tv.tv_usec ||
+        date.tz.tz_minuteswest != before.tz.tz_minuteswest ||
+        date.tz.tz_dsttime != before.tz.tz_dsttime) {
+        fprintf(stderr, "Date timezone conversion partially committed an out-of-range shift\\n");
+        return 0;
+    }
+
+#if LONG_MAX > INT_MAX
+    if (sizeof(time_t) >= sizeof(long)) {
+        Date wide = {0};
+        struct timezone extremeWest = { INT_MAX, 0 };
+        struct timezone extremeEast = { INT_MIN, 0 };
+        long long expected = 1000000000LL +
+            (((long long)INT_MAX - (long long)INT_MIN) * 60LL);
+
+        wide.tv.tv_sec = (time_t)1000000000;
+        wide.tv.tv_usec = 125000;
+        wide.tz = extremeWest;
+        Date_convertToTimeZone_(&wide, extremeEast);
+        if ((long long)wide.tv.tv_sec != expected ||
+            wide.tv.tv_usec != 125000 ||
+            wide.tz.tz_minuteswest != extremeEast.tz_minuteswest) {
+            fprintf(stderr, "Date timezone offset arithmetic lost the full integer range\\n");
+            return 0;
+        }
+    }
+#endif
+
+    return 1;
+}
+
+
 int main(void)
 {
     Date *date;
     double before;
     double after;
+
+    if (!test_timezone_conversion()) return EXIT_FAILURE;
 
     {
         Date sample = {0};

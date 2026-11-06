@@ -147,12 +147,20 @@ void Date_setTimeZone_(Date *self, struct timezone tz)
 void Date_convertToTimeZone_(Date *self, struct timezone tz)
 {
 	double s;
+	long secs, usecs;
+	time_t timestamp;
 	if (NULL == self)
 		return;
 	s = Date_asSeconds(self) +
-	((self->tz.tz_minuteswest - tz.tz_minuteswest) * 60);
-	Date_fromSeconds_(self, s);
-	Date_setTimeZone_(self, tz);
+		(((double)self->tz.tz_minuteswest - (double)tz.tz_minuteswest) * 60.0);
+	if (!Date_splitSeconds_(s, &secs, &usecs))
+		return;
+	timestamp = (time_t)secs;
+	if ((long double)timestamp != (long double)secs)
+		return;
+	self->tv.tv_sec = timestamp;
+	self->tv.tv_usec = usecs;
+	self->tz = tz;
 }
 
 // time --------------------------------------------------------

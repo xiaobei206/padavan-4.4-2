@@ -1,3 +1,14 @@
+## 2026-11-06 21:10 CST — Make Date timezone conversion overflow-safe and atomic
+
+- Baseline: main `abedf58111aadce321924ee96eb277aa67fb6d66`; SkipDBv2 Regression #337 passed.
+- Scope: `Date_convertToTimeZone_()` and the existing `date_time_init` regression.
+- The timezone delta previously subtracted and multiplied two `int` offsets before converting to `double`, allowing signed overflow. It also updated the timezone even when `Date_fromSeconds_()` rejected an unrepresentable adjusted timestamp.
+- Compute the offset delta in floating point, validate normalized seconds and `time_t` representability first, then publish timeval and timezone together. Failed conversions now leave the complete Date state unchanged.
+- Extend the existing test for a normal conversion, an out-of-range transition with full-state preservation, and extreme offset arithmetic when the host time types can represent the result. Extend the workflow's Date source contract; existing CMake/CTest registration is reused.
+- No local C compilation is claimed; mainline CI #338 is the compile/runtime gate.
+
+---
+
 ## 2026-11-06 21:05 CST — Validate ConvertUTF buffers before dereference
 
 - Baseline: main `09fa2efecd93be008e154fe6783084daff892499`; SkipDBv2 Regression #336 passed.

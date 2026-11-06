@@ -2661,36 +2661,29 @@ jobs:
                       not (remaining_guard < sequence_validation < sequence_decode)):
                   raise SystemExit(function_name + " must check remaining source bytes before validating or decoding a multibyte sequence")
 
-          converter_names = ("ConvertUTF32toUTF16", "ConvertUTF16toUTF32",
-                             "ConvertUTF16toUTF8", "ConvertUTF8toUTF16",
-                             "ConvertUTF32toUTF8", "ConvertUTF8toUTF32")
-          for index, function_name in enumerate(converter_names):
-              converter_start = convert_source.find("ConversionResult " + function_name + " (")
-              next_start = (convert_source.find("ConversionResult " + converter_names[index + 1] + " (", converter_start)
-                            if index + 1 < len(converter_names) else convert_source.find("/* ---------------------------------------------------------------------", converter_start))
-              converter_body = convert_source[converter_start:next_start] if converter_start >= 0 and next_start > converter_start else ""
-              argument_guard = converter_body.find("if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||")
-              guard_end = converter_body.find("return sourceIllegal;", argument_guard)
-              source_read = converter_body.find("source = *sourceStart;")
-              target_read = converter_body.find("target = *targetStart;")
-              if (not converter_body or argument_guard < 0 or guard_end < argument_guard or
-                      source_read < guard_end or target_read < guard_end or
-                      "NULL == targetStart || NULL == *targetStart || NULL == targetEnd" not in converter_body[argument_guard:guard_end]):
-                  raise SystemExit(function_name + " must reject null buffer handles/cursors before dereferencing caller-owned pointers")
-
+          converter_names = ("ConvertUTF32toUTF16", "ConvertUTF16toUTF32", "ConvertUTF16toUTF8",
+                             "ConvertUTF8toUTF16", "ConvertUTF32toUTF8", "ConvertUTF8toUTF32")
+          bad_arguments = ("NULL source handle", "NULL source end", "NULL source cursor",
+                           "NULL target handle", "NULL target end", "NULL target cursor")
+          for i, name in enumerate(converter_names):
+              start = convert_source.find("ConversionResult " + name + " (")
+              stop = convert_source.find("ConversionResult " + converter_names[i + 1] + " (", start) if i < 5 else convert_source.find("/* ---------------------------------------------------------------------", start)
+              body = convert_source[start:stop] if start >= 0 and stop > start else ""
+              guard = body.find("if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||")
+              rejected = body.find("return sourceIllegal;", guard)
+              source_read = body.find("source = *sourceStart;", rejected)
+              target_read = body.find("target = *targetStart;", rejected)
+              if (not body or guard < 0 or rejected < guard or source_read < rejected or target_read < rejected or
+                      "NULL == targetStart || NULL == *targetStart || NULL == targetEnd" not in body[guard:rejected]):
+                  raise SystemExit(name + " must validate buffer pointers before dereferencing cursors")
           convert_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.h").read_text()
-          for needle in ("All four buffer pointers and both cursor handles must be non-NULL.",
-                         "Invalid buffer arguments return sourceIllegal without changing either",
-                         "Empty ranges are represented by equal, non-NULL start/end pointers."):
-              if needle not in convert_header:
-                  raise SystemExit("ConvertUTF invalid-buffer contract documentation missing: " + needle)
-          for function_name in converter_names:
-              for argument_name in ("NULL source handle", "NULL source end", "NULL source cursor",
-                                     "NULL target handle", "NULL target end", "NULL target cursor"):
-                  if function_name + " " + argument_name not in convert_test:
-                      raise SystemExit("ConvertUTF invalid-buffer regression case missing: " + function_name + " " + argument_name)
+          if "All four buffer pointers and both cursor handles must be non-NULL." not in convert_header or "Empty ranges are represented by equal, non-NULL start/end pointers." not in convert_header:
+              raise SystemExit("ConvertUTF invalid-buffer documentation missing")
+          for name in converter_names:
+              if any(name + " " + arg not in convert_test for arg in bad_arguments):
+                  raise SystemExit(name + " invalid-buffer test matrix is incomplete")
           if "invalid ConvertUTF arguments changed caller cursors or output" not in convert_test:
-              raise SystemExit("ConvertUTF invalid-buffer regression must confirm caller cursors/output stay untouched")
+              raise SystemExit("ConvertUTF invalid-call state preservation regression is missing")
 
           encoding_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c").read_text()
           truncate_start = encoding_source.find("static int UArray_truncateAfterConvertToEncoding_(UArray *self)")
@@ -2903,6 +2896,15 @@ jobs:
           ):
               raise SystemExit("Date_setSecond_ must validate tm_sec conversion and normalized microseconds")
 
+          timezone_start = date_source.find("void Date_convertToTimeZone_(Date *self, struct timezone tz)")
+          timezone_end = date_source.find("\n// time", timezone_start)
+          timezone_body = date_source[timezone_start:timezone_end] if timezone_start >= 0 and timezone_end > timezone_start else ""
+          timezone_order = [timezone_body.find(x) for x in ("((double)self->tz.tz_minuteswest - (double)tz.tz_minuteswest) * 60.0",
+              "Date_splitSeconds_(s, &secs, &usecs)", "(long double)timestamp != (long double)secs",
+              "self->tv.tv_sec = timestamp;", "self->tz = tz;")]
+          if not timezone_body or min(timezone_order) < 0 or timezone_order != sorted(timezone_order):
+              raise SystemExit("Date timezone conversion must validate offset/time range before state commit")
+
           date_null_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
           for needle in ("Date_copy_(NULL, &sample)", "Date_compare(NULL, &sample)",
                          "Date_asSeconds(NULL) != 0.0",
@@ -2912,6 +2914,7 @@ jobs:
                          "Date_setSecond_(&value, -0.5)",
                          "non-finite Date seconds input changed the stored time",
                          "Date seconds addition overflowed the whole-second field",
+                         "test_timezone_conversion",
                          "Date_newDurationBySubtractingDate_(&sample, NULL) != NULL"):
               if needle not in date_null_test:
                   raise SystemExit("Date seconds/timeval regression case missing: " + needle)
