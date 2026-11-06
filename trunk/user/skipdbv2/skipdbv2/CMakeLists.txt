@@ -226,6 +226,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(list_memory_size_test skipdb m)
     add_test(NAME list_memory_size_test COMMAND list_memory_size_test)
 
+    ADD_EXECUTABLE(list_storage_bounds_test
+        ${PROJECT_SOURCE_DIR}/tests/list_storage_bounds.c)
+    TARGET_LINK_LIBRARIES(list_storage_bounds_test skipdb m)
+    add_test(NAME list_storage_bounds_test COMMAND list_storage_bounds_test)
+
     ADD_EXECUTABLE(list_slice_test
         ${PROJECT_SOURCE_DIR}/tests/list_slice.c)
     TARGET_LINK_LIBRARIES(list_slice_test skipdb m)

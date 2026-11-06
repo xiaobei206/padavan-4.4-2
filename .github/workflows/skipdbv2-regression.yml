@@ -712,6 +712,10 @@ jobs:
                   "ADD_EXECUTABLE(list_memory_size_test",
                   "${PROJECT_SOURCE_DIR}/tests/list_memory_size.c",
                   "add_test(NAME list_memory_size_test COMMAND list_memory_size_test)",
+                  "ADD_EXECUTABLE(list_storage_bounds_test",
+                  "${PROJECT_SOURCE_DIR}/tests/list_storage_bounds.c",
+                  "TARGET_LINK_LIBRARIES(list_storage_bounds_test skipdb m)",
+                  "add_test(NAME list_storage_bounds_test COMMAND list_storage_bounds_test)",
                   "ADD_EXECUTABLE(list_slice_test",
                   "${PROJECT_SOURCE_DIR}/tests/list_slice.c",
                   "TARGET_LINK_LIBRARIES(list_slice_test skipdb m)",
@@ -1277,6 +1281,23 @@ jobs:
                   "List_compact(list)",
                   "list memory size reported logical contents instead of allocated capacity",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/List.c": [
+                  "static int List_hasValidStorage_(const List *self)",
+                  "self->size > self->memSize / sizeof(void *)",
+                  "(self->memSize > 0 && NULL == self->items)",
+                  "List_hasValidStorage_(otherList)",
+                  "List_hasValidStorage_(self)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/list_storage_bounds.c": [
+                  "malformed_source.memSize = sizeof(void *)",
+                  "List_copy_(target, &malformed_source)",
+                  "List_equals_(source, &malformed_source) == 0",
+                  "List_clone(&malformed_source) == NULL",
+                  "malformed_target.size = 2;",
+                  "List_setSize_(&malformed_target, 0)",
+                  "List_asStackAllocatedUArray(&malformed_source)",
+                  "list storage bounds test passed",
+              ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_slice.c": [
                   "List_sliceInPlace(NULL, 0, 0);",
                   "List_sliceInPlace(list, 1, 3);",
@@ -1652,6 +1673,49 @@ jobs:
                          "add_test(NAME uarray_name_lookup_test COMMAND uarray_name_lookup_test)"):
               if needle not in uarray_name_cmake:
                   raise SystemExit("UArray name lookup regression is not registered in CMake/CTest: " + needle)
+
+          list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
+          storage_helper_start = list_source.find("static int List_hasValidStorage_(const List *self)")
+          storage_helper_end = list_source.find("\n}", storage_helper_start)
+          storage_helper = (
+              list_source[storage_helper_start:storage_helper_end]
+              if storage_helper_start >= 0 and storage_helper_end > storage_helper_start
+              else ""
+          )
+          if (not storage_helper or
+                  "self->size > self->memSize / sizeof(void *)" not in storage_helper or
+                  "(self->memSize > 0 && NULL == self->items)" not in storage_helper or
+                  "(self->size > 0 && NULL == self->items)" not in storage_helper):
+              raise SystemExit("List storage validator must reject size/capacity mismatches and missing backing pointers")
+          for signature, next_signature in (
+                  ("void List_copy_(List *self, const List *otherList)", "int List_equals_("),
+                  ("int List_equals_(const List *self, const List *otherList)", "/* --- sizing"),
+                  ("void List_setSize_(List *self, size_t index)", "void List_preallocateToSize_("),
+                  ("void List_preallocateToSize_(List *self, size_t index)", "void List_compact("),
+                  ("void List_sliceInPlace(List* self, long startIndex, long endIndex)", "List *List_cloneSlice(")):
+              start = list_source.find(signature)
+              end = list_source.find(next_signature, start)
+              body = list_source[start:end] if start >= 0 and end > start else ""
+              guard = body.find("List_hasValidStorage_(")
+              first_items_use = body.find("self->items")
+              if not body or guard < 0 or (first_items_use >= 0 and guard > first_items_use):
+                  raise SystemExit("List storage validation must precede backing-array access: " + signature)
+          list_storage_test = Path("trunk/user/skipdbv2/skipdbv2/tests/list_storage_bounds.c").read_text()
+          for needle in ("malformed_source.memSize = sizeof(void *)",
+                         "List_copy_(target, &malformed_source)",
+                         "List_equals_(source, &malformed_source) == 0",
+                         "List_clone(&malformed_source) == NULL",
+                         "malformed_target.size = 2;",
+                         "List_asStackAllocatedUArray(&malformed_source)"):
+              if needle not in list_storage_test:
+                  raise SystemExit("List storage-boundary regression coverage missing: " + needle)
+          list_storage_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(list_storage_bounds_test",
+                         "${PROJECT_SOURCE_DIR}/tests/list_storage_bounds.c",
+                         "TARGET_LINK_LIBRARIES(list_storage_bounds_test skipdb m)",
+                         "add_test(NAME list_storage_bounds_test COMMAND list_storage_bounds_test)"):
+              if needle not in list_storage_cmake:
+                  raise SystemExit("List storage regression is not registered in CMake/CTest: " + needle)
 
           uarray_path_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c").read_text()
           for signature, next_signature in (

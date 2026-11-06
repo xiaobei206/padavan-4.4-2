@@ -1,3 +1,22 @@
+## 2026-11-06 15:32 CST — Validate List backing-storage invariants
+
+### Baseline
+- Main commit `3af56581b92313115e17ed364c6b98d2906ff1c0`; SkipDBv2 Regression run #284 passed source-contract preflight, configure, full build, and CTest.
+
+### Defect and fix
+- List operations trusted `size` even when it exceeded the capacity recorded by `memSize`. Copy/equality and other readers could then read beyond the backing array; mutators could clear or resize beyond the allocation.
+- Introduce one private storage-invariant check and apply it before the List APIs in `List.c` read, expose, or modify item storage. Preserve valid empty lists, including lists compacted to zero capacity.
+
+### Regression and contracts
+- Add `list_storage_bounds.c` to cover malformed source and destination metadata, clone/equality rejection, and safe UArray-view behavior.
+- Register `list_storage_bounds_test` in CMake/CTest and add workflow contracts for the validator, call ordering, regression cases, and target registration.
+
+### Validation
+- Structural checks verify the shared guard precedes backing-array accesses in core copy, comparison, resize, allocation, and slice operations.
+- The workflow triggered by this commit is authoritative for compilation and runtime tests.
+
+---
+
 ## 2026-11-06 15:26 CST — Align UArray path source contract with guard formatting
 
 ### CI failure
