@@ -605,31 +605,39 @@ int UArray_equalsWithHashCheck_(UArray *self, UArray *other)
 
 BASEKIT_API void UArray_duplicateIndexes(UArray *self)
 {
-	size_t size = self->size;
-	int itemSize = self->itemSize;
+	size_t size, doubledSize, itemSize, di, si;
+	uint8_t *b;
 
-	if (size)
-	{
-		size_t si = size - 1;
-		size_t di = (size * 2) - 1;
-		uint8_t *b;
+	if (NULL == self)
+		return;
+	size = self->size;
+	itemSize = self->itemSize;
+	if (size == 0 || itemSize == 0 || NULL == self->data ||
+		size > ((size_t)-1 - 1) / itemSize ||
+		size > (size_t)-1 / 2)
+		return;
 
-		UArray_setSize_(self, self->size * 2);
+	doubledSize = size * 2;
+	if (doubledSize > ((size_t)-1 - 1) / itemSize)
+		return;
 
-		b = self->data;
+	UArray_setSize_(self, doubledSize);
+	if (self->size != doubledSize || NULL == self->data)
+		return;
 
-		for (;;)
-		{
-			uint8_t *src  = b + si * itemSize;
-			uint8_t *dest = b + di * itemSize;
+	b = self->data;
+	si = size - 1;
+	di = doubledSize - 1;
+	for (;;) {
+		uint8_t *src = b + si * itemSize;
+		uint8_t *dest = b + di * itemSize;
 
-			memcpy(dest, src, itemSize);
-			memcpy(dest - itemSize, src, itemSize);
-
-			if (si == 0) break;
-			di = di - 2;
-			si --;
-		}
+		memcpy(dest, src, itemSize);
+		memcpy(dest - itemSize, src, itemSize);
+		if (si == 0)
+			break;
+		di -= 2;
+		--si;
 	}
 }
 

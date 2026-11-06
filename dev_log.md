@@ -1,3 +1,23 @@
+## 2026-11-06 19:19 CST — Make UArray index duplication failure-safe
+
+### Baseline
+- Main commit `fdb9580b86ae5a3f7926b0b427fb1db8675a83da`; SkipDBv2 Regression run #321 passed.
+- Scope: `UArray_duplicateIndexes()` and its existing resize regression.
+
+### Defect and fix
+- The routine doubled the item count without checking integer overflow, ignored the fact that `UArray_setSize_()` reports allocation/validation failure by leaving the original size unchanged, and then unconditionally wrote into the presumed expanded buffer. Invalid geometry or allocation failure could therefore lead to out-of-bounds reads/writes.
+- Validate the receiver, backing storage, item width, current and doubled byte geometry, and item-count doubling before resizing. After resizing, verify both the new size and backing pointer before copying each item backward into its two destination slots.
+
+### Regression and contracts
+- Extend `uarray_stack_resize` with normal duplication-order/source-preservation checks, NULL receiver coverage, and synthetic item-count/item-byte overflow geometries. Restore malformed fixture metadata before cleanup.
+- Update the workflow source contracts for the function's bounds and post-resize check. Reuse the existing CMake/CTest target; no new files or exported declarations.
+
+### Validation
+- Static review confirms all arithmetic checks precede pointer arithmetic, and the copy loop is unreachable unless the target resize actually succeeded.
+- Mainline CI will compile the changes and run the source-contract and regression suites.
+
+---
+
 ## 2026-11-06 19:07 CST — Reject malformed UArray bounded-read destinations
 
 ### Baseline

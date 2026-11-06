@@ -1216,6 +1216,10 @@ jobs:
                   "UArray unescape bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c": [
+                  "void UArray_duplicateIndexes(UArray *self)",
+                  "size > (size_t)-1 / 2",
+                  "doubledSize > ((size_t)-1 - 1) / itemSize",
+                  "self->size != doubledSize || NULL == self->data",
                   "self->size > (size_t)-1 / self->itemSize",
                   "uint8_t *item = self->data + i * itemSize;",
                   "for (j = 0; j < itemSize / 2; ++j)",
@@ -1534,6 +1538,12 @@ jobs:
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c": [
+                  "static int testDuplicateIndexes(void)",
+                  "UArray_duplicateIndexes(NULL)",
+                  "source[0] != 0x1234",
+                  "UArray item-count overflow modified duplicate storage",
+                  "UArray item-byte overflow modified duplicate storage",
+                  "UArray_duplicateIndexes failed safety or duplication checks",
                   "UArray_stackAllocedWithData_type_size_",
                   "UArray_setSize_(&grown, 5)",
                   "UArray_setSize_(&shrunk, 2)",
