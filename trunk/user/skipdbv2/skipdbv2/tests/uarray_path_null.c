@@ -27,6 +27,13 @@ int main(void)
 	UArray *dotfile_path = NULL;
 	UArray *dotfile_extension = NULL;
 	UArray *dotfile_file = NULL;
+	UArray *trailing_path = NULL;
+	UArray *trailing_component = NULL;
+	UArray *trailing_extension = NULL;
+	UArray *trailing_file_name = NULL;
+	UArray *clip_path = NULL;
+	UArray *root_path = NULL;
+	UArray *root_component = NULL;
 	UArray *malformed = NULL;
 	UArray *safe_path = NULL;
 	size_t malformed_size;
@@ -101,6 +108,48 @@ int main(void)
 		!check(dotfile_file != NULL &&
 			strcmp(UArray_asCString(dotfile_file), ".profile") == 0,
 			"dotfile name extraction failed"))
+		goto failure;
+
+	trailing_path = UArray_newWithCString_("/tmp/alpha.tar.gz///");
+	if (!check(trailing_path != NULL, "trailing-separator path fixture allocation failed"))
+		goto failure;
+	trailing_component = UArray_lastPathComponent(trailing_path);
+	trailing_extension = UArray_pathExtension(trailing_path);
+	trailing_file_name = UArray_fileName(trailing_path);
+	if (!check(UArray_findLastPathComponent(trailing_path) == 5 &&
+		trailing_component != NULL &&
+		strcmp(UArray_asCString(trailing_component), "alpha.tar.gz") == 0,
+		"trailing separators leaked into the last path component") ||
+		!check(trailing_extension != NULL &&
+			strcmp(UArray_asCString(trailing_extension), "gz") == 0,
+			"trailing separators leaked into extension parsing") ||
+		!check(trailing_file_name != NULL &&
+			strcmp(UArray_asCString(trailing_file_name), "alpha.tar") == 0,
+			"trailing separators leaked into file-name extraction"))
+		goto failure;
+	UArray_removeLastPathComponent(trailing_path);
+	if (!check(strcmp(UArray_asCString(trailing_path), "/tmp") == 0,
+		"removing a component after trailing separators did not preserve its parent"))
+		goto failure;
+
+	clip_path = UArray_newWithCString_("/tmp/alpha.tar.gz///");
+	if (!check(clip_path != NULL, "clip path fixture allocation failed"))
+		goto failure;
+	UArray_clipBeforeLastPathComponent(clip_path);
+	if (!check(strcmp(UArray_asCString(clip_path), "alpha.tar.gz") == 0,
+		"clipping before the last component retained trailing separators"))
+		goto failure;
+
+	root_path = UArray_newWithCString_("///");
+	if (!check(root_path != NULL, "root path fixture allocation failed"))
+		goto failure;
+	root_component = UArray_lastPathComponent(root_path);
+	UArray_removeLastPathComponent(root_path);
+	if (!check(UArray_findLastPathComponent(root_path) == 0 &&
+		root_component != NULL && UArray_size(root_component) == 0 &&
+		UArray_size(root_path) == 3 &&
+		memcmp(UArray_asCString(root_path), "///", 3) == 0,
+		"root-only path was treated as a removable component"))
 		goto failure;
 
 	malformed = UArray_newWithCString_("/tmp/unsafe");
@@ -179,6 +228,13 @@ int main(void)
 	UArray_free(dotfile_path);
 	UArray_free(dotfile_extension);
 	UArray_free(dotfile_file);
+	UArray_free(trailing_path);
+	UArray_free(trailing_component);
+	UArray_free(trailing_extension);
+	UArray_free(trailing_file_name);
+	UArray_free(clip_path);
+	UArray_free(root_path);
+	UArray_free(root_component);
 	UArray_free(malformed);
 	UArray_free(safe_path);
 	puts("UArray path null-safety test passed");
@@ -197,6 +253,13 @@ failure:
 	UArray_free(dotfile_path);
 	UArray_free(dotfile_extension);
 	UArray_free(dotfile_file);
+	UArray_free(trailing_path);
+	UArray_free(trailing_component);
+	UArray_free(trailing_extension);
+	UArray_free(trailing_file_name);
+	UArray_free(clip_path);
+	UArray_free(root_path);
+	UArray_free(root_component);
 	UArray_free(malformed);
 	UArray_free(safe_path);
 	return EXIT_FAILURE;

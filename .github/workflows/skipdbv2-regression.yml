@@ -2084,16 +2084,19 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c": [
                   "static size_t UArray_pathItemSize_(CTYPE itemType)",
                   "static int UArray_hasValidPathStorage_(const UArray *self)",
-                  "UArray_hasValidPathStorage_(self)",
-                  "long path_start, pos;",
-                  "path_start = UArray_findLastPathComponent(self);",
-                  "if (pos <= path_start)",
+                  "static int UArray_pathComponentBounds_(const UArray *self, size_t *componentStart, size_t *componentEnd)",
+                  "UArray_pathComponentBounds_(self, &componentStart, &componentEnd)",
+                  "while (component.size > 0 && IS_PATH_SEPERATOR(UArray_lastLong(&component)))",
+                  "*componentEnd = component.size;",
+                  "*componentStart = separatorPosition < 0 ? 0 : (size_t)separatorPosition + 1;",
+                  "componentEnd - componentStart",
+                  "componentStart == componentEnd",
+                  "componentStart == 1",
+                  "UArray_setSize_(self, componentEnd);",
                   "UArray_hasValidPathStorage_(path)",
                   "self->size > (size_t)LONG_MAX",
                   "self->size > (size_t)-1 / expectedItemSize",
                   "if (NULL == self)",
-                  "if (pos < 0)",
-                  "if (pos < 0 || (size_t)pos > self->size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_path_null.c": [
                   "UArray_findLastPathComponent(NULL) == -1",
@@ -2108,6 +2111,13 @@ jobs:
                   "dotfile name extraction failed",
                   'strcmp(UArray_asCString(directory_dot_file), "file") == 0',
                   'strcmp(UArray_asCString(dotfile_file), ".profile") == 0',
+                  'UArray_newWithCString_("/tmp/alpha.tar.gz///")',
+                  "trailing separators leaked into the last path component",
+                  "trailing separators leaked into extension parsing",
+                  "trailing separators leaked into file-name extraction",
+                  "removing a component after trailing separators did not preserve its parent",
+                  "clipping before the last component retained trailing separators",
+                  "root-only path was treated as a removable component",
                   "UArray path operations accepted malformed item metadata",
                   "UArray path mutation changed malformed or valid storage",
                   "UArray path operations accepted zero-width item geometry",
@@ -3748,14 +3758,55 @@ jobs:
           path_extension_end = uarray_path_source.find("void UArray_removePathExtension(", path_extension_start)
           path_extension_body = uarray_path_source[path_extension_start:path_extension_end] if path_extension_start >= 0 and path_extension_end > path_extension_start else ""
           path_extension_order = [path_extension_body.find(token) for token in (
-              "path_start = UArray_findLastPathComponent(self);",
-              "if (path_start < 0)",
-              "pos = UArray_rFind_(self, &dot);",
-              "if (pos <= path_start)",
-              "return pos;",
+              "if (!UArray_hasValidPathStorage_(self))",
+              "if (!UArray_pathComponentBounds_(self, &componentStart, &componentEnd))",
+              "if (componentStart >= componentEnd)",
+              "component = UArray_stackRange(self, componentStart, componentEnd - componentStart);",
+              "pos = UArray_rFind_(&component, &dot);",
+              "if (pos <= 0)",
+              "return (long)componentStart + pos;",
           )]
           if not path_extension_body or min(path_extension_order) < 0 or path_extension_order != sorted(path_extension_order):
-              raise SystemExit("UArray_findPathExtension must search only the basename and ignore a leading dot")
+              raise SystemExit("UArray_findPathExtension must trim trailing separators and search only the basename")
+
+          clip_component_start = uarray_path_source.find("void UArray_clipBeforeLastPathComponent(UArray *self)")
+          clip_component_end = uarray_path_source.find("\nlong UArray_findLastPathComponent(", clip_component_start)
+          clip_component_body = (
+              uarray_path_source[clip_component_start:clip_component_end]
+              if clip_component_start >= 0 and clip_component_end > clip_component_start
+              else ""
+          )
+          clip_component_order = [clip_component_body.find(token) for token in (
+              "UArray_pathComponentBounds_(self, &componentStart, &componentEnd)",
+              "componentStart != componentEnd",
+              "UArray_setSize_(self, componentEnd);",
+              "UArray_removeRange(self, 0, componentStart);",
+          )]
+          if not clip_component_body or min(clip_component_order) < 0 or clip_component_order != sorted(clip_component_order):
+              raise SystemExit("UArray_clipBeforeLastPathComponent must strip the trailing separator run before clipping")
+
+          component_bounds_start = uarray_path_source.find("static int UArray_pathComponentBounds_(")
+          component_bounds_end = uarray_path_source.find("\n}", component_bounds_start)
+          component_bounds_body = (
+              uarray_path_source[component_bounds_start:component_bounds_end]
+              if component_bounds_start >= 0 and component_bounds_end > component_bounds_start
+              else ""
+          )
+          component_bounds_order = [component_bounds_body.find(token) for token in (
+              "if (NULL == componentStart || NULL == componentEnd ||",
+              "component = UArray_stackRange(self, 0, self->size);",
+              "while (component.size > 0 && IS_PATH_SEPERATOR(UArray_lastLong(&component)))",
+              "*componentEnd = component.size;",
+              "separatorPosition = UArray_rFindAnyValue_(&component, &separators);",
+              "*componentStart = separatorPosition < 0 ? 0 : (size_t)separatorPosition + 1;",
+          )]
+          first_component_call = uarray_path_source.find("UArray_pathComponentBounds_(self, &componentStart, &componentEnd)")
+          if (
+              not component_bounds_body or min(component_bounds_order) < 0 or
+              component_bounds_order != sorted(component_bounds_order) or
+              first_component_call < component_bounds_end
+          ):
+              raise SystemExit("UArray path component bounds must be privately validated before callers use them")
 
           uarray_path_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_path_null.c").read_text()
           for needle in ("UArray_findLastPathComponent(NULL) == -1",

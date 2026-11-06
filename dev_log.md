@@ -1,3 +1,14 @@
+## 2026-11-07 04:49 CST — Normalize trailing separators in UArray path boundaries
+
+- Baseline: main commit `95a33bd84b0749119122337db0e963c9ef5b81d4`; SkipDBv2 Regression run #432 passed source contracts, configure, full build, and all CTest cases.
+- Scope: path-component boundary handling in `basekit/UArray_path.c` and its existing `uarray_path_null` regression.
+- A trailing separator run was removed only from the temporary search view. The resulting start offset was then reused with the original array size, so last-component, extension, and filename extraction included trailing separators; component removal/clipping could also leave inconsistent suffixes or treat a separator-only root as a component.
+- Add one private typed-array boundary helper that computes both the component start and end after trimming trailing separators. Reuse it across component lookup, extension parsing, filename extraction, removal, and clipping while retaining the existing CTYPE, width, overflow, and backing-storage validation.
+- Extend the existing CTest regression and static/dynamic Actions contracts for trailing separators and root-only paths. The current CMake test target already covers this file; no new files, public API, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 03:46 CST — Repair UArray reverse range contract boundary
 
 - CI run #431 stopped in the XY-C1 source-contract check before configure because the `UArray_reverse()` contract could not locate its end boundary.
