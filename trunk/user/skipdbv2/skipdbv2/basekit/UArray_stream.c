@@ -184,7 +184,7 @@ int UArray_readLineFromCStream_(UArray *self, FILE *stream)
 
 	if (NULL == self || NULL == stream || self->itemSize != 1 ||
 		(self->size > 0 && NULL == self->data))
-		return 0;
+		return -1;
 
 	for (;;) {
 		int ch = fgetc(stream);

@@ -1430,6 +1430,8 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c": [
                   "static int UArray_streamAppendLineChunk_(UArray *self,",
                   "UArray_stackAllocedWithData_type_size_((void *)bytes,",
+                  "if (NULL == self || NULL == stream || self->itemSize != 1 ||",
+                  "(self->size > 0 && NULL == self->data)",
                   "self->itemSize != 1",
                   "int ch = fgetc(stream);",
                   "ungetc(next, stream)",
@@ -1439,6 +1441,11 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stream_io.c": [
                   "UArray_readLineFromCStream_",
+                  "testLineArgumentValidation",
+                  "UArray line reader accepted a NULL destination",
+                  "UArray line reader accepted a NULL stream",
+                  "UArray line reader accepted a non-byte destination",
+                  "UArray line reader accepted malformed storage",
                   "fopencookie(cookie, \"r\", functions)",
                   "errno = EIO;",
                   "UArray_readNumberOfItems_fromCStream_(array, 5, errorStream) != -1",
@@ -1922,6 +1929,21 @@ jobs:
                   if needle not in content:
                       raise SystemExit(f"missing XY-C1 integration contract: {path}: {needle}")
               print(f"OK: {path}")
+
+          line_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c").read_text()
+          line_start = line_source.find("int UArray_readLineFromCStream_(UArray *self, FILE *stream)")
+          line_end = line_source.find("/* write", line_start)
+          line_body = line_source[line_start:line_end] if line_start >= 0 and line_end > line_start else ""
+          invalid_guard = line_body.find("if (NULL == self || NULL == stream || self->itemSize != 1 ||")
+          invalid_return = line_body.find("return -1;", invalid_guard)
+          first_read = line_body.find("int ch = fgetc(stream);")
+          if (not line_body or min(invalid_guard, invalid_return, first_read) < 0 or
+                  invalid_return > first_read or
+                  "return 0;" in line_body[invalid_guard:invalid_return]):
+              raise SystemExit("UArray line reader must report invalid arguments before consuming stream input")
+          line_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.h").read_text()
+          if "0 at clean EOF, or -1 on invalid input/I/O error" not in line_header:
+              raise SystemExit("UArray line reader result contract must distinguish EOF from invalid input")
 
           bstream_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/BStream.c").read_text()
           uint8_start = bstream_source.find("uint8_t BStream_readUint8(BStream *self)")

@@ -207,8 +207,70 @@ done:
 	return okay;
 }
 
+static int testLineArgumentValidation(void)
+{
+	FILE *stream = tmpfile();
+	UArray *line = newByteArray();
+	UArray *wide = UArray_new();
+	uint8_t payload = 'Q';
+	uint8_t *originalData = NULL;
+	int okay = 0;
+
+	if (NULL == stream || NULL == line || NULL == wide)
+		goto done;
+	if (fwrite(&payload, 1, 1, stream) != 1 ||
+		fseek(stream, 0, SEEK_SET) != 0)
+		goto done;
+
+	if (UArray_readLineFromCStream_(NULL, stream) != -1 ||
+		ftell(stream) != 0) {
+		fprintf(stderr, "UArray line reader accepted a NULL destination or consumed input\n");
+		goto done;
+	}
+	if (UArray_readLineFromCStream_(line, NULL) != -1) {
+		fprintf(stderr, "UArray line reader accepted a NULL stream\n");
+		goto done;
+	}
+
+	UArray_setItemType_(wide, CTYPE_uint16_t);
+	if (wide->itemSize != sizeof(uint16_t) ||
+		UArray_readLineFromCStream_(wide, stream) != -1 ||
+		ftell(stream) != 0) {
+		fprintf(stderr, "UArray line reader accepted a non-byte destination or consumed input\n");
+		goto done;
+	}
+
+	UArray_setSize_(line, 1);
+	if (line->size != 1 || NULL == line->data)
+		goto done;
+	originalData = line->data;
+	line->data = NULL;
+	if (UArray_readLineFromCStream_(line, stream) != -1 ||
+		line->size != 1 || NULL != line->data || ftell(stream) != 0) {
+		fprintf(stderr, "UArray line reader accepted malformed storage or consumed input\n");
+		goto done;
+	}
+	line->data = originalData;
+	originalData = NULL;
+	okay = 1;
+
+done:
+	if (line && originalData)
+		line->data = originalData;
+	if (stream)
+		fclose(stream);
+	UArray_free(wide);
+	UArray_free(line);
+	return okay;
+}
+
+
 int main(void)
 {
+	if (!testLineArgumentValidation()) {
+		fprintf(stderr, "UArray line argument validation failed\n");
+		return EXIT_FAILURE;
+	}
 	if (!testLineBoundaries()) {
 		fprintf(stderr, "UArray line boundaries or line payload preservation failed\n");
 		return EXIT_FAILURE;

@@ -1,3 +1,14 @@
+## 2026-11-06 21:14 CST — Distinguish invalid UArray line-reader input from EOF
+
+- Baseline: main `bfb07b7a6a5780aabf95ca6c2c969dcb8470d8fa`; SkipDBv2 Regression #338 passed.
+- Scope: `UArray_readLineFromCStream_()`, its public return contract, and the existing `uarray_stream_io` test.
+- Invalid destination, stream, item width, or backing storage previously returned `0`, making invalid calls indistinguishable from clean EOF. The shared stream API comment already specifies `-1` for errors.
+- Return `-1` for invalid arguments before reading any bytes. Document the three-way result: 1 for a line, 0 for clean EOF, and -1 for invalid input or I/O failure.
+- Extend the existing test with NULL destination/stream, non-byte destination, and malformed-storage cases; assert the input stream position remains unchanged. Tighten the existing workflow source contract to verify the guard returns before the first `fgetc()`. Existing CMake/CTest registration is reused.
+- No local C compilation is claimed; mainline CI #339 is the compile/runtime gate.
+
+---
+
 ## 2026-11-06 21:10 CST — Make Date timezone conversion overflow-safe and atomic
 
 - Baseline: main `abedf58111aadce321924ee96eb277aa67fb6d66`; SkipDBv2 Regression #337 passed.
