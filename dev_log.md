@@ -1,3 +1,10 @@
+## 2026-11-07 02:30 CST — Correct Date source-contract ownership after CI rejection
+
+- Baseline: main commit `42a4d5bead1f05a989d71890cb4a58e39a161d06`; SkipDBv2 Regression run #414 stopped in the XY-C1 integration source-contract check before configure/build.
+- The Date comparison needles were inserted after the first repository-wide NULL-comparison match, which belonged to `BStreamTag.c`, not `Date.c`. The contract checker therefore correctly reported missing Date-only text in BStreamTag.
+- Move those four needles into the existing Date.c contract block and restore the BStreamTag block. No C source or test logic changed; this is an in-place workflow-contract correction.
+
+---
 ## 2026-11-07 02:26 CST — Compare Date timestamps without double precision loss
 
 - Baseline: main commit `8909b11b2b2a705fbcc88d1f5b44f1c37a0d9f6a`; SkipDBv2 Regression run #413 passed.
