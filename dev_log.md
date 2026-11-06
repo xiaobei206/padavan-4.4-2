@@ -1,3 +1,25 @@
+## 2026-11-06 16:55 CST — Validate UArray pointer-element access invariants
+
+### Baseline
+- Main commit `a068923863755ce796d0c41192e7dba59f14f5a1`; SkipDBv2 Regression run #303 passed contracts, configure, full build, and CTest.
+- Scope: pointer getter/setter paths in `UArray.c` only.
+
+### Defect and fix
+- `UArray_rawPointerAt_()` dereferenced a NULL receiver and assumed pointer-sized storage without validating the element type, item width, storage multiplication, or backing data.
+- `UArray_pointerAt_()` checked only the index and data pointer, so malformed pointer-array metadata could still produce an invalid pointer read.
+- `UArray_at_putPointer_()` resized the array before checking that it was a pointer array, allowing unsupported or malformed arrays to be mutated before failure.
+- Add one private storage validator; use it in raw/bounded reads and before/after setter growth. Reject unsupported element geometry before resizing and invalidate the cached hash after successful writes.
+
+### Regression and contracts
+- Add `uarray_pointer_access_test` for valid pointer round trips, NULL/out-of-range reads, malformed backing data, invalid item width/type, size overflow, no-growth-on-rejection, and hash invalidation.
+- Register the test in CMake and extend workflow source contracts. No exported declarations changed.
+
+### Validation
+- Static review confirms pointer width/geometry and non-empty backing storage are checked before pointer arithmetic; the setter preflights before any size mutation.
+- CI run #304 will verify compilation and the full regression suite.
+
+---
+
 ## 2026-11-06 16:50 CST — Repair UArray distance CI boundary matcher
 
 - Run #302 reached the source-contract phase and stopped before configure/build because the newly added Python check escaped the newline delimiter twice, leaving the distance-function slice empty.

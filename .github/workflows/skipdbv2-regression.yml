@@ -716,6 +716,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_distance_precision.c",
                   "TARGET_LINK_LIBRARIES(uarray_distance_precision_test skipdb m)",
                   "add_test(NAME uarray_distance_precision_test COMMAND uarray_distance_precision_test)",
+                  "ADD_EXECUTABLE(uarray_pointer_access_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_pointer_access.c",
+                  "TARGET_LINK_LIBRARIES(uarray_pointer_access_test skipdb m)",
+                  "add_test(NAME uarray_pointer_access_test COMMAND uarray_pointer_access_test)",
                   "ADD_EXECUTABLE(bstream_tag_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
                   "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
@@ -1188,6 +1192,20 @@ jobs:
                   "UArray distance changed unequal-length behavior",
                   "UArray distance precision test passed",
               ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_pointer_access.c": [
+                  "UArray valid pointer array round trip failed",
+                  "UArray pointer getter accepted NULL or out-of-range access",
+                  "UArray pointer mutation failed to update data and invalidate hash",
+                  "UArray pointer getter accepted non-empty NULL storage",
+                  "UArray pointer setter mutated malformed backing storage",
+                  "UArray pointer getter accepted malformed element width",
+                  "UArray pointer setter resized malformed element storage",
+                  "UArray pointer setter changed an unsupported array type",
+                  "UArray pointer getter accepted overflowing geometry",
+                  "UArray pointer setter modified overflowing geometry",
+                  "UArray pointer setter resized an unsupported empty array",
+                  "UArray pointer access test passed",
+              ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
                   "if (self->size > (size_t)LONG_MAX)",
@@ -1337,6 +1355,12 @@ jobs:
                   "self->itemSize != itemSize",
                   "self->size > (size_t)LONG_MAX",
                   "if (!UArray_searchArrayIsValid_(self) ||",
+                  "static int UArray_hasValidPointerStorage_(const UArray *self)",
+                  "self->itemSize != sizeof(void *)",
+                  "self->itemSize != sizeof(uintptr_t)",
+                  "UArray_rawPointerAt_ requires valid pointer storage",
+                  "UArray_at_putPointer_ requires valid pointer storage",
+                  "if (!UArray_hasValidPointerStorage_(self))",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c": [
                   "UArray_sizeInBytes(NULL)",
@@ -1816,6 +1840,44 @@ jobs:
               "float32_t d = a[i] - b[i];" in float64_branch
           ):
               raise SystemExit("UArray float64 distance must retain a float64 intermediate")
+
+          pointer_array_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text()
+          pointer_helper_start = pointer_array_source.find("static int UArray_hasValidPointerStorage_(const UArray *self)")
+          raw_pointer_start = pointer_array_source.find("void *UArray_rawPointerAt_(const UArray *self, size_t i)")
+          raw_pointer_end = pointer_array_source.find("long UArray_rawLongAt_", raw_pointer_start)
+          bounded_pointer_start = pointer_array_source.find("void *UArray_pointerAt_(const UArray *self, size_t i)")
+          bounded_pointer_end = pointer_array_source.find("long UArray_longAt_", bounded_pointer_start)
+          pointer_setter_start = pointer_array_source.find("void UArray_at_putPointer_(UArray *self, size_t pos, void *v)")
+          pointer_setter_end = pointer_array_source.find("void UArray_appendLong_", pointer_setter_start)
+          pointer_helper_body = pointer_array_source[pointer_helper_start:raw_pointer_start] if pointer_helper_start >= 0 and raw_pointer_start > pointer_helper_start else ""
+          raw_pointer_body = pointer_array_source[raw_pointer_start:raw_pointer_end] if raw_pointer_start >= 0 and raw_pointer_end > raw_pointer_start else ""
+          bounded_pointer_body = pointer_array_source[bounded_pointer_start:bounded_pointer_end] if bounded_pointer_start >= 0 and bounded_pointer_end > bounded_pointer_start else ""
+          pointer_setter_body = pointer_array_source[pointer_setter_start:pointer_setter_end] if pointer_setter_start >= 0 and pointer_setter_end > pointer_setter_start else ""
+          if (
+              not pointer_helper_body or
+              "self->itemSize != sizeof(void *)" not in pointer_helper_body or
+              "self->size > (size_t)-1 / self->itemSize" not in pointer_helper_body or
+              "(self->size > 0 && NULL == self->data)" not in pointer_helper_body
+          ):
+              raise SystemExit("UArray pointer access must validate pointer element geometry and backing storage")
+          if (
+              not raw_pointer_body or
+              "UArray_hasValidPointerStorage_(self)" not in raw_pointer_body or
+              "NULL == self->data" not in raw_pointer_body
+          ):
+              raise SystemExit("raw UArray pointer access must reject malformed storage")
+          if (
+              not bounded_pointer_body or
+              "i >= self->size" not in bounded_pointer_body or
+              "UArray_hasValidPointerStorage_(self)" not in bounded_pointer_body
+          ):
+              raise SystemExit("bounded UArray pointer access must validate both index and storage")
+          if (
+              not pointer_setter_body or
+              pointer_setter_body.find("UArray_hasValidPointerStorage_(self)") < 0 or
+              pointer_setter_body.find("UArray_hasValidPointerStorage_(self)") > pointer_setter_body.find("UArray_setSize_(self, pos + 1)")
+          ):
+              raise SystemExit("UArray pointer setter must reject malformed arrays before resizing")
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
           memory_start = list_source.find("size_t List_memorySize(const List *self)")
           memory_end = list_source.find("\nvoid List_removeAll", memory_start)

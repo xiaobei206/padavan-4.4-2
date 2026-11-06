@@ -868,15 +868,25 @@ BASEKIT_API UArray *UArray_slice(const UArray *self, long start, long end)
 
 // at, without bounds check
 
+static int UArray_hasValidPointerStorage_(const UArray *self)
+{
+    if (NULL == self || self->itemType != CTYPE_uintptr_t ||
+        self->itemSize != sizeof(void *) ||
+        self->itemSize != sizeof(uintptr_t) ||
+        self->size > (size_t)-1 / self->itemSize ||
+        (self->size > 0 && NULL == self->data))
+        return 0;
+    return 1;
+}
+
 void *UArray_rawPointerAt_(const UArray *self, size_t i)
 {
-	if (self->itemType == CTYPE_uintptr_t)
-	{
-		return ((void **)self->data)[i];
-	}
-
-	UArray_error_(self, "UArray_rawPointerAt_ not supported on this type");
-	return NULL;
+    if (!UArray_hasValidPointerStorage_(self) || NULL == self->data) {
+        if (self)
+            UArray_error_(self, "UArray_rawPointerAt_ requires valid pointer storage");
+        return NULL;
+    }
+    return ((void **)self->data)[i];
 }
 
 long UArray_rawLongAt_(const UArray *self, size_t i)
@@ -897,9 +907,10 @@ double UArray_rawDoubleAt_(const UArray *self, size_t i)
 
 void *UArray_pointerAt_(const UArray *self, size_t i)
 {
-	if (NULL == self || i >= self->size || NULL == self->data)
-		return NULL;
-	return UArray_rawPointerAt_(self, i);
+    if (NULL == self || i >= self->size ||
+        !UArray_hasValidPointerStorage_(self))
+        return NULL;
+    return UArray_rawPointerAt_(self, i);
 }
 
 long UArray_longAt_(const UArray *self, size_t i)
@@ -1096,25 +1107,22 @@ void UArray_at_putDouble_(UArray *self, size_t pos, double v)
 
 void UArray_at_putPointer_(UArray *self, size_t pos, void *v)
 {
-	if (NULL == self || pos == (size_t)-1)
-		return;
-	if (pos >= self->size)
-		UArray_setSize_(self, pos + 1);
-	if (pos >= self->size || NULL == self->data)
-		return;
+    if (NULL == self || pos == (size_t)-1)
+        return;
+    if (!UArray_hasValidPointerStorage_(self)) {
+        UArray_error_(self, "UArray_at_putPointer_ requires valid pointer storage");
+        return;
+    }
+    if (pos >= self->size)
+        UArray_setSize_(self, pos + 1);
+    if (pos >= self->size || !UArray_hasValidPointerStorage_(self) ||
+        NULL == self->data)
+        return;
 
-	switch (self->itemType)
-	{
-		case CTYPE_uintptr_t:
-			if(((void **)self->data)[pos] != v)
-			{
-				((void **)self->data)[pos] = v;
-				UArray_changed(self);
-			}
-			return;
-	}
-
-	UArray_error_(self, "UArray_at_putPointer_ not supported with this type");
+    if (((void **)self->data)[pos] != v) {
+        ((void **)self->data)[pos] = v;
+        UArray_changed(self);
+    }
 }
 
 void UArray_appendLong_(UArray *self, long v)
