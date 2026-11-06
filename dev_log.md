@@ -1,3 +1,13 @@
+## 2026-11-06 22:33 CST — Harden UArray statistical reductions
+
+- Baseline: main commit `cd4a796114f40a6ec026593b110f994f863157c6`; SkipDBv2 Regression run #349 passed all 55 CTest cases, including the scale-safe normalization change.
+- Scope: the four related UArray aggregate operations in `basekit/UArray_math.c`: sum, product, arithmetic mean, and arithmetic mean square.
+- These routines could iterate malformed storage, divide by zero for empty means, and dereference a failed clone in mean-square calculation. The clone also made a read-only statistic unnecessarily allocation-dependent.
+- Validate numeric type/width, overflow-safe geometry, and backing storage before iteration. Define empty means as zero while preserving the empty product identity of one. Compute mean square directly in double precision without cloning or mutating the source.
+- Extend the existing `uarray_math_extrema` regression and workflow source contract for positive/negative inputs, empty/NULL arrays, malformed storage, unsupported types, and source-hash preservation. Reuse the existing CMake target; no new files or CMake changes.
+- No local C compilation or CTest result is claimed; mainline CI remains the build/runtime gate.
+
+---
 ## 2026-11-06 22:30 CST — Make UArray normalization scale-safe and allocation-free
 
 - Baseline: main commit `3ae2e440aa62e4f16c2f77b5277a737cff03ea18`; SkipDBv2 Regression run #348 passed all 55 CTest cases.

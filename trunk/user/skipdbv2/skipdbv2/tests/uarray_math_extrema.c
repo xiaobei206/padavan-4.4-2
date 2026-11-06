@@ -7,6 +7,114 @@
 static int fail(const char *s) { fprintf(stderr, "%s\n", s); return EXIT_FAILURE; }
 static int nearEnough(double a, double b) { return fabs(a - b) <= 1e-12; }
 
+static int test_reductions(void)
+{
+    const int32_t positiveValues[] = {5, 12, 8};
+    const int32_t negativeValues[] = {-11, -4, -19};
+    UArray *positive = UArray_newWithData_type_size_copy_((void *)positiveValues, CTYPE_int32_t, 3, 1);
+    UArray *negative = UArray_newWithData_type_size_copy_((void *)negativeValues, CTYPE_int32_t, 3, 1);
+    UArray *empty = UArray_new();
+    int result = EXIT_FAILURE;
+
+    if (!positive || !negative || !empty) {
+        fail("UArray reduction allocation failed");
+        goto cleanup;
+    }
+
+    positive->hash = 0x1357;
+    if (UArray_sumAsDouble(positive) != 25.0 ||
+        UArray_productAsDouble(positive) != 480.0 ||
+        !nearEnough(UArray_arithmeticMeanAsDouble(positive), 25.0 / 3.0) ||
+        !nearEnough(UArray_arithmeticMeanSquareAsDouble(positive), 233.0 / 3.0) ||
+        positive->hash != 0x1357) {
+        fail("UArray valid reductions changed their results or mutated the source hash");
+        goto cleanup;
+    }
+
+    if (UArray_sumAsDouble(negative) != -34.0 ||
+        UArray_productAsDouble(negative) != -836.0 ||
+        !nearEnough(UArray_arithmeticMeanAsDouble(negative), -34.0 / 3.0) ||
+        !nearEnough(UArray_arithmeticMeanSquareAsDouble(negative), 498.0 / 3.0)) {
+        fail("UArray negative reductions changed their results");
+        goto cleanup;
+    }
+
+    if (UArray_sumAsDouble(empty) != 0.0 ||
+        UArray_productAsDouble(empty) != 1.0 ||
+        UArray_arithmeticMeanAsDouble(empty) != 0.0 ||
+        UArray_arithmeticMeanSquareAsDouble(empty) != 0.0 ||
+        UArray_sumAsDouble(NULL) != 0.0 ||
+        UArray_productAsDouble(NULL) != 0.0 ||
+        UArray_arithmeticMeanAsDouble(NULL) != 0.0 ||
+        UArray_arithmeticMeanSquareAsDouble(NULL) != 0.0) {
+        fail("UArray empty or NULL reduction behavior is invalid");
+        goto cleanup;
+    }
+
+    {
+        uint8_t *originalData = positive->data;
+        positive->data = NULL;
+        if (UArray_sumAsDouble(positive) != 0.0 ||
+            UArray_productAsDouble(positive) != 0.0 ||
+            UArray_arithmeticMeanAsDouble(positive) != 0.0 ||
+            UArray_arithmeticMeanSquareAsDouble(positive) != 0.0) {
+            positive->data = originalData;
+            fail("UArray reductions accepted missing backing storage");
+            goto cleanup;
+        }
+        positive->data = originalData;
+    }
+
+    {
+        size_t originalItemSize = positive->itemSize;
+        positive->itemSize = 0;
+        if (UArray_sumAsDouble(positive) != 0.0 ||
+            UArray_productAsDouble(positive) != 0.0 ||
+            UArray_arithmeticMeanAsDouble(positive) != 0.0 ||
+            UArray_arithmeticMeanSquareAsDouble(positive) != 0.0) {
+            positive->itemSize = originalItemSize;
+            fail("UArray reductions accepted mismatched item width");
+            goto cleanup;
+        }
+        positive->itemSize = originalItemSize;
+    }
+
+    {
+        size_t originalSize = positive->size;
+        positive->size = (size_t)-1 / positive->itemSize + 1;
+        if (UArray_sumAsDouble(positive) != 0.0 ||
+            UArray_productAsDouble(positive) != 0.0 ||
+            UArray_arithmeticMeanAsDouble(positive) != 0.0 ||
+            UArray_arithmeticMeanSquareAsDouble(positive) != 0.0) {
+            positive->size = originalSize;
+            fail("UArray reductions accepted overflowing storage geometry");
+            goto cleanup;
+        }
+        positive->size = originalSize;
+    }
+
+    {
+        CTYPE originalItemType = positive->itemType;
+        positive->itemType = (CTYPE)9999;
+        if (UArray_sumAsDouble(positive) != 0.0 ||
+            UArray_productAsDouble(positive) != 0.0 ||
+            UArray_arithmeticMeanAsDouble(positive) != 0.0 ||
+            UArray_arithmeticMeanSquareAsDouble(positive) != 0.0) {
+            positive->itemType = originalItemType;
+            fail("UArray reductions accepted unsupported item type");
+            goto cleanup;
+        }
+        positive->itemType = originalItemType;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(positive);
+    UArray_free(negative);
+    UArray_free(empty);
+    return result;
+}
+
 static int test_normalize(void)
 {
     const double normalValues[] = {3.0, 4.0};
@@ -128,6 +236,8 @@ cleanup:
 
 int main(void)
 {
+    if (test_reductions() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
     if (test_normalize() != EXIT_SUCCESS)
         return EXIT_FAILURE;
 

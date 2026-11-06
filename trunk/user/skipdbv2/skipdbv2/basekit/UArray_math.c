@@ -407,30 +407,42 @@ void UArray_square(UArray *self)
 double UArray_sumAsDouble(const UArray *self)
 {
 	double sum = 0;
-	UARRAY_FOREACH(self, i, v, sum += v);
+
+	if (!UArray_hasValidNumericStorage_(self))
+		return 0;
+
+	UARRAY_FOREACH(self, i, v, sum += (double)v);
 	return sum;
 }
 
 double UArray_productAsDouble(const UArray *self)
 {
-	double p = 1;
-	UARRAY_FOREACH(self, i, v, p *= v);
-	return p;
+	double product = 1;
+
+	if (!UArray_hasValidNumericStorage_(self))
+		return 0;
+
+	UARRAY_FOREACH(self, i, v, product *= (double)v);
+	return product;
 }
 
 double UArray_arithmeticMeanAsDouble(const UArray *self)
 {
-	return UArray_sumAsDouble(self) / ((double)self->size);
+	if (!UArray_hasValidNumericStorage_(self) || self->size == 0)
+		return 0;
+
+	return UArray_sumAsDouble(self) / (double)self->size;
 }
 
 double UArray_arithmeticMeanSquareAsDouble(const UArray *self)
 {
-	double r;
-	UArray *s = UArray_clone(self);
-	UArray_square(s);
-	r = UArray_arithmeticMeanAsDouble(s);
-	UArray_free(s);
-	return r;
+	double meanSquare = 0;
+
+	if (!UArray_hasValidNumericStorage_(self) || self->size == 0)
+		return 0;
+
+	UARRAY_FOREACH(self, i, v, meanSquare += (double)v * (double)v);
+	return meanSquare / (double)self->size;
 }
 
 double UArray_maxAsDouble(const UArray *self)
