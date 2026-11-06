@@ -739,7 +739,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h": [
                   "if (self->top >= self->memEnd - 1)",
-                  "if (mark <= 0)",
+                  "mark <= 0",
                   "if (cursor != mark)",
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
               ],

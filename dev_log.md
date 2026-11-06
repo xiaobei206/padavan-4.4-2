@@ -1,4 +1,20 @@
-## 2026-11-06 07:38 CST — Harden Stack storage and mark lifecycle
+## 2026-11-06 10:48 CST — Align Stack mark guard source contract with implementation
+
+### CI finding
+- Commit `b54b8cf317bb168a93633a19cf30a3293d83fdeb` triggered SkipDBv2 Regression run #222 (`42152426798`).
+- The source-contract step stopped before configure/build because the new Stack contract required the literal `if (mark <= 0)`, while the implementation correctly includes `mark <= 0` in a compound early-return guard. This was a brittle contract needle, not a C compilation or runtime failure.
+
+### Repair
+- Relax the workflow needle to match the semantic guard token `mark <= 0`; implementation, test source, CMake registration, and public declarations are unchanged.
+- Correct the preceding Stack refactor log timestamp to the commit's actual Beijing time, 10:46 CST.
+
+### Validation
+- Static preflight confirms the updated source needle is present in `Stack_inline.h` and no unrelated workflow contract changed.
+- The new remote run must pass source contracts, configuration, compilation, and CTest before the refactor is considered green.
+
+---
+
+## 2026-11-06 10:46 CST — Harden Stack storage and mark lifecycle
 
 ### Baseline and scope
 - Base commit: `bd6b6d60d84ec3808df6a1894be31a1161a2cb81`; main's latest SkipDBv2 Regression run #221 completed successfully.
