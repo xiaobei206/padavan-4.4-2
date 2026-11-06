@@ -1240,7 +1240,7 @@ jobs:
                   "UArray hex conversion rejected a valid signed byte array",
                   "UArray hex conversion accepted malformed byte type",
                   "UArray trailing format marker and hex-byte test passed",
-                  "UArray trailing format marker test passed",
+                  "UArray trailing format marker and hex-byte test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c": [
                   "static size_t UArray_stringExpectedItemSize_(CTYPE itemType)",

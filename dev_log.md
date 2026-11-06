@@ -1,3 +1,10 @@
+## 2026-11-06 22:12 CST — Sync UArray format regression contract
+
+- CI #344 stopped during firmware integration contract validation, before configure/build: the existing test-success banner was intentionally expanded for the hex-byte case, but its old source-contract needle remained.
+- Update the workflow expectation to the new banner. No C source or runtime behavior changed in this correction.
+
+---
+
 ## 2026-11-06 22:10 CST — Validate UArray hex conversion byte layout
 
 - Mainline CI #343 passed with the dot-product input validation.
