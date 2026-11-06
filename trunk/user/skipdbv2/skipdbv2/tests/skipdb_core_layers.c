@@ -72,6 +72,21 @@ int main(void)
  if(!key_is(SkipDB_firstRecord(source),"alpha")||!key_is(SkipDB_lastRecord(source),"gamma")||
   !key_is(SkipDB_goto_(source,Datum_FromCString_("al")),"alpha")){
   fprintf(stderr,"first/last/lower-bound query failed\n");goto done;}
+ /* A failed sync must abort, not commit the still-open UDB transaction. */
+ {
+  SkipDBRecord *saved_header=source->header;
+  SkipDB_beginTransaction(source);
+  if(!SkipDB_at_put_(source,Datum_FromCString_("abort-on-missing-root"),
+      Datum_FromCString_("must-not-commit"))){
+   fprintf(stderr,"transaction abort fixture write failed\n");goto done;
+  }
+  source->header=NULL;
+  SkipDB_commitTransaction(source);
+  source->header=saved_header;
+  if(SkipDB_isOpen(source)){
+   fprintf(stderr,"commit proceeded with missing root record\n");goto done;
+  }
+ }
  result=EXIT_SUCCESS;puts("skipdb core layers test passed");
 done:
  if(cursor)SkipDBCursor_release(cursor);

@@ -8,10 +8,16 @@
 
 void SkipDB_sync(SkipDB *self)
 {
-	if (NULL == self || NULL == self->dirtyRecords ||
-		NULL == self->pidsToRemove || !SkipDB_isOpen(self) ||
+	if (NULL == self || !SkipDB_isOpen(self) ||
 		NULL == self->udb || !self->udb->withinTransaction)
 		return;
+
+	if (NULL == self->dirtyRecords || NULL == self->pidsToRemove ||
+		NULL == self->header) {
+		fprintf(stderr, "SkipDB: refusing commit without complete transaction state\n");
+		UDB_close(self->udb);
+		return;
+	}
 
 	/*
 	 * The in-memory root can have no PID even though headerPid is preseeded
@@ -23,8 +29,11 @@ void SkipDB_sync(SkipDB *self)
 	self->headerPid = SkipDBRecord_pid(self->header);
 	if (self->headerPid == 0)
 		self->headerPid = SkipDBRecord_pidAllocIfNeeded(self->header);
-	if (self->headerPid == 0)
+	if (self->headerPid == 0) {
+		fprintf(stderr, "SkipDB: unable to reserve root PID before commit\n");
+		UDB_close(self->udb);
 		return;
+	}
 
 	SkipDB_saveDirtyRecords(self);
 	/* A low-level write failure closes UDB to force rollback/recovery. */

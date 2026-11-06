@@ -1,3 +1,12 @@
+## 2026-11-07 01:07 CST — Abort SkipDB commits when synchronization cannot prepare
+
+- Baseline: main commit `f56af6f1993cc7dc71a3d6196124c716d4a70837`; SkipDBv2 Regression run #389 passed source contracts, full build, and all CTest cases.
+- Scope: `SkipDB_sync()` / `SkipDB_commitTransaction()` failure gating.
+- Previously, missing synchronization state, a missing root record, or failure to reserve the root PID could return from `SkipDB_sync()` while UDB remained open; `SkipDB_commitTransaction()` would then still commit the UDB transaction. Pending dirty records could be left unpersisted while the caller observed a successful/open database.
+- Treat these preparation failures as transaction aborts by closing UDB before returning, so the existing commit wrapper cannot proceed. Extend the existing `skipdb_core_layers` regression to verify a missing-root preparation failure closes the database instead of committing. Update existing source contracts; the existing CMake/CTest target is unchanged. No local C build is claimed.
+
+---
+
 ## 2026-11-07 01:01 CST — Make UDBRecord clones independent and failure-safe
 
 - Baseline: main commit `47f7566f0c8fe929b42c2fddf5b0de474a42d249`; SkipDBv2 Regression run #388 passed source contracts, the full build, and all CTest cases.

@@ -323,6 +323,9 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBTransaction.c": [
                   "void SkipDB_sync(SkipDB *self)",
+                  "SkipDB: refusing commit without complete transaction state",
+                  "SkipDB: unable to reserve root PID before commit",
+                  "UDB_close(self->udb);",
                   "void SkipDB_saveDirtyRecords(SkipDB *self)",
                   "void SkipDB_readRootRecord(SkipDB *self)",
                   "SkipDB_commitTransaction(SkipDB *self)",
@@ -366,6 +369,9 @@ jobs:
                   "SkipDB_mergeInto_(source,target)",
                   "SkipDB_lastRecord(source)",
                   "cache eviction/lazy reload failed",
+                  "source->header=NULL;",
+                  "commit proceeded with missing root record",
+                  "transaction abort fixture write failed",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecords.c": [
                   "UDBRecords *UDBRecords_new(void)",
