@@ -181,7 +181,9 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexFreeList.c": [
                   "static int UDBIndex_pushAndVerify_(List *list, void *value)",
+                  "PID_TYPE UDBIndex_nextPid(UDBIndex *self)",
                   "UDBIndex_offsetForPid_(hole, &offset)",
+                  "next-PID preview returned a slot beyond LONG_MAX",
                   "UDBIndex_offsetForPid_(pid, &offset)",
                   "UDBIndex_pushAndVerify_(self->reserved, (void *)pid)",
                   "UDBIndex_pushAndVerify_(self->holes, (void *)pid)",
@@ -207,6 +209,8 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/udb_index_layers.c": [
                   "UDBIndex_posForPid_(db->index, (PID_TYPE)-1)",
                   "max_seekable_pid =",
+                  "UDBIndex_nextPid(db->index)",
+                  "next-PID preview returned a slot beyond LONG_MAX",
                   "allocator returned a PID whose index slot exceeds LONG_MAX",
                   "UDBIndex_setPos_forPid_(db->index, 1, (PID_TYPE)-1)",
                   "overflow PID offset was accepted",

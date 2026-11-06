@@ -1,3 +1,13 @@
+## 2026-11-07 07:26 CST — Keep PID preview within the allocatable index range
+
+- Baseline: main commit `4ac85843f6bbd9b3a5ac150258c88c3b1c187eee`; SkipDBv2 Regression run #469 passed integration contracts, configure, full build, and all 56 tests.
+- Scope: PID availability preview in `udb/UDBIndexFreeList.c`.
+- The allocator now rejects a PID whose fixed-width slot would extend beyond `LONG_MAX`, but `UDBIndex_nextPid()` still returned that same unpersistable PID from the current index EOF (and returned a free-list top without validating its slot). Callers could therefore be told an identifier is available that allocation must reject.
+- Reuse the shared full-slot offset validator for both the free-list and EOF preview paths. Extend the existing index-layer regression with a synthetic near-limit extent and assert preview and allocation both return the failure sentinel without reservations. Update source contracts; no new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:24 CST — Make failed initial metadata writes safe to unwind
 
 - Baseline: main commit `760546b81491bd847a08347b41cd6c295ff12e28`; SkipDBv2 Regression run #468 passed integration contracts, configure, full build, and all 56 tests.

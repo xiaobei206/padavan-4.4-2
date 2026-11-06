@@ -58,15 +58,26 @@ int main(void)
         PID_TYPE previous_max_pid = db->index->maxPid;
         PID_TYPE max_seekable_pid =
             (PID_TYPE)((size_t)LONG_MAX / sizeof(UDBIndexEntry));
-        PID_TYPE allocated_pid;
+        PID_TYPE preview_pid, allocated_pid;
+        long previous_max_pos = db->index->file->maxPos;
+        long previous_file_pos = db->index->file->pos;
+        long boundary_end = (long)(max_seekable_pid * sizeof(UDBIndexEntry));
 
         if (max_seekable_pid < 2) {
             fprintf(stderr, "seek-range regression is unsupported on this target\n");
             goto done;
         }
         db->index->maxPid = max_seekable_pid - 1;
+        db->index->file->maxPos = boundary_end;
+        preview_pid = UDBIndex_nextPid(db->index);
         allocated_pid = UDBIndex_allocPid(db->index);
         db->index->maxPid = previous_max_pid;
+        db->index->file->maxPos = previous_max_pos;
+        db->index->file->pos = previous_file_pos;
+        if (preview_pid != 0) {
+            fprintf(stderr, "next-PID preview returned a slot beyond LONG_MAX\n");
+            goto done;
+        }
         if (allocated_pid != 0 || db->index->reserved->size != 0) {
             fprintf(stderr, "allocator returned a PID whose index slot exceeds LONG_MAX\n");
             goto done;

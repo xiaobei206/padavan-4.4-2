@@ -122,20 +122,27 @@ int UDBIndex_findHoles(UDBIndex *self)
 PID_TYPE UDBIndex_nextPid(UDBIndex *self)
 {
 	PID_TYPE hole;
+	size_t offset;
 	long end_pos;
 
 	if (NULL == self || NULL == self->holes || NULL == self->file ||
 		NULL == self->file->file)
 		return 0;
 	hole = (PID_TYPE)List_top(self->holes);
-	if (hole)
+	if (hole) {
+		if (!UDBIndex_offsetForPid_(hole, &offset))
+			return 0;
 		return hole;
+	}
 
 	end_pos = JFile_setPositionToEnd(self->file);
 	if (end_pos < 0 ||
 		end_pos % (long)sizeof(UDBIndexEntry) != 0)
 		return 0;
-	return (PID_TYPE)(end_pos / (long)sizeof(UDBIndexEntry));
+	hole = (PID_TYPE)(end_pos / (long)sizeof(UDBIndexEntry));
+	if (!UDBIndex_offsetForPid_(hole, &offset))
+		return 0;
+	return hole;
 }
 
 
