@@ -1,6 +1,7 @@
 #include "UArray.h"
 
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -20,6 +21,9 @@ int main(void)
 	UArray *file_name = NULL;
 	UArray *no_extension = NULL;
 	UArray *empty_extension = NULL;
+	UArray *malformed = NULL;
+	UArray *safe_path = NULL;
+	size_t malformed_size;
 
 	UArray_appendPath_(NULL, NULL);
 	UArray_removeLastPathComponent(NULL);
@@ -66,12 +70,78 @@ int main(void)
 		"extension-free path must still return an empty array"))
 		goto failure;
 
+	malformed = UArray_newWithCString_("/tmp/unsafe");
+	safe_path = UArray_newWithCString_("/safe");
+	if (!check(malformed != NULL && safe_path != NULL,
+		"malformed path fixture allocation failed"))
+		goto failure;
+	malformed_size = malformed->size;
+
+	/* A byte-backed path advertised as uint64 must be rejected before typed scans. */
+	malformed->itemType = CTYPE_uint64_t;
+	if (!check(UArray_findLastPathComponent(malformed) == -1 &&
+		UArray_lastPathComponent(malformed) == NULL &&
+		UArray_findPathExtension(malformed) == -1 &&
+		UArray_pathExtension(malformed) == NULL &&
+		UArray_fileName(malformed) == NULL &&
+		UArray_asOSPath(malformed) == NULL &&
+		UArray_asUnixPath(malformed) == NULL,
+		"UArray path operations accepted malformed item metadata"))
+		goto failure;
+	UArray_removeLastPathComponent(malformed);
+	UArray_clipBeforeLastPathComponent(malformed);
+	UArray_removePathExtension(malformed);
+	UArray_appendPath_(malformed, safe_path);
+	UArray_appendPath_(safe_path, malformed);
+	if (!check(malformed->size == malformed_size &&
+		memcmp(malformed->data, "/tmp/unsafe", malformed_size) == 0 &&
+		UArray_size(safe_path) == 5 &&
+		memcmp(safe_path->data, "/safe", 5) == 0,
+		"UArray path mutation changed malformed or valid storage"))
+		goto failure;
+
+	malformed->itemType = CTYPE_uint8_t;
+	malformed->itemSize = 0;
+	if (!check(UArray_findLastPathComponent(malformed) == -1 &&
+		UArray_pathExtension(malformed) == NULL,
+		"UArray path operations accepted zero-width item geometry"))
+		goto failure;
+	malformed->itemSize = sizeof(uint8_t);
+
+	{
+		size_t original_size = malformed->size;
+		malformed->size = (size_t)LONG_MAX + (size_t)1;
+		{
+			int rejected = UArray_findLastPathComponent(malformed) == -1 &&
+				UArray_lastPathComponent(malformed) == NULL;
+			malformed->size = original_size;
+			if (!check(rejected,
+				"UArray path operations accepted unrepresentable size"))
+				goto failure;
+		}
+	}
+
+	{
+		unsigned char *original_data = malformed->data;
+		malformed->data = NULL;
+		{
+			int rejected = UArray_findLastPathComponent(malformed) == -1 &&
+				UArray_pathExtension(malformed) == NULL;
+			malformed->data = original_data;
+			if (!check(rejected,
+				"UArray path operations accepted missing backing storage"))
+				goto failure;
+		}
+	}
+
 	UArray_free(path);
 	UArray_free(component);
 	UArray_free(extension);
 	UArray_free(file_name);
 	UArray_free(no_extension);
 	UArray_free(empty_extension);
+	UArray_free(malformed);
+	UArray_free(safe_path);
 	puts("UArray path null-safety test passed");
 	return EXIT_SUCCESS;
 
@@ -82,5 +152,7 @@ failure:
 	UArray_free(file_name);
 	UArray_free(no_extension);
 	UArray_free(empty_extension);
+	UArray_free(malformed);
+	UArray_free(safe_path);
 	return EXIT_FAILURE;
 }

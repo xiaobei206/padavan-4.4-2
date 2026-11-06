@@ -1,3 +1,13 @@
+## 2026-11-06 22:15 CST — Validate UArray path storage geometry
+
+- Mainline CI #345 passed after the hex-byte conversion fix.
+- Scope: UArray path append, component lookup/mutation, extension handling, and OS-path conversion.
+- These entry points accepted non-NULL arrays without verifying itemType/itemSize consistency, overflow-safe geometry, or that returned long offsets could represent the array length. A malformed wide-type view over byte storage could reach typed separator scans.
+- Add one local path-storage validator for the supported numeric CTYPE set, reject lengths above LONG_MAX, and preflight both append operands. Extend the existing path regression and workflow source contract; reuse its CMake target without adding files.
+- No local C compilation is claimed; mainline CI remains the build/runtime gate.
+
+---
+
 ## 2026-11-06 22:12 CST — Sync UArray format regression contract
 
 - CI #344 stopped during firmware integration contract validation, before configure/build: the existing test-success banner was intentionally expanded for the hex-byte case, but its old source-contract needle remained.

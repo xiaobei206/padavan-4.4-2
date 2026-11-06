@@ -1590,8 +1590,12 @@ jobs:
                   "UArray name lookup test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c": [
-                  "if (NULL == self || NULL == path ||",
-                  "if (NULL == self || (self->size > 0 && NULL == self->data))",
+                  "static size_t UArray_pathItemSize_(CTYPE itemType)",
+                  "static int UArray_hasValidPathStorage_(const UArray *self)",
+                  "UArray_hasValidPathStorage_(self)",
+                  "UArray_hasValidPathStorage_(path)",
+                  "self->size > (size_t)LONG_MAX",
+                  "self->size > (size_t)-1 / expectedItemSize",
                   "if (NULL == self)",
                   "if (pos < 0)",
                   "if (pos < 0 || (size_t)pos > self->size)",
@@ -1602,6 +1606,11 @@ jobs:
                   "UArray_findPathExtension(NULL) == -1",
                   "UArray_pathExtension(NULL) == NULL",
                   "UArray_fileName(NULL) == NULL",
+                  "UArray path operations accepted malformed item metadata",
+                  "UArray path mutation changed malformed or valid storage",
+                  "UArray path operations accepted zero-width item geometry",
+                  "UArray path operations accepted unrepresentable size",
+                  "UArray path operations accepted missing backing storage",
                   "UArray path null-safety test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_search_bounds.c": [
@@ -2490,21 +2499,28 @@ jobs:
                   raise SystemExit("List storage regression is not registered in CMake/CTest: " + needle)
 
           uarray_path_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c").read_text()
-          for signature, next_signature in (
-                  ("void UArray_appendPath_(UArray *self, const UArray *path)", "void UArray_removeLastPathComponent("),
-                  ("void UArray_removeLastPathComponent(UArray *self)", "void UArray_clipBeforeLastPathComponent("),
-                  ("long UArray_findLastPathComponent(const UArray *self)", "UArray *UArray_lastPathComponent("),
-                  ("UArray *UArray_lastPathComponent(const UArray *self)", "long UArray_findPathExtension("),
-                  ("long UArray_findPathExtension(UArray *self)", "void UArray_removePathExtension("),
-                  ("UArray *UArray_pathExtension(UArray *self)", "UArray *UArray_fileName("),
-                  ("UArray *UArray_fileName(UArray *self)", "int UArray_OSPathSeparatorIsUnixSeparator(")):
+          for signature, next_signature, checks_path in (
+                  ("void UArray_appendPath_(UArray *self, const UArray *path)", "void UArray_removeLastPathComponent(", True),
+                  ("void UArray_removeLastPathComponent(UArray *self)", "void UArray_clipBeforeLastPathComponent(", False),
+                  ("void UArray_clipBeforeLastPathComponent(UArray *self)", "long UArray_findLastPathComponent(", False),
+                  ("long UArray_findLastPathComponent(const UArray *self)", "UArray *UArray_lastPathComponent(", False),
+                  ("UArray *UArray_lastPathComponent(const UArray *self)", "long UArray_findPathExtension(", False),
+                  ("long UArray_findPathExtension(UArray *self)", "void UArray_removePathExtension(", False),
+                  ("void UArray_removePathExtension(UArray *self)", "UArray *UArray_pathExtension(", False),
+                  ("UArray *UArray_pathExtension(UArray *self)", "UArray *UArray_fileName(", False),
+                  ("UArray *UArray_fileName(UArray *self)", "int UArray_OSPathSeparatorIsUnixSeparator(", False),
+                  ("UArray *UArray_asOSPath(UArray *self)", "UArray *UArray_asUnixPath(", False),
+                  ("UArray *UArray_asUnixPath(UArray *self)", None, False),
+          ):
               start = uarray_path_source.find(signature)
-              end = uarray_path_source.find(next_signature, start)
+              end = uarray_path_source.find(next_signature, start) if next_signature else len(uarray_path_source)
               body = uarray_path_source[start:end] if start >= 0 and end > start else ""
-              guard = body.find("if (NULL == self")
+              guard = body.find("UArray_hasValidPathStorage_(self)")
               first_self_access = body.find("self->")
               if not body or guard < 0 or (first_self_access >= 0 and guard > first_self_access):
-                  raise SystemExit("UArray path entry point must reject NULL before receiver dereferences: " + signature)
+                  raise SystemExit("UArray path entry point must validate item geometry before receiver access: " + signature)
+              if checks_path and "UArray_hasValidPathStorage_(path)" not in body:
+                  raise SystemExit("UArray path append must validate both operands before typed access")
           uarray_path_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_path_null.c").read_text()
           for needle in ("UArray_findLastPathComponent(NULL) == -1",
                          "UArray_lastPathComponent(NULL) == NULL",
