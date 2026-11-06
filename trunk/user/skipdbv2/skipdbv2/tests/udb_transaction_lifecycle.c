@@ -93,6 +93,56 @@ int main(void)
         goto done;
     }
 
+    /*
+     * Corrupt the payload-size field of the first pending index-journal
+     * record while retaining the final item terminator. Pre-commit syncing
+     * can still close the transaction, but journal validation must reject
+     * it before the durable cross-file commit marker is armed.
+     */
+    {
+        PID_TYPE rejected_pid;
+        FILE *journal;
+        size_t zero_size = 0;
+
+        UDB_beginTransaction(db);
+        rejected_pid = UDB_put_(db, Datum_FromCString_("must-not-commit"));
+        if (!UDB_isOpen(db) || rejected_pid == 0 ||
+            !db->withinTransaction || fflush(db->index->file->log) != 0) {
+            fprintf(stderr, "unable to prepare malformed-journal fixture\n");
+            goto done;
+        }
+
+        journal = fopen(db->index->file->logPath, "r+b");
+        if (journal == NULL) {
+            fprintf(stderr, "unable to open index journal for corruption test\n");
+            goto done;
+        }
+        if (fseek(journal, (long)sizeof(long), SEEK_SET) != 0 ||
+            fwrite(&zero_size, sizeof(zero_size), 1, journal) != 1 ||
+            fflush(journal) != 0 || fsync(fileno(journal)) != 0) {
+            (void)fclose(journal);
+            fprintf(stderr, "unable to corrupt index journal fixture\n");
+            goto done;
+        }
+        if (fclose(journal) != 0) {
+            fprintf(stderr, "unable to close corrupted index journal fixture\n");
+            goto done;
+        }
+
+        UDB_commitTransaction(db);
+        if (UDB_isOpen(db)) {
+            fprintf(stderr, "malformed journal was accepted for commit\n");
+            goto done;
+        }
+
+        UDB_open(db);
+        if (!UDB_isOpen(db) || !has_value(db, pid, "lifecycle-value") ||
+            UDB_at_(db, rejected_pid).data != NULL) {
+            fprintf(stderr, "failed transaction became visible after reopen\n");
+            goto done;
+        }
+    }
+
     result = EXIT_SUCCESS;
     puts("udb transaction lifecycle test passed");
 

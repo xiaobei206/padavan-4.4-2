@@ -33,8 +33,11 @@ void UDB_commitTransaction(UDB *self)
 	UDBRecords_preCommit(self->records);
 	if (!UDB_streamsOpen_(self) ||
 		!UDBIndex_prepareCommit(self->index) ||
-		!UDB_streamsOpen_(self) || UDBCommitMarker_write(&self->commitMarker, 1) != 0) {
-		/* Marker 0 discards both complete journals if preparation fails. */
+		!UDB_streamsOpen_(self) ||
+		!UDBCommitMarker_verifyJournal(self->index->file->logPath) ||
+		!UDBCommitMarker_verifyJournal(self->records->file->logPath) ||
+		UDBCommitMarker_write(&self->commitMarker, 1) != 0) {
+		/* Keep marker 0 until both prepared journals have passed validation. */
 		UDB_close(self);
 		return;
 	}

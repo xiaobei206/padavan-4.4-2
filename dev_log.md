@@ -1,3 +1,13 @@
+## 2026-11-07 06:55 CST — Validate both UDB journals before arming commit recovery
+
+- Baseline: main commit `a3e08fa14a07dd80fc409318f6899b3e5ebdb5a1`; SkipDBv2 Regression run #457 passed source contracts, configure, complete build, and all regression tests.
+- Scope: the two-file commit gate in `udb/UDBTransaction.c`.
+- The transaction path synced and finalized both journals before persisting the recovery marker, but did not run the existing strict journal parser against both prepared logs. A malformed interior journal record could therefore be declared recoverable before apply/replay later rejected it.
+- Validate the complete index and record journals after prepare and before writing marker 1. Add a lifecycle regression that corrupts a persisted journal record while preserving its tail terminator, verifies the commit is rejected, and confirms the preceding committed value survives reopen while the failed write stays absent. Update the existing Actions source/runtime contracts only; no new files, exported symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:52 CST — Make UDBRecord metadata accessors NULL-safe
 
 - Baseline: main commit `57be964b2e14e224d8bf677c986c0a91b7b85dd4`; SkipDBv2 Regression run #455 passed source contracts, configure, full build, and all regression tests.
