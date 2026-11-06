@@ -4,13 +4,16 @@
 #include <limits.h>
 
 /* Compute a seek-safe byte offset for one fixed-width PID slot. */
-static int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)
+int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)
 {
 	if (NULL == offset ||
 		pid > (PID_TYPE)-1 / sizeof(UDBIndexEntry))
 		return 0;
 	*offset = (size_t)pid * sizeof(UDBIndexEntry);
-	return *offset <= (size_t)LONG_MAX;
+	if (*offset > (size_t)LONG_MAX)
+		return 0;
+	/* The complete fixed-width slot must fit within signed file offsets. */
+	return sizeof(UDBIndexEntry) <= (size_t)LONG_MAX - *offset;
 }
 
 PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)

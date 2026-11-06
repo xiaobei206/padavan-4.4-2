@@ -1,3 +1,13 @@
+## 2026-11-07 07:22 CST — Bound allocated PID slots to the seekable file range
+
+- Baseline: main commit `7f9303f8488d00fabea1b5253e2ef89df0d7c23f`; SkipDBv2 Regression run #467 passed integration contracts, configure, full build, and all 56 tests.
+- Scope: fixed-width PID-slot mapping/allocation in `udb/UDBIndexMap.c` and `udb/UDBIndexFreeList.c`.
+- Offset validation checked only whether a slot's starting byte was at or below `LONG_MAX`; the final slot could still extend beyond the signed range accepted by `JFile_fwrite()`. The allocator could consequently hand out a PID that could never be persisted.
+- Make the shared offset validator require the entire entry to fit, expose it through the existing internal index header, and reject both newly allocated and reused PIDs whose slot is not seekable. Extend the existing index-layer regression by setting a synthetic near-limit max PID and asserting allocation fails without creating a reservation. Update Actions contracts; no new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:18 CST — Reject reserved metadata offsets in the record reader
 
 - Baseline: main commit `c45f5e180859c4fbfb98602ebd9378b2588a6e77`; SkipDBv2 Regression run #466 passed integration contracts, configure, full build, and all 56 tests.

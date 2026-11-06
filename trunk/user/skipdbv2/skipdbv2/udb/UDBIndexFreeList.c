@@ -142,6 +142,7 @@ PID_TYPE UDBIndex_nextPid(UDBIndex *self)
 PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 {
 	PID_TYPE hole, pid, max;
+	size_t offset;
 	long end_pos;
 
 	if (!UDBIndex_hasFile_(self))
@@ -149,7 +150,8 @@ PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 
 	hole = (PID_TYPE)List_top(self->holes);
 	if (hole) {
-		if (!UDBIndex_reservePid_(self, hole))
+		if (!UDBIndex_offsetForPid_(hole, &offset) ||
+			!UDBIndex_reservePid_(self, hole))
 			return 0;
 		UDBIndex_removeHole_(self, hole);
 		return hole;
@@ -168,7 +170,8 @@ PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 	} else {
 		pid = max;
 	}
-	if (!UDBIndex_reservePid_(self, pid))
+	if (!UDBIndex_offsetForPid_(pid, &offset) ||
+		!UDBIndex_reservePid_(self, pid))
 		return 0;
 	self->maxPid = pid;
 	return pid;

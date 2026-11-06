@@ -8,6 +8,7 @@ extern "C" {
 int UDBIndex_isValid_(UDBIndex *self);
 int UDBIndex_hasFile_(UDBIndex *self);
 int UDBIndex_hasStreams_(UDBIndex *self);
+int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset);
 int UDBIndex_hasReservation_(UDBIndex *self, PID_TYPE pid);
 int UDBIndex_reservePid_(UDBIndex *self, PID_TYPE pid);
 void UDBIndex_unreservePid_(UDBIndex *self, PID_TYPE pid);

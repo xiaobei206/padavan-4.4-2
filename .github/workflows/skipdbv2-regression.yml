@@ -166,6 +166,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexInternal.h": [
                   "int UDBIndex_isValid_(UDBIndex *self);",
                   "int UDBIndex_hasStreams_(UDBIndex *self);",
+                  "int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset);",
                   "int UDBIndex_reservePid_(UDBIndex *self, PID_TYPE pid);",
                   "int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid);",
               ],
@@ -180,6 +181,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexFreeList.c": [
                   "static int UDBIndex_pushAndVerify_(List *list, void *value)",
+                  "UDBIndex_offsetForPid_(hole, &offset)",
+                  "UDBIndex_offsetForPid_(pid, &offset)",
                   "UDBIndex_pushAndVerify_(self->reserved, (void *)pid)",
                   "UDBIndex_pushAndVerify_(self->holes, (void *)pid)",
                   "static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)",
@@ -191,8 +194,9 @@ jobs:
                   "UDBIndex_removeHole_(self, pid);",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexMap.c": [
-                  "static int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)",
+                  "int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)",
                   "UDBIndex_offsetForPid_(pid, &offset)",
+                  "sizeof(UDBIndexEntry) <= (size_t)LONG_MAX - *offset",
                   "PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)",
                   "int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)",
                   "if (pid != 0 && old_pos == 0 && !was_reserved)",
@@ -202,6 +206,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_index_layers.c": [
                   "UDBIndex_posForPid_(db->index, (PID_TYPE)-1)",
+                  "max_seekable_pid =",
+                  "allocator returned a PID whose index slot exceeds LONG_MAX",
                   "UDBIndex_setPos_forPid_(db->index, 1, (PID_TYPE)-1)",
                   "overflow PID offset was accepted",
                   "UDBIndex_setPos_forPid_(db->index, 1, 2)",

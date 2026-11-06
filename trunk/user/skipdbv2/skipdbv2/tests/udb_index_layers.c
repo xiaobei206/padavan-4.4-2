@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <unistd.h>
 
 static int has_value(UDB *db, PID_TYPE pid, const char *expected)
@@ -47,6 +48,29 @@ int main(void)
         UDBIndex_nextPid(db->index) != 1) {
         fprintf(stderr, "unreserved PID mapping changed index state\n");
         goto done;
+    }
+
+    /*
+     * The last PID whose slot begins below LONG_MAX cannot be allocated if
+     * the full fixed-width index entry would extend past the seekable range.
+     */
+    {
+        PID_TYPE previous_max_pid = db->index->maxPid;
+        PID_TYPE max_seekable_pid =
+            (PID_TYPE)((size_t)LONG_MAX / sizeof(UDBIndexEntry));
+        PID_TYPE allocated_pid;
+
+        if (max_seekable_pid < 2) {
+            fprintf(stderr, "seek-range regression is unsupported on this target\n");
+            goto done;
+        }
+        db->index->maxPid = max_seekable_pid - 1;
+        allocated_pid = UDBIndex_allocPid(db->index);
+        db->index->maxPid = previous_max_pid;
+        if (allocated_pid != 0 || db->index->reserved->size != 0) {
+            fprintf(stderr, "allocator returned a PID whose index slot exceeds LONG_MAX\n");
+            goto done;
+        }
     }
 
     UDB_beginTransaction(db);
