@@ -1358,8 +1358,9 @@ jobs:
                   "static int UArray_hasValidPointerStorage_(const UArray *self)",
                   "self->itemSize != sizeof(void *)",
                   "self->itemSize != sizeof(uintptr_t)",
-                  "UArray_rawPointerAt_ requires valid pointer storage",
-                  "UArray_at_putPointer_ requires valid pointer storage",
+                  "if (!UArray_hasValidPointerStorage_(self))",
+                  "if (!UArray_hasValidPointerStorage_(self) || NULL == self->data)",
+                  "return ((void **)self->data)[i];",
                   "if (!UArray_hasValidPointerStorage_(self))",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c": [

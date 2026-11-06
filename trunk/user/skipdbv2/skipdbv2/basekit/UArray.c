@@ -881,11 +881,8 @@ static int UArray_hasValidPointerStorage_(const UArray *self)
 
 void *UArray_rawPointerAt_(const UArray *self, size_t i)
 {
-    if (!UArray_hasValidPointerStorage_(self) || NULL == self->data) {
-        if (self)
-            UArray_error_(self, "UArray_rawPointerAt_ requires valid pointer storage");
+    if (!UArray_hasValidPointerStorage_(self) || NULL == self->data)
         return NULL;
-    }
     return ((void **)self->data)[i];
 }
 
@@ -1109,10 +1106,8 @@ void UArray_at_putPointer_(UArray *self, size_t pos, void *v)
 {
     if (NULL == self || pos == (size_t)-1)
         return;
-    if (!UArray_hasValidPointerStorage_(self)) {
-        UArray_error_(self, "UArray_at_putPointer_ requires valid pointer storage");
+    if (!UArray_hasValidPointerStorage_(self))
         return;
-    }
     if (pos >= self->size)
         UArray_setSize_(self, pos + 1);
     if (pos >= self->size || !UArray_hasValidPointerStorage_(self) ||

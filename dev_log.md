@@ -1,3 +1,12 @@
+## 2026-11-06 16:57 CST — Make invalid UArray pointer access non-fatal
+
+- Run #304 completed configure/build; the new pointer regression stopped because `UArray_error_()` terminates the process. The test exposed that the attempted defensive checks still used this fatal path for malformed external storage.
+- Change raw pointer reads and pointer writes to fail closed with `NULL` / no mutation for invalid pointer-array metadata rather than calling the process-terminating error helper.
+- Preserve the existing raw accessor's no-index-bounds-check contract; bounded `UArray_pointerAt_()` continues to validate the index before delegating.
+- Run #305 will re-run the pointer regression together with the full suite.
+
+---
+
 ## 2026-11-06 16:55 CST — Validate UArray pointer-element access invariants
 
 ### Baseline
