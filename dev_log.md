@@ -1,3 +1,22 @@
+## 2026-11-06 20:05 CST — Preserve BStream writes sourced from the stream tail
+
+### Baseline
+- Main commit `61fea483ce68ed18fd12eb33dac011e352e7559d`; SkipDBv2 Regression run #333 passed.
+- Scope: byte and array writer alias preflight in `BStream.c`.
+
+### Defect and fix
+- Existing overlap checks excluded the stream's trailing NUL byte and skipped empty streams. Plain array and tagged writers add framing bytes before copying the payload, so a source view of that terminator could be invalidated by reallocation before it was read.
+- Centralize stream/source overlap detection and include the terminator position. Snapshot overlapping raw appends before growing the backing array, and snapshot UArray sources before writing their length prefix.
+
+### Regression and contracts
+- Extend the existing `bstream_tag_boundaries` test with direct append, empty-stream append, plain-array, tagged-data, and tagged-UArray tail-source cases.
+- Update existing BStream source contracts. Reuse the registered CTest target; no new files or CMake changes.
+
+### Validation
+- Static review confirms stream-backed payload bytes are copied before an append or framing write can reallocate the stream buffer. Mainline CI run will compile and execute the regression suite.
+
+---
+
 ## 2026-11-06 19:59 CST — Normalize two-digit years in PortableStrptime
 
 ### Baseline

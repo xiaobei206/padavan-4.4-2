@@ -313,6 +313,99 @@ static int testBStreamReadValidation(void)
     return EXIT_SUCCESS;
 }
 
+static int testBStreamAliasedWrites(void)
+{
+    BStream *stream;
+    UArray source;
+    size_t oldSize;
+    const unsigned char seed = 0x6a;
+
+    /* A direct append may read the current trailing terminator. */
+    stream = BStream_new();
+    if (NULL == stream || NULL == stream->ba->data) {
+        BStream_free(stream);
+        return fail("BStream append alias fixture allocation failed");
+    }
+    oldSize = stream->ba->size;
+    BStream_writeData_length_(stream, stream->ba->data + oldSize, 1);
+    if (stream->ba->size != oldSize + 1 ||
+        stream->ba->data[oldSize] != 0 ||
+        UArray_size(stream->errorBa) != 0 ||
+        stream->index != oldSize + 1) {
+        BStream_free(stream);
+        return fail("BStream plain byte append lost an aliased tail terminator");
+    }
+    BStream_free(stream);
+
+    /* The same source is aliasing even when the logical stream is empty. */
+    stream = BStream_new();
+    if (NULL == stream || NULL == stream->ba->data) {
+        BStream_free(stream);
+        return fail("BStream empty append alias fixture allocation failed");
+    }
+    BStream_writeData_length_(stream, stream->ba->data, 1);
+    if (stream->ba->size != 1 || stream->ba->data[0] != 0 ||
+        UArray_size(stream->errorBa) != 0 || stream->index != 1) {
+        BStream_free(stream);
+        return fail("BStream empty-stream append lost its terminator source");
+    }
+    BStream_free(stream);
+
+    /* The four-byte length prefix must not invalidate a tail-backed array. */
+    stream = BStream_new();
+    if (NULL == stream)
+        return fail("BStream plain array alias fixture allocation failed");
+    BStream_writeData_length_(stream, &seed, 1);
+    oldSize = stream->ba->size;
+    source = UArray_stackAllocedWithData_type_size_(
+        stream->ba->data + oldSize, CTYPE_uint8_t, 1);
+    BStream_writeUArray_(stream, &source);
+    if (stream->ba->size != oldSize + 5 ||
+        stream->ba->data[stream->ba->size - 1] != 0 ||
+        UArray_size(stream->errorBa) != 0 ||
+        stream->index != stream->ba->size) {
+        BStream_free(stream);
+        return fail("BStream plain array write lost an aliased tail terminator");
+    }
+    BStream_free(stream);
+
+    /* Tagged framing likewise precedes the payload copy. */
+    stream = BStream_new();
+    if (NULL == stream)
+        return fail("BStream tagged data alias fixture allocation failed");
+    BStream_writeData_length_(stream, &seed, 1);
+    oldSize = stream->ba->size;
+    BStream_writeTaggedData_length_(stream, stream->ba->data + oldSize, 1);
+    if (stream->ba->size != oldSize + 7 ||
+        stream->ba->data[stream->ba->size - 1] != 0 ||
+        UArray_size(stream->errorBa) != 0 ||
+        stream->index != stream->ba->size) {
+        BStream_free(stream);
+        return fail("BStream tagged write lost an aliased tail terminator");
+    }
+    BStream_free(stream);
+
+    /* Exercise the UArray wrapper, which delegates to the tagged byte writer. */
+    stream = BStream_new();
+    if (NULL == stream)
+        return fail("BStream tagged array alias fixture allocation failed");
+    BStream_writeData_length_(stream, &seed, 1);
+    oldSize = stream->ba->size;
+    source = UArray_stackAllocedWithData_type_size_(
+        stream->ba->data + oldSize, CTYPE_uint8_t, 1);
+    BStream_writeTaggedUArray_(stream, &source);
+    if (stream->ba->size != oldSize + 7 ||
+        stream->ba->data[stream->ba->size - 1] != 0 ||
+        UArray_size(stream->errorBa) != 0 ||
+        stream->index != stream->ba->size) {
+        BStream_free(stream);
+        return fail("BStream tagged array write lost an aliased tail terminator");
+    }
+    BStream_free(stream);
+    return EXIT_SUCCESS;
+}
+
+
 int main(void)
 {
 	unsigned int arrayFlag, type, byteCount;
@@ -353,6 +446,8 @@ int main(void)
 	if (testBStreamWriteValidation() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamReadValidation() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (testBStreamAliasedWrites() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	puts("BStreamTag boundaries test passed");
 	return EXIT_SUCCESS;

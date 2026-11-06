@@ -164,9 +164,33 @@ void BStream_writeByte_(BStream *self, unsigned char v)
 	BStream_writeUint8_(self, v);
 }
 
+static int BStream_sourceOverlapsStream_(const UArray *streamArray,
+    const void *source, size_t length)
+{
+    size_t streamBytes;
+    uintptr_t streamStart, sourceStart;
+
+    if (NULL == streamArray || NULL == source || length == 0 ||
+        NULL == streamArray->data || streamArray->itemSize != 1 ||
+        streamArray->size == (size_t)-1)
+        return 0;
+
+    streamBytes = streamArray->size;
+    streamStart = (uintptr_t)streamArray->data;
+    sourceStart = (uintptr_t)source;
+
+    /* Include the trailing NUL: a later append may reallocate the buffer. */
+    if (sourceStart >= streamStart)
+        return sourceStart - streamStart <= streamBytes;
+    return streamStart - sourceStart < length;
+}
+
+
 static int BStream_appendBytes_(BStream *self, const unsigned char *bytes, size_t length)
 {
 	size_t oldSize;
+	const unsigned char *appendBytes = bytes;
+	void *snapshot = NULL;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		self->ba->itemSize != 1 ||
 		(self->ba->size > 0 && NULL == self->ba->data) ||
@@ -180,7 +204,18 @@ static int BStream_appendBytes_(BStream *self, const unsigned char *bytes, size_
 		BStream_error_(self, "binary stream size overflow");
 		return 0;
 	}
-	UArray_appendBytes_size_(self->ba, (unsigned char *)bytes, length);
+	if (BStream_sourceOverlapsStream_(self->ba, bytes, length)) {
+		snapshot = io_malloc(length);
+		if (NULL == snapshot) {
+			BStream_error_(self, "unable to snapshot binary stream append");
+			return 0;
+		}
+		memmove(snapshot, bytes, length);
+		appendBytes = (const unsigned char *)snapshot;
+	}
+	UArray_appendBytes_size_(self->ba, appendBytes, length);
+	if (snapshot)
+		io_free(snapshot);
 	if (UArray_size(self->ba) != oldSize + length) {
 		BStream_error_(self, "unable to grow binary stream");
 		return 0;
@@ -315,20 +350,13 @@ void BStream_writeUArray_(BStream *self, UArray *ba)
 		BStream_error_(self, "array too large for binary stream");
 		return;
 	}
-	if (length > 0 && oldSize > 0) {
-		uintptr_t sourceStart = (uintptr_t)ba->data;
-		uintptr_t streamStart = (uintptr_t)self->ba->data;
-		int overlaps = (sourceStart >= streamStart ?
-			sourceStart - streamStart < oldSize :
-			streamStart - sourceStart < length);
-		if (overlaps) {
-			snapshot = UArray_clone(ba);
-			if (NULL == snapshot) {
-				BStream_error_(self, "unable to snapshot binary stream array");
-				return;
-			}
-			ba = snapshot;
+	if (BStream_sourceOverlapsStream_(self->ba, ba->data, length)) {
+		snapshot = UArray_clone(ba);
+		if (NULL == snapshot) {
+			BStream_error_(self, "unable to snapshot binary stream array");
+			return;
 		}
+		ba = snapshot;
 	}
 	bytes = UArray_bytes(ba);
 	BStream_writeInt32_(self, (int32_t)length);
@@ -690,21 +718,14 @@ void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, s
 		BStream_error_(self, "tagged data length is out of range");
 		return;
 	}
-	if (length > 0 && oldSize > 0 && self->ba->data) {
-		uintptr_t sourceStart = (uintptr_t)data;
-		uintptr_t streamStart = (uintptr_t)self->ba->data;
-		int overlaps = (sourceStart >= streamStart ?
-			sourceStart - streamStart < oldSize :
-			streamStart - sourceStart < length);
-		if (overlaps) {
-			snapshot = io_malloc(length);
-			if (NULL == snapshot) {
-				BStream_error_(self, "unable to snapshot tagged data");
-				return;
-			}
-			memmove(snapshot, data, length);
-			data = (const unsigned char *)snapshot;
+	if (BStream_sourceOverlapsStream_(self->ba, data, length)) {
+		snapshot = io_malloc(length);
+		if (NULL == snapshot) {
+			BStream_error_(self, "unable to snapshot tagged data");
+			return;
 		}
+		memmove(snapshot, data, length);
+		data = (const unsigned char *)snapshot;
 	}
 	BStream_writeTag(self, BSTREAM_UNSIGNED_INT, 1, 1);
 	if (UArray_size(self->errorBa) == 0)
