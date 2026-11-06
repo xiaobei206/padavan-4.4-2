@@ -885,19 +885,25 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/Sorting.c": [
                   "static int Sorting_isSorted_(",
                   "static void Sorting_quickSort_(",
-                  "static size_t Sorting_quickSortRearrange_(",
+                  "static void Sorting_quickSortRearrange_(",
                   "size - 1 > (size_t)INT_MAX",
                   "while (lb < ub)",
-                  "size_t leftSize = pivot - lb;",
-                  "size_t rightSize = ub - pivot;",
+                  "size_t leftSize, rightSize;",
+                  "leftSize = equalStart - lb;",
+                  "rightSize = ub - equalEnd;",
                   "if (leftSize < rightSize)",
-                  "lb = pivot + 1;",
-                  "ub = pivot - 1;",
+                  "lb = equalEnd + 1;",
+                  "ub = equalStart - 1;",
                   "size_t mid = lb + (ub - lb) / 2;",
                   "self->comp(self->context, (int)mid, (int)lb) < 0",
                   "self->comp(self->context, (int)ub, (int)lb) < 0",
                   "self->comp(self->context, (int)ub, (int)mid) < 0",
-                  "self->swap(self->context, (int)lb, (int)mid);",
+                  "self->swap(self->context, (int)mid, (int)ub);",
+                  "size_t firstEqual = lb;",
+                  "size_t firstGreater;",
+                  "self->comp(self->context, (int)i, (int)ub) == 0",
+                  "*equalStart = firstEqual;",
+                  "*equalEnd = firstGreater;",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Sorting.h": [
                   "#ifndef IOSORTING_DEFINED",
@@ -911,6 +917,9 @@ jobs:
                   "#define LARGE_SORT_COUNT 4096",
                   "large reverse-order input was not sorted",
                   "large reverse-order input triggered quadratic comparison growth",
+                  "int large_duplicates[LARGE_SORT_COUNT];",
+                  "large duplicate input was not sorted",
+                  "duplicate-heavy input triggered quadratic comparison growth",
                   "oversized = (size_t)INT_MAX + 2u;",
                   "invalid callbacks or unsupported index range invoked a callback",
                   "Sorting boundary test passed",
@@ -4280,36 +4289,48 @@ jobs:
 
           quick_sort_declaration = sorting_source.find("static void Sorting_quickSort_(")
           quick_sort_start = sorting_source.find("static void Sorting_quickSort_(", quick_sort_declaration + 1)
-          quick_sort_end = sorting_source.find("static size_t Sorting_quickSortRearrange_(", quick_sort_start)
+          quick_sort_end = sorting_source.find("static void Sorting_quickSortRearrange_(", quick_sort_start)
           quick_sort_body = sorting_source[quick_sort_start:quick_sort_end] if quick_sort_start >= 0 and quick_sort_end > quick_sort_start else ""
-          left_partition = quick_sort_body.find("size_t leftSize = pivot - lb;")
-          right_partition = quick_sort_body.find("size_t rightSize = ub - pivot;")
+          left_partition = quick_sort_body.find("leftSize = equalStart - lb;")
+          right_partition = quick_sort_body.find("rightSize = ub - equalEnd;")
           smaller_partition = quick_sort_body.find("if (leftSize < rightSize)")
           if (not quick_sort_body or "while (lb < ub)" not in quick_sort_body or
                   left_partition < 0 or right_partition <= left_partition or
                   smaller_partition < right_partition or
-                  "Sorting_quickSort_(self, lb, pivot - 1);" not in quick_sort_body or
-                  "Sorting_quickSort_(self, pivot + 1, ub);" not in quick_sort_body or
-                  "lb = pivot + 1;" not in quick_sort_body or
-                  "ub = pivot - 1;" not in quick_sort_body):
-              raise SystemExit("Sorting must recurse only into the smaller partition and iterate over the larger partition")
+                  "Sorting_quickSort_(self, lb, equalStart - 1);" not in quick_sort_body or
+                  "Sorting_quickSort_(self, equalEnd + 1, ub);" not in quick_sort_body or
+                  "lb = equalEnd + 1;" not in quick_sort_body or
+                  "ub = equalStart - 1;" not in quick_sort_body):
+              raise SystemExit("Sorting must recurse only into the smaller strict partition and skip equal values")
           if quick_sort_body.count("Sorting_quickSort_(self,") != 2:
               raise SystemExit("Sorting must not restore unbounded two-sided recursive calls")
 
-          rearrange_start = sorting_source.find("static size_t Sorting_quickSortRearrange_(", quick_sort_end)
+          rearrange_start = sorting_source.find("static void Sorting_quickSortRearrange_(", quick_sort_end)
           rearrange_body = sorting_source[rearrange_start:] if rearrange_start >= 0 else ""
           median_start = rearrange_body.find("if (ub - lb > 1)")
-          median_end = rearrange_body.find("while (lb < ub)", median_start)
+          median_end = rearrange_body.find("    /* First move every element", median_start)
           median_body = rearrange_body[median_start:median_end] if median_start >= 0 and median_end > median_start else ""
           median_needles = (
               "size_t mid = lb + (ub - lb) / 2;",
               "self->comp(self->context, (int)mid, (int)lb) < 0",
               "self->comp(self->context, (int)ub, (int)lb) < 0",
               "self->comp(self->context, (int)ub, (int)mid) < 0",
-              "self->swap(self->context, (int)lb, (int)mid);",
+              "self->swap(self->context, (int)mid, (int)ub);",
           )
           if not median_body or any(needle not in median_body for needle in median_needles):
-              raise SystemExit("Sorting partition must install a median-of-three pivot before scanning")
+              raise SystemExit("Sorting partition must install a median-of-three pivot at the stable comparison slot")
+
+          partition_order = [rearrange_body.find(x) for x in (
+              "for (i = lb; i < ub; ++i)",
+              "self->comp(self->context, (int)i, (int)ub) < 0",
+              "firstGreater = firstEqual;",
+              "for (i = firstEqual; i < ub; ++i)",
+              "self->comp(self->context, (int)i, (int)ub) == 0",
+              "if (firstGreater != ub)",
+              "*equalStart = firstEqual;",
+              "*equalEnd = firstGreater;")]
+          if min(partition_order) < 0 or partition_order != sorted(partition_order):
+              raise SystemExit("Sorting must retain the pivot while separating lower, equal, and greater values")
 
           sorting_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/Sorting.h").read_text()
           if ("#ifndef IOSORTING_DEFINED" not in sorting_header or

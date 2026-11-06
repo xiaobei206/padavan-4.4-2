@@ -11,7 +11,7 @@ typedef struct
 
 static int Sorting_isSorted_(SDSort *self, size_t size);
 static void Sorting_quickSort_(SDSort *self, size_t lb, size_t ub);
-static size_t Sorting_quickSortRearrange_(SDSort *self, size_t lb, size_t ub);
+static void Sorting_quickSortRearrange_(SDSort *self, size_t lb, size_t ub, size_t *equalStart, size_t *equalEnd);
 
 void Sorting_context_comp_swap_size_type_(void *context,
                                           SDSortCompareCallback *comp,
@@ -53,34 +53,44 @@ static void Sorting_quickSort_(SDSort *self, size_t lb, size_t ub)
         return;
 
     while (lb < ub) {
-        size_t pivot = Sorting_quickSortRearrange_(self, lb, ub);
-        size_t leftSize = pivot - lb;
-        size_t rightSize = ub - pivot;
+        size_t equalStart, equalEnd;
+        size_t leftSize, rightSize;
 
-        /* Recurse only into the smaller partition; iterate over the larger one. */
+        Sorting_quickSortRearrange_(self, lb, ub, &equalStart, &equalEnd);
+        leftSize = equalStart - lb;
+        rightSize = ub - equalEnd;
+
+        /* Recurse only into the smaller strict partition; skip the equal band. */
         if (leftSize < rightSize) {
             if (leftSize > 0)
-                Sorting_quickSort_(self, lb, pivot - 1);
-            lb = pivot + 1;
+                Sorting_quickSort_(self, lb, equalStart - 1);
+            lb = equalEnd + 1;
         } else {
             if (rightSize > 0)
-                Sorting_quickSort_(self, pivot + 1, ub);
-            if (pivot == 0)
+                Sorting_quickSort_(self, equalEnd + 1, ub);
+            if (equalStart == 0)
                 return;
-            ub = pivot - 1;
+            ub = equalStart - 1;
         }
     }
 }
-
-static size_t Sorting_quickSortRearrange_(SDSort *self, size_t lb, size_t ub)
+static void Sorting_quickSortRearrange_(SDSort *self, size_t lb, size_t ub,
+                                           size_t *equalStart, size_t *equalEnd)
 {
-    if (NULL == self || NULL == self->comp || NULL == self->swap)
-        return lb;
+    size_t firstEqual = lb;
+    size_t firstGreater;
+    size_t i;
+
+    if (NULL == equalStart || NULL == equalEnd)
+        return;
+    *equalStart = lb;
+    *equalEnd = lb;
+    if (NULL == self || NULL == self->comp || NULL == self->swap || lb >= ub)
+        return;
 
     /*
-     * Use the median of the first, middle, and last values as the pivot.
-     * This avoids the quadratic split produced by an endpoint pivot on
-     * reverse-ordered input while keeping all callback indexes in range.
+     * Keep the median-of-three pivot at ub while partitioning so comparisons
+     * can classify opaque context values without copying them.
      */
     if (ub - lb > 1) {
         size_t mid = lb + (ub - lb) / 2;
@@ -92,23 +102,30 @@ static size_t Sorting_quickSortRearrange_(SDSort *self, size_t lb, size_t ub)
         if (self->comp(self->context, (int)ub, (int)mid) < 0)
             self->swap(self->context, (int)ub, (int)mid);
 
-        self->swap(self->context, (int)lb, (int)mid);
+        self->swap(self->context, (int)mid, (int)ub);
     }
 
-    while (lb < ub) {
-        while (lb < ub &&
-               self->comp(self->context, (int)ub, (int)lb) >= 0)
-            --ub;
-
-        if (lb < ub)
-            self->swap(self->context, (int)ub, (int)lb);
-
-        while (lb < ub &&
-               self->comp(self->context, (int)lb, (int)ub) <= 0)
-            ++lb;
-
-        if (lb < ub)
-            self->swap(self->context, (int)lb, (int)ub);
+    /* First move every element smaller than the pivot to the left. */
+    for (i = lb; i < ub; ++i) {
+        if (self->comp(self->context, (int)i, (int)ub) < 0) {
+            if (i != firstEqual)
+                self->swap(self->context, (int)i, (int)firstEqual);
+            ++firstEqual;
+        }
     }
-    return lb;
+
+    /* Gather equal elements next to the pivot, leaving larger values right. */
+    firstGreater = firstEqual;
+    for (i = firstEqual; i < ub; ++i) {
+        if (self->comp(self->context, (int)i, (int)ub) == 0) {
+            if (i != firstGreater)
+                self->swap(self->context, (int)i, (int)firstGreater);
+            ++firstGreater;
+        }
+    }
+
+    if (firstGreater != ub)
+        self->swap(self->context, (int)firstGreater, (int)ub);
+    *equalStart = firstEqual;
+    *equalEnd = firstGreater;
 }

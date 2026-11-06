@@ -1,3 +1,14 @@
+## 2026-11-07 00:18 CST — Avoid quadratic Sorting partitions for duplicate-heavy inputs
+
+- Baseline: main commit `83a74f0b2a722da05d9395598910b94d2f9c06d8`; SkipDBv2 Regression run #382 passed source contracts, full build, and CTest.
+- Scope: `Sorting_quickSortRearrange_()` and the existing `sorting_boundaries` regression.
+- The median-of-three two-way partition still produced a one-element pivot band when most values were equal. Large duplicate-heavy arrays therefore degraded to quadratic comparisons although reverse-ordered inputs were already protected.
+- Keep the pivot at the high endpoint while making two bounded passes: segregate smaller values left, then gather equal values next to the pivot. Return the inclusive equal band and recurse/iterate only over strict lower and upper partitions. Preserve median-of-three selection, callback index bounds, and smaller-side recursion.
+- Extend the existing test with a 4,096-element mostly-equal but deliberately unsorted input and a comparison-count ceiling. Update static and dynamic workflow source contracts; reuse the existing CMake target and add no files.
+- No local C build is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:17 CST — Fix PortableStrlcpy regression include order
 
 - CI #381 passed source contracts and CMake configuration, then failed compiling the new test. The test included `PortableStrlcpy.h` before `string.h`; its legacy `strlcpy` macro consequently rewrote the system header declaration.
