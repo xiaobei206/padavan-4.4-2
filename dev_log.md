@@ -1,3 +1,14 @@
+## 2026-11-07 00:56 CST — Reject reversed ConvertUTF cursor ranges before conversion
+
+- Baseline: main commit `1d563eb10c90c1f392a99800985b163271284a56`; SkipDBv2 Regression run #386 passed.
+- Scope: the six public UTF-8/UTF-16/UTF-32 buffer converters and their existing `convert_utf8_bounds` regression.
+- The converters rejected NULL handles but did not reject a source cursor positioned after its end, silently reporting success for a malformed range. The UTF-16/UTF-32-to-UTF-8 paths subtract the target cursor from its end and cast the result to `size_t`; a reversed target range could wrap to a huge capacity and write past the intended output span.
+- After NULL validation, reject source or target cursors that are past their end before any cursor dereference, pointer subtraction, or byte write. Preserve equal start/end pointers as valid empty ranges; document the contract.
+- Extend the existing test to cover reversed source and target ranges for all six converters, verifying `sourceIllegal`, unchanged cursors, and untouched sentinel buffers. Strengthen static and dynamic Actions source contracts; reuse existing CMake registration. No new files.
+- No local C build is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:53 CST — Validate UArray stream append item geometry
 
 - Baseline: main commit `ed0412e0c9955e51fd11451725021d4aaed3087c`; SkipDBv2 Regression run #385 passed the source contracts, full build, and all CTest cases.

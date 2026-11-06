@@ -1236,6 +1236,7 @@ jobs:
                   "#include <stddef.h>",
                   "Boolean isLegalUTF8Sequence(const UTF8 *source, const UTF8 *sourceEnd)",
                   "NULL == source || NULL == sourceEnd || source >= sourceEnd",
+                  "if (*sourceStart > sourceEnd || *targetStart > targetEnd)",
                   "sourceEnd - source < length",
                   "return isLegalUTF8(source, length);",
                   "else if (ch > UNI_MAX_LEGAL_UTF32)",
@@ -1258,6 +1259,9 @@ jobs:
                   "UTF32toUTF8 strict range error consumed the invalid scalar",
                   "UTF32toUTF8 lenient replacement failed",
                   "UTF32toUTF8 target exhaustion changed source or output",
+                  "test_reversed_cursor_ranges",
+                  "accepted a reversed source range",
+                  "accepted a reversed target range",
                   "test_utf8_conversion_bounds",
                   "ConvertUTF8toUTF16 truncated source changed cursor or output",
                   "ConvertUTF8toUTF32 truncated source changed cursor or output",
@@ -3607,20 +3611,27 @@ jobs:
               stop = convert_source.find("ConversionResult " + converter_names[i + 1] + " (", start) if i < 5 else convert_source.find("/* ---------------------------------------------------------------------", start)
               body = convert_source[start:stop] if start >= 0 and stop > start else ""
               guard = body.find("if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||")
-              rejected = body.find("return sourceIllegal;", guard)
-              source_read = body.find("source = *sourceStart;", rejected)
-              target_read = body.find("target = *targetStart;", rejected)
-              if (not body or guard < 0 or rejected < guard or source_read < rejected or target_read < rejected or
-                      "NULL == targetStart || NULL == *targetStart || NULL == targetEnd" not in body[guard:rejected]):
-                  raise SystemExit(name + " must validate buffer pointers before dereferencing cursors")
+              null_rejected = body.find("return sourceIllegal;", guard)
+              range_guard = body.find("if (*sourceStart > sourceEnd || *targetStart > targetEnd)", null_rejected)
+              range_rejected = body.find("return sourceIllegal;", range_guard)
+              source_read = body.find("source = *sourceStart;", range_rejected)
+              target_read = body.find("target = *targetStart;", range_rejected)
+              if (not body or min(guard, null_rejected, range_guard, range_rejected, source_read, target_read) < 0 or
+                      not (guard < null_rejected < range_guard < range_rejected < source_read and range_rejected < target_read) or
+                      "NULL == targetStart || NULL == *targetStart || NULL == targetEnd" not in body[guard:null_rejected]):
+                  raise SystemExit(name + " must validate pointer handles and range order before dereferencing cursors")
           convert_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.h").read_text()
-          if "All four buffer pointers and both cursor handles must be non-NULL." not in convert_header or "Empty ranges are represented by equal, non-NULL start/end pointers." not in convert_header:
+          if ("All four buffer pointers and both cursor handles must be non-NULL." not in convert_header or
+                  "Start cursors must not point past their corresponding end pointers." not in convert_header or
+                  "Empty ranges are represented by equal, non-NULL start/end pointers." not in convert_header):
               raise SystemExit("ConvertUTF invalid-buffer documentation missing")
           for name in converter_names:
               if any(name + " " + arg not in convert_test for arg in bad_arguments):
                   raise SystemExit(name + " invalid-buffer test matrix is incomplete")
           if "invalid ConvertUTF arguments changed caller cursors or output" not in convert_test:
               raise SystemExit("ConvertUTF invalid-call state preservation regression is missing")
+          if "test_reversed_cursor_ranges" not in convert_test:
+              raise SystemExit("ConvertUTF reversed cursor range regression is missing")
 
           encoding_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c").read_text()
           truncate_start = encoding_source.find("static int UArray_truncateAfterConvertToEncoding_(UArray *self)")

@@ -53,6 +53,7 @@
 		two buffers, for overflow checking only.
 
 	All four buffer pointers and both cursor handles must be non-NULL.
+	Start cursors must not point past their corresponding end pointers.
 	Invalid buffer arguments return sourceIllegal without changing either
 	cursor. Empty ranges are represented by equal, non-NULL start/end pointers.
 

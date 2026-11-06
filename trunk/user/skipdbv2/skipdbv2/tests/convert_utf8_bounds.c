@@ -395,6 +395,108 @@ static int test_invalid_buffer_arguments(void)
 }
 
 
+
+static int test_all_bytes_equal_(const void *buffer, size_t length, unsigned char expected)
+{
+    const unsigned char *bytes = (const unsigned char *)buffer;
+    size_t i;
+    for (i = 0; i < length; ++i) {
+        if (bytes[i] != expected)
+            return 0;
+    }
+    return 1;
+}
+
+static int test_reversed_cursor_ranges(void)
+{
+    const UTF8 source8[16] = {0x41};
+    const UTF16 source16[16] = {0x41};
+    const UTF32 source32[16] = {0x41};
+    UTF8 output8[16];
+    UTF16 output16[16];
+    UTF32 output32[16];
+    const UTF8 *s8;
+    const UTF16 *s16;
+    const UTF32 *s32;
+    UTF8 *t8;
+    UTF16 *t16;
+    UTF32 *t32;
+
+#define EXPECT_REVERSED_SOURCE(label, expression, source_cursor, expected_source, target_cursor, expected_target, output) do { \
+    memset((output), 0xaa, sizeof(output)); \
+    if ((expression) != sourceIllegal || (source_cursor) != (expected_source) || \
+        (target_cursor) != (expected_target) || \
+        !test_all_bytes_equal_((output), sizeof(output), 0xaa)) { \
+        fprintf(stderr, "%s accepted a reversed source range or changed caller state\n", (label)); \
+        return 0; \
+    } \
+} while (0)
+#define EXPECT_REVERSED_TARGET(label, expression, source_cursor, expected_source, target_cursor, expected_target, output) do { \
+    memset((output), 0xaa, sizeof(output)); \
+    if ((expression) != sourceIllegal || (source_cursor) != (expected_source) || \
+        (target_cursor) != (expected_target) || \
+        !test_all_bytes_equal_((output), sizeof(output), 0xaa)) { \
+        fprintf(stderr, "%s accepted a reversed target range or changed caller state\n", (label)); \
+        return 0; \
+    } \
+} while (0)
+
+    s32 = source32 + 8; t16 = output16;
+    EXPECT_REVERSED_SOURCE("ConvertUTF32toUTF16",
+        ConvertUTF32toUTF16(&s32, source32 + 4, &t16, output16 + 16, strictConversion),
+        s32, source32 + 8, t16, output16, output16);
+    s16 = source16 + 8; t32 = output32;
+    EXPECT_REVERSED_SOURCE("ConvertUTF16toUTF32",
+        ConvertUTF16toUTF32(&s16, source16 + 4, &t32, output32 + 16, strictConversion),
+        s16, source16 + 8, t32, output32, output32);
+    s16 = source16 + 8; t8 = output8;
+    EXPECT_REVERSED_SOURCE("ConvertUTF16toUTF8",
+        ConvertUTF16toUTF8(&s16, source16 + 4, &t8, output8 + 16, strictConversion),
+        s16, source16 + 8, t8, output8, output8);
+    s8 = source8 + 8; t16 = output16;
+    EXPECT_REVERSED_SOURCE("ConvertUTF8toUTF16",
+        ConvertUTF8toUTF16(&s8, source8 + 4, &t16, output16 + 16, strictConversion),
+        s8, source8 + 8, t16, output16, output16);
+    s32 = source32 + 8; t8 = output8;
+    EXPECT_REVERSED_SOURCE("ConvertUTF32toUTF8",
+        ConvertUTF32toUTF8(&s32, source32 + 4, &t8, output8 + 16, strictConversion),
+        s32, source32 + 8, t8, output8, output8);
+    s8 = source8 + 8; t32 = output32;
+    EXPECT_REVERSED_SOURCE("ConvertUTF8toUTF32",
+        ConvertUTF8toUTF32(&s8, source8 + 4, &t32, output32 + 16, strictConversion),
+        s8, source8 + 8, t32, output32, output32);
+
+    s32 = source32; t16 = output16 + 8;
+    EXPECT_REVERSED_TARGET("ConvertUTF32toUTF16",
+        ConvertUTF32toUTF16(&s32, source32 + 1, &t16, output16 + 4, strictConversion),
+        s32, source32, t16, output16 + 8, output16);
+    s16 = source16; t32 = output32 + 8;
+    EXPECT_REVERSED_TARGET("ConvertUTF16toUTF32",
+        ConvertUTF16toUTF32(&s16, source16 + 1, &t32, output32 + 4, strictConversion),
+        s16, source16, t32, output32 + 8, output32);
+    s16 = source16; t8 = output8 + 8;
+    EXPECT_REVERSED_TARGET("ConvertUTF16toUTF8",
+        ConvertUTF16toUTF8(&s16, source16 + 1, &t8, output8 + 4, strictConversion),
+        s16, source16, t8, output8 + 8, output8);
+    s8 = source8; t16 = output16 + 8;
+    EXPECT_REVERSED_TARGET("ConvertUTF8toUTF16",
+        ConvertUTF8toUTF16(&s8, source8 + 1, &t16, output16 + 4, strictConversion),
+        s8, source8, t16, output16 + 8, output16);
+    s32 = source32; t8 = output8 + 8;
+    EXPECT_REVERSED_TARGET("ConvertUTF32toUTF8",
+        ConvertUTF32toUTF8(&s32, source32 + 1, &t8, output8 + 4, strictConversion),
+        s32, source32, t8, output8 + 8, output8);
+    s8 = source8; t32 = output32 + 8;
+    EXPECT_REVERSED_TARGET("ConvertUTF8toUTF32",
+        ConvertUTF8toUTF32(&s8, source8 + 1, &t32, output32 + 4, strictConversion),
+        s8, source8, t32, output32 + 8, output32);
+
+#undef EXPECT_REVERSED_SOURCE
+#undef EXPECT_REVERSED_TARGET
+    return 1;
+}
+
+
 int main(void)
 {
     const UTF8 empty[] = { 0 };
@@ -405,7 +507,7 @@ int main(void)
     const UTF8 overlong[] = { 0xc0, 0x80 };
     const UTF8 bad_lead[] = { 0xf5, 0x80, 0x80, 0x80, 0x80 };
 
-    if (!test_invalid_buffer_arguments()) return EXIT_FAILURE;
+    if (!test_invalid_buffer_arguments() || !test_reversed_cursor_ranges()) return EXIT_FAILURE;
 
     if (!expect_result("NULL source", NULL, ascii + 1, false) ||
         !expect_result("NULL end", ascii, NULL, false) ||

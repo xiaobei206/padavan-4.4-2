@@ -75,6 +75,9 @@ ConversionResult ConvertUTF32toUTF16 (
 	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
 		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
 		return sourceIllegal;
+	/* Reject reversed ranges before relational arithmetic or buffer access. */
+	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
+		return sourceIllegal;
 	source = *sourceStart;
 	target = *targetStart;
 
@@ -154,6 +157,9 @@ ConversionResult ConvertUTF16toUTF32 (
 	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
 	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
 		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	/* Reject reversed ranges before relational arithmetic or buffer access. */
+	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
 	source = *sourceStart;
 	target = *targetStart;
@@ -267,6 +273,9 @@ ConversionResult ConvertUTF16toUTF8 (
 	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
 	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
 		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	/* Reject reversed ranges before relational arithmetic or buffer access. */
+	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
 	source = *sourceStart;
 	target = *targetStart;
@@ -403,6 +412,9 @@ ConversionResult ConvertUTF8toUTF16 (
 	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
 		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
 		return sourceIllegal;
+	/* Reject reversed ranges before relational arithmetic or buffer access. */
+	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
+		return sourceIllegal;
 	source = *sourceStart;
 	target = *targetStart;
 
@@ -484,6 +496,9 @@ ConversionResult ConvertUTF32toUTF8 (
 	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
 		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
 		return sourceIllegal;
+	/* Reject reversed ranges before relational arithmetic or buffer access. */
+	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
+		return sourceIllegal;
 	source = *sourceStart;
 	target = *targetStart;
 
@@ -550,6 +565,9 @@ ConversionResult ConvertUTF8toUTF32 (
 	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
 	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
 		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	/* Reject reversed ranges before relational arithmetic or buffer access. */
+	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
 	source = *sourceStart;
 	target = *targetStart;
