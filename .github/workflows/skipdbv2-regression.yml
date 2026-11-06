@@ -1364,6 +1364,17 @@ jobs:
                   "UArray extrema accepted zero-width storage",
                   "UArray extrema accepted overflowing geometry",
                   "UArray math extrema test passed",
+                  "UArray elementwise mutation allocation failed",
+                  "UArray elementwise add changed prefix behavior or retained the cached hash",
+                  "UArray elementwise subtract changed prefix behavior or retained the cached hash",
+                  "UArray elementwise multiply changed prefix behavior or retained the cached hash",
+                  "UArray float32 fast-path add changed results or retained the cached hash",
+                  "UArray elementwise operations accepted missing receiver storage",
+                  "UArray elementwise operations accepted missing operand storage",
+                  "UArray elementwise operations accepted mismatched item width",
+                  "UArray elementwise operations accepted unsupported item type",
+                  "UArray elementwise operations accepted overflowing storage geometry",
+                  "UArray zero-length elementwise operation changed receiver state",
                   "UArray reduction allocation failed",
                   "UArray valid reductions changed their results or mutated the source hash",
                   "UArray negative reductions changed their results",
@@ -2229,6 +2240,40 @@ jobs:
               first_read = body.find(init)
               if not body or storage_guard < 0 or first_read < 0 or storage_guard > first_read or "self->size == 0" not in body:
                   raise SystemExit(f"UArray {label} must validate typed storage and nonempty size before the first element read")
+
+          vector_operation_ranges = (
+              ("add", "void UArray_add_(UArray *self, const UArray *other)", "void UArray_subtract_"),
+              ("subtract", "void UArray_subtract_(UArray *self, const UArray *other)", "void UArray_multiply_"),
+              ("multiply", "void UArray_multiply_(UArray *self, const UArray *other)", "void UArray_divide_"),
+          )
+          numeric_guard_prototype = bit_math_source.find("static int UArray_hasValidNumericStorage_(const UArray *self);")
+          first_vector_operation = bit_math_source.find("void UArray_add_(UArray *self, const UArray *other)")
+          if numeric_guard_prototype < 0 or first_vector_operation < 0 or numeric_guard_prototype > first_vector_operation:
+              raise SystemExit("UArray elementwise operations must declare their file-local numeric storage validator before use")
+          for label, start_marker, end_marker in vector_operation_ranges:
+              start = bit_math_source.find(start_marker)
+              end = bit_math_source.find(end_marker, start)
+              body = bit_math_source[start:end] if start >= 0 and end > start else ""
+              self_guard = body.find("UArray_hasValidNumericStorage_(self)")
+              other_guard = body.find("UArray_hasValidNumericStorage_(other)")
+              first_type_access = min(
+                  position for position in (body.find("self->itemType"), body.find("other->itemType"))
+                  if position >= 0
+              ) if body and ("self->itemType" in body or "other->itemType" in body) else -1
+              zero_guard = body.find("if (minSize == 0)")
+              float_dispatch = body.find(f"vfloat32_{'add' if label == 'add' else 'sub' if label == 'subtract' else 'mult'}(")
+              generic_dispatch = body.find(f"DUARRAY_OP(UARRAY_BASICOP_TYPES, {'+=' if label == 'add' else '-=' if label == 'subtract' else '*='}, self, other);")
+              changed = body.find("UArray_changed(self);")
+              if (
+                  not body or self_guard < 0 or other_guard < 0 or
+                  first_type_access < 0 or self_guard > first_type_access or
+                  other_guard > first_type_access or
+                  "minSize = self->size < other->size ? self->size : other->size;" not in body or
+                  zero_guard < 0 or float_dispatch < 0 or generic_dispatch < 0 or
+                  changed < 0 or changed < float_dispatch or changed < generic_dispatch or
+                  "UArray_minSizeWith_(" in body
+              ):
+                  raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")
 
           dot_size_start = bit_math_source.find("static size_t UArray_numericItemSize_(CTYPE itemType)")
           dot_guard_start = bit_math_source.find("static int UArray_hasValidNumericStorage_(const UArray *self)")

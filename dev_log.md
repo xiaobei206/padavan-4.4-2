@@ -1,3 +1,13 @@
+## 2026-11-06 22:53 CST — Validate UArray elementwise arithmetic mutations
+
+- Baseline: main commit `db1d474c78cacab4968141bfb1acca67524609dc`; SkipDBv2 Regression run #353 passed all 55 CTest cases, including the index-compaction guards.
+- Scope: the three related elementwise operations `UArray_add_()`, `UArray_subtract_()`, and `UArray_multiply_()`. Division remains out of scope because integer divide-by-zero policy requires separate treatment.
+- These functions inspected CTYPE and cast operand storage before validating either array. Their float32 fast paths also trusted a helper-derived count, and both fast/generic paths mutated contents without invalidating the receiver's cached hash.
+- Add a file-local validator declaration; preflight both operands for supported numeric types, matching item widths, safe geometry, and backing bytes; derive the common item count only after validation; keep the zero-length no-op; and invalidate the hash after a successful nonempty operation.
+- Extend the existing `uarray_math_extrema` regression and workflow source contract for mixed-width prefix behavior, float32 fast-path behavior, NULL/malformed storage, unsupported types, overflow, zero-length arrays, and hash invalidation. Reuse the existing CMake target; no new files or CMake changes.
+- No local C compilation or CTest result is claimed; mainline CI remains the build/runtime gate.
+
+---
 ## 2026-11-06 22:47 CST — Guard UArray index compaction
 
 - Baseline: main commit `c7338c3aef367699fed7fea6b61acd45306e9b6f`; SkipDBv2 Regression run #352 passed all 55 CTest cases, including the bitwise mutation guards.

@@ -7,6 +7,143 @@
 static int fail(const char *s) { fprintf(stderr, "%s\n", s); return EXIT_FAILURE; }
 static int nearEnough(double a, double b) { return fabs(a - b) <= 1e-12; }
 
+static int test_elementwise_mutations(void)
+{
+    const int32_t initial[] = {2, 3, 4};
+    const int16_t factors[] = {5, 7};
+    const int32_t expectedAdd[] = {7, 10, 4};
+    const int32_t expectedSubtract[] = {-3, -4, 4};
+    const int32_t expectedMultiply[] = {10, 21, 4};
+    const float32_t floatInitial[] = {1.5f, -2.0f};
+    const float32_t floatOther[] = {0.5f, 4.0f};
+    UArray *left = UArray_newWithData_type_size_copy_((void *)initial, CTYPE_int32_t, 3, 1);
+    UArray *right = UArray_newWithData_type_size_copy_((void *)factors, CTYPE_int16_t, 2, 1);
+    UArray *floatLeft = UArray_newWithData_type_size_copy_((void *)floatInitial, CTYPE_float32_t, 2, 1);
+    UArray *floatRight = UArray_newWithData_type_size_copy_((void *)floatOther, CTYPE_float32_t, 2, 1);
+    UArray invalid;
+    int result = EXIT_FAILURE;
+
+    if (!left || !right || !floatLeft || !floatRight) {
+        fail("UArray elementwise mutation allocation failed");
+        goto cleanup;
+    }
+
+    left->hash = 0x1010;
+    UArray_add_(left, right);
+    if (memcmp(left->data, expectedAdd, sizeof(expectedAdd)) != 0 || left->hash != 0) {
+        fail("UArray elementwise add changed prefix behavior or retained the cached hash");
+        goto cleanup;
+    }
+
+    memcpy(left->data, initial, sizeof(initial));
+    left->hash = 0x2020;
+    UArray_subtract_(left, right);
+    if (memcmp(left->data, expectedSubtract, sizeof(expectedSubtract)) != 0 || left->hash != 0) {
+        fail("UArray elementwise subtract changed prefix behavior or retained the cached hash");
+        goto cleanup;
+    }
+
+    memcpy(left->data, initial, sizeof(initial));
+    left->hash = 0x3030;
+    UArray_multiply_(left, right);
+    if (memcmp(left->data, expectedMultiply, sizeof(expectedMultiply)) != 0 || left->hash != 0) {
+        fail("UArray elementwise multiply changed prefix behavior or retained the cached hash");
+        goto cleanup;
+    }
+
+    floatLeft->hash = 0x4040;
+    UArray_add_(floatLeft, floatRight);
+    if (!nearEnough(((float32_t *)floatLeft->data)[0], 2.0) ||
+        !nearEnough(((float32_t *)floatLeft->data)[1], 2.0) ||
+        floatLeft->hash != 0) {
+        fail("UArray float32 fast-path add changed results or retained the cached hash");
+        goto cleanup;
+    }
+
+    UArray_add_(NULL, right);
+    UArray_subtract_(left, NULL);
+    UArray_multiply_(NULL, NULL);
+
+    invalid = *left;
+    invalid.data = NULL;
+    invalid.hash = 0x5050;
+    UArray_add_(&invalid, right);
+    UArray_subtract_(&invalid, right);
+    UArray_multiply_(&invalid, right);
+    if (invalid.data != NULL || invalid.hash != 0x5050) {
+        fail("UArray elementwise operations accepted missing receiver storage");
+        goto cleanup;
+    }
+
+    invalid = *right;
+    invalid.data = NULL;
+    left->hash = 0x6060;
+    UArray_add_(left, &invalid);
+    UArray_subtract_(left, &invalid);
+    UArray_multiply_(left, &invalid);
+    if (left->hash != 0x6060 ||
+        memcmp(left->data, expectedMultiply, sizeof(expectedMultiply)) != 0) {
+        fail("UArray elementwise operations accepted missing operand storage");
+        goto cleanup;
+    }
+
+    invalid = *right;
+    invalid.itemSize = 0;
+    left->hash = 0x7070;
+    UArray_add_(left, &invalid);
+    UArray_subtract_(left, &invalid);
+    UArray_multiply_(left, &invalid);
+    if (left->hash != 0x7070 ||
+        memcmp(left->data, expectedMultiply, sizeof(expectedMultiply)) != 0) {
+        fail("UArray elementwise operations accepted mismatched item width");
+        goto cleanup;
+    }
+
+    invalid = *right;
+    invalid.itemType = (CTYPE)9999;
+    left->hash = 0x8080;
+    UArray_add_(left, &invalid);
+    UArray_subtract_(left, &invalid);
+    UArray_multiply_(left, &invalid);
+    if (left->hash != 0x8080 ||
+        memcmp(left->data, expectedMultiply, sizeof(expectedMultiply)) != 0) {
+        fail("UArray elementwise operations accepted unsupported item type");
+        goto cleanup;
+    }
+
+    invalid = *right;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    left->hash = 0x9090;
+    UArray_add_(left, &invalid);
+    UArray_subtract_(left, &invalid);
+    UArray_multiply_(left, &invalid);
+    if (left->hash != 0x9090 ||
+        memcmp(left->data, expectedMultiply, sizeof(expectedMultiply)) != 0) {
+        fail("UArray elementwise operations accepted overflowing storage geometry");
+        goto cleanup;
+    }
+
+    invalid = *right;
+    invalid.size = 0;
+    left->hash = 0xa0a0;
+    UArray_add_(left, &invalid);
+    UArray_subtract_(left, &invalid);
+    UArray_multiply_(left, &invalid);
+    if (left->hash != 0xa0a0 ||
+        memcmp(left->data, expectedMultiply, sizeof(expectedMultiply)) != 0) {
+        fail("UArray zero-length elementwise operation changed receiver state");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(left);
+    UArray_free(right);
+    UArray_free(floatLeft);
+    UArray_free(floatRight);
+    return result;
+}
+
 static int test_reductions(void)
 {
     const int32_t positiveValues[] = {5, 12, 8};
@@ -236,6 +373,8 @@ cleanup:
 
 int main(void)
 {
+    if (test_elementwise_mutations() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
     if (test_reductions() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_normalize() != EXIT_SUCCESS)

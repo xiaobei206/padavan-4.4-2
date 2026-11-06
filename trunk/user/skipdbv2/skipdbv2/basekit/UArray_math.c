@@ -77,37 +77,66 @@ void UArray_negate(const UArray *self)
 
 // basic vector math
 
+static int UArray_hasValidNumericStorage_(const UArray *self);
+
 void UArray_add_(UArray *self, const UArray *other)
 {
-	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
-	{
-		vfloat32_add((float32_t *)self->data, (float32_t *)other->data, UArray_minSizeWith_(self, other));
-		return;
-	}
+	size_t minSize;
 
-	DUARRAY_OP(UARRAY_BASICOP_TYPES, +=, self, other);
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other))
+		return;
+
+	minSize = self->size < other->size ? self->size : other->size;
+	if (minSize == 0)
+		return;
+
+	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
+		vfloat32_add((float32_t *)self->data, (float32_t *)other->data, minSize);
+	else
+		DUARRAY_OP(UARRAY_BASICOP_TYPES, +=, self, other);
+
+	UArray_changed(self);
 }
 
 void UArray_subtract_(UArray *self, const UArray *other)
 {
-	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
-	{
-		vfloat32_sub((float32_t *)self->data, (float32_t *)other->data, UArray_minSizeWith_(self, other));
-		return;
-	}
+	size_t minSize;
 
-	DUARRAY_OP(UARRAY_BASICOP_TYPES, -=, self, other);
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other))
+		return;
+
+	minSize = self->size < other->size ? self->size : other->size;
+	if (minSize == 0)
+		return;
+
+	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
+		vfloat32_sub((float32_t *)self->data, (float32_t *)other->data, minSize);
+	else
+		DUARRAY_OP(UARRAY_BASICOP_TYPES, -=, self, other);
+
+	UArray_changed(self);
 }
 
 void UArray_multiply_(UArray *self, const UArray *other)
 {
-	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
-	{
-		vfloat32_mult((float32_t *)self->data, (float32_t *)other->data, UArray_minSizeWith_(self, other));
-		return;
-	}
+	size_t minSize;
 
-	DUARRAY_OP(UARRAY_BASICOP_TYPES, *=, self, other);
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other))
+		return;
+
+	minSize = self->size < other->size ? self->size : other->size;
+	if (minSize == 0)
+		return;
+
+	if (self->itemType == CTYPE_float32_t && other->itemType == CTYPE_float32_t)
+		vfloat32_mult((float32_t *)self->data, (float32_t *)other->data, minSize);
+	else
+		DUARRAY_OP(UARRAY_BASICOP_TYPES, *=, self, other);
+
+	UArray_changed(self);
 }
 
 void UArray_divide_(UArray *self, const UArray *other)
