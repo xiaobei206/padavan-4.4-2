@@ -1,3 +1,14 @@
+## 2026-11-06 23:20 CST — Harden UArray logical binary mutations
+
+- Baseline: main commit `83d13e501b2cade038310352f82b384ba216ea19`; SkipDBv2 Regression run #362 completed successfully.
+- Scope: `UArray_logicalOr_()` and `UArray_logicalAnd_()`, including their shared dispatch macro.
+- The functions dispatched directly into typed storage without checking either operand. The receiver and operand dispatch tables support different CTYPE subsets, so unsupported metadata could reach the fatal unsupported-type path. The shared logic macro also omitted the early return used by the generic dispatcher and did not invalidate the receiver hash.
+- Validate both numeric layouts and the exact receiver/operand CTYPE sets before dispatch. Make the shared macro preserve empty-prefix no-op behavior, invalidate the hash after nonempty writes, and return before the unsupported fallback.
+- Extend the existing `uarray_math_extrema` regression and workflow source contracts for OR/AND prefix semantics, supported uintptr operands, malformed/unsupported inputs, overflow geometry, and hash lifecycle. Reuse the existing CMake target; no new files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:18 CST — Repair UArray pairwise extrema hash invalidation
 
 - CI #361 passed source contracts, configure, and compilation, then exposed a regression assertion: pairwise maximum changed values but retained the receiver's cached hash.

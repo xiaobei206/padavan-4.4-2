@@ -830,6 +830,150 @@ cleanup:
     return result;
 }
 
+
+static int test_logical_mutations(void)
+{
+    const int32_t initial[] = {0, 2, 0, 5};
+    const int16_t operands[] = {0, -3, 4};
+    const int32_t expectedOr[] = {0, 1, 1, 5};
+    const int32_t expectedAnd[] = {0, 1, 0, 5};
+    const uintptr_t pointerOperands[] = {0, 1, 0};
+    UArray *values = UArray_newWithData_type_size_copy_(
+        (void *)initial, CTYPE_int32_t, 4, 1);
+    UArray *other = UArray_newWithData_type_size_copy_(
+        (void *)operands, CTYPE_int16_t, 3, 1);
+    UArray *pointerOperand = UArray_newWithData_type_size_copy_(
+        (void *)pointerOperands, CTYPE_uintptr_t, 3, 1);
+    UArray *empty = UArray_new();
+    UArray invalid;
+    int result = EXIT_FAILURE;
+
+    if (NULL == values || NULL == other || NULL == pointerOperand || NULL == empty) {
+        fail("UArray logical mutation allocation failed");
+        goto cleanup;
+    }
+
+    values->hash = 0x1111;
+    UArray_logicalOr_(values, other);
+    if (memcmp(values->data, expectedOr, sizeof(expectedOr)) != 0 ||
+        values->hash != 0) {
+        fail("UArray logical OR changed prefix results or retained the cached hash");
+        goto cleanup;
+    }
+
+    memcpy(values->data, initial, sizeof(initial));
+    values->hash = 0x2222;
+    UArray_logicalAnd_(values, other);
+    if (memcmp(values->data, expectedAnd, sizeof(expectedAnd)) != 0 ||
+        values->hash != 0) {
+        fail("UArray logical AND changed prefix results or retained the cached hash");
+        goto cleanup;
+    }
+
+    memcpy(values->data, initial, sizeof(initial));
+    values->hash = 0x3333;
+    UArray_logicalOr_(values, pointerOperand);
+    if (((int32_t *)values->data)[0] != 0 ||
+        ((int32_t *)values->data)[1] != 1 ||
+        ((int32_t *)values->data)[2] != 0 ||
+        ((int32_t *)values->data)[3] != 5 ||
+        values->hash != 0) {
+        fail("UArray logical operations rejected a supported pointer-sized operand");
+        goto cleanup;
+    }
+
+    empty->hash = 0x4444;
+    UArray_logicalOr_(empty, other);
+    UArray_logicalAnd_(empty, other);
+    UArray_logicalOr_(NULL, other);
+    UArray_logicalAnd_(values, NULL);
+    if (empty->size != 0 || empty->hash != 0x4444) {
+        fail("UArray empty logical operations changed receiver state");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.data = NULL;
+    invalid.hash = 0x5555;
+    UArray_logicalOr_(&invalid, other);
+    UArray_logicalAnd_(&invalid, other);
+    if (invalid.data != NULL || invalid.hash != 0x5555) {
+        fail("UArray logical operations accepted missing receiver storage");
+        goto cleanup;
+    }
+
+    invalid = *other;
+    invalid.data = NULL;
+    values->hash = 0x6666;
+    UArray_logicalOr_(values, &invalid);
+    UArray_logicalAnd_(values, &invalid);
+    if (values->hash != 0x6666) {
+        fail("UArray logical operations accepted missing operand storage");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemSize = 0;
+    invalid.hash = 0x7777;
+    UArray_logicalOr_(&invalid, other);
+    UArray_logicalAnd_(&invalid, other);
+    if (invalid.hash != 0x7777) {
+        fail("UArray logical operations accepted malformed receiver width");
+        goto cleanup;
+    }
+
+    invalid = *other;
+    invalid.itemType = CTYPE_float64_t;
+    values->hash = 0x8888;
+    UArray_logicalOr_(values, &invalid);
+    UArray_logicalAnd_(values, &invalid);
+    if (values->hash != 0x8888) {
+        fail("UArray logical operations accepted unsupported operand type");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemType = CTYPE_uint64_t;
+    invalid.itemSize = sizeof(uint64_t);
+    invalid.hash = 0x9999;
+    UArray_logicalOr_(&invalid, other);
+    UArray_logicalAnd_(&invalid, other);
+    if (invalid.hash != 0x9999) {
+        fail("UArray logical operations accepted unsupported receiver type");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemType = CTYPE_int32_t;
+    invalid.itemSize = sizeof(int32_t);
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    invalid.hash = 0xaaaa;
+    UArray_logicalOr_(&invalid, other);
+    UArray_logicalAnd_(&invalid, other);
+    if (invalid.hash != 0xaaaa) {
+        fail("UArray logical operations accepted overflowing receiver geometry");
+        goto cleanup;
+    }
+
+    invalid = *other;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    values->hash = 0xbbbb;
+    UArray_logicalOr_(values, &invalid);
+    UArray_logicalAnd_(values, &invalid);
+    if (values->hash != 0xbbbb) {
+        fail("UArray logical operations accepted overflowing operand geometry");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(values);
+    UArray_free(other);
+    UArray_free(pointerOperand);
+    UArray_free(empty);
+    return result;
+}
+
 typedef void (*UArrayUnaryTransform_)(UArray *);
 typedef double (*UArrayUnaryMathFunction_)(double);
 
@@ -966,6 +1110,8 @@ int main(void)
     if (test_unary_transforms() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_pairwise_extrema() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (test_logical_mutations() != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
 

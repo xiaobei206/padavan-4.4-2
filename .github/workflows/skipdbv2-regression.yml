@@ -1339,6 +1339,15 @@ jobs:
                   "if (minSize == 0)",
                   "/* The setter's type-dispatch macro returns before its hash invalidation. */",
                   "UArray_changed(self);",
+                  "static int UArray_hasSupportedLogicalTypes_(const UArray *self, const UArray *other)",
+                  "case CTYPE_int32_t:",
+                  "case CTYPE_uintptr_t:",
+                  "if (minSize == 0)",
+                  "UArray_changed(self);",
+                  "void UArray_logicalOr_(UArray *self, const UArray *other)",
+                  "void UArray_logicalAnd_(UArray *self, const UArray *other)",
+                  "DUARRAY_INTOP(UARRAY_LOGICOP_TYPES, ||, self, other);",
+                  "DUARRAY_INTOP(UARRAY_LOGICOP_TYPES, &&, self, other);",
                   "void UArray_crossProduct_(UArray *self, const UArray *other)",
                   "if (!UArray_hasValidNumericStorage_(self) ||",
                   "!UArray_hasValidNumericStorage_(other) ||",
@@ -1461,6 +1470,19 @@ jobs:
                   "UArray pairwise extrema accepted overflowing receiver geometry",
                   "UArray pairwise extrema accepted overflowing operand geometry",
                   "UArray pairwise extrema accepted pointer-sized item type",
+                  "UArray logical mutation allocation failed",
+                  "UArray logical OR changed prefix results or retained the cached hash",
+                  "UArray logical AND changed prefix results or retained the cached hash",
+                  "UArray logical operations rejected a supported pointer-sized operand",
+                  "UArray empty logical operations changed receiver state",
+                  "UArray logical operations accepted missing receiver storage",
+                  "UArray logical operations accepted missing operand storage",
+                  "UArray logical operations accepted malformed receiver width",
+                  "UArray logical operations accepted unsupported operand type",
+                  "UArray logical operations accepted unsupported receiver type",
+                  "UArray logical operations accepted overflowing receiver geometry",
+                  "UArray logical operations accepted overflowing operand geometry",
+                  "if (test_logical_mutations() != EXIT_SUCCESS)",
                   "if (test_pairwise_extrema() != EXIT_SUCCESS)",
                   "UArray division allocation failed",
                   "UArray integer division changed mixed-width prefix results or retained the cached hash",
@@ -2360,6 +2382,40 @@ jobs:
                   "UArray_minSizeWith_(" in body
               ):
                   raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")
+
+          logical_type_helper = bit_math_source.find(
+              "static int UArray_hasSupportedLogicalTypes_(const UArray *self, const UArray *other)"
+          )
+          logical_macro_start = bit_math_source.find("#define UARRAY_LOGICOP_TYPES")
+          logical_macro_end = bit_math_source.find("void UArray_logicalOr_", logical_macro_start)
+          logical_macro_body = bit_math_source[logical_macro_start:logical_macro_end] if logical_macro_start >= 0 and logical_macro_end > logical_macro_start else ""
+          if (
+              logical_type_helper < 0 or logical_macro_start < 0 or
+              not logical_macro_body or
+              "if (minSize == 0)" not in logical_macro_body or
+              "UArray_changed(self);" not in logical_macro_body or
+              logical_macro_body.find("UArray_changed(self);") > logical_macro_body.rfind("return;")
+          ):
+              raise SystemExit("UArray logical dispatch must validate supported CTYPE pairs and invalidate hash before its early return")
+
+          logical_operation_ranges = (
+              ("OR", "void UArray_logicalOr_(UArray *self, const UArray *other)", "void UArray_logicalAnd_"),
+              ("AND", "void UArray_logicalAnd_(UArray *self, const UArray *other)", "// trigonometry"),
+          )
+          for label, start_marker, end_marker in logical_operation_ranges:
+              start = bit_math_source.find(start_marker)
+              end = bit_math_source.find(end_marker, start)
+              body = bit_math_source[start:end] if start >= 0 and end > start else ""
+              self_guard = body.find("UArray_hasValidNumericStorage_(self)")
+              other_guard = body.find("UArray_hasValidNumericStorage_(other)")
+              type_guard = body.find("UArray_hasSupportedLogicalTypes_(self, other)")
+              dispatch = body.find("DUARRAY_INTOP(UARRAY_LOGICOP_TYPES")
+              if (
+                  not body or self_guard < 0 or other_guard < 0 or
+                  type_guard < 0 or dispatch < 0 or
+                  max(self_guard, other_guard, type_guard) > dispatch
+              ):
+                  raise SystemExit(f"UArray logical {label} must validate both storage layouts and CTYPE dispatch before entering the legacy macro")
 
           pairwise_extrema_ranges = (
               ("maximum", "BASEKIT_API void UArray_Max(UArray *self, const UArray *other)", "BASEKIT_API void UArray_Min"),

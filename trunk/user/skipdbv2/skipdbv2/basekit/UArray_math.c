@@ -524,22 +524,72 @@ size_t UArray_bitCount(UArray *self)
 
 // logic
 
+static int UArray_hasSupportedLogicalTypes_(const UArray *self, const UArray *other)
+{
+	int receiverSupported, operandSupported;
+
+	switch (self->itemType) {
+		case CTYPE_uint8_t:
+		case CTYPE_uint16_t:
+		case CTYPE_uint32_t:
+		case CTYPE_int8_t:
+		case CTYPE_int16_t:
+		case CTYPE_int32_t:
+			receiverSupported = 1;
+			break;
+		default:
+			receiverSupported = 0;
+			break;
+	}
+
+	switch (other->itemType) {
+		case CTYPE_uint8_t:
+		case CTYPE_uint16_t:
+		case CTYPE_uint32_t:
+		case CTYPE_int8_t:
+		case CTYPE_int16_t:
+		case CTYPE_int32_t:
+		case CTYPE_uintptr_t:
+			operandSupported = 1;
+			break;
+		default:
+			operandSupported = 0;
+			break;
+	}
+
+	return receiverSupported && operandSupported;
+}
+
 #define UARRAY_LOGICOP_TYPES(OP2, TYPE1, self, TYPE2, other)\
 {\
 	size_t i, minSize = self->size < other->size ? self->size : other->size;\
-		for(i = 0; i < minSize; i ++)\
-		{\
-			((TYPE1 *)self->data)[i] = ((TYPE1 *)self->data)[i] OP2 ((TYPE2 *)other->data)[i];\
-		}\
+	if (minSize == 0)\
+		return;\
+	for (i = 0; i < minSize; ++i)\
+	{\
+		((TYPE1 *)self->data)[i] = ((TYPE1 *)self->data)[i] OP2 ((TYPE2 *)other->data)[i];\
+	}\
+	UArray_changed(self);\
+	return; \
 }
 
 void UArray_logicalOr_(UArray *self, const UArray *other)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other) ||
+		!UArray_hasSupportedLogicalTypes_(self, other))
+		return;
+
 	DUARRAY_INTOP(UARRAY_LOGICOP_TYPES, ||, self, other);
 }
 
 void UArray_logicalAnd_(UArray *self, const UArray *other)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other) ||
+		!UArray_hasSupportedLogicalTypes_(self, other))
+		return;
+
 	DUARRAY_INTOP(UARRAY_LOGICOP_TYPES, &&, self, other);
 }
 
