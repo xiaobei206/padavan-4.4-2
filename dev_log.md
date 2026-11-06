@@ -1,3 +1,14 @@
+## 2026-11-07 03:15 CST — Validate BStream array layouts before overlap and decode
+
+- Baseline: main commit `4add9d4ddd291f39e39321d6487e0d4520d3de56`; SkipDBv2 Regression run #423 passed source contracts, configure, full build, and all CTest cases.
+- Scope: the shared `BStream_canReadArray_()` preflight used by plain and tagged array reads.
+- The preflight trusted nonzero `itemSize` values without checking them against the declared `CTYPE`. Its backing-store overlap calculation therefore used a potentially false destination extent, and a malformed stream buffer could be consumed as a byte array despite inconsistent element metadata.
+- Declare the existing internal `CTYPE_size()` symbol explicitly and reject stream/destination layouts whose stored width differs from the type width before overlap checks or cursor movement.
+- Extend the existing `bstream_tag_boundaries` regression and strict Actions source/dynamic contracts. Reuse the registered CTest target; no new files, public API, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 03:09 CST — Reject malformed UArray element layouts before typed copies
 
 - Baseline: main commit `168041dc8810aa368222e6b26bc62749a3b3bde7`; SkipDBv2 Regression run #422 passed source contracts, configure, full build, and all CTest cases.

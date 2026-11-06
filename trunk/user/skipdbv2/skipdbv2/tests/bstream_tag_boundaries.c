@@ -387,6 +387,92 @@ static int testBStreamReadValidation(void)
     return EXIT_SUCCESS;
 }
 
+static int testBStreamArrayLayoutValidation(void)
+{
+    const unsigned char payload[] = {0x71, 0x72, 0x73, 0x74};
+    const uint32_t originalValues[] = {0x11223344U, 0x55667788U};
+    uint32_t destinationValues[] = {0x11223344U, 0x55667788U};
+    UArray source = UArray_stackAllocedWithData_type_size_(
+        (void *)payload, CTYPE_uint8_t, sizeof(payload));
+    UArray malformedDestination = UArray_stackAllocedWithData_type_size_(
+        destinationValues, CTYPE_uint32_t, 2);
+    BStream *stream = BStream_new();
+    CTYPE streamType;
+    const char *error;
+    int okay = 0;
+
+    if (NULL == stream) {
+        fprintf(stderr, "BStream array-layout fixture allocation failed\n");
+        goto done;
+    }
+
+    BStream_writeUArray_(stream, &source);
+    if (UArray_size(stream->errorBa) != 0) {
+        fprintf(stderr, "BStream plain array-layout fixture write failed\n");
+        goto done;
+    }
+    malformedDestination.itemSize = sizeof(uint8_t);
+    stream->index = 0;
+    BStream_readUArray_(stream, &malformedDestination);
+    error = BStream_errorString(stream);
+    if (NULL == error || error[0] == '\0' || stream->index != 0 ||
+        malformedDestination.itemType != CTYPE_uint32_t ||
+        malformedDestination.itemSize != sizeof(uint8_t) ||
+        malformedDestination.size != 2 ||
+        memcmp(destinationValues, originalValues, sizeof(originalValues)) != 0) {
+        fprintf(stderr, "BStream plain array read accepted a mismatched destination item width\n");
+        goto done;
+    }
+
+    malformedDestination.itemSize = sizeof(uint32_t);
+    BStream_empty(stream);
+    BStream_writeUArray_(stream, &source);
+    if (UArray_size(stream->errorBa) != 0) {
+        fprintf(stderr, "BStream malformed stream-layout fixture write failed\n");
+        goto done;
+    }
+    streamType = stream->ba->itemType;
+    stream->ba->itemType = CTYPE_uint32_t;
+    stream->index = 0;
+    BStream_readUArray_(stream, &malformedDestination);
+    error = BStream_errorString(stream);
+    stream->ba->itemType = streamType;
+    if (NULL == error || error[0] == '\0' || stream->index != 0 ||
+        malformedDestination.size != 2 ||
+        memcmp(destinationValues, originalValues, sizeof(originalValues)) != 0) {
+        fprintf(stderr, "BStream array read accepted a mismatched stream item width\n");
+        goto done;
+    }
+
+    BStream_empty(stream);
+    BStream_writeTaggedUArray_(stream, &source);
+    if (UArray_size(stream->errorBa) != 0) {
+        fprintf(stderr, "BStream tagged array-layout fixture write failed\n");
+        goto done;
+    }
+    malformedDestination.itemSize = sizeof(uint8_t);
+    stream->index = 0;
+    BStream_readTaggedUArray_(stream, &malformedDestination);
+    error = BStream_errorString(stream);
+    if (NULL == error || error[0] == '\0' || stream->index != 0 ||
+        malformedDestination.itemType != CTYPE_uint32_t ||
+        malformedDestination.itemSize != sizeof(uint8_t) ||
+        malformedDestination.size != 2 ||
+        memcmp(destinationValues, originalValues, sizeof(originalValues)) != 0) {
+        fprintf(stderr, "BStream tagged array read accepted a mismatched destination item width\n");
+        goto done;
+    }
+
+    okay = 1;
+done:
+    malformedDestination.itemSize = sizeof(uint32_t);
+    BStream_free(stream);
+    UArray_stackFree(&malformedDestination);
+    UArray_stackFree(&source);
+    return okay ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+
 static int testBStreamAliasedWrites(void)
 {
     BStream *stream;
@@ -570,6 +656,8 @@ int main(void)
 	if (testBStreamWriteValidation() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamReadValidation() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (testBStreamArrayLayoutValidation() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamAliasedWrites() != EXIT_SUCCESS)
 		return EXIT_FAILURE;

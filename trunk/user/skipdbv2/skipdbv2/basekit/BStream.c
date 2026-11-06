@@ -19,6 +19,8 @@ license
 
 #define BSTREAM_IS_BIG_ENDIAN 1
 
+extern size_t CTYPE_size(CTYPE type);
+
 static int BStream_sourceOverlapsStream_(const UArray *streamArray,
     const void *source, size_t length);
 static int BStream_viewOverlapsStream_(const UArray *streamArray,
@@ -558,9 +560,11 @@ static int BStream_canReadArray_(BStream *self, const UArray *destination,
     if (NULL == self->ba || NULL == self->errorBa ||
         NULL == destination || destination == self->ba ||
         self->ba->itemSize != 1 ||
+        self->ba->itemSize != CTYPE_size(self->ba->itemType) ||
         (self->ba->size > 0 && NULL == self->ba->data) ||
         self->index > self->ba->size ||
         destination->itemSize == 0 ||
+        destination->itemSize != CTYPE_size(destination->itemType) ||
         destination->size > (size_t)-1 / destination->itemSize ||
         (destination->size > 0 && NULL == destination->data)) {
         BStream_error_(self, errorMessage);

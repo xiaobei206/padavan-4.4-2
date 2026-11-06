@@ -1090,6 +1090,9 @@ jobs:
                   "PHash compact test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStream.c": [
+                  "extern size_t CTYPE_size(CTYPE type);",
+                  "self->ba->itemSize != CTYPE_size(self->ba->itemType)",
+                  "destination->itemSize != CTYPE_size(destination->itemType)",
                   "static int BStream_sourceOverlapsStream_(const UArray *streamArray,",
                   "sourceStart - streamStart <= streamBytes",
                   "BStream_sourceOverlapsStream_(self->ba, bytes, length)",
@@ -1109,6 +1112,12 @@ jobs:
                   "return \"UNKNOWN TYPE\";",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c": [
+                  "static int testBStreamArrayLayoutValidation(void)",
+                  "BStream plain array read accepted a mismatched destination item width",
+                  "BStream array read accepted a mismatched stream item width",
+                  "BStream tagged array read accepted a mismatched destination item width",
+                  "BStream_readUArray_(stream, &malformedDestination)",
+                  "BStream_readTaggedUArray_(stream, &malformedDestination)",
                   "BStreamTag null arguments were not handled safely",
                   "BStreamTag wire-format round trip failed",
                   "BStream clone did not preserve bytes, cursor, and endianness",
@@ -2587,14 +2596,26 @@ jobs:
           ):
               raise SystemExit("BStream backing-store alias guard must reject exact, interior, and partial overlap")
 
+          source_layout_guard = array_helper_body.find("self->ba->itemSize != CTYPE_size(self->ba->itemType)")
+          destination_layout_guard = array_helper_body.find("destination->itemSize != CTYPE_size(destination->itemType)")
+          overlap_guard = array_helper_body.find("BStream_arrayBackingStoresOverlap_(self->ba, destination)")
           if (
               not array_helper_body or
               "destination->itemSize == 0" not in array_helper_body or
               "self->index > self->ba->size" not in array_helper_body or
               "destination->size > (size_t)-1 / destination->itemSize" not in array_helper_body or
-              "BStream_arrayBackingStoresOverlap_(self->ba, destination)" not in array_helper_body
+              source_layout_guard < 0 or destination_layout_guard < 0 or
+              overlap_guard < 0 or source_layout_guard > overlap_guard or
+              destination_layout_guard > overlap_guard
           ):
-              raise SystemExit("BStream array-read preflight is missing storage, cursor, or backing-alias validation")
+              raise SystemExit("BStream array-read preflight must validate typed item widths before backing-alias calculations")
+          bstream_layout_test = Path("trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c").read_text()
+          for needle in ("testBStreamArrayLayoutValidation()",
+                         "BStream_readUArray_(stream, &malformedDestination)",
+                         "BStream_readTaggedUArray_(stream, &malformedDestination)",
+                         "BStream array read accepted a mismatched stream item width"):
+              if needle not in bstream_layout_test:
+                  raise SystemExit("BStream array item-layout regression missing: " + needle)
           if (
               not plain_array_body or
               'BStream_canReadArray_(self, b, "invalid binary stream array read")' not in plain_array_body
