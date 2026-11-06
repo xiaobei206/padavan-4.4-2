@@ -607,7 +607,6 @@ jobs:
                   "UDBRecordHeader caller_header, stored_header;",
                   "/* This API creates a row; replacement is implemented by append + retire. */",
                   "if (self->pos != (PID_TYPE)old_max_pos)",
-                  "record save accepted a non-append position",
                   "/* Offset zero is reserved for the persisted first-empty pointer. */",
                   "self->pos < (PID_TYPE)sizeof(PID_TYPE)",
                   "self->pos > (PID_TYPE)self->file->maxPos",
@@ -639,6 +638,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_record_storage.c": [
                   "UDBRecord_saveWithDatum_(record, input)",
+                  "record save accepted a non-append position",
                   "UDBRecords_recordAtPos_(db->records, (PID_TYPE)0)",
                   "record cursor accepted metadata offset as a physical row",
                   "record cursor did not recover after metadata boundary rejection",

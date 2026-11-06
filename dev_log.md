@@ -1,3 +1,11 @@
+## 2026-11-07 07:12 CST — Repair append-only regression source contract
+
+- Baseline: main commit `df418c95d15397aeaf521d49b9b25b2c269c6733`; SkipDBv2 Regression run #464 stopped at the source-contract step before configure/build.
+- The new runtime diagnostic `record save accepted a non-append position` was accidentally registered as a required string in the production `UDBRecordWrite.c` contract, even though it correctly belongs to the existing `udb_record_storage.c` test.
+- Move the string assertion to the test-file contract and remove it from the production-source contract. No C source or runtime-test logic changed in this repair.
+
+---
+
 ## 2026-11-07 07:11 CST — Enforce append-only record creation in journal mode
 
 - Baseline: main commit `9cf85ee031e186a136a22d7bce580778c625de26`; SkipDBv2 Regression run #463 passed source contracts, full build, and all 56 regression tests.
