@@ -271,7 +271,7 @@ double RandomGen_randomDouble(RandomGen *self)
 
 int RandomGen_randomInt(RandomGen *self)
 {
-	return self ? (int)genrand_int32(self) : 0;
+	return self ? (int)(genrand_int32(self) >> 1) : 0;
 }
 
 #include <math.h>

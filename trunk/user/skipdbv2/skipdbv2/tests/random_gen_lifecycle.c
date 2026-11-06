@@ -31,7 +31,15 @@ int main(void)
     RandomGen_setSeed(first, 5489UL);
     RandomGen_setSeed(second, 5489UL);
     for (i = 0; i < 128; ++i) {
-        if (RandomGen_randomInt(first) != RandomGen_randomInt(second)) {
+        int firstValue = RandomGen_randomInt(first);
+        int secondValue = RandomGen_randomInt(second);
+        if (firstValue < 0 || secondValue < 0) {
+            fprintf(stderr, "RandomGen_randomInt produced a negative value\n");
+            RandomGen_free(first);
+            RandomGen_free(second);
+            return EXIT_FAILURE;
+        }
+        if (firstValue != secondValue) {
             fprintf(stderr, "equal seeds produced different random sequences\n");
             RandomGen_free(first);
             RandomGen_free(second);

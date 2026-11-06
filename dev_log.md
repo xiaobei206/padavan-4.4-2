@@ -1,3 +1,22 @@
+## 2026-11-06 14:43 CST — Keep RandomGen integer output nonnegative
+
+### Baseline
+- Main commit `9dee1a29a5b67945dfbc13afa174a459bdf10739`; SkipDBv2 Regression run #274 passed source contracts, configure, full build, and CTest.
+
+### Defect and fix
+- `RandomGen_randomInt()` cast an unsigned 32-bit MT output directly to signed `int`, making values above `INT_MAX` implementation-defined and negative on common 32-bit-int targets. This contradicted the generator's retained 31-bit integer convention.
+- Shift the generated word right once before conversion, matching the canonical MT19937 `genrand_int31` mapping and guaranteeing a value in `[0, 0x7fffffff]`.
+
+### Regression and contracts
+- Strengthen the existing deterministic-seed lifecycle test to reject any negative integer output while continuing to verify identical sequences from identical seeds.
+- Update the existing workflow contracts to require the 31-bit mapping and negative-result regression. No new source file or test target.
+
+### Validation
+- Structural preflight checks the public integer wrapper, explicit nonnegative assertions, and the regression contract.
+- The workflow triggered by this commit is authoritative for compilation and CTest.
+
+---
+
 ## 2026-11-06 14:40 CST — Correct PortableStrptime day-of-year semantics
 
 ### Baseline

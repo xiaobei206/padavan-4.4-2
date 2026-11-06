@@ -1086,7 +1086,7 @@ jobs:
                   "if (self->mti < 0 || self->mti > N+1)",
                   "if (NULL == self)",
                   "return self ? genrand_real2(self) : 0.0;",
-                  "return self ? (int)genrand_int32(self) : 0;",
+                  "return self ? (int)(genrand_int32(self) >> 1) : 0;",
                   "w >= 1.0 || w == 0.0",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/random_gen_state_bounds.c": [
@@ -1099,7 +1099,11 @@ jobs:
                   "RandomGen_randomDouble(NULL)",
                   "RandomGen_gaussian(NULL, 12.0, 3.0)",
                   "RandomGen_setSeed(NULL, 5489UL)",
-                  "RandomGen_randomInt(first) != RandomGen_randomInt(second)",
+                  "int firstValue = RandomGen_randomInt(first);",
+                  "int secondValue = RandomGen_randomInt(second);",
+                  "firstValue < 0 || secondValue < 0",
+                  "firstValue != secondValue",
+                  "RandomGen_randomInt produced a negative value",
                   "value < 1.0",
                   "!isfinite(gaussian)",
               ],
@@ -1659,11 +1663,20 @@ jobs:
                   gaussian_null_guard < 0 or zero_radius_guard < 0 or logarithm < 0 or
                   zero_radius_guard > logarithm):
               raise SystemExit("RandomGen lifecycle and zero-radius Gaussian guards are incomplete")
+          random_int_start = random_source.find("int RandomGen_randomInt(RandomGen *self)")
+          random_int_end = random_source.find("\\n}", random_int_start)
+          random_int_body = random_source[random_int_start:random_int_end] if random_int_start >= 0 and random_int_end > random_int_start else ""
+          if "return self ? (int)(genrand_int32(self) >> 1) : 0;" not in random_int_body:
+              raise SystemExit("RandomGen_randomInt must return a nonnegative 31-bit result")
           random_test = Path("trunk/user/skipdbv2/skipdbv2/tests/random_gen_lifecycle.c").read_text()
-          if ("RandomGen_setSeed(NULL, 5489UL)" not in random_test or
-                  "RandomGen_randomInt(first) != RandomGen_randomInt(second)" not in random_test or
-                  "!isfinite(gaussian)" not in random_test):
-              raise SystemExit("RandomGen lifecycle regression does not cover NULL, deterministic seed, and Gaussian output")
+          for needle in ("RandomGen_setSeed(NULL, 5489UL)",
+                         "int firstValue = RandomGen_randomInt(first);",
+                         "int secondValue = RandomGen_randomInt(second);",
+                         "firstValue < 0 || secondValue < 0",
+                         "RandomGen_randomInt produced a negative value",
+                         "!isfinite(gaussian)"):
+              if needle not in random_test:
+                  raise SystemExit("RandomGen lifecycle regression does not cover nonnegative integer output, determinism, and Gaussian output: " + needle)
 
           random_index_start = random_source.find("static unsigned long genrand_int32(RandomGen *self)")
           random_index_end = random_source.find("\n}", random_index_start)
