@@ -1954,6 +1954,9 @@ jobs:
                   "static size_t UArray_pathItemSize_(CTYPE itemType)",
                   "static int UArray_hasValidPathStorage_(const UArray *self)",
                   "UArray_hasValidPathStorage_(self)",
+                  "long path_start, pos;",
+                  "path_start = UArray_findLastPathComponent(self);",
+                  "if (pos <= path_start)",
                   "UArray_hasValidPathStorage_(path)",
                   "self->size > (size_t)LONG_MAX",
                   "self->size > (size_t)-1 / expectedItemSize",
@@ -1967,6 +1970,13 @@ jobs:
                   "UArray_findPathExtension(NULL) == -1",
                   "UArray_pathExtension(NULL) == NULL",
                   "UArray_fileName(NULL) == NULL",
+                  "UArray_findPathExtension(path_with_directory_dot) == -1",
+                  "directory dots must not produce path extension",
+                  "directory dot confused file-name extraction",
+                  "dotfile must not treat its leading dot as an extension",
+                  "dotfile name extraction failed",
+                  'strcmp(UArray_asCString(directory_dot_file), "file") == 0',
+                  'strcmp(UArray_asCString(dotfile_file), ".profile") == 0',
                   "UArray path operations accepted malformed item metadata",
                   "UArray path mutation changed malformed or valid storage",
                   "UArray path operations accepted zero-width item geometry",
@@ -3392,6 +3402,19 @@ jobs:
                   raise SystemExit("UArray path entry point must validate item geometry before receiver access: " + signature)
               if checks_path and "UArray_hasValidPathStorage_(path)" not in body:
                   raise SystemExit("UArray path append must validate both operands before typed access")
+          path_extension_start = uarray_path_source.find("long UArray_findPathExtension(UArray *self)")
+          path_extension_end = uarray_path_source.find("void UArray_removePathExtension(", path_extension_start)
+          path_extension_body = uarray_path_source[path_extension_start:path_extension_end] if path_extension_start >= 0 and path_extension_end > path_extension_start else ""
+          path_extension_order = [path_extension_body.find(token) for token in (
+              "path_start = UArray_findLastPathComponent(self);",
+              "if (path_start < 0)",
+              "pos = UArray_rFind_(self, &dot);",
+              "if (pos <= path_start)",
+              "return pos;",
+          )]
+          if not path_extension_body or min(path_extension_order) < 0 or path_extension_order != sorted(path_extension_order):
+              raise SystemExit("UArray_findPathExtension must search only the basename and ignore a leading dot")
+
           uarray_path_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_path_null.c").read_text()
           for needle in ("UArray_findLastPathComponent(NULL) == -1",
                          "UArray_lastPathComponent(NULL) == NULL",

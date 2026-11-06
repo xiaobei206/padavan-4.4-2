@@ -132,10 +132,18 @@ UArray *UArray_lastPathComponent(const UArray *self)
 long UArray_findPathExtension(UArray *self)
 {
 	UArray dot;
+	long path_start, pos;
 	if (!UArray_hasValidPathStorage_(self))
 		return -1;
+	path_start = UArray_findLastPathComponent(self);
+	if (path_start < 0)
+		return -1;
 	dot = UArray_stackAllocedWithCString_(IO_PATH_SEPARATOR_DOT);
-	return UArray_rFind_(self, &dot);
+	pos = UArray_rFind_(self, &dot);
+	/* Dots in parent directories and a filename's leading dot are not extensions. */
+	if (pos <= path_start)
+		return -1;
+	return pos;
 }
 
 void UArray_removePathExtension(UArray *self)

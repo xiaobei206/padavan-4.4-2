@@ -21,6 +21,12 @@ int main(void)
 	UArray *file_name = NULL;
 	UArray *no_extension = NULL;
 	UArray *empty_extension = NULL;
+	UArray *path_with_directory_dot = NULL;
+	UArray *directory_dot_extension = NULL;
+	UArray *directory_dot_file = NULL;
+	UArray *dotfile_path = NULL;
+	UArray *dotfile_extension = NULL;
+	UArray *dotfile_file = NULL;
 	UArray *malformed = NULL;
 	UArray *safe_path = NULL;
 	size_t malformed_size;
@@ -68,6 +74,33 @@ int main(void)
 	empty_extension = UArray_pathExtension(no_extension);
 	if (!check(empty_extension != NULL && UArray_size(empty_extension) == 0,
 		"extension-free path must still return an empty array"))
+		goto failure;
+
+	path_with_directory_dot = UArray_newWithCString_("dir.with.dot/file");
+	if (!check(path_with_directory_dot != NULL,
+		"directory-dot path fixture allocation failed"))
+		goto failure;
+	directory_dot_extension = UArray_pathExtension(path_with_directory_dot);
+	directory_dot_file = UArray_fileName(path_with_directory_dot);
+	if (!check(UArray_findPathExtension(path_with_directory_dot) == -1 &&
+		directory_dot_extension != NULL && UArray_size(directory_dot_extension) == 0,
+		"directory dots must not produce path extension") ||
+		!check(directory_dot_file != NULL &&
+			strcmp(UArray_asCString(directory_dot_file), "file") == 0,
+			"directory dot confused file-name extraction"))
+		goto failure;
+
+	dotfile_path = UArray_newWithCString_("/tmp/.profile");
+	if (!check(dotfile_path != NULL, "dotfile path fixture allocation failed"))
+		goto failure;
+	dotfile_extension = UArray_pathExtension(dotfile_path);
+	dotfile_file = UArray_fileName(dotfile_path);
+	if (!check(UArray_findPathExtension(dotfile_path) == -1 &&
+		dotfile_extension != NULL && UArray_size(dotfile_extension) == 0,
+		"dotfile must not treat its leading dot as an extension") ||
+		!check(dotfile_file != NULL &&
+			strcmp(UArray_asCString(dotfile_file), ".profile") == 0,
+			"dotfile name extraction failed"))
 		goto failure;
 
 	malformed = UArray_newWithCString_("/tmp/unsafe");
@@ -140,6 +173,12 @@ int main(void)
 	UArray_free(file_name);
 	UArray_free(no_extension);
 	UArray_free(empty_extension);
+	UArray_free(path_with_directory_dot);
+	UArray_free(directory_dot_extension);
+	UArray_free(directory_dot_file);
+	UArray_free(dotfile_path);
+	UArray_free(dotfile_extension);
+	UArray_free(dotfile_file);
 	UArray_free(malformed);
 	UArray_free(safe_path);
 	puts("UArray path null-safety test passed");
@@ -152,6 +191,12 @@ failure:
 	UArray_free(file_name);
 	UArray_free(no_extension);
 	UArray_free(empty_extension);
+	UArray_free(path_with_directory_dot);
+	UArray_free(directory_dot_extension);
+	UArray_free(directory_dot_file);
+	UArray_free(dotfile_path);
+	UArray_free(dotfile_extension);
+	UArray_free(dotfile_file);
 	UArray_free(malformed);
 	UArray_free(safe_path);
 	return EXIT_FAILURE;

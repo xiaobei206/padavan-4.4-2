@@ -1,3 +1,12 @@
+## 2026-11-07 01:23 CST — Scope UArray path extensions to the basename
+
+- Baseline: main commit `21459851297d0f71e75507a639e7b2b92fb83048`; mainline regression run #399 passed.
+- Scope: `UArray_findPathExtension()` and the existing `uarray_path_null` boundary test.
+- The implementation searched for the last dot anywhere in the path. A dot in a parent directory (for example, `dir.with.dot/file`) was incorrectly returned as the file extension; `UArray_fileName()` then returned NULL for a valid filename. A leading dot in a dotfile was also mistaken for its extension, producing an empty filename.
+- Resolve the basename offset first and accept a dot only when it occurs after the basename's first character. This preserves ordinary multi-part extensions while treating parent-directory dots and leading dotfiles as extension-free. Add both cases to the existing test and strengthen static/dynamic Actions contracts. Existing CMake registration is reused; no new files.
+
+---
+
 ## 2026-11-07 01:34 CST — Validate SHash geometry before table access
 
 - Baseline: main commit `11433b678edbbeb9420ce79f8c9ee07e58c64a44`; SkipDBv2 Regression run #399 passed.
