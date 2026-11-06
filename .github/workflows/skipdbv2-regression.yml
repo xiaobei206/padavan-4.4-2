@@ -2006,6 +2006,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c": [
                   "Stack_copy_(destination, source);",
                   "test_callback_iteration_reentrancy()",
+                  "#define STACK_CALLBACK_SEEN_MAX 1024",
                   "Stack callback iteration fixture allocation failed",
                   "Stack callback iteration realloc blocker allocation failed",
                   "Stack_do_ was not isolated from callback-time source reallocation",

@@ -1,3 +1,11 @@
+## 2026-11-07 00:08 CST — Size Stack callback fixture for actual initial capacity
+
+- CI #376 passed source contracts, configuration, and all compilation, then failed before invoking callback traversal: the new test capped its fixture at 128 entries while the production Stack starts with 512 slots, so the test never reached the reallocation boundary.
+- Increase the fixture/recording capacity to 1024, allowing both traversal cases to fill the existing 512-slot Stack and force the callback's next push through `Stack_resize()`. Add the capacity to the workflow test contract.
+- Production Stack implementation unchanged; no CMake target changes.
+
+---
+
 ## 2026-11-07 00:07 CST — Align Stack callback source contract with snapshot validation
 
 - CI #375 stopped in the workflow source-contract stage before configure/build. The pre-existing generic cursor-reader assertion required inline raw-pointer guards in `Stack_do_()` and `Stack_doUntilMark_()`; these two functions now delegate storage/mark validation to `Stack_clone()` before accessing any cursor.

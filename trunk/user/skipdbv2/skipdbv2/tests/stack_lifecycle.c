@@ -8,7 +8,7 @@
 static size_t stack_callback_count;
 
 
-#define STACK_CALLBACK_SEEN_MAX 128
+#define STACK_CALLBACK_SEEN_MAX 1024
 
 static Stack *callback_iteration_stack;
 static void *callback_iteration_extra;
