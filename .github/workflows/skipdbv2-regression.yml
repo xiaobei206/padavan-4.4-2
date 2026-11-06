@@ -108,6 +108,9 @@ jobs:
                   "void UDB_free(UDB *self)",
                   "void UDB_delete(UDB *self)",
                   "void UDB_setPath_(UDB *self, const char *path)",
+                  "JFile index_stage = {0};",
+                  "JFile records_stage = {0};",
+                  "if (NULL == index_stage.logPath || NULL == records_stage.logPath)",
                   "void UDB_close(UDB *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecovery.c": [
@@ -560,6 +563,8 @@ jobs:
                   "UDB_showIndex(NULL);",
                   "UDB_show(&empty_db);",
                   "UDB_showIndex(&empty_db);",
+                  "UDB_setLogPath_(db, \"unused-test-log-dir\");",
+                  "database log paths changed after a failed staged update",
                   "invalid.size = 1",
                   "UDB_put_(db, invalid)",
                   "UDB_at_put_(db, pid",

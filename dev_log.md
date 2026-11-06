@@ -1,3 +1,13 @@
+## 2026-11-07 07:14 CST — Make UDB journal-path updates atomic
+
+- Baseline: main commit `4891eff043e3d60d0d93254fb467917098340348`; SkipDBv2 Regression run #465 passed integration contracts, configure, full build, and all 56 tests.
+- Scope: journal-path configuration in `udb/UDBLifecycle.c`.
+- `UDB_setLogPath_()` updated the index and record journals sequentially. If deriving the second path failed (for example, allocation failure or an invalid basename), the first path could already have changed, leaving a split pair.
+- Stage both derived paths using temporary `JFile` structs, then swap both only after both allocations/validations succeed. Add a regression that makes the second basename invalid and verifies neither live path changes. Update the existing Actions contracts; no new files, public symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:12 CST — Repair append-only regression source contract
 
 - Baseline: main commit `df418c95d15397aeaf521d49b9b25b2c269c6733`; SkipDBv2 Regression run #464 stopped at the source-contract step before configure/build.

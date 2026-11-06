@@ -138,13 +138,32 @@ void UDB_setSecondaryPath_(UDB *self, const char *secondaryPath)
 
 void UDB_setLogPath_(UDB *self, const char *path)
 {
+	JFile index_stage = {0};
+	JFile records_stage = {0};
+
 	if (NULL == self || NULL == path || self->isOpen ||
-		NULL == self->index || NULL == self->records)
+		NULL == self->index || NULL == self->records ||
+		NULL == self->index->file || NULL == self->records->file)
 		return;
 
-	/* JFile derives each log filename from the database file basename. */
-	UDBIndex_setLogPath_(self->index, path);
-	UDBRecords_setLogPath_(self->records, path);
+	/*
+	 * Derive both names before replacing either live path. If either
+	 * allocation or basename validation fails, preserve the old pair.
+	 */
+	index_stage.path = self->index->file->path;
+	records_stage.path = self->records->file->path;
+	JFile_setLogPath_(&index_stage, path);
+	JFile_setLogPath_(&records_stage, path);
+	if (NULL == index_stage.logPath || NULL == records_stage.logPath) {
+		free(index_stage.logPath);
+		free(records_stage.logPath);
+		return;
+	}
+
+	free(self->index->file->logPath);
+	free(self->records->file->logPath);
+	self->index->file->logPath = index_stage.logPath;
+	self->records->file->logPath = records_stage.logPath;
 }
 
 char *UDB_path(UDB *self)

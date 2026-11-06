@@ -43,6 +43,44 @@ int main(void)
     }
 
     UDB_setPath_(db, path);
+    /*
+     * Updating both journal paths is atomic: if either basename cannot be
+     * derived, neither live path may change.
+     */
+    {
+        char index_log_before[256];
+        char records_log_before[256];
+        char *records_path;
+        int index_len, records_len;
+
+        if (NULL == db->index || NULL == db->records ||
+            NULL == db->index->file || NULL == db->records->file ||
+            NULL == db->index->file->logPath ||
+            NULL == db->records->file->logPath) {
+            fprintf(stderr, "database journal paths were not initialized\n");
+            goto done;
+        }
+        index_len = snprintf(index_log_before, sizeof(index_log_before), "%s",
+            db->index->file->logPath);
+        records_len = snprintf(records_log_before, sizeof(records_log_before), "%s",
+            db->records->file->logPath);
+        if (index_len < 0 || (size_t)index_len >= sizeof(index_log_before) ||
+            records_len < 0 || (size_t)records_len >= sizeof(records_log_before)) {
+            fprintf(stderr, "database journal paths exceeded test buffers\n");
+            goto done;
+        }
+
+        records_path = db->records->file->path;
+        db->records->file->path = "";
+        UDB_setLogPath_(db, "unused-test-log-dir");
+        db->records->file->path = records_path;
+
+        if (strcmp(db->index->file->logPath, index_log_before) != 0 ||
+            strcmp(db->records->file->logPath, records_log_before) != 0) {
+            fprintf(stderr, "database log paths changed after a failed staged update\n");
+            goto done;
+        }
+    }
     UDB_delete(db);
     UDB_open(db);
     if (!UDB_isOpen(db)) {
