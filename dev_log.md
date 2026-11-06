@@ -1,3 +1,15 @@
+## 2026-11-06 12:42 CST — Cast format bytes before ctype classification
+
+### Follow-up
+- The parser hardening in `cc4efec884bfdde03ff795fbb2f11434788d9761` converted input-byte ctype calls, but format whitespace classification still passed a potentially signed `char` to `isspace()`.
+- Cast the format byte to `unsigned char` as well and cover a high-bit format byte in the boundary regression.
+
+### Validation
+- The current source contract now requires unsigned-byte handling for both input and format ctype calls; the high-bit format case is registered in the same regression.
+- Previous run #239 passed before this narrowly scoped follow-up; the next run validates it.
+
+---
+
 ## 2026-11-06 12:40 CST — Harden PortableStrptime input boundaries
 
 ### Baseline and scope

@@ -13,6 +13,7 @@ int main(void)
     char empty[] = "";
     char alpha[] = "abc";
     char high_byte[] = { (char)0xff, '1', '2', '\0' };
+    char high_byte_format[] = { (char)0xff, '\0' };
     char hour[] = "12";
     char format[] = "%Y-%m-%d";
     char month_format[] = "%M";
@@ -36,7 +37,8 @@ int main(void)
     if (io_strptime(truncated, format, &invalid) != NULL ||
         io_strptime(empty, hour_format, &invalid) != NULL ||
         io_strptime(alpha, month_format, &invalid) != NULL ||
-        io_strptime(high_byte, hour_format, &invalid) != NULL) {
+        io_strptime(high_byte, hour_format, &invalid) != NULL ||
+        io_strptime(hour, high_byte_format, &invalid) != NULL) {
         fprintf(stderr, "truncated or non-numeric input was accepted\n");
         return EXIT_FAILURE;
     }

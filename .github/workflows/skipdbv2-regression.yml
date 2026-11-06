@@ -774,6 +774,7 @@ jobs:
                   "if (NULL == buf || NULL == fmt || NULL == tm)",
                   "isdigit((unsigned char)*buf)",
                   "isspace((unsigned char)*buf)",
+                  "isspace((unsigned char)c)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c": [
                   "io_strptime(NULL, format, &parsed)",
@@ -781,6 +782,7 @@ jobs:
                   "io_strptime(empty, hour_format, &invalid)",
                   "io_strptime(alpha, month_format, &invalid)",
                   "io_strptime(high_byte, hour_format, &invalid)",
+                  "io_strptime(hour, high_byte_format, &invalid)",
                   "PortableStrptime boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Duration.c": [

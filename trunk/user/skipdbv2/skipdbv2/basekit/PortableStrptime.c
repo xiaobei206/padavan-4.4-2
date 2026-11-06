@@ -132,7 +132,7 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 				c = *ptr++;
 
 				if (c != '%') {
-						if (isspace((int)c))
+						if (isspace((unsigned char)c))
 								while (*buf != 0 && isspace((unsigned char)*buf))
 										buf++;
 						else if (c != *buf++)
