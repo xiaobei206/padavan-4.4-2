@@ -1,3 +1,13 @@
+## 2026-11-07 06:17 CST — Preserve persisted metadata when removing stale UDB records
+
+- Baseline: main commit `d29026875cd3b3180418c5b4975389c145f3b2f5`; SkipDBv2 Regression run #445 passed source contracts, configure, full build, and all regression tests.
+- Scope: record tombstoning in `udb/UDBRecordWrite.c`.
+- `UDBRecord_remove()` trusted the caller's cached `header.pid` and `header.size` and rewrote the entire header while intending to change only the EMPTY tag. A stale or altered cache could therefore replace valid on-disk identity/extent fields with incorrect values during removal.
+- Reload and validate the persisted header before toggling the tag; retain the caller's cached header and JFile cursor bounds if validation fails, and restore the freshly-read header/cursor on write failure. Extend the existing `udb_record_storage` regression by deliberately zeroing the cached PID/size before removal and asserting that the committed tombstone retains the persisted PID and extent. Update existing Actions source/runtime contracts. No new files, declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:06 CST — Reject cross-file UDB record cursor and removal operations
 
 - Baseline: main commit `eb143b3e28ded87da1b1959263139bc8509567c3`; SkipDBv2 Regression run #444 passed source contracts, configure, full build, and all regression tests.

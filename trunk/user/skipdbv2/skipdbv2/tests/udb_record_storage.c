@@ -169,7 +169,9 @@ int main(void)
         goto done;
     }
 
-    /* Removal persists only the EMPTY tag and remains readable as a tombstone. */
+    /* Removal must ignore stale cached PID/size and preserve on-disk metadata. */
+    record->header.pid = 0;
+    record->header.size = 0;
     UDB_beginTransaction(db);
     if (!UDBRecord_remove(record)) {
         fprintf(stderr, "record tombstone write failed\n");
@@ -177,8 +179,9 @@ int main(void)
     }
     UDB_commitTransaction(db);
     if (!UDB_isOpen(db) || !UDBRecord_readHeader(record) ||
-        !UDBRecord_isEmpty(record)) {
-        fprintf(stderr, "record tombstone did not survive commit\n");
+        !UDBRecord_isEmpty(record) || UDBRecord_pid(record) != 77 ||
+        UDBRecord_size(record) != sizeof(payload)) {
+        fprintf(stderr, "record tombstone did not preserve persisted PID/extent\n");
         goto done;
     }
 

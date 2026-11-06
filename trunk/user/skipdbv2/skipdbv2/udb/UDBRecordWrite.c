@@ -17,7 +17,7 @@ static void UDBRecord_restoreFileState_(JFile *file, long position, long max_pos
 
 int UDBRecord_remove(UDBRecord *self)
 {
-    unsigned char old_tag;
+    UDBRecordHeader caller_header, stored_header;
     long old_pos, old_max;
 
     if (NULL == self || NULL == self->file || NULL == self->file->file ||
@@ -26,12 +26,22 @@ int UDBRecord_remove(UDBRecord *self)
         self->pos > (PID_TYPE)self->file->maxPos ||
         (PID_TYPE)self->file->maxPos - self->pos < sizeof(UDBRecordHeader))
         return 0;
-    old_tag = self->header.tag;
+
+    /* The public record struct may contain a stale header cache. */
+    caller_header = self->header;
     old_pos = self->file->pos;
     old_max = self->file->maxPos;
+    if (!UDBRecord_readHeader(self)) {
+        self->header = caller_header;
+        UDBRecord_restoreFileState_(self->file, old_pos, old_max);
+        return 0;
+    }
+
+    /* Preserve the persisted PID and payload extent; only change the tag. */
+    stored_header = self->header;
     self->header.tag = RECORD_TAG_EMPTY;
     if (!UDBRecord_saveHeader(self)) {
-        self->header.tag = old_tag;
+        self->header = stored_header;
         UDBRecord_restoreFileState_(self->file, old_pos, old_max);
         return 0;
     }
