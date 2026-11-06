@@ -13,6 +13,10 @@ int main(void)
     UDBRecord *clone = NULL;
     UDBRecord *probe = NULL;
     UDBRecord *foreign_record = NULL;
+    UDBRecord *foreign_source_clone = NULL;
+    PID_TYPE foreign_pid = 0;
+    PID_TYPE foreign_pid2 = 0;
+    PID_TYPE foreign_target_pos = 0;
     unsigned char payload[] = {0x41, 0x00, 0x7f, 0x80, 0xff, 0x5a};
     Datum input = {sizeof(payload), payload};
     Datum invalid = {1, NULL};
@@ -392,7 +396,6 @@ int main(void)
     {
         unsigned char foreign_payload = 0x7b;
         Datum foreign_datum = {1, &foreign_payload};
-        PID_TYPE foreign_pid;
         UDB_beginTransaction(foreign_db);
         foreign_pid = UDB_put_(foreign_db, foreign_datum);
         if (!UDB_isOpen(foreign_db) || foreign_pid == 0) {
@@ -405,12 +408,60 @@ int main(void)
             goto done;
         }
     }
+    UDB_beginTransaction(foreign_db);
+    foreign_pid2 = UDB_put_(foreign_db, Datum_FromCString_("occupied-destination"));
+    if (!UDB_isOpen(foreign_db) || foreign_pid2 == 0) {
+        fprintf(stderr, "occupied destination fixture append failed\n");
+        goto done;
+    }
+    UDB_commitTransaction(foreign_db);
+    if (!UDB_isOpen(foreign_db) ||
+        !has_value(foreign_db, foreign_pid2, "occupied-destination")) {
+        fprintf(stderr, "occupied destination fixture commit failed\n");
+        goto done;
+    }
+
     foreign_record = UDBRecords_firstRecord(foreign_db->records);
     if (NULL == foreign_record || foreign_record->file != foreign_db->records->file ||
         UDBRecord_size(foreign_record) != 1 || UDBRecord_isEmpty(foreign_record)) {
         fprintf(stderr, "foreign UDB record fixture was not readable\n");
         goto done;
     }
+
+    /* A record move must not overwrite a different live record. */
+    foreign_source_clone = UDBRecord_clone(foreign_record);
+    if (NULL == foreign_source_clone) {
+        fprintf(stderr, "unable to clone source for occupied-destination regression\n");
+        goto done;
+    }
+    {
+        UDBRecord *target_record =
+            UDBRecords_recordAfter_(foreign_db->records, foreign_record);
+        if (NULL == target_record || UDBRecord_isEmpty(target_record)) {
+            fprintf(stderr, "occupied destination record was not readable\n");
+            goto done;
+        }
+        foreign_target_pos = UDBRecord_pos(target_record);
+    }
+    UDB_beginTransaction(foreign_db);
+    if (UDBRecord_moveToPos_(foreign_source_clone, foreign_target_pos)) {
+        fprintf(stderr, "record move overwrote an occupied destination\n");
+        goto done;
+    }
+    UDB_commitTransaction(foreign_db);
+    {
+        Datum first_value = UDB_at_(foreign_db, foreign_pid);
+        if (!UDB_isOpen(foreign_db) || !UDB_isOpen(db) ||
+            first_value.data == NULL || first_value.size != 1 ||
+            first_value.data[0] != 0x7b ||
+            !has_value(foreign_db, foreign_pid2, "occupied-destination")) {
+            fprintf(stderr, "occupied destination row changed after rejected move\n");
+            goto done;
+        }
+    }
+    /* Keep the original foreign row stable while the shared cursor advances. */
+    foreign_record = foreign_source_clone;
+    foreign_source_clone = NULL;
 
     /* The foreign record ends inside this DB's longer record payload. */
     if (UDBRecords_recordAfter_(db->records, foreign_record) != NULL ||
@@ -437,6 +488,7 @@ int main(void)
     puts("udb record storage test passed");
 
 done:
+    if (foreign_source_clone) UDBRecord_free(foreign_source_clone);
     if (foreign_record && (!foreign_db || foreign_record != foreign_db->records->record))
         UDBRecord_free(foreign_record);
     if (clone) UDBRecord_free(clone);

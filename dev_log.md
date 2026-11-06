@@ -1,3 +1,13 @@
+## 2026-11-07 07:00 CST — Refuse UDB record moves onto occupied extents
+
+- Baseline: main commit `234cd05b9fd81b71f4e6395deefca51b3775feaf`; SkipDBv2 Regression run #458 passed source contracts, configure, complete build, and all regression tests.
+- Scope: record relocation validation in `udb/UDBRecordMove.c`.
+- Bounds checks alone allowed `UDBRecord_moveToPos_()` to overwrite a live record if the requested target happened to be inside the file and large enough, even though the function is used by the compactor to move live rows into free extents. It also accepted header-shaped payload bytes as a potential source position.
+- Walk the validated physical record chain to resolve exact source/target boundaries. Permit a different target only when its persisted record is an empty extent large enough for the source; same-position moves remain harmless no-ops. Extend the existing record-storage regression with a live-destination collision case and update Actions source contracts. No new files, public symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:55 CST — Validate both UDB journals before arming commit recovery
 
 - Baseline: main commit `a3e08fa14a07dd80fc409318f6899b3e5ebdb5a1`; SkipDBv2 Regression run #457 passed source contracts, configure, complete build, and all regression tests.

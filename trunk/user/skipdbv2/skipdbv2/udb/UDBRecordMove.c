@@ -3,13 +3,62 @@
 #include <stdlib.h>
 #include <limits.h>
 
+/*
+ * Resolve a physical record boundary by walking validated persisted extents.
+ * Callers must not treat header-shaped bytes inside a payload as a record.
+ */
+static int UDBRecord_headerAtBoundary_(JFile *file, PID_TYPE targetPos,
+                                       UDBRecordHeader *header)
+{
+    UDBRecord probe = {0};
+    PID_TYPE cursor = (PID_TYPE)sizeof(PID_TYPE);
+    long old_pos, old_max;
+    int found = 0;
+
+    if (NULL == file || NULL == file->file || file->maxPos < 0 ||
+        NULL == header || targetPos < (PID_TYPE)sizeof(PID_TYPE) ||
+        targetPos > (PID_TYPE)LONG_MAX)
+        return 0;
+
+    old_pos = file->pos;
+    old_max = file->maxPos;
+    probe.file = file;
+
+    while (cursor < targetPos) {
+        PID_TYPE extent;
+
+        probe.pos = cursor;
+        if (!UDBRecord_readHeader(&probe))
+            goto done;
+        extent = UDBRecord_totalSize(&probe);
+        if (extent == 0 || extent > (PID_TYPE)LONG_MAX ||
+            cursor > (PID_TYPE)LONG_MAX - extent)
+            goto done;
+        cursor += extent;
+    }
+    if (cursor != targetPos)
+        goto done;
+
+    probe.pos = targetPos;
+    if (!UDBRecord_readHeader(&probe))
+        goto done;
+    *header = probe.header;
+    found = 1;
+
+done:
+    file->pos = old_pos;
+    file->maxPos = old_max;
+    return found;
+}
+
 int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)
 {
     PID_TYPE totalSize;
     size_t file_size;
     unsigned char *data;
     UArray *ba;
-    UDBRecordHeader old_header;
+    UDBRecordHeader old_header, destination_header;
+    UDBRecord destination = {0};
     long old_pos, old_max;
 
     if (NULL == self || NULL == self->file || self->file->file == NULL ||
@@ -22,7 +71,7 @@ int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)
     old_header = self->header;
     old_pos = self->file->pos;
     old_max = self->file->maxPos;
-    if (!UDBRecord_readHeader(self))
+    if (!UDBRecord_headerAtBoundary_(self->file, self->pos, &self->header))
         goto failed;
 
     /* The physical move extent must come from the validated on-disk header. */
@@ -32,6 +81,20 @@ int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)
         (size_t)totalSize > file_size - (size_t)self->pos ||
         (size_t)newPos > file_size ||
         (size_t)totalSize > file_size - (size_t)newPos)
+        goto failed;
+
+    if (newPos == self->pos)
+        return 1;
+
+    /*
+     * Compaction may only overwrite a real free extent with enough capacity.
+     * Reject live records and offsets that merely resemble header bytes.
+     */
+    if (!UDBRecord_headerAtBoundary_(self->file, newPos, &destination_header))
+        goto failed;
+    destination.header = destination_header;
+    if (!UDBRecord_isEmpty(&destination) ||
+        UDBRecord_totalSize(&destination) < totalSize)
         goto failed;
 
     ba = UDBRecord_data(self);

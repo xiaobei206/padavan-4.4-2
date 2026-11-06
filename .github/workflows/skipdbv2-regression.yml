@@ -615,12 +615,15 @@ jobs:
                   "Datum UDBRecord_readDatum(UDBRecord *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordMove.c": [
+                  "static int UDBRecord_headerAtBoundary_(JFile *file, PID_TYPE targetPos,",
                   "int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)",
-                  "UDBRecordHeader old_header;",
-                  "if (!UDBRecord_readHeader(self))",
+                  "UDBRecordHeader old_header, destination_header;",
+                  "UDBRecord_headerAtBoundary_(self->file, self->pos, &self->header)",
+                  "UDBRecord_headerAtBoundary_(self->file, newPos, &destination_header)",
                   "The physical move extent must come from the validated on-disk header.",
                   "self->pos < (PID_TYPE)sizeof(PID_TYPE)",
                   "newPos < (PID_TYPE)sizeof(PID_TYPE)",
+                  "Compaction may only overwrite a real free extent with enough capacity.",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_record_storage.c": [
                   "UDBRecord_saveWithDatum_(record, input)",
@@ -661,6 +664,10 @@ jobs:
                   "UDBRecords_removeRecord_(db->records, foreign_record) != 0",
                   "UDBRecords_removeRecord_ mutated a foreign record",
                   "foreign_record->file != foreign_db->records->file",
+                  "UDBRecord_moveToPos_(foreign_source_clone, foreign_target_pos)",
+                  "record move overwrote an occupied destination",
+                  "occupied destination row changed after rejected move",
+                  "occupied-destination",
                   "UDB_delete(foreign_db);",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBWrite.c": [
