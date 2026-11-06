@@ -241,6 +241,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_size_in_bytes_test skipdb m)
     add_test(NAME uarray_size_in_bytes_test COMMAND uarray_size_in_bytes_test)
 
+    ADD_EXECUTABLE(uarray_name_lookup_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_name_lookup.c)
+    TARGET_LINK_LIBRARIES(uarray_name_lookup_test skipdb m)
+    add_test(NAME uarray_name_lookup_test COMMAND uarray_name_lookup_test)
+
     ADD_EXECUTABLE(uarray_format_trailing_percent_test
         ${PROJECT_SOURCE_DIR}/tests/uarray_format_trailing_percent.c)
     TARGET_LINK_LIBRARIES(uarray_format_trailing_percent_test skipdb m)

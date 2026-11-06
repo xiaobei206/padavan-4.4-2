@@ -61,6 +61,8 @@ const char *CTYPE_name(CTYPE type)
 
 int CTYPE_forName(const char *name)
 {
+	if (NULL == name)
+		return -1;
 	if(!strcmp(name, "uint8"))   return CTYPE_uint8_t;
 	if(!strcmp(name, "uint16"))  return CTYPE_uint16_t;
 	if(!strcmp(name, "uint32"))  return CTYPE_uint32_t;
@@ -76,6 +78,8 @@ int CTYPE_forName(const char *name)
 
 int CENCODING_forName(const char *name)
 {
+	if (NULL == name)
+		return -1;
 	if(!strcmp(name, "ascii"))  return CENCODING_ASCII;
 	if(!strcmp(name, "utf8"))   return CENCODING_UTF8;
 	if(!strcmp(name, "utf16"))  return CENCODING_UTF16;

@@ -696,6 +696,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/skipdb_record_storage.c",
                   "jfile_journal_test",
                   "add_test(NAME jfile_journal_test COMMAND jfile_journal_test)",
+                  "ADD_EXECUTABLE(uarray_name_lookup_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_name_lookup.c",
+                  "TARGET_LINK_LIBRARIES(uarray_name_lookup_test skipdb m)",
+                  "add_test(NAME uarray_name_lookup_test COMMAND uarray_name_lookup_test)",
                   "ADD_EXECUTABLE(bstream_tag_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
                   "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
@@ -1163,6 +1167,9 @@ jobs:
                   "BStream_error_(self, \"truncated binary stream data\")",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray.c": [
+                  "int CTYPE_forName(const char *name)",
+                  "int CENCODING_forName(const char *name)",
+                  "if (NULL == name)",
                   "void UArray_setSize_(UArray *self, size_t size)",
                   "if (self->stackAllocated)",
                   "newData = (uint8_t *)io_malloc(newSizeInBytes + 1)",
@@ -1183,6 +1190,13 @@ jobs:
                   "invalid.itemSize = 0;",
                   "overflow.size = (size_t)-1 / overflow.itemSize + 1;",
                   "overflowing UArray byte size did not return zero",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_name_lookup.c": [
+                  "CTYPE_forName(NULL) == -1",
+                  "CENCODING_forName(NULL) == -1",
+                  'CTYPE_forName("uint8") == CTYPE_uint8_t',
+                  'CENCODING_forName("utf8") == CENCODING_UTF8',
+                  "UArray name lookup test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_search_bounds.c": [
                   "unsigned char pattern_bytes[] = { 'A', 'b' };",
@@ -1593,6 +1607,32 @@ jobs:
                          "UArray_sizeInBytes(&overflow)"):
               if needle not in uarray_size_test:
                   raise SystemExit("UArray byte-size regression case missing: " + needle)
+
+          uarray_name_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text()
+          for signature in ("int CTYPE_forName(const char *name)",
+                            "int CENCODING_forName(const char *name)"):
+              start = uarray_name_source.find(signature)
+              end = uarray_name_source.find("\\n}", start)
+              body = uarray_name_source[start:end + 2] if start >= 0 and end > start else ""
+              guard = body.find("if (NULL == name)")
+              fallback = body.find("return -1;")
+              strcmp_call = body.find("!strcmp(name,")
+              if not body or guard < 0 or fallback < guard or strcmp_call < 0 or guard > strcmp_call:
+                  raise SystemExit("UArray name lookup must reject NULL before strcmp: " + signature)
+          uarray_name_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_name_lookup.c").read_text()
+          for needle in ("CTYPE_forName(NULL) == -1", "CENCODING_forName(NULL) == -1",
+                         'CTYPE_forName("uint8") == CTYPE_uint8_t',
+                         'CENCODING_forName("utf8") == CENCODING_UTF8',
+                         "UArray name lookup test passed"):
+              if needle not in uarray_name_test:
+                  raise SystemExit("UArray name lookup regression case missing: " + needle)
+          uarray_name_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(uarray_name_lookup_test",
+                         "${PROJECT_SOURCE_DIR}/tests/uarray_name_lookup.c",
+                         "TARGET_LINK_LIBRARIES(uarray_name_lookup_test skipdb m)",
+                         "add_test(NAME uarray_name_lookup_test COMMAND uarray_name_lookup_test)"):
+              if needle not in uarray_name_cmake:
+                  raise SystemExit("UArray name lookup regression is not registered in CMake/CTest: " + needle)
 
           search_validator_start = uarray_source.find("static int UArray_searchArrayIsValid_(const UArray *self)")
           search_validator_end = uarray_source.find("\n}", search_validator_start)

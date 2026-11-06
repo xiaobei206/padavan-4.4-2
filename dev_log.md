@@ -1,3 +1,22 @@
+## 2026-11-06 15:03 CST — Reject NULL type and encoding names
+
+### Baseline
+- Main commit `3aebf71fa4d23ab0685b883fd3825b97353155bd`; SkipDBv2 Regression run #279 passed source-contract preflight, configure, full build, and CTest.
+
+### Defect and fix
+- `CTYPE_forName()` and `CENCODING_forName()` passed caller input directly to `strcmp()`. A NULL name dereferenced a null pointer instead of following the functions' existing `-1` unknown-name failure convention.
+- Return `-1` for NULL input before any string comparison; known and unknown non-NULL names preserve their existing results.
+
+### Regression and contracts
+- Add `uarray_name_lookup.c` covering NULL, known, and unknown names for both lookup functions.
+- Register the focused CTest target in CMake and add static plus runtime-order workflow contracts for the guards, regression cases, and target registration.
+
+### Validation
+- Structural preflight confirms the NULL guards precede the first `strcmp()` call in each function and the test target is registered.
+- The workflow triggered by this commit is authoritative for compilation and CTest.
+
+---
+
 ## 2026-11-06 14:59 CST — Fail closed when cloning invalid BStream state
 
 ### Baseline
