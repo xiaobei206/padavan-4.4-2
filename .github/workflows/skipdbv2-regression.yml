@@ -2459,8 +2459,8 @@ jobs:
           record_links_source = Path(
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordLinks.c"
           ).read_text()
-          if record_links_source.count("SkipDBRecord_hasValidLevel_(") != 6:
-              raise SystemExit("SkipDB record level validation is not centralized across all link operations")
+          if record_links_source.count("SkipDBRecord_hasValidLevel_(") != 8:
+              raise SystemExit("SkipDB search and link paths must validate levels through the shared helper")
           if record_links_source.count("SkipDBRecord_pidCountForTraversal_(") != 3:
               raise SystemExit("SkipDB link traversals do not share one PID-count bound helper")
 

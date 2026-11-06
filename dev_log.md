@@ -1,3 +1,12 @@
+## 2026-11-07 05:50 CST — Align SkipDB level-validation source contract
+
+- Baseline: main commit `2748369d79f586aa0132b9fe23ae284834305953`; SkipDBv2 Regression run #439 stopped in the pre-build source-contract step.
+- The new search guards correctly reuse `SkipDBRecord_hasValidLevel_()` at the initial node and each resolved forward target. The workflow still asserted the previous exact reference count of six, so its contract rejected the intentional two new calls before configure/build/CTest.
+- Update the existing source contract to expect eight references and describe the shared search/link validation requirement. No C source or test behavior changed in this CI-only correction.
+- The C compile and runtime regression gates remain pending on the next mainline run.
+
+---
+
 ## 2026-11-07 05:49 CST — Reject invalid record levels before SkipDB search traversal
 
 - Baseline: main commit `8b616b6543e11d850a48d4963a800cd25b2653b2`; SkipDBv2 Regression run #438 passed the XY-C1 source contracts, configure, complete build, and regression tests.
