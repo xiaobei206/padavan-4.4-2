@@ -9,32 +9,60 @@
 
 // set
 
-#define UARRAY_IOP(OP) \
-void UArray_ ## OP (UArray *self) { UARRAY_FOREACHASSIGN(self, i, v, OP((int)v)); }
+static int UArray_characterByteArrayIsValid_(const UArray *self)
+{
+	if (NULL == self ||
+		(self->itemType != CTYPE_uint8_t && self->itemType != CTYPE_int8_t) ||
+		self->itemSize != sizeof(uint8_t) ||
+		self->size > self->memSize / sizeof(uint8_t) ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	return 1;
+}
 
-UARRAY_IOP(isalnum);
-UARRAY_IOP(isalpha);
-UARRAY_IOP(iscntrl);
-UARRAY_IOP(isdigit);
-UARRAY_IOP(isgraph);
-UARRAY_IOP(islower);
-UARRAY_IOP(isprint);
-UARRAY_IOP(ispunct);
-UARRAY_IOP(isspace);
-UARRAY_IOP(isupper);
-UARRAY_IOP(isxdigit);
+#define UARRAY_IOP_PREDICATE(OP) \
+BASEKIT_API void UArray_ ## OP (UArray *self) { \
+	if (!UArray_characterByteArrayIsValid_(self)) return; \
+	UARRAY_FOREACHASSIGN(self, i, v, (!!OP((unsigned char)v))); \
+	UArray_changed(self); \
+}
 
-UARRAY_IOP(tolower);
-UARRAY_IOP(toupper);
+#define UARRAY_IOP_CASEMAP(OP) \
+BASEKIT_API void UArray_ ## OP (UArray *self) { \
+	if (!UArray_characterByteArrayIsValid_(self)) return; \
+	UARRAY_FOREACHASSIGN(self, i, v, OP((unsigned char)v)); \
+	UArray_changed(self); \
+}
+
+UARRAY_IOP_PREDICATE(isalnum);
+UARRAY_IOP_PREDICATE(isalpha);
+UARRAY_IOP_PREDICATE(iscntrl);
+UARRAY_IOP_PREDICATE(isdigit);
+UARRAY_IOP_PREDICATE(isgraph);
+UARRAY_IOP_PREDICATE(islower);
+UARRAY_IOP_PREDICATE(isprint);
+UARRAY_IOP_PREDICATE(ispunct);
+UARRAY_IOP_PREDICATE(isspace);
+UARRAY_IOP_PREDICATE(isupper);
+UARRAY_IOP_PREDICATE(isxdigit);
+
+UARRAY_IOP_CASEMAP(tolower);
+UARRAY_IOP_CASEMAP(toupper);
 
 BASEKIT_API int UArray_isLowercase(UArray *self)
 {
-	UARRAY_INTFOREACH(self, i, v, if(v != tolower(v)) return 0);
+	if (!UArray_characterByteArrayIsValid_(self))
+		return 0;
+	UARRAY_INTFOREACH(self, i, v,
+		if ((unsigned char)v != (unsigned char)tolower((unsigned char)v)) return 0);
 	return 1;
 }
 
 BASEKIT_API int UArray_isUppercase(UArray *self)
 {
-	UARRAY_INTFOREACH(self, i, v, if(v != toupper(v)) return 0);
+	if (!UArray_characterByteArrayIsValid_(self))
+		return 0;
+	UARRAY_INTFOREACH(self, i, v,
+		if ((unsigned char)v != (unsigned char)toupper((unsigned char)v)) return 0);
 	return 1;
 }

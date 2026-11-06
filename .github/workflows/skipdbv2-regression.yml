@@ -732,6 +732,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_encoding_conversion.c",
                   "TARGET_LINK_LIBRARIES(uarray_encoding_conversion_test skipdb m)",
                   "add_test(NAME uarray_encoding_conversion_test COMMAND uarray_encoding_conversion_test)",
+                  "ADD_EXECUTABLE(uarray_character_ctype_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_character_ctype.c",
+                  "TARGET_LINK_LIBRARIES(uarray_character_ctype_test skipdb m)",
+                  "add_test(NAME uarray_character_ctype_test COMMAND uarray_character_ctype_test)",
                   "ADD_EXECUTABLE(date_time_init_test",
                   "${PROJECT_SOURCE_DIR}/tests/date_time_init.c",
                   "add_test(NAME date_time_init_test COMMAND date_time_init_test)",
@@ -1028,6 +1032,24 @@ jobs:
                   "0x1f4a9",
                   "invalid UTF-8 conversion reported success or changed the source",
                   "UArray encoding conversion test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/UArray_character.c": [
+                  "static int UArray_characterByteArrayIsValid_(const UArray *self)",
+                  "self->size > self->memSize / sizeof(uint8_t)",
+                  "!!OP((unsigned char)v)",
+                  "OP((unsigned char)v)",
+                  "UArray_changed(self);",
+                  "(unsigned char)tolower((unsigned char)v)",
+                  "(unsigned char)toupper((unsigned char)v)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_character_ctype.c": [
+                  "UArray_isalpha(NULL);",
+                  "UArray_tolower(NULL);",
+                  "ctype predicate results were not normalized to Boolean bytes",
+                  "signed high-byte input changed unexpectedly",
+                  "wide numeric array was modified or treated as a byte string",
+                  "undersized backing capacity was accessed",
+                  "uarray character ctype test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c": [
                   "if (self->mti < 0 || self->mti > N+1)",
@@ -1606,6 +1628,28 @@ jobs:
                          "typedef uint16_t UTF16;", "typedef uint8_t  UTF8;"):
               if needle not in convert_utf_header:
                   raise SystemExit("ConvertUTF storage types must match fixed-width UArray element layouts: " + needle)
+
+          character_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_character.c").read_text()
+          for needle in ("static int UArray_characterByteArrayIsValid_(const UArray *self)",
+                         "self->size > self->memSize / sizeof(uint8_t)",
+                         "!!OP((unsigned char)v)", "OP((unsigned char)v)",
+                         "UArray_changed(self);"):
+              if needle not in character_source:
+                  raise SystemExit("UArray character operations must validate byte storage and use defined ctype inputs: " + needle)
+          character_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_character_ctype.c").read_text()
+          for needle in ("UArray_isalpha(NULL);", "UArray_tolower(NULL);",
+                         "ctype predicate results were not normalized to Boolean bytes",
+                         "wide numeric array was modified or treated as a byte string",
+                         "uarray character ctype test passed"):
+              if needle not in character_test:
+                  raise SystemExit("UArray character ctype regression case missing: " + needle)
+          character_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(uarray_character_ctype_test",
+                         "${PROJECT_SOURCE_DIR}/tests/uarray_character_ctype.c",
+                         "TARGET_LINK_LIBRARIES(uarray_character_ctype_test skipdb m)",
+                         "add_test(NAME uarray_character_ctype_test COMMAND uarray_character_ctype_test)"):
+              if needle not in character_cmake:
+                  raise SystemExit("UArray character ctype test is not registered in CMake/CTest: " + needle)
 
           date_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Date.c").read_text()
           date_ctor_start = date_source.find("Date *Date_new(void)")

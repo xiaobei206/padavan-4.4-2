@@ -267,6 +267,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_encoding_conversion_test skipdb m)
     add_test(NAME uarray_encoding_conversion_test COMMAND uarray_encoding_conversion_test)
 
+    ADD_EXECUTABLE(uarray_character_ctype_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_character_ctype.c)
+    TARGET_LINK_LIBRARIES(uarray_character_ctype_test skipdb m)
+    add_test(NAME uarray_character_ctype_test COMMAND uarray_character_ctype_test)
+
     ADD_EXECUTABLE(date_time_init_test
         ${PROJECT_SOURCE_DIR}/tests/date_time_init.c)
     TARGET_LINK_LIBRARIES(date_time_init_test skipdb m)

@@ -1,3 +1,18 @@
+## 2026-11-06 14:24 CST — Harden UArray byte-character operations
+
+### Scope and changes
+- Guard ctype helpers against NULL arrays, NULL backing storage, inconsistent size/capacity, and non-byte element types.
+- Pass only `unsigned char` values into the C ctype API, avoiding undefined behavior from negative signed bytes or out-of-range numeric elements.
+- Normalize predicate outputs to explicit 0/1 bytes; preserve `tolower`/`toupper` mapping results and invalidate UArray cached state after mutation.
+- Keep wide numeric arrays untouched instead of accidentally treating UTF-16/32 code units as locale bytes.
+
+### Regression and contracts
+- Add `uarray_character_ctype_test` for Boolean predicate results, ASCII case mapping, signed high-byte input, NULLs, invalid backing storage, and wide-type no-op behavior.
+- Register it with CMake/CTest and strengthen workflow source contracts for guards, safe ctype arguments, cache invalidation, test cases, and target registration.
+- Baseline main CI run #265 passed the UTF conversion fix on commit `778b8b9`.
+
+---
+
 ## 2026-11-06 14:17 CST — Fix platform-dependent UTF-32 width
 
 ### CI root cause and repair
