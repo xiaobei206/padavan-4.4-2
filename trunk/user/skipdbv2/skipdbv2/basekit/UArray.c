@@ -1454,12 +1454,28 @@ int UArray_isZero(const UArray *self)
 			return -1;\
 }
 
+static int UArray_searchArrayIsValid_(const UArray *self)
+{
+	size_t itemSize;
+
+	if (NULL == self)
+		return 0;
+
+	itemSize = CTYPE_size(self->itemType);
+	if (itemSize == 0 ||
+		self->itemSize != itemSize ||
+		self->size > (size_t)LONG_MAX ||
+		self->size > (size_t)-1 / itemSize ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+
+	return 1;
+}
+
 long UArray_find_(const UArray *self, const UArray *other)
 {
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data) ||
-		self->size > (size_t)LONG_MAX)
+	if (!UArray_searchArrayIsValid_(self) ||
+		!UArray_searchArrayIsValid_(other))
 		return -1;
 	DUARRAY_OP(UARRAY_FIND_TYPES, NULL, self, other);
 	return -1;
@@ -1474,8 +1490,11 @@ long UArray_find_from_(const UArray *self, const UArray *other, size_t from)
 {
 	UArray s;
 	long i;
-	if (NULL == self || NULL == other || from > self->size ||
-		from > (size_t)LONG_MAX)
+	if (!UArray_searchArrayIsValid_(self) ||
+		!UArray_searchArrayIsValid_(other) ||
+		from > self->size)
+		return -1;
+	if (from == self->size)
 		return -1;
 	s = UArray_stackRange(self, from, self->size - from);
 	i = UArray_find_(&s, other);
@@ -1505,6 +1524,9 @@ long UArray_find_from_(const UArray *self, const UArray *other, size_t from)
 
 long UArray_findAnyCase_(const UArray *self, const UArray *other)
 {
+	if (!UArray_searchArrayIsValid_(self) ||
+		!UArray_searchArrayIsValid_(other))
+		return -1;
 	DUARRAY_OP(UARRAY_FINDANYCASE_TYPES, NULL, self, other);
 	return -1;
 }
@@ -1517,7 +1539,9 @@ int UArray_containsAnyCase_(const UArray *self, const UArray *other)
 
 long UArray_findLongValue_(const UArray *self, long value)
 {
-	UARRAY_FOREACH(self, i, v, if(v == value) return i);
+	if (!UArray_searchArrayIsValid_(self))
+		return -1;
+	UARRAY_FOREACH(self, i, v, if(v == value) return (long)i);
 	return -1;
 }
 
@@ -1528,7 +1552,9 @@ int UArray_containsLong_(const UArray *self, long value)
 
 long UArray_findDoubleValue_(const UArray *self, double value)
 {
-	UARRAY_FOREACH(self, i, v, if(v == value) return i);
+	if (!UArray_searchArrayIsValid_(self))
+		return -1;
+	UARRAY_FOREACH(self, i, v, if(v == value) return (long)i);
 	return -1;
 }
 
@@ -1558,9 +1584,8 @@ int UArray_containsDouble_(const UArray *self, double value)
 
 long UArray_rFind_(const UArray *self, const UArray *other)
 {
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
+	if (!UArray_searchArrayIsValid_(self) ||
+		!UArray_searchArrayIsValid_(other))
 		return -1;
 	DUARRAY_OP(UARRAY_RFIND_TYPES, NULL, self, other);
 	return -1;
@@ -1569,10 +1594,16 @@ long UArray_rFind_(const UArray *self, const UArray *other)
 BASEKIT_API long UArray_rFind_from_(const UArray *self, const UArray *other, size_t from)
 {
 	UArray s;
-	if (NULL == self || NULL == other)
+	if (!UArray_searchArrayIsValid_(self) ||
+		!UArray_searchArrayIsValid_(other))
 		return -1;
 	if (from > self->size)
 		from = self->size;
+	if (from == 0) {
+		s = *self;
+		s.size = 0;
+		return UArray_rFind_(&s, other);
+	}
 	s = UArray_stackRange(self, 0, from);
 	return UArray_rFind_(&s, other);
 }
@@ -1597,9 +1628,8 @@ BASEKIT_API long UArray_rFind_from_(const UArray *self, const UArray *other, siz
 }
 long UArray_rFindAnyCase_(const UArray *self, const UArray *other)
 {
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
+	if (!UArray_searchArrayIsValid_(self) ||
+		!UArray_searchArrayIsValid_(other))
 		return -1;
 	DUARRAY_OP(UARRAY_RFINDANYCASE_TYPES, NULL, self, other);
 	return -1;
@@ -1621,10 +1651,8 @@ long UArray_rFindAnyCase_(const UArray *self, const UArray *other)
 }
 long UArray_rFindAnyValue_(const UArray *self, const UArray *other)
 {
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data) ||
-		self->size > (size_t)LONG_MAX)
+	if (!UArray_searchArrayIsValid_(self) ||
+		!UArray_searchArrayIsValid_(other))
 		return -1;
 	DUARRAY_OP(UARRAY_RFINDANYVALUE_TYPES, NULL, self, other);
 	return -1;

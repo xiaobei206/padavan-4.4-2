@@ -241,6 +241,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_size_in_bytes_test skipdb m)
     add_test(NAME uarray_size_in_bytes_test COMMAND uarray_size_in_bytes_test)
 
+    ADD_EXECUTABLE(uarray_search_bounds_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c)
+    TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)
+    add_test(NAME uarray_search_bounds_test COMMAND uarray_search_bounds_test)
+
     ADD_EXECUTABLE(common_alloc_test
         ${PROJECT_SOURCE_DIR}/tests/common_alloc.c
         ${PROJECT_SOURCE_DIR}/basekit/Common.c)

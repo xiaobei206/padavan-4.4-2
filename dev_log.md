@@ -1,3 +1,26 @@
+## 2026-11-06 14:29 CST — Harden UArray search input validation
+
+### Baseline
+- Main commit `dee96dddfd7ca32d1ba027cdc2f13eb4a3688ebb`; SkipDBv2 Regression run #267 passed source contracts, configure, full build, and CTest after the UArray character-storage fix.
+- Scope is limited to existing UArray search primitives and a focused regression.
+
+### Changes
+- Add one private validator for NULL arrays, unsupported item types, mismatched item-size metadata, NULL-backed nonempty arrays, byte-size overflow, and search indices that cannot be returned as `long`.
+- Apply it consistently to forward/reverse substring search, case-insensitive search, scalar value search, and offset wrappers before constructing a stack range or entering typed iteration.
+- Avoid creating an empty stack range at offset zero or at the end of a source, preventing empty-array wrappers from relying on pointer arithmetic over NULL.
+- Preserve public signatures and existing valid-input matching behavior; no new production source module or public symbol is introduced.
+- Add focused tests for valid forward/reverse/case-insensitive/scalar searches and NULL, invalid storage metadata, unsupported types, empty input, and oversized lengths.
+
+### Build and CI contracts
+- Register `uarray_search_bounds_test` in the existing CMake/CTest suite.
+- Extend existing workflow source contracts for validator invariants, every search entry-point guard, test cases, and the test's link/registration contract.
+
+### Validation
+- Structural preflight confirms every targeted public search implementation uses the private validator and the new test target is present in both CMake and workflow contracts.
+- The last main workflow (run #267) passed the source-contract preflight, CMake configure, full compilation, and CTest. The workflow triggered by this commit remains authoritative for this change.
+
+---
+
 ## 2026-11-06 14:26 CST — Correct UArray character storage contract
 
 ### CI repair

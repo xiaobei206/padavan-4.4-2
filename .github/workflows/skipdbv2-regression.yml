@@ -714,6 +714,10 @@ jobs:
                   "ADD_EXECUTABLE(uarray_size_in_bytes_test",
                   "${PROJECT_SOURCE_DIR}/tests/uarray_size_in_bytes.c",
                   "add_test(NAME uarray_size_in_bytes_test COMMAND uarray_size_in_bytes_test)",
+                  "ADD_EXECUTABLE(uarray_search_bounds_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c",
+                  "TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)",
+                  "add_test(NAME uarray_search_bounds_test COMMAND uarray_search_bounds_test)",
                   "ADD_EXECUTABLE(common_alloc_test",
                   "${PROJECT_SOURCE_DIR}/tests/common_alloc.c",
                   "${PROJECT_SOURCE_DIR}/basekit/Common.c",
@@ -1104,6 +1108,10 @@ jobs:
                   "size_t UArray_sizeInBytes(const UArray *self)",
                   "self->size > (size_t)-1 / self->itemSize",
                   "return self->size * self->itemSize;",
+                  "static int UArray_searchArrayIsValid_(const UArray *self)",
+                  "self->itemSize != itemSize",
+                  "self->size > (size_t)LONG_MAX",
+                  "if (!UArray_searchArrayIsValid_(self) ||",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c": [
                   "UArray_sizeInBytes(NULL)",
@@ -1112,6 +1120,16 @@ jobs:
                   "invalid.itemSize = 0;",
                   "overflow.size = (size_t)-1 / overflow.itemSize + 1;",
                   "overflowing UArray byte size did not return zero",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_search_bounds.c": [
+                  "invalid_data.data = NULL;",
+                  "invalid_layout.itemSize = 0;",
+                  "invalid_type.itemType = (CTYPE)999;",
+                  "oversized.size = (size_t)LONG_MAX + 1;",
+                  "malformed or NULL UArray search source was not rejected",
+                  "malformed or NULL UArray search pattern was not rejected",
+                  "UArray_find_from_(&source, &pattern, 3) != 3",
+                  "UArray search bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/List.c": [
                   "size_t List_memorySize(const List *self)",
@@ -1487,6 +1505,56 @@ jobs:
                          "UArray_sizeInBytes(&overflow)"):
               if needle not in uarray_size_test:
                   raise SystemExit("UArray byte-size regression case missing: " + needle)
+
+          search_validator_start = uarray_source.find("static int UArray_searchArrayIsValid_(const UArray *self)")
+          search_validator_end = uarray_source.find("\n}", search_validator_start)
+          search_validator = (
+              uarray_source[search_validator_start:search_validator_end]
+              if search_validator_start >= 0 and search_validator_end > search_validator_start
+              else ""
+          )
+          if (not search_validator or
+                  "CTYPE_size(self->itemType)" not in search_validator or
+                  "self->itemSize != itemSize" not in search_validator or
+                  "self->size > (size_t)LONG_MAX" not in search_validator or
+                  "self->size > (size_t)-1 / itemSize" not in search_validator or
+                  "(self->size > 0 && NULL == self->data)" not in search_validator):
+              raise SystemExit("UArray search validator must reject null, inconsistent, unsupported, unbacked, overflowed, and unrepresentable arrays")
+          for search_signature in (
+              "long UArray_find_(const UArray *self, const UArray *other)",
+              "long UArray_find_from_(const UArray *self, const UArray *other, size_t from)",
+              "long UArray_findAnyCase_(const UArray *self, const UArray *other)",
+              "long UArray_findLongValue_(const UArray *self, long value)",
+              "long UArray_findDoubleValue_(const UArray *self, double value)",
+              "long UArray_rFind_(const UArray *self, const UArray *other)",
+              "BASEKIT_API long UArray_rFind_from_(const UArray *self, const UArray *other, size_t from)",
+              "long UArray_rFindAnyCase_(const UArray *self, const UArray *other)",
+              "long UArray_rFindAnyValue_(const UArray *self, const UArray *other)",
+          ):
+              search_start = uarray_source.find(search_signature)
+              search_end = uarray_source.find("\n}", search_start)
+              search_body = (
+                  uarray_source[search_start:search_end]
+                  if search_start >= 0 and search_end > search_start
+                  else ""
+              )
+              if not search_body or "UArray_searchArrayIsValid_(" not in search_body:
+                  raise SystemExit("UArray search entry point lacks common storage/index validation: " + search_signature)
+          search_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_search_bounds.c").read_text()
+          for needle in ("UArray_rFindAnyValue_(&source, &values) != 1",
+                         "UArray_findDoubleValue_(&source, (double)'A') != 3",
+                         "UArray_contains_(invalid, valid) != 0",
+                         "UArray_rFind_from_(invalid, valid, 0) != -1",
+                         "UArray_find_from_(&empty, &pattern, 0) != -1"):
+              if needle not in search_test:
+                  raise SystemExit("UArray search regression lost empty, invalid-input, or value-search coverage: " + needle)
+          search_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(uarray_search_bounds_test",
+                         "${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c",
+                         "TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)",
+                         "add_test(NAME uarray_search_bounds_test COMMAND uarray_search_bounds_test)"):
+              if needle not in search_cmake:
+                  raise SystemExit("UArray search regression is not registered in CMake/CTest: " + needle)
 
           common_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Common.c").read_text()
           realloc_start = common_source.find("MemoryBlock *MemoryBlock_reallocToSize_(MemoryBlock *self, size_t size)")
