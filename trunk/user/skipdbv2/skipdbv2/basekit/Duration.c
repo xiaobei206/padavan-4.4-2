@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
 
 typedef struct
 {
@@ -27,27 +28,47 @@ Duration *Duration_new(void)
 Duration *Duration_newWithSeconds_(double s)
 {
 	Duration *self = Duration_new();
+	if (NULL == self)
+		return NULL;
 	self->seconds = s;
 	return self;
 }
 
+Duration *Duration_clone(const Duration *self)
+{
+	Duration *copy;
+	if (NULL == self)
+		return NULL;
+	copy = Duration_new();
+	if (NULL == copy)
+		return NULL;
+	Duration_copy_(copy, self);
+	return copy;
+}
+
 void Duration_copy_(Duration *self, const Duration *other)
 {
+	if (NULL == self || NULL == other || self == other)
+		return;
 	memcpy(self, other, sizeof(Duration));
 }
 
 void Duration_free(Duration *self)
 {
-	io_free(self);
+	if (self)
+		io_free(self);
 }
 
 int Duration_compare(const Duration *self, const Duration *other)
 {
+	if (NULL == self || NULL == other)
+		return self == other ? 0 : (self ? 1 : -1);
+	if (isnan(self->seconds))
+		return isnan(other->seconds) ? 0 : 1;
+	if (isnan(other->seconds))
+		return -1;
 	if (self->seconds == other->seconds)
-	{
 		return 0;
-	}
-
 	return self->seconds > other->seconds ? 1 : -1;
 }
 
@@ -61,7 +82,22 @@ int Duration_compare(const Duration *self, const Duration *other)
 DurationComponents Duration_asComponents(const Duration *self)
 {
 	DurationComponents c;
-	double t = self->seconds;
+	double t;
+	memset(&c, 0, sizeof(c));
+	if (NULL == self)
+		return c;
+	t = self->seconds;
+	if (isnan(t))
+		return c;
+	/* Keep every later integer component conversion within int range. */
+	if (t > (double)INT_MAX * SECONDS_IN_YEAR) {
+		c.years = INT_MAX;
+		return c;
+	}
+	if (t < (double)INT_MIN * SECONDS_IN_YEAR) {
+		c.years = INT_MIN;
+		return c;
+	}
 	c.years   = (int)(t / SECONDS_IN_YEAR);   t -= (int)(c.years   * SECONDS_IN_YEAR);
 	c.days    = (int)(t / SECONDS_IN_DAY);    t -= (int)(c.days    * SECONDS_IN_DAY);
 	c.hours   = (int)(t / SECONDS_IN_HOUR);   t -= (int)(c.hours   * SECONDS_IN_HOUR);
@@ -72,7 +108,10 @@ DurationComponents Duration_asComponents(const Duration *self)
 
 void Duration_fromComponents_(Duration *self, DurationComponents c)
 {
-	double t = c.years * SECONDS_IN_YEAR;
+	double t;
+	if (NULL == self)
+		return;
+	t = c.years * SECONDS_IN_YEAR;
 	t += c.days * SECONDS_IN_DAY;
 	t += c.hours * SECONDS_IN_HOUR;
 	t += c.minutes * SECONDS_IN_MINUTE;
@@ -154,21 +193,28 @@ void Duration_setSeconds_(Duration *self, double s)
 
 double Duration_asSeconds(const Duration *self)
 {
-	return self->seconds;
+	return self ? self->seconds : 0.0;
 }
 
 void Duration_fromSeconds_(Duration *self, double s)
 {
-	self->seconds = s;
+	if (self)
+		self->seconds = s;
 }
 
 // strings --------------------------------------------------------
 
 UArray *Duration_asUArrayWithFormat_(const Duration *self, const char *format)
 {
-	DurationComponents c = Duration_asComponents(self);
+	DurationComponents c;
 	char s[128];
-	UArray *ba = UArray_newWithCString_(format?format:"%Y years %d days %H:%M:%S");
+	UArray *ba;
+	if (NULL == self)
+		return NULL;
+	c = Duration_asComponents(self);
+	ba = UArray_newWithCString_(format ? format : "%Y years %d days %H:%M:%S");
+	if (NULL == ba)
+		return NULL;
 
 	snprintf(s, 128, "%i", (int)c.years);
 	UArray_replaceCString_withCString_(ba, "%Y", s);
@@ -194,6 +240,8 @@ UArray *Duration_asUArrayWithFormat_(const Duration *self, const char *format)
 void Duration_print(const Duration *self)
 {
 	UArray *ba = Duration_asUArrayWithFormat_(self, NULL);
+	if (NULL == ba)
+		return;
 	UArray_print(ba);
 	UArray_free(ba);
 }
@@ -202,11 +250,15 @@ void Duration_print(const Duration *self)
 
 void Duration_add_(Duration *self, const Duration *other)
 {
+	if (NULL == self || NULL == other)
+		return;
 	self->seconds += other->seconds;
 }
 
 void Duration_subtract_(Duration *self, const Duration *other)
 {
+	if (NULL == self || NULL == other)
+		return;
 	self->seconds -= other->seconds;
 }
 

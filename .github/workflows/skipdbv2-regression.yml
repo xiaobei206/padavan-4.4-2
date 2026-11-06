@@ -721,6 +721,9 @@ jobs:
                   "ADD_EXECUTABLE(date_time_init_test",
                   "${PROJECT_SOURCE_DIR}/tests/date_time_init.c",
                   "add_test(NAME date_time_init_test COMMAND date_time_init_test)",
+                  "ADD_EXECUTABLE(duration_lifecycle_test",
+                  "${PROJECT_SOURCE_DIR}/tests/duration_lifecycle.c",
+                  "add_test(NAME duration_lifecycle_test COMMAND duration_lifecycle_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -760,6 +763,25 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/Duration.c": [
+                  "Duration *Duration_clone(const Duration *self)",
+                  "if (NULL == self)",
+                  "isnan(t)",
+                  "(double)INT_MAX * SECONDS_IN_YEAR",
+                  "(double)INT_MIN * SECONDS_IN_YEAR",
+                  "if (NULL == ba)",
+                  "return self ? self->seconds : 0.0;",
+                  "if (NULL == self || NULL == other)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/duration_lifecycle.c": [
+                  "Duration_clone(NULL)",
+                  "Duration_copy_(NULL, NULL)",
+                  "strcmp(UArray_asCString(formatted), \"01:01\")",
+                  "Duration_newWithSeconds_(HUGE_VAL)",
+                  "Duration_newWithSeconds_(NAN)",
+                  "Duration_years(extreme) != INT_MAX",
+                  "Duration lifecycle test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Date.c": [
                   "if (NULL == self)",
@@ -1263,6 +1285,33 @@ jobs:
                          "Date_new did not initialize the wall-clock state"):
               if needle not in date_test:
                   raise SystemExit("Date initialization regression case missing: " + needle)
+
+          duration_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Duration.c").read_text()
+          declared_clone = "BASEKIT_API Duration *Duration_clone(const Duration *self)" in Path("trunk/user/skipdbv2/skipdbv2/basekit/Duration.h").read_text()
+          clone_start = duration_source.find("Duration *Duration_clone(const Duration *self)")
+          clone_end = duration_source.find("void Duration_copy_(", clone_start)
+          clone_body = duration_source[clone_start:clone_end] if clone_start >= 0 and clone_end > clone_start else ""
+          if (not declared_clone or not clone_body or "Duration_new()" not in clone_body or
+                  "if (NULL == copy)" not in clone_body or "Duration_copy_(copy, self)" not in clone_body):
+              raise SystemExit("Duration_clone declaration must have a failure-safe implementation")
+          component_start = duration_source.find("DurationComponents Duration_asComponents(")
+          component_end = duration_source.find("void Duration_fromComponents_(", component_start)
+          component_body = duration_source[component_start:component_end] if component_start >= 0 and component_end > component_start else ""
+          if ("if (NULL == self)" not in component_body or "isnan(t)" not in component_body or
+                  "(double)INT_MAX * SECONDS_IN_YEAR" not in component_body or
+                  "(double)INT_MIN * SECONDS_IN_YEAR" not in component_body):
+              raise SystemExit("Duration component conversion must handle NULL, NaN, and out-of-range years")
+          format_start = duration_source.find("UArray *Duration_asUArrayWithFormat_(")
+          format_end = duration_source.find("void Duration_print(", format_start)
+          format_body = duration_source[format_start:format_end] if format_start >= 0 and format_end > format_start else ""
+          if ("if (NULL == self)" not in format_body or "if (NULL == ba)" not in format_body):
+              raise SystemExit("Duration formatting must stop when the receiver or output allocation is NULL")
+          duration_test = Path("trunk/user/skipdbv2/skipdbv2/tests/duration_lifecycle.c").read_text()
+          for needle in ("Duration_clone(NULL)", "Duration_copy_(NULL, NULL)",
+                         "Duration_newWithSeconds_(HUGE_VAL)", "Duration_newWithSeconds_(NAN)",
+                         "Duration lifecycle test passed"):
+              if needle not in duration_test:
+                  raise SystemExit("Duration lifecycle regression case missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

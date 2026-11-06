@@ -1,3 +1,22 @@
+## 2026-11-06 12:36 CST — Harden Duration lifecycle and component conversion
+
+### Baseline and scope
+- Base commit: `3dbe670ffa029b3729edfb83ec114412201431f1`; SkipDBv2 Regression run #237 passed source contracts, full compilation, and CTest.
+- Scope is limited to the Duration value type, its existing public clone declaration, one lifecycle regression, and the existing CMake/workflow registrations.
+
+### Changes
+- Implement the already-declared but missing `Duration_clone()` and propagate constructor allocation failure safely.
+- Guard copy, compare, free, seconds access, math, formatting, and component operations against NULL receivers/operands.
+- Bound year extraction before integer conversion so NaN and values beyond the `int` year range cannot trigger undefined floating-to-integer conversion.
+- Return cleanly when formatted-string allocation fails; keep ordinary finite duration behavior unchanged.
+- Add tests for clone/copy, formatting, math, NULL handling, and extreme/non-finite input.
+
+### Validation
+- Workflow source contracts verify the existing public clone declaration has a concrete failure-safe implementation and that component/formatting guards precede unsafe operations.
+- The new test is registered in CTest. The next remote regression run is authoritative for compilation and execution.
+
+---
+
 ## 2026-11-06 12:29 CST — Remove newline-sensitive Date source contract
 
 ### CI preflight repair

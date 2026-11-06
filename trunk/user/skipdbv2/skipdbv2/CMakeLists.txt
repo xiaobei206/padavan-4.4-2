@@ -252,4 +252,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(date_time_init_test skipdb m)
     add_test(NAME date_time_init_test COMMAND date_time_init_test)
 
+    ADD_EXECUTABLE(duration_lifecycle_test
+        ${PROJECT_SOURCE_DIR}/tests/duration_lifecycle.c)
+    TARGET_LINK_LIBRARIES(duration_lifecycle_test skipdb m)
+    add_test(NAME duration_lifecycle_test COMMAND duration_lifecycle_test)
+
 endif()
