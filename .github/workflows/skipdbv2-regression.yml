@@ -1364,6 +1364,18 @@ jobs:
                   "UArray extrema accepted zero-width storage",
                   "UArray extrema accepted overflowing geometry",
                   "UArray math extrema test passed",
+                  "UArray scalar mutation allocation failed",
+                  "UArray scalar add changed values or retained the cached hash",
+                  "UArray scalar subtract changed values or retained the cached hash",
+                  "UArray scalar multiply changed values or retained the cached hash",
+                  "UArray scalar divide changed values or retained the cached hash",
+                  "UArray scalar divide-by-zero was not a no-op",
+                  "UArray empty scalar operations changed receiver state",
+                  "UArray scalar operations accepted missing backing storage",
+                  "UArray scalar operations accepted mismatched item width",
+                  "UArray scalar operations accepted unsupported item type",
+                  "UArray scalar operations accepted overflowing storage geometry",
+                  "UArray scalar operations accepted pointer-sized item type",
                   "UArray elementwise mutation allocation failed",
                   "UArray elementwise add changed prefix behavior or retained the cached hash",
                   "UArray elementwise subtract changed prefix behavior or retained the cached hash",
@@ -2276,6 +2288,31 @@ jobs:
                   "UArray_minSizeWith_(" in body
               ):
                   raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")
+
+          scalar_operation_ranges = (
+              ("add", "void UArray_addScalarDouble_(UArray *self, double value)", "void UArray_subtractScalarDouble_"),
+              ("subtract", "void UArray_subtractScalarDouble_(UArray *self, double value)", "void UArray_multiplyScalarDouble_"),
+              ("multiply", "void UArray_multiplyScalarDouble_(UArray *self, double value)", "void UArray_divideScalarDouble_"),
+              ("divide", "void UArray_divideScalarDouble_(UArray *self, double value)", "// bitwise"),
+          )
+          for label, start_marker, end_marker in scalar_operation_ranges:
+              start = bit_math_source.find(start_marker)
+              end = bit_math_source.find(end_marker, start)
+              body = bit_math_source[start:end] if start >= 0 and end > start else ""
+              storage_guard = body.find("UArray_hasValidNumericStorage_(self)")
+              first_foreach = body.find("UARRAY_FOREACHASSIGN(self, i, v,")
+              changed = body.find("UArray_changed(self);")
+              if (
+                  not body or storage_guard < 0 or first_foreach < 0 or
+                  storage_guard > first_foreach or
+                  "self->itemType == CTYPE_uintptr_t" not in body or
+                  "self->size == 0" not in body or
+                  changed < 0 or changed < first_foreach
+              ):
+                  raise SystemExit(f"UArray scalar {label} must validate numeric storage and invalidate hash after assignment")
+              if label == "divide" and "value == 0.0" not in body:
+                  raise SystemExit("UArray scalar divide must reject a zero divisor before integer or floating-point assignment")
+
 
           dot_size_start = bit_math_source.find("static size_t UArray_numericItemSize_(CTYPE itemType)")
           dot_guard_start = bit_math_source.find("static int UArray_hasValidNumericStorage_(const UArray *self)", dot_size_start)

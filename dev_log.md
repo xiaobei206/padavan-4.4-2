@@ -1,3 +1,13 @@
+## 2026-11-06 23:00 CST — Guard UArray scalar arithmetic mutations
+
+- Baseline: main commit `928c5c1c4812b05cefc9a99d1c6f9b2e221916e3`; SkipDBv2 Regression run #356 passed all 55 CTest cases after the elementwise arithmetic cache fix.
+- Scope: `UArray_addScalarDouble_()`, `UArray_subtractScalarDouble_()`, `UArray_multiplyScalarDouble_()`, and `UArray_divideScalarDouble_()`.
+- The four functions fed unvalidated array storage to the assignment macro and modified values without clearing the cached hash. The assignment macro does not dispatch `CTYPE_uintptr_t`, although the shared numeric-layout validator recognizes it; scalar division by zero also reached integer division, which is undefined behavior.
+- Validate storage before iteration, explicitly exclude pointer-sized values from the numeric assignment path, invalidate the hash after nonempty mutation, and treat a zero divisor as a no-op. Preserve existing scalar arithmetic and integer-conversion behavior for nonzero operands.
+- Extend the existing `uarray_math_extrema` regression and workflow source contract for all four scalar operations, NULL/empty/malformed storage, pointer-sized types, divide-by-zero, and hash lifecycle. Reuse the existing CMake target; no new files or CMake changes.
+- No local C compilation or CTest result is claimed; mainline CI remains the build/runtime gate.
+
+---
 ## 2026-11-06 22:57 CST — Fix UArray generic arithmetic cache invalidation
 
 - CI #355 built successfully but `uarray_math_extrema_test` failed in the first generic elementwise add assertion: `UARRAY_BASICOP_TYPES` contains an early `return`, so the post-dispatch `UArray_changed(self)` was unreachable for generic type combinations. The float32 fast path did not have this issue.

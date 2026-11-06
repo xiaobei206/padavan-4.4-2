@@ -224,22 +224,43 @@ double UArray_dotProduct_(const UArray *self, const UArray *other)
 
 void UArray_addScalarDouble_(UArray *self, double value)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
+
 	UARRAY_FOREACHASSIGN(self, i, v, v + value);
+	UArray_changed(self);
 }
 
 void UArray_subtractScalarDouble_(UArray *self, double value)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
+
 	UARRAY_FOREACHASSIGN(self, i, v, v - value);
+	UArray_changed(self);
 }
 
 void UArray_multiplyScalarDouble_(UArray *self, double value)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
+
 	UARRAY_FOREACHASSIGN(self, i, v, v * value);
+	UArray_changed(self);
 }
 
 void UArray_divideScalarDouble_(UArray *self, double value)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0 ||
+		value == 0.0)
+		return;
+
 	UARRAY_FOREACHASSIGN(self, i, v, v / value);
+	UArray_changed(self);
 }
 
 // bitwise

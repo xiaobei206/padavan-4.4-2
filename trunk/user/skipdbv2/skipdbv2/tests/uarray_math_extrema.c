@@ -7,6 +7,141 @@
 static int fail(const char *s) { fprintf(stderr, "%s\n", s); return EXIT_FAILURE; }
 static int nearEnough(double a, double b) { return fabs(a - b) <= 1e-12; }
 
+static int test_scalar_mutations(void)
+{
+    const int32_t initial[] = {2, -4, 6};
+    const int32_t expectedAdd[] = {4, -2, 8};
+    const int32_t expectedSubtract[] = {3, -3, 7};
+    const int32_t expectedMultiply[] = {9, -9, 21};
+    const int32_t expectedDivide[] = {3, -3, 7};
+    UArray *values = UArray_newWithData_type_size_copy_((void *)initial, CTYPE_int32_t, 3, 1);
+    UArray *empty = UArray_new();
+    UArray invalid;
+    int result = EXIT_FAILURE;
+
+    if (NULL == values || NULL == empty) {
+        fail("UArray scalar mutation allocation failed");
+        goto cleanup;
+    }
+
+    values->hash = 0x1111;
+    UArray_addScalarDouble_(values, 2.0);
+    if (memcmp(values->data, expectedAdd, sizeof(expectedAdd)) != 0 || values->hash != 0) {
+        fail("UArray scalar add changed values or retained the cached hash");
+        goto cleanup;
+    }
+
+    values->hash = 0x2222;
+    UArray_subtractScalarDouble_(values, 1.0);
+    if (memcmp(values->data, expectedSubtract, sizeof(expectedSubtract)) != 0 || values->hash != 0) {
+        fail("UArray scalar subtract changed values or retained the cached hash");
+        goto cleanup;
+    }
+
+    values->hash = 0x3333;
+    UArray_multiplyScalarDouble_(values, 3.0);
+    if (memcmp(values->data, expectedMultiply, sizeof(expectedMultiply)) != 0 || values->hash != 0) {
+        fail("UArray scalar multiply changed values or retained the cached hash");
+        goto cleanup;
+    }
+
+    values->hash = 0x4444;
+    UArray_divideScalarDouble_(values, 3.0);
+    if (memcmp(values->data, expectedDivide, sizeof(expectedDivide)) != 0 || values->hash != 0) {
+        fail("UArray scalar divide changed values or retained the cached hash");
+        goto cleanup;
+    }
+
+    values->hash = 0x5555;
+    UArray_divideScalarDouble_(values, 0.0);
+    if (memcmp(values->data, expectedDivide, sizeof(expectedDivide)) != 0 || values->hash != 0x5555) {
+        fail("UArray scalar divide-by-zero was not a no-op");
+        goto cleanup;
+    }
+
+    UArray_addScalarDouble_(NULL, 1.0);
+    UArray_subtractScalarDouble_(NULL, 1.0);
+    UArray_multiplyScalarDouble_(NULL, 1.0);
+    UArray_divideScalarDouble_(NULL, 1.0);
+
+    empty->hash = 0x6666;
+    UArray_addScalarDouble_(empty, 1.0);
+    UArray_subtractScalarDouble_(empty, 1.0);
+    UArray_multiplyScalarDouble_(empty, 1.0);
+    UArray_divideScalarDouble_(empty, 1.0);
+    if (empty->size != 0 || empty->hash != 0x6666) {
+        fail("UArray empty scalar operations changed receiver state");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.data = NULL;
+    invalid.hash = 0x7777;
+    UArray_addScalarDouble_(&invalid, 1.0);
+    UArray_subtractScalarDouble_(&invalid, 1.0);
+    UArray_multiplyScalarDouble_(&invalid, 2.0);
+    UArray_divideScalarDouble_(&invalid, 2.0);
+    if (invalid.data != NULL || invalid.hash != 0x7777) {
+        fail("UArray scalar operations accepted missing backing storage");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemSize = 0;
+    invalid.hash = 0x8888;
+    UArray_addScalarDouble_(&invalid, 1.0);
+    UArray_subtractScalarDouble_(&invalid, 1.0);
+    UArray_multiplyScalarDouble_(&invalid, 2.0);
+    UArray_divideScalarDouble_(&invalid, 2.0);
+    if (invalid.itemSize != 0 || invalid.hash != 0x8888) {
+        fail("UArray scalar operations accepted mismatched item width");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemType = (CTYPE)9999;
+    invalid.hash = 0x9999;
+    UArray_addScalarDouble_(&invalid, 1.0);
+    UArray_subtractScalarDouble_(&invalid, 1.0);
+    UArray_multiplyScalarDouble_(&invalid, 2.0);
+    UArray_divideScalarDouble_(&invalid, 2.0);
+    if (invalid.itemType != (CTYPE)9999 || invalid.hash != 0x9999) {
+        fail("UArray scalar operations accepted unsupported item type");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    invalid.hash = 0xaaaa;
+    UArray_addScalarDouble_(&invalid, 1.0);
+    UArray_subtractScalarDouble_(&invalid, 1.0);
+    UArray_multiplyScalarDouble_(&invalid, 2.0);
+    UArray_divideScalarDouble_(&invalid, 2.0);
+    if (invalid.hash != 0xaaaa) {
+        fail("UArray scalar operations accepted overflowing storage geometry");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemType = CTYPE_uintptr_t;
+    invalid.itemSize = sizeof(uintptr_t);
+    invalid.hash = 0xbbbb;
+    UArray_addScalarDouble_(&invalid, 1.0);
+    UArray_subtractScalarDouble_(&invalid, 1.0);
+    UArray_multiplyScalarDouble_(&invalid, 2.0);
+    UArray_divideScalarDouble_(&invalid, 2.0);
+    if (invalid.hash != 0xbbbb) {
+        fail("UArray scalar operations accepted pointer-sized item type");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(values);
+    UArray_free(empty);
+    return result;
+}
+
 static int test_elementwise_mutations(void)
 {
     const int32_t initial[] = {2, 3, 4};
@@ -373,6 +508,8 @@ cleanup:
 
 int main(void)
 {
+    if (test_scalar_mutations() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
     if (test_elementwise_mutations() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_reductions() != EXIT_SUCCESS)
