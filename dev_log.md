@@ -1,3 +1,13 @@
+## 2026-11-07 01:08 CST — Correct the Windows PortableTruncate adapter
+
+- Baseline: main commit `5e9e6dce2ef3eb3c0247bb5306f2807ad11d1abb`; SkipDBv2 Regression run #390 passed.
+- Scope: `basekit/PortableTruncate.c` Windows implementation only.
+- The old `CreateFile` call passed zero as the sharing mode and passed `FILE_SHARE_READ | FILE_SHARE_WRITE` in the file-attributes slot. It also accepted a NULL path/negative offset and compared against a magic seek-error constant.
+- Validate arguments before the Win32 call, explicitly use the narrow-character API for the declared `const char *` path, put share flags and `FILE_ATTRIBUTE_NORMAL` in their correct parameters, and use `INVALID_SET_FILE_POINTER`. No new files or CMake target changes.
+- Linux CI can build the portable translation unit and checks the Windows-branch source contract; this runner does not execute a native Windows build.
+
+---
+
 ## 2026-11-07 01:07 CST — Abort SkipDB commits when synchronization cannot prepare
 
 - Baseline: main commit `f56af6f1993cc7dc71a3d6196124c716d4a70837`; SkipDBv2 Regression run #389 passed source contracts, full build, and all CTest cases.

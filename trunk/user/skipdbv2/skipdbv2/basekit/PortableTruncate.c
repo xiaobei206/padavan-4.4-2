@@ -6,24 +6,28 @@ int PortableTruncate_justHereToAvoidRanlibWarning(void) { return 0; }
 
 #ifdef _WIN32
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <errno.h>
 #include <windows.h>
 
-// Win32 truncate by Mike Austin
-
+/* Win32 adapter for the POSIX truncate contract. */
 int truncate(const char *path, long length)
 {
-	HANDLE file = CreateFile(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
-					FILE_SHARE_WRITE | FILE_SHARE_READ, NULL);
-
-	if (file == INVALID_HANDLE_VALUE)
+	HANDLE file;
+	if (NULL == path || length < 0)
 	{
+		errno = EINVAL;
 		return -1;
 	}
 
-	if (SetFilePointer(file, length, NULL, FILE_BEGIN) == 0xFFFFFFFF || !SetEndOfFile(file))
+	file = CreateFileA(path, GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file == INVALID_HANDLE_VALUE)
+		return -1;
+
+	/* A nonnegative long cannot produce INVALID_SET_FILE_POINTER on Win32. */
+	if (SetFilePointer(file, length, NULL, FILE_BEGIN) ==
+			INVALID_SET_FILE_POINTER || !SetEndOfFile(file))
 	{
 		CloseHandle(file);
 		return -1;
