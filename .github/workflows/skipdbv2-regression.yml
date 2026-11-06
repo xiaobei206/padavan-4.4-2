@@ -1837,6 +1837,12 @@ jobs:
                   "self->memSize > (size_t)-1 - sizeof(List)",
                   "return sizeof(List) + self->memSize;",
                   "void List_sliceInPlace(List* self, long startIndex, long endIndex)",
+                  "void List_mapInPlace_(List *self, ListCollectCallback *callback)",
+                  "originalSize = self->size;",
+                  "if (!List_hasValidStorage_(self) || self->size != originalSize)",
+                  "mapped = (*callback)(item);",
+                  "self->items[i] = mapped;",
+                  "callback may reallocate storage or structurally resize the list.",
                   "oldSize > (size_t)-1 / sizeof(void *)",
                   "oldSize > self->memSize / sizeof(void *)",
                   "if (start >= oldSize || start > end)",
@@ -1934,6 +1940,13 @@ jobs:
                   "List_removeTrueFor_(&malformed_target, remove_everything)",
                   "malformed_target.items[1] == saved_target_items[1]",
                   "List_asStackAllocatedUArray(&malformed_source)",
+                  "List map-in-place fixture allocation failed",
+                  "List map-in-place fixture append failed",
+                  "List map-in-place realloc blocker allocation failed",
+                  "List_mapInPlace_(map_list, expand_list_during_map);",
+                  "List map-in-place wrote through a stale backing pointer after callback realloc",
+                  "List_mapInPlace_(shrink_list, shrink_list_during_map);",
+                  "List map-in-place wrote an item after its callback changed the list size",
                   "list storage bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_slice.c": [
@@ -2452,6 +2465,30 @@ jobs:
               ))
           ):
               raise SystemExit("UArray negate must validate storage and signed integer boundaries before mutation, then invalidate hash")
+
+          list_map_start = list_source.find(
+              "void List_mapInPlace_(List *self, ListCollectCallback *callback)"
+          )
+          list_map_end = list_source.find("List *List_map_(", list_map_start)
+          list_map_body = list_source[list_map_start:list_map_end] if list_map_start >= 0 and list_map_end > list_map_start else ""
+          list_map_pre_callback_guard = list_map_body.find("if (!List_hasValidStorage_(self) || self->size != originalSize)")
+          list_map_callback = list_map_body.find("mapped = (*callback)(item);")
+          list_map_post_callback_guard = list_map_body.find(
+              "if (!List_hasValidStorage_(self) || self->size != originalSize)",
+              list_map_callback
+          )
+          list_map_store = list_map_body.find("self->items[i] = mapped;")
+          if (
+              not list_map_body or
+              "size_t i, originalSize;" not in list_map_body or
+              "originalSize = self->size;" not in list_map_body or
+              "void **items;" in list_map_body or
+              list_map_pre_callback_guard < 0 or
+              list_map_callback < 0 or
+              list_map_post_callback_guard <= list_map_callback or
+              list_map_store <= list_map_post_callback_guard
+          ):
+              raise SystemExit("List_mapInPlace_ must revalidate callback-mutated list state and store through the current backing pointer")
 
           assignment_transform_ranges = (
               ("round", "void UArray_round(UArray *self)", "void UArray_clear"),

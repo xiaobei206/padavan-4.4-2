@@ -273,11 +273,29 @@ void List_do_with_(List *self, ListDoWithCallback *callback, void *arg)
 
 void List_mapInPlace_(List *self, ListCollectCallback *callback)
 {
-	void **items;
+	size_t i, originalSize;
+
 	if (!List_hasValidStorage_(self) || NULL == callback)
 		return;
-	items = self->items;
-	LIST_FOREACH(self, i, v, items[i] = (*callback)(v));
+
+	originalSize = self->size;
+	for (i = 0; i < originalSize; ++i) {
+		void *item;
+		void *mapped;
+
+		if (!List_hasValidStorage_(self) || self->size != originalSize)
+			return;
+
+		item = self->items[i];
+		mapped = (*callback)(item);
+
+		/* A callback may reallocate storage or structurally resize the list. */
+		if (!List_hasValidStorage_(self) || self->size != originalSize)
+			return;
+
+		/* Always resolve the current backing pointer after invoking user code. */
+		self->items[i] = mapped;
+	}
 }
 
 List *List_map_(List *self, ListCollectCallback *callback)

@@ -1,3 +1,14 @@
+## 2026-11-06 23:35 CST — Make List_mapInPlace_ callback-reallocation safe
+
+- Baseline: main commit `9b0eda48f06ab95f85f13418b7501690f0d3259e`; SkipDBv2 Regression run #366 completed successfully.
+- Scope: the in-place list mapping callback loop in `basekit/List.c`.
+- The function cached `self->items` before calling user code. A callback can call `List_preallocateToSize_()`, moving the allocation; the subsequent mapped-value write then targets the stale pointer. A callback that changes list size could also make the current index invalid or change its meaning before the write.
+- Replace the macro loop with an explicit bounded loop. Revalidate storage and the original size before and after each callback, and resolve `self->items[i]` only after the callback returns. Capacity-only reallocation remains supported; structural size changes stop the mapping safely.
+- Extend the existing `list_storage_bounds` test with forced backing-store growth during callback and callback-driven shrink coverage. Tighten List.c and test source contracts; reuse the existing CMake target and add no files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:30 CST — Fix UArray negate helper source-contract lookup
 
 - CI #365 stopped in the workflow source-contract stage before configure/build. The negate boundary-helper lookup depended on an incorrectly escaped newline and therefore failed to locate the definition.

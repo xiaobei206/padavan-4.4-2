@@ -35,8 +35,112 @@ static int check(int condition, const char *message)
 	return 0;
 }
 
-int main(void)
+
+static List *map_callback_list;
+static void **map_callback_original_items;
+static void *map_callback_replacement;
+static size_t map_callback_target_size;
+static size_t map_callback_calls;
+static int map_callback_storage_moved;
+
+static void *expand_list_during_map(void *item)
 {
+    (void)item;
+    if (map_callback_calls++ == 0) {
+        List_preallocateToSize_(map_callback_list, map_callback_target_size);
+        map_callback_storage_moved =
+            map_callback_list->items != map_callback_original_items;
+    }
+    return map_callback_replacement;
+}
+
+static void *shrink_list_during_map(void *item)
+{
+    (void)item;
+    map_callback_calls++;
+    List_setSize_(map_callback_list, 0);
+    return map_callback_replacement;
+}
+
+static int test_map_in_place_reentrancy(void)
+{
+    int values[] = {10, 20, 30};
+    List *map_list = List_new();
+    List *shrink_list = List_new();
+    void *blocker = NULL;
+    size_t i;
+    int result = EXIT_FAILURE;
+
+    if (NULL == map_list || NULL == shrink_list) {
+        check(0, "List map-in-place fixture allocation failed");
+        goto done;
+    }
+
+    for (i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
+        if (List_append_(map_list, &values[i]) != &values[i] ||
+            List_append_(shrink_list, &values[i]) != &values[i]) {
+            check(0, "List map-in-place fixture append failed");
+            goto done;
+        }
+    }
+
+    /* Occupy the following heap block so the callback's larger realloc moves. */
+    blocker = malloc(map_list->memSize);
+    if (NULL == blocker) {
+        check(0, "List map-in-place realloc blocker allocation failed");
+        goto done;
+    }
+    memset(blocker, 0xa5, map_list->memSize);
+
+    map_callback_list = map_list;
+    map_callback_original_items = map_list->items;
+    map_callback_replacement = &values[2];
+    map_callback_target_size =
+        map_list->memSize / sizeof(void *) + 1024;
+    map_callback_calls = 0;
+    map_callback_storage_moved = 0;
+
+    List_mapInPlace_(map_list, expand_list_during_map);
+    if (!check(map_callback_storage_moved && map_callback_calls == 3 &&
+        map_list->size == 3 &&
+        map_list->items[0] == map_callback_replacement &&
+        map_list->items[1] == map_callback_replacement &&
+        map_list->items[2] == map_callback_replacement,
+        "List map-in-place wrote through a stale backing pointer after callback realloc")) {
+        goto done;
+    }
+
+    map_callback_list = shrink_list;
+    map_callback_calls = 0;
+    List_mapInPlace_(shrink_list, shrink_list_during_map);
+    if (!check(map_callback_calls == 1 && shrink_list->size == 0 &&
+        (NULL == shrink_list->items || NULL == shrink_list->items[0]),
+        "List map-in-place wrote an item after its callback changed the list size")) {
+        goto done;
+    }
+
+    List_mapInPlace_(NULL, expand_list_during_map);
+    List_mapInPlace_(map_list, NULL);
+    result = EXIT_SUCCESS;
+
+done:
+    free(blocker);
+    List_free(map_list);
+    List_free(shrink_list);
+    map_callback_list = NULL;
+    map_callback_original_items = NULL;
+    map_callback_replacement = NULL;
+    map_callback_target_size = 0;
+    map_callback_calls = 0;
+    map_callback_storage_moved = 0;
+    return result;
+}
+
+int main(void)
+{	if (test_map_in_place_reentrancy() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+
+
 	int values[] = { 10, 20, 30 };
 	List *source = List_new();
 	List *target = List_new();
