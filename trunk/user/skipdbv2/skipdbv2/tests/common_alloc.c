@@ -38,6 +38,14 @@ int main(void)
         return EXIT_FAILURE;
     }
 
+    io_show_mem("tracked allocation diagnostics");
+    io_showUnfreed();
+    if (io_allocs() != 1 || io_allocatedBytes() != 16 || io_frees() != 0) {
+        fprintf(stderr, "allocator diagnostics changed live allocation accounting\n");
+        io_free(tracked);
+        return EXIT_FAILURE;
+    }
+
     io_free(NULL);
     if (io_frees() != 0) {
         fprintf(stderr, "freeing NULL changed allocation counters\n");

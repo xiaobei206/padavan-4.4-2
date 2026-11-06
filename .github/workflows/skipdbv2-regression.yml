@@ -1812,6 +1812,19 @@ jobs:
                   "count != 0 && size > (size_t)-1 / count",
                   "if (NULL == ptr)",
                   "return m ? MemoryBlockToPtr(m) : NULL;",
+                  "if (NULL == self)",
+                  "self->file ? strrchr(self->file, '/') : NULL",
+                  "%zu %p %s:%d",
+                  "printf(\"allocs              %ld",
+                  "printf(\"reallocs            %ld",
+                  "printf(\"frees               %ld",
+                  "printf(\"allocsMinusfrees    %ld",
+                  "printf(\"allocatedBytes      %ld",
+                  "printf(\"maxAllocatedBytes   %ld",
+                  "MemoryBlock *head = baseblock();",
+                  "if (NULL == head)",
+                  "unfreed blocks: allocation tracking unavailable",
+                  "%zu bytes in %zu blocks",
                   "int io_isBigEndian(void)",
                   "return s[0] == 0;",
                   "uint32_t io_uint32InBigEndian(uint32_t i)",
@@ -1823,6 +1836,9 @@ jobs:
                   "io_realloc(tracked, (size_t)LONG_MAX)",
                   "failed realloc lost the original tracked block or counters",
                   "cpalloc(resized, 32)",
+                  "io_show_mem(\"tracked allocation diagnostics\");",
+                  "io_showUnfreed();",
+                  "allocator diagnostics changed live allocation accounting",
                   "int expectedBigEndian = ((const unsigned char *)&endianProbe)[0] == 0x01;",
                   "io_isBigEndian() != expectedBigEndian",
                   "io_uint32InBigEndian(endianProbe) != expectedNetwork",
@@ -3492,6 +3508,31 @@ jobs:
           if (not realloc_body or detach < 0 or call < detach or failure < call or
                   restore < failure or "allocatedBytes = newAllocatedBytes;" not in realloc_body[restore:]):
               raise SystemExit("tracked realloc must preserve and relink the original block when realloc fails")
+
+          memory_show_start = common_source.find("void MemoryBlock_show(MemoryBlock *self)")
+          memory_show_end = common_source.find("\n}", memory_show_start)
+          memory_show_body = common_source[memory_show_start:memory_show_end] if memory_show_start >= 0 and memory_show_end > memory_show_start else ""
+          memory_show_guard = memory_show_body.find("if (NULL == self)")
+          memory_show_path = memory_show_body.find("self->file ? strrchr(self->file, '/') : NULL")
+          memory_show_format = memory_show_body.find("%zu %p %s:%d")
+          if not memory_show_body or min(memory_show_guard, memory_show_path, memory_show_format) < 0 or not (memory_show_guard < memory_show_path < memory_show_format) or "self->allocNum, MemoryBlockToPtr(self), file, self->line, self->size" not in memory_show_body:
+              raise SystemExit("MemoryBlock diagnostics must guard NULL metadata and use matching size_t/int format specifiers")
+
+          show_mem_start = common_source.find("void io_show_mem(char *s)")
+          show_mem_end = common_source.find("\n}", show_mem_start)
+          show_mem_body = common_source[show_mem_start:show_mem_end] if show_mem_start >= 0 and show_mem_end > show_mem_start else ""
+          for format_token in ("allocs              %ld", "reallocs            %ld", "frees               %ld", "allocsMinusfrees    %ld", "allocatedBytes      %ld", "maxAllocatedBytes   %ld"):
+              if format_token not in show_mem_body:
+                  raise SystemExit("io_show_mem format specifiers must match long counters: " + format_token)
+
+          show_unfreed_start = common_source.find("void io_showUnfreed(void)")
+          show_unfreed_end = common_source.find("\n}", show_unfreed_start)
+          show_unfreed_body = common_source[show_unfreed_start:show_unfreed_end] if show_unfreed_start >= 0 and show_unfreed_end > show_unfreed_start else ""
+          head = show_unfreed_body.find("MemoryBlock *head = baseblock();")
+          unavailable = show_unfreed_body.find("if (NULL == head)")
+          first_deref = show_unfreed_body.find("m = head->next;")
+          if not show_unfreed_body or min(head, unavailable, first_deref) < 0 or not (head < unavailable < first_deref) or "%zu bytes in %zu blocks" not in show_unfreed_body:
+              raise SystemExit("io_showUnfreed must handle tracker initialization failure and print size_t totals safely")
 
           calloc_body_start = common_source.find("void *io_real_calloc(")
           calloc_body_end = common_source.find("\n}", calloc_body_start)

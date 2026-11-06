@@ -216,13 +216,13 @@ size_t MemoryBlock_size(MemoryBlock *self)
 
 void MemoryBlock_show(MemoryBlock *self)
 {
-	char *file = strrchr(self->file, '/');
-	file = file ? file + 1 : self->file;
-	//printf("  MemoryBlock %p:\n", (void *)self);
-	//printf("\tsize %i\n", self->size);
-	//printf("\tfile %s\n", file);
-	//printf("\tline %i\n", self->line);
-	printf("\t%i %p %s:%i\t\t%i bytes\n", self->allocNum, MemoryBlockToPtr(self), file, self->line, self->size);
+	char *file;
+	if (NULL == self)
+		return;
+	file = self->file ? strrchr(self->file, '/') : NULL;
+	file = file ? file + 1 : (self->file ? self->file : "<unknown>");
+	printf("\t%zu %p %s:%d\t\t%zu bytes\n",
+		self->allocNum, MemoryBlockToPtr(self), file, self->line, self->size);
 }
 
 // ----------------------------------------------------------------------------
@@ -265,14 +265,12 @@ void io_free(void *ptr)
 void io_show_mem(char *s)
 {
 	printf("\n--- %s ---\n", s ? s : "");
-	printf("allocs              %i\n", allocs);
-	printf("reallocs            %i\n", reallocs);
-	printf("frees               %i\n", frees);
-	printf("allocsMinusfrees    %i\n", allocs - frees);
-	printf("allocatedBytes      %i\n", allocatedBytes);
-	printf("maxAllocatedBytes   %i\n", maxAllocatedBytes);
-	//printf("allocs  %i  bytes   %i\n", allocs, allocatedBytes);
-	//printf("\n");
+	printf("allocs              %ld\n", allocs);
+	printf("reallocs            %ld\n", reallocs);
+	printf("frees               %ld\n", frees);
+	printf("allocsMinusfrees    %ld\n", allocs - frees);
+	printf("allocatedBytes      %ld\n", allocatedBytes);
+	printf("maxAllocatedBytes   %ld\n", maxAllocatedBytes);
 }
 
 size_t io_maxAllocatedBytes(void)
@@ -302,10 +300,15 @@ size_t io_allocs(void)
 
 void io_showUnfreed(void)
 {
-	MemoryBlock *m = baseblock()->next;
+	MemoryBlock *head = baseblock();
+	MemoryBlock *m;
 	size_t sum = 0;
-	int n = 0;
-
+	size_t n = 0;
+	if (NULL == head) {
+		fprintf(stderr, "unable to report unfreed blocks: allocation tracking unavailable\n");
+		return;
+	}
+	m = head->next;
 	while (m)
 	{
 		MemoryBlock_show(m);
@@ -314,7 +317,7 @@ void io_showUnfreed(void)
 		m = m->next;
 	}
 
-	printf("\n  %i bytes in %i blocks\n", (int)sum, n);
+	printf("\n  %zu bytes in %zu blocks\n", sum, n);
 }
 
 #endif

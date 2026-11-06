@@ -1,3 +1,13 @@
+## 2026-11-07 01:17 CST — Make allocator diagnostics type-safe and failure-safe
+
+- Baseline: main commit `eb4a5e0c50e15b6d18a82ce38a915cae820f0c96`; SkipDBv2 Regression run #396 passed.
+- Scope: the `IO_CHECK_ALLOC` diagnostics inside `basekit/Common.c`.
+- Active reporting paths passed `size_t` and `long` counters to `%i`, which expects `int` and invokes undefined behavior while printing allocation/leak data. Leak reporting also dereferenced the lazily allocated tracker head without handling allocation failure, precisely when diagnostic memory may be unavailable.
+- Match format specifiers to `size_t`, `long`, and `int`; safely render absent source-file metadata; handle a NULL tracker sentinel; and test live-block reporting without changing allocator accounting. Extend existing static and dynamic source contracts. No new files or build targets.
+- CI is the compile/runtime gate; no local C build is claimed.
+
+---
+
 ## 2026-11-07 01:17 CST — Protect UDB free-list metadata from record relocation
 
 - Baseline: main commit `8a6fc2639fcd036790b02eae56cadb2c2935883d`; SkipDBv2 Regression run #395 passed source contracts, full build, and all regression tests.
