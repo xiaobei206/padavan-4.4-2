@@ -1748,6 +1748,9 @@ jobs:
                   "self->itemSize != expectedItemSize",
                   "self->size > (size_t)-1 / expectedItemSize",
                   "if (!UArray_hasValidNumberArrayLayout_(self))",
+                  "if (self->encoding == CENCODING_UTF16 || self->encoding == CENCODING_UTF32)",
+                  "targetStart - (UTF8 *)out->data",
+                  "outLength = self->size;",
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
                   "if (self->size > (size_t)LONG_MAX)",
                   "return self->size == (size_t)newSize;",
@@ -1781,6 +1784,8 @@ jobs:
                   "0x00a2",
                   "0x20ac",
                   "0x1f4a9",
+                  "preserves_embedded_nul_as_utf8",
+                  "UTF-8 conversion truncated data after an embedded NUL",
                   "invalid UTF-8 conversion reported success or changed the source",
                   "UArray encoding conversion test passed",
               ],
@@ -3790,6 +3795,13 @@ jobs:
               raise SystemExit("ConvertUTF reversed cursor range regression is missing")
 
           encoding_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c").read_text()
+          utf8_start = encoding_source.find("UArray *UArray_asUTF8(const UArray *self)")
+          utf8_end = encoding_source.find("UArray *UArray_asUTF16(const UArray *self)", utf8_start)
+          utf8_body = encoding_source[utf8_start:utf8_end] if utf8_start >= 0 and utf8_end > utf8_start else ""
+          if (not utf8_body or "strlen(" in utf8_body or
+                  "targetStart - (UTF8 *)out->data" not in utf8_body or
+                  "outLength = self->size;" not in utf8_body):
+              raise SystemExit("UArray UTF-8 conversion must retain the complete length-delimited source or converted span")
           truncate_start = encoding_source.find("static int UArray_truncateAfterConvertToEncoding_(UArray *self)")
           truncate_end = encoding_source.find("\nint UArray_convertToFixedSizeType", truncate_start)
           truncate_body = encoding_source[truncate_start:truncate_end] if truncate_start >= 0 and truncate_end > truncate_start else ""
@@ -3849,7 +3861,9 @@ jobs:
               raise SystemExit("UArray multibyte detection must scan validated UTF-8 bytes without typed-width dispatch")
           encoding_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_encoding_conversion.c").read_text()
           for needle in ("UArray_convertToFixedSizeType(NULL)", "0x00a2", "0x20ac",
-                         "0x1f4a9", "invalid UTF-8 conversion reported success or changed the source",
+                         "0x1f4a9", "preserves_embedded_nul_as_utf8",
+                         "UTF-8 conversion truncated data after an embedded NUL",
+                         "invalid UTF-8 conversion reported success or changed the source",
                          "UArray multibyte detection accepted a wide item type over byte storage"):
               if needle not in encoding_test:
                   raise SystemExit("UArray encoding conversion regression case missing: " + needle)

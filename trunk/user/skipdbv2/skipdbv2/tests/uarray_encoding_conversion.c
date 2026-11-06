@@ -27,6 +27,31 @@ static int is_utf32_value(const UArray *array, uint32_t expected)
 		((const uint32_t *)array->data)[0] == expected;
 }
 
+static int preserves_embedded_nul_as_utf8(void *bytes, CTYPE type,
+    CENCODING encoding, size_t count)
+{
+    static const unsigned char expected[] = {'A', '\0', 'B'};
+    UArray *source = UArray_newWithData_type_encoding_size_copy_(
+        bytes, type, encoding, count, 1);
+    UArray *converted;
+    int result;
+
+    if (NULL == source)
+        return 0;
+    converted = UArray_asUTF8(source);
+    result = converted != NULL &&
+        converted->encoding == CENCODING_UTF8 &&
+        converted->itemType == CTYPE_uint8_t &&
+        converted->itemSize == sizeof(uint8_t) &&
+        converted->size == sizeof(expected) &&
+        converted->data != NULL &&
+        memcmp(converted->data, expected, sizeof(expected)) == 0;
+    if (converted != NULL)
+        UArray_free(converted);
+    UArray_free(source);
+    return result;
+}
+
 int main(void)
 {
 	static const unsigned char ascii_bytes[] = {0x41, 0x42};
@@ -130,6 +155,22 @@ int main(void)
 		}
 		UArray_free(array);
 		array = NULL;
+	}
+
+	{
+		unsigned char embedded_utf8[] = {'A', '\0', 'B'};
+		uint16_t embedded_utf16[] = {'A', 0, 'B'};
+		uint32_t embedded_utf32[] = {'A', 0, 'B'};
+
+		if (!preserves_embedded_nul_as_utf8(embedded_utf8, CTYPE_uint8_t,
+				CENCODING_UTF8, sizeof(embedded_utf8)) ||
+			!preserves_embedded_nul_as_utf8(embedded_utf16, CTYPE_uint16_t,
+				CENCODING_UTF16, sizeof(embedded_utf16) / sizeof(embedded_utf16[0])) ||
+			!preserves_embedded_nul_as_utf8(embedded_utf32, CTYPE_uint32_t,
+				CENCODING_UTF32, sizeof(embedded_utf32) / sizeof(embedded_utf32[0]))) {
+			fprintf(stderr, "UTF-8 conversion truncated data after an embedded NUL\n");
+			goto done;
+		}
 	}
 
 	array = new_utf8(invalid_bytes, sizeof(invalid_bytes));

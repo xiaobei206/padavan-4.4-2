@@ -1,3 +1,13 @@
+## 2026-11-07 02:04 CST — Preserve embedded NUL bytes in UArray UTF-8 conversion
+
+- Baseline: main commit `277b727ee584f02871f2ab42a7672a3dcbecf084`; latest mainline SkipDBv2 Regression run #406 passed.
+- Scope: `UArray_asUTF8()` in `basekit/UArray_utf.c` and the existing `uarray_encoding_conversion` regression.
+- The conversion used `strlen()` to infer the output length. UArray is length-delimited and can legally contain U+0000, so UTF-8 copies and UTF-16/UTF-32 conversions silently discarded every byte after the first embedded NUL.
+- Derive the UTF-8 result length from the original UArray size for ASCII/UTF-8 copies, and from the converter's final target cursor for UTF-16/UTF-32 input. Add regression coverage for all three source encodings and extend the existing static and ordered Actions source contracts. The existing CMake/CTest target is reused; no new files, API changes, or build registrations.
+- No local C build is claimed; the pushed mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 01:50 CST — Consume Windows dynamic-loader errors on retrieval
 
 - Baseline: main commit `ab59b37cf842f8aec8f553e4c7dfd7f1c1a5351d`; SkipDBv2 Regression run #405 passed.

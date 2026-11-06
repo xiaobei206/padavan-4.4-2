@@ -323,7 +323,11 @@ UArray *UArray_asUTF8(const UArray *self)
 		UArray_free(out);
 		return NULL;
 	}
-	outLength = strlen((const char *)out->data);
+	/* UArray strings are length-delimited and may contain embedded U+0000. */
+	if (self->encoding == CENCODING_UTF16 || self->encoding == CENCODING_UTF32)
+		outLength = (size_t)(targetStart - (UTF8 *)out->data);
+	else
+		outLength = self->size;
 	UArray_setSize_(out, outLength);
 	if (out->size != outLength) {
 		UArray_free(out);
