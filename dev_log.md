@@ -1,3 +1,18 @@
+## 2026-11-06 12:29 CST — Remove newline-sensitive Date source contract
+
+### CI preflight repair
+- Commit `cdd6dc2330a52a2015486d49811639a7834fe3c7` added Date allocation and clock-read guards, but its static contract used an escaped-newline match for the timezone setter that was encoded incorrectly.
+
+### Repair
+- Replace that match with function-range and statement-order checks for `Date_new()` and `Date_now()`; verify the timezone setter guard by its statement token.
+- No Date implementation, regression test, or CMake target changed.
+
+### Validation
+- The source contract no longer depends on escaped line breaks and checks the constructor guard precedes initialization and the Date_now guard precedes state writes.
+- Run #236 was active at the time of the repair; the next mainline run is authoritative.
+
+---
+
 ## 2026-11-06 12:28 CST — Guard Date allocation and clock initialization
 
 ### Baseline and scope

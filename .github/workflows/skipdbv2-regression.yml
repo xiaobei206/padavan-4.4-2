@@ -1246,9 +1246,17 @@ jobs:
               raise SystemExit("Date_new must check allocation before initializing the object")
           clock_body_start = date_source.find("double Date_SecondsFrom1970ToNow(void)")
           clock_body = date_source[clock_body_start:] if clock_body_start >= 0 else ""
+          date_now_start = date_source.find("void Date_now(Date *self)")
+          date_now_end = date_source.find("double Date_Clock(void)", date_now_start)
+          date_now_body = date_source[date_now_start:date_now_end] if date_now_start >= 0 and date_now_end > date_now_start else ""
+          date_now_guard = date_now_body.find("if (NULL == self || gettimeofday(&timeval, &timezone) != 0)")
+          date_state_write = date_now_body.find("self->tv = timeval")
+          timezone_start = date_source.find("void Date_setToLocalTimeZone(Date *self)")
+          timezone_body = date_source[timezone_start:] if timezone_start >= 0 else ""
           if ("gettimeofday(&timeval, &timezone) != 0" not in clock_body or
-                  "if (NULL == self || gettimeofday(&timeval, &timezone) != 0)" not in date_source or
-                  "if (NULL == self)\\n\\t\\treturn;" not in date_source):
+                  not date_now_body or date_now_guard < 0 or date_state_write < 0 or
+                  date_now_guard > date_state_write or
+                  "if (NULL == self)" not in timezone_body):
               raise SystemExit("Date clock initialization must reject NULL receivers and failed system time reads")
           date_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
           for needle in ("Date_now(NULL)", "Date_setToLocalTimeZone(NULL)",
