@@ -1,3 +1,21 @@
+## 2026-11-06 12:28 CST — Guard Date allocation and clock initialization
+
+### Baseline and scope
+- Base commit: `e20c9f5cef0342af933916c8dac531cb913aa576`; SkipDBv2 Regression run #235 passed source contracts, full compilation, and CTest.
+- Scope is limited to Date construction and wall-clock initialization, one regression, and its CMake/workflow registration.
+
+### Changes
+- Return NULL from `Date_new()` if allocation fails instead of passing a NULL object into `Date_now()`.
+- Leave Date state untouched when `Date_now()` receives NULL or the system clock query fails.
+- Return a defined zero timestamp if the wall-clock query fails; make the local-timezone setter safe for NULL receivers.
+- Add a focused test for NULL receivers, construction, and successful wall-clock initialization.
+
+### Validation
+- Source contracts verify allocation-before-initialization and the clock/receiver guards.
+- The new regression is registered in CTest and the workflow source contract; no Date structure or public signature changed.
+
+---
+
 ## 2026-11-06 12:26 CST — Include the declaration for NULL in ConvertUTF
 
 ### CI repair
@@ -10,7 +28,7 @@
 
 ---
 
-## 2026-11-06 12:28 CST — Bound-check standalone UTF-8 sequence validation
+## 2026-11-06 12:25 CST — Bound-check standalone UTF-8 sequence validation
 
 ### Baseline and scope
 - Base commit: `a5baaaaf3904db8ec920ae3bb87828a837fe30ad`; SkipDBv2 Regression run #233 passed source contracts, full compilation, and CTest.
@@ -27,7 +45,7 @@
 
 ---
 
-## 2026-11-06 12:25 CST — Make RandomGen source preflight independent of escaped newlines
+## 2026-11-06 12:23 CST — Make RandomGen source preflight independent of escaped newlines
 
 ### CI preflight repair
 - Commit `4c6aad0a10aa6eaf318acbe6b82fd7301ab0789d` contained the RandomGen runtime hardening and regression, but its source-contract scanner encoded C line breaks as Python string escapes incorrectly.
@@ -43,7 +61,7 @@
 
 ---
 
-## 2026-11-06 12:23 CST — Harden RandomGen lifecycle and Gaussian rejection
+## 2026-11-06 12:22 CST — Harden RandomGen lifecycle and Gaussian rejection
 
 ### Baseline and scope
 - Base commit: `ff0e5b6ebfa16c57cd2641641be4cbbb9d0644b0`; SkipDBv2 Regression run #231 passed source contracts, full compilation, and CTest.
@@ -77,7 +95,7 @@
 
 ---
 
-## 2026-11-06 12:18 CST — Preserve tracked allocations across allocator failures
+## 2026-11-06 12:20 CST — Preserve tracked allocations across allocator failures
 
 ### Baseline and scope
 - Base commit: `85dac34af4ac8dce7a45fb682cd087d9c8d18540`; SkipDBv2 Regression run #229 passed source contracts, compilation, and CTest.
@@ -97,7 +115,7 @@
 
 ---
 
-## 2026-11-06 12:14 CST — Correct UArray byte-size preflight newline matching
+## 2026-11-06 12:16 CST — Correct UArray byte-size preflight newline matching
 
 ### CI finding
 - Commit `3af474e575200beb183278a34e0a2df594f5b3d1` added the UArray byte-size regression and source contract, but the contract scanner used a double-escaped newline delimiter when isolating the function body.
@@ -113,7 +131,7 @@
 
 ---
 
-## 2026-11-06 12:12 CST — Guard UArray byte-size queries against invalid state and overflow
+## 2026-11-06 12:16 CST — Guard UArray byte-size queries against invalid state and overflow
 
 ### Baseline and scope
 - Base commit: `ca58a60d832a1dafc87657114ca5db3cd795d2a3`; SkipDBv2 Regression run #227 passed source contracts, compilation, and CTest.

@@ -718,6 +718,9 @@ jobs:
                   "ADD_EXECUTABLE(convert_utf8_bounds_test",
                   "${PROJECT_SOURCE_DIR}/tests/convert_utf8_bounds.c",
                   "add_test(NAME convert_utf8_bounds_test COMMAND convert_utf8_bounds_test)",
+                  "ADD_EXECUTABLE(date_time_init_test",
+                  "${PROJECT_SOURCE_DIR}/tests/date_time_init.c",
+                  "add_test(NAME date_time_init_test COMMAND date_time_init_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -757,6 +760,17 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/Date.c": [
+                  "if (NULL == self)",
+                  "if (gettimeofday(&timeval, &timezone) != 0)",
+                  "if (NULL == self || gettimeofday(&timeval, &timezone) != 0)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c": [
+                  "Date_now(NULL)",
+                  "Date_setToLocalTimeZone(NULL)",
+                  "Date_SecondsFrom1970ToNow()",
+                  "Date_new did not initialize the wall-clock state",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.c": [
                   "#include <stddef.h>",
@@ -1221,6 +1235,26 @@ jobs:
                          "overlong sequence", "illegal lead byte"):
               if needle not in convert_test:
                   raise SystemExit("ConvertUTF boundary regression case missing: " + needle)
+
+          date_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Date.c").read_text()
+          date_ctor_start = date_source.find("Date *Date_new(void)")
+          date_ctor_end = date_source.find("void Date_copy_(", date_ctor_start)
+          date_ctor = date_source[date_ctor_start:date_ctor_end] if date_ctor_start >= 0 and date_ctor_end > date_ctor_start else ""
+          ctor_guard = date_ctor.find("if (NULL == self)")
+          now_call = date_ctor.find("Date_now(self)")
+          if (not date_ctor or ctor_guard < 0 or now_call < 0 or ctor_guard > now_call):
+              raise SystemExit("Date_new must check allocation before initializing the object")
+          clock_body_start = date_source.find("double Date_SecondsFrom1970ToNow(void)")
+          clock_body = date_source[clock_body_start:] if clock_body_start >= 0 else ""
+          if ("gettimeofday(&timeval, &timezone) != 0" not in clock_body or
+                  "if (NULL == self || gettimeofday(&timeval, &timezone) != 0)" not in date_source or
+                  "if (NULL == self)\\n\\t\\treturn;" not in date_source):
+              raise SystemExit("Date clock initialization must reject NULL receivers and failed system time reads")
+          date_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
+          for needle in ("Date_now(NULL)", "Date_setToLocalTimeZone(NULL)",
+                         "Date_new did not initialize the wall-clock state"):
+              if needle not in date_test:
+                  raise SystemExit("Date initialization regression case missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

@@ -247,4 +247,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(convert_utf8_bounds_test skipdb m)
     add_test(NAME convert_utf8_bounds_test COMMAND convert_utf8_bounds_test)
 
+    ADD_EXECUTABLE(date_time_init_test
+        ${PROJECT_SOURCE_DIR}/tests/date_time_init.c)
+    TARGET_LINK_LIBRARIES(date_time_init_test skipdb m)
+    add_test(NAME date_time_init_test COMMAND date_time_init_test)
+
 endif()

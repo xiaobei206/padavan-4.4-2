@@ -16,6 +16,8 @@
 Date *Date_new(void)
 {
 	Date *self = (Date *)io_calloc(1, sizeof(Date));
+	if (NULL == self)
+		return NULL;
 	Date_now(self);
 	return self;
 }
@@ -45,29 +47,21 @@ int Date_compare(const Date *self, const Date *other)
 
 double Date_SecondsFrom1970ToNow(void)
 {
-	double s, us;
 	struct timeval timeval;
 	struct timezone timezone;
 
-	gettimeofday(&timeval, &timezone);
-	s = timeval.tv_sec;
-	//s -= timezone.tz_minuteswest * 60;
-	us = timeval.tv_usec;
-
-	return s + (us/1000000.0); /* + (60*60);*/
+	if (gettimeofday(&timeval, &timezone) != 0)
+		return 0.0;
+	return (double)timeval.tv_sec + ((double)timeval.tv_usec / 1000000.0);
 }
 
 void Date_now(Date *self)
 {
-	double s, us;
 	struct timeval timeval;
 	struct timezone timezone;
 
-	gettimeofday(&timeval, &timezone);
-	s = timeval.tv_sec;
-	s -= timezone.tz_minuteswest * 60;
-	us = timeval.tv_usec;
-
+	if (NULL == self || gettimeofday(&timeval, &timezone) != 0)
+		return;
 	self->tv = timeval;
 	self->tz = timezone;
 }
@@ -82,6 +76,8 @@ double Date_Clock(void)
 void Date_setToLocalTimeZone(Date *self)
 {
 	struct timeval timeval;
+	if (NULL == self)
+		return;
 	gettimeofday(&timeval, &(self->tz));
 }
 
