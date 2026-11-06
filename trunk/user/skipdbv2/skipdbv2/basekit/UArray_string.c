@@ -327,75 +327,88 @@ static void UArray_freeSplitResults_(PtrUArray *results)
 	UArray_free(results);
 }
 
+static int UArray_splitInputsAreValid_(const UArray *self, const PtrUArray *delims)
+{
+    if (NULL == self || self->itemSize == 0 ||
+        self->size > (size_t)-1 / self->itemSize ||
+        self->size > (size_t)LONG_MAX ||
+        (self->size > 0 && NULL == self->data) ||
+        NULL == delims || delims->itemType != CTYPE_uintptr_t ||
+        delims->itemSize != sizeof(void *) ||
+        delims->itemSize != sizeof(uintptr_t) ||
+        delims->size > (size_t)-1 / delims->itemSize ||
+        (delims->size > 0 && NULL == delims->data))
+        return 0;
+    return 1;
+}
+
 PtrUArray *UArray_split_(const UArray *self, const PtrUArray *delims)
 {
-	PtrUArray *results;
-	size_t i, last = 0;
-	if (NULL == self || NULL == delims ||
-		(self->size > 0 && NULL == self->data) ||
-		(delims->size > 0 && NULL == delims->data) ||
-		delims->itemType != CTYPE_uintptr_t)
-		return NULL;
+    PtrUArray *results;
+    size_t i, last = 0;
+    if (!UArray_splitInputsAreValid_(self, delims))
+        return NULL;
 
-	results = UArray_new();
-	if (NULL == results)
-		return NULL;
-	UArray_setItemType_(results, CTYPE_uintptr_t);
-	if (results->itemType != CTYPE_uintptr_t) {
-		UArray_free(results);
-		return NULL;
-	}
+    results = UArray_new();
+    if (NULL == results)
+        return NULL;
+    UArray_setItemType_(results, CTYPE_uintptr_t);
+    if (results->itemType != CTYPE_uintptr_t ||
+        results->itemSize != sizeof(void *)) {
+        UArray_free(results);
+        return NULL;
+    }
 
-	for (i = 0; i < self->size; ++i) {
-		UArray slice = UArray_stackRange(self, i, self->size - i);
-		size_t j;
-		for (j = 0; j < delims->size; ++j) {
-			UArray *delim = (UArray *)UArray_rawPointerAt_(delims, j);
-			UArray *part;
-			size_t oldCount;
+    for (i = 0; i < self->size; ++i) {
+        UArray slice = UArray_stackRange(self, i, self->size - i);
+        size_t j;
+        for (j = 0; j < delims->size; ++j) {
+            UArray *delim = (UArray *)UArray_rawPointerAt_(delims, j);
+            UArray *part;
+            size_t oldCount;
 
-			/* Empty delimiters cannot advance the scan position. */
-			if (NULL == delim || delim->size == 0 ||
-				(delim->size > 0 && NULL == delim->data))
-				continue;
-			if (!UArray_beginsWith_(&slice, delim))
-				continue;
+            /* Empty delimiters cannot advance the scan position. */
+            if (NULL == delim || delim->size == 0 ||
+                (delim->size > 0 && NULL == delim->data))
+                continue;
+            if (!UArray_beginsWith_(&slice, delim))
+                continue;
 
-			part = UArray_range(self, last, i - last);
-			if (NULL == part) {
-				UArray_freeSplitResults_(results);
-				return NULL;
-			}
-			oldCount = results->size;
-			UArray_appendPointer_(results, part);
-			if (results->size != oldCount + 1) {
-				UArray_free(part);
-				UArray_freeSplitResults_(results);
-				return NULL;
-			}
+            part = UArray_range(self, last, i - last);
+            if (NULL == part) {
+                UArray_freeSplitResults_(results);
+                return NULL;
+            }
+            oldCount = results->size;
+            UArray_appendPointer_(results, part);
+            if (results->size != oldCount + 1) {
+                UArray_free(part);
+                UArray_freeSplitResults_(results);
+                return NULL;
+            }
 
-			last = i + delim->size;
-			i = last - 1; /* the for-loop increment resumes at last */
-			break;
-		}
-	}
+            last = i + delim->size;
+            i = last - 1; /* the for-loop increment resumes at last */
+            break;
+        }
+    }
 
-	if (last != self->size) {
-		UArray *part = UArray_range(self, last, self->size - last);
-		size_t oldCount;
-		if (NULL == part) {
-			UArray_freeSplitResults_(results);
-			return NULL;
-		}
-		oldCount = results->size;
-		UArray_appendPointer_(results, part);
-		if (results->size != oldCount + 1) {
-			UArray_free(part);
-			UArray_freeSplitResults_(results);
-			return NULL;
-		}
-	}
-	return results;
+    if (last != self->size) {
+        UArray *part = UArray_range(self, last, self->size - last);
+        size_t oldCount;
+        if (NULL == part) {
+            UArray_freeSplitResults_(results);
+            return NULL;
+        }
+        oldCount = results->size;
+        UArray_appendPointer_(results, part);
+        if (results->size != oldCount + 1) {
+            UArray_free(part);
+            UArray_freeSplitResults_(results);
+            return NULL;
+        }
+    }
+    return results;
 }
 
 size_t UArray_splitCount_(const UArray *self, const PtrUArray *delims)

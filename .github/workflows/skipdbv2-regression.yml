@@ -720,6 +720,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_pointer_access.c",
                   "TARGET_LINK_LIBRARIES(uarray_pointer_access_test skipdb m)",
                   "add_test(NAME uarray_pointer_access_test COMMAND uarray_pointer_access_test)",
+                  "ADD_EXECUTABLE(uarray_split_delimiters_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_split_delimiters.c",
+                  "TARGET_LINK_LIBRARIES(uarray_split_delimiters_test skipdb m)",
+                  "add_test(NAME uarray_split_delimiters_test COMMAND uarray_split_delimiters_test)",
                   "ADD_EXECUTABLE(bstream_tag_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
                   "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
@@ -1131,6 +1135,11 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c": [
                   "long nextChar = (getIndex < self->size - 1)",
                   "? UArray_longAt_(self, getIndex + 1)",
+                  "static int UArray_splitInputsAreValid_(const UArray *self, const PtrUArray *delims)",
+                  "self->size > (size_t)-1 / self->itemSize",
+                  "delims->itemSize != sizeof(void *)",
+                  "delims->size > (size_t)-1 / delims->itemSize",
+                  "if (!UArray_splitInputsAreValid_(self, delims))",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_unescape_bounds.c": [
                   "UArray_unescape(single_backslash)",
@@ -1205,6 +1214,18 @@ jobs:
                   "UArray pointer setter modified overflowing geometry",
                   "UArray pointer setter resized an unsupported empty array",
                   "UArray pointer access test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_split_delimiters.c": [
+                  "UArray split valid delimiter round trip failed",
+                  "UArray split count changed for valid delimiters",
+                  "UArray split accepted malformed delimiter element width",
+                  "UArray split accepted a non-pointer delimiter container",
+                  "UArray split accepted missing delimiter backing storage",
+                  "UArray split accepted overflowing delimiter geometry",
+                  "UArray split accepted zero-width source storage",
+                  "UArray split accepted missing source backing storage",
+                  "UArray split accepted an unrepresentable source length",
+                  "UArray split delimiter validation test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
@@ -1879,6 +1900,26 @@ jobs:
               pointer_setter_body.find("UArray_hasValidPointerStorage_(self)") > pointer_setter_body.find("UArray_setSize_(self, pos + 1)")
           ):
               raise SystemExit("UArray pointer setter must reject malformed arrays before resizing")
+
+          split_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c").read_text()
+          split_validator_start = split_source.find("static int UArray_splitInputsAreValid_(const UArray *self, const PtrUArray *delims)")
+          split_start = split_source.find("PtrUArray *UArray_split_(const UArray *self, const PtrUArray *delims)")
+          split_end = split_source.find("size_t UArray_splitCount_", split_start)
+          split_validator_body = split_source[split_validator_start:split_start] if split_validator_start >= 0 and split_start > split_validator_start else ""
+          split_body = split_source[split_start:split_end] if split_start >= 0 and split_end > split_start else ""
+          if (
+              not split_validator_body or
+              "self->itemSize == 0" not in split_validator_body or
+              "self->size > (size_t)-1 / self->itemSize" not in split_validator_body or
+              "delims->itemSize != sizeof(void *)" not in split_validator_body or
+              "delims->size > (size_t)-1 / delims->itemSize" not in split_validator_body or
+              "(delims->size > 0 && NULL == delims->data)" not in split_validator_body
+          ):
+              raise SystemExit("UArray split must validate source and pointer-delimiter storage geometry")
+          split_guard = split_body.find("UArray_splitInputsAreValid_(self, delims)")
+          result_allocation = split_body.find("results = UArray_new()")
+          if split_guard < 0 or result_allocation < 0 or split_guard > result_allocation:
+              raise SystemExit("UArray split must preflight both inputs before allocating or reading delimiters")
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
           memory_start = list_source.find("size_t List_memorySize(const List *self)")
           memory_end = list_source.find("\nvoid List_removeAll", memory_start)

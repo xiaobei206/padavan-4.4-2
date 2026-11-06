@@ -1,3 +1,24 @@
+## 2026-11-06 17:01 CST — Preflight UArray split source and delimiter arrays
+
+### Baseline
+- Main commit `a73c77d324c3c2756d5ba564be9d79dd63f9bb32`; SkipDBv2 Regression run #305 passed source contracts, configure, full build, and CTest.
+- Scope: the `UArray_split_()` input-validation boundary in `UArray_string.c`.
+
+### Defect and fix
+- Split validated non-NULL data pointers and the delimiter item type, but did not verify source item geometry or that the pointer-list item width matched the pointer representation.
+- Malformed source arrays could enter the scan loop; malformed delimiter arrays could be traversed as though they were valid pointer vectors.
+- Add a private preflight for source byte geometry, representable source length, delimiter pointer type/width, delimiter byte geometry, and non-empty backing storage. Reject invalid inputs before allocating results or dereferencing delimiter entries.
+
+### Regression and contracts
+- Add `uarray_split_delimiters_test` covering valid multi-delimiter splitting/counting and malformed source/delimiter metadata, missing storage, and size overflow.
+- Register the test in CMake and update workflow source contracts for validation order and the new target. No public declarations changed.
+
+### Validation
+- Static review confirms zero-width guards short-circuit division and the preflight runs before result allocation and pointer iteration.
+- Mainline CI will validate compilation and the complete regression suite.
+
+---
+
 ## 2026-11-06 16:57 CST — Make invalid UArray pointer access non-fatal
 
 - Run #304 completed configure/build; the new pointer regression stopped because `UArray_error_()` terminates the process. The test exposed that the attempted defensive checks still used this fatal path for malformed external storage.
