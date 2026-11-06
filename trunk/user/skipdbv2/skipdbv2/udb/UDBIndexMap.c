@@ -57,8 +57,6 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	if (pid != 0 && old_pos == 0 && !was_reserved)
 		return 0;
 
-	if (pos == 0) {
-
 	previous_file_pos = self->file->pos;
 	previous_max_pos = self->file->maxPos;
 	entry.pos = pos;
