@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 typedef struct {
 	size_t offset;
@@ -328,8 +329,79 @@ done:
 }
 
 
+static int testInvalidFileWritePreservesDestination(void)
+{
+	char pathName[] = "/tmp/uarray-stream-invalid-write-XXXXXX";
+	static const uint8_t original[] = {'k', 'e', 'e', 'p'};
+	uint8_t actual[sizeof(original)];
+	int fd = -1;
+	FILE *initial = NULL;
+	FILE *check = NULL;
+	UArray *source = newByteArray();
+	UArray *path = NULL;
+	uint8_t *originalData = NULL;
+	int okay = 0;
+
+	fd = mkstemp(pathName);
+	if (fd < 0 || NULL == source)
+		goto done;
+	initial = fdopen(fd, "wb");
+	if (NULL == initial)
+		goto done;
+	fd = -1;
+	if (fwrite(original, 1, sizeof(original), initial) != sizeof(original) ||
+		fclose(initial) != 0) {
+		initial = NULL;
+		goto done;
+	}
+	initial = NULL;
+
+	path = UArray_newWithData_type_encoding_size_copy_(
+		pathName, CTYPE_uint8_t, CENCODING_UTF8, strlen(pathName), 1);
+	if (NULL == path)
+		goto done;
+	UArray_setSize_(source, 1);
+	if (source->size != 1 || NULL == source->data)
+		goto done;
+
+	/* A malformed source must be rejected before fopen("wb") truncates the path. */
+	originalData = source->data;
+	source->data = NULL;
+	if (UArray_writeToFilePath_(source, path) != -1)
+		goto done;
+	source->data = originalData;
+	originalData = NULL;
+
+	check = fopen(pathName, "rb");
+	if (NULL == check)
+		goto done;
+	if (fread(actual, 1, sizeof(actual), check) != sizeof(actual) ||
+		fgetc(check) != EOF || ferror(check) ||
+		memcmp(actual, original, sizeof(original)) != 0)
+		goto done;
+	okay = 1;
+
+done:
+	if (source && originalData)
+		source->data = originalData;
+	if (initial)
+		fclose(initial);
+	if (fd >= 0)
+		close(fd);
+	if (check)
+		fclose(check);
+	UArray_free(path);
+	UArray_free(source);
+	unlink(pathName);
+	return okay;
+}
+
 int main(void)
 {
+	if (!testInvalidFileWritePreservesDestination()) {
+		fprintf(stderr, "UArray file write truncated an existing destination for invalid source storage\n");
+		return EXIT_FAILURE;
+	}
 	if (!testLineArgumentValidation()) {
 		fprintf(stderr, "UArray line argument validation failed\n");
 		return EXIT_FAILURE;

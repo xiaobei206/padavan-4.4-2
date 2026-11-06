@@ -224,6 +224,16 @@ int UArray_readLineFromCStream_(UArray *self, FILE *stream)
 	return readSomething;
 }
 
+static int UArray_streamCanWrite_(const UArray *self)
+{
+	if (NULL == self || self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
+		self->size > (size_t)LONG_MAX ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	return 1;
+}
+
 /* write ------------------------------------------------------ */
 
 size_t UArray_fwrite_(const UArray *self, size_t size, FILE *fp)
@@ -240,7 +250,7 @@ size_t UArray_fwrite_(const UArray *self, size_t size, FILE *fp)
 long UArray_writeToCStream_(const UArray *self, FILE *stream)
 {
 	size_t itemsWritten;
-	if (NULL == self || NULL == stream)
+	if (NULL == stream || !UArray_streamCanWrite_(self))
 		return -1;
 	itemsWritten = UArray_fwrite_(self, self->size, stream);
 	if (ferror(stream) || itemsWritten != self->size ||
@@ -256,7 +266,7 @@ long UArray_writeToFilePath_(const UArray *self, const UArray *path)
 	UArray *sysPath;
 	FILE *fp;
 	long itemsWritten;
-	if (NULL == self || NULL == path)
+	if (NULL == path || !UArray_streamCanWrite_(self))
 		return -1;
 	sysPath = UArray_asUTF8(path);
 	if (NULL == sysPath || NULL == UArray_asCString(sysPath)) {

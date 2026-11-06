@@ -1,3 +1,13 @@
+## 2026-11-07 02:18 CST — Preflight UArray file writes before destructive open
+
+- Baseline: main commit `468b9e1337d0957a06b1967d69c8e68f89cbb015`; SkipDBv2 Regression run #409 passed.
+- Scope: the file-write lifecycle in `basekit/UArray_stream.c` and the existing `uarray_stream_io` regression.
+- `UArray_writeToFilePath_()` opened the destination with `"wb"` before the lower-level writer validated the source. A malformed non-empty UArray with a NULL data pointer therefore caused an error only after the existing destination had already been truncated. The stream writer also performed its LONG_MAX return-range check after writing.
+- Add one private source-storage preflight covering byte-extent overflow, NULL backing storage, and the representable `long` result count. Apply it before stream writes and, critically, before path conversion/open. Extend the existing test to prove an invalid source leaves an existing file's contents untouched, and strengthen static/ordered Actions contracts. Reuse the registered CMake target; no new files, API changes, or build registration.
+- No local C build or CTest run is claimed; the pushed SkipDBv2 Regression workflow is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 02:11 CST — Avoid narrowing calendar years in Date_isLeapYear
 
 - Baseline: main commit `e3b06a6c47362548e11dd26de797ed373f04eb5d`; SkipDBv2 Regression run #408 passed.
