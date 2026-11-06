@@ -265,6 +265,136 @@ static int test_utf16_source_semantics(void)
     return 1;
 }
 
+static int test_invalid_buffer_arguments(void)
+{
+    const UTF8 bytes8[] = { 0x41 };
+    const UTF16 bytes16[] = { 0x41 };
+    const UTF32 bytes32[] = { 0x41 };
+    UTF8 out8[4] = { 0xaa, 0xaa, 0xaa, 0xaa };
+    UTF16 out16[4] = { 0xaaaa, 0xaaaa, 0xaaaa, 0xaaaa };
+    UTF32 out32[4] = { 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa };
+    const UTF8 *source8 = bytes8;
+    const UTF16 *source16 = bytes16;
+    const UTF32 *source32 = bytes32;
+    const UTF8 *nullSource8 = NULL;
+    const UTF16 *nullSource16 = NULL;
+    const UTF32 *nullSource32 = NULL;
+    UTF8 *target8 = out8;
+    UTF16 *target16 = out16;
+    UTF32 *target32 = out32;
+    UTF8 *nullTarget8 = NULL;
+    UTF16 *nullTarget16 = NULL;
+    UTF32 *nullTarget32 = NULL;
+
+#define EXPECT_INVALID(label, expression) do { \
+    if ((expression) != sourceIllegal) { \
+        fprintf(stderr, "%s accepted invalid buffer arguments\n", label); \
+        return 0; \
+    } \
+} while (0)
+
+    EXPECT_INVALID("ConvertUTF32toUTF16 NULL source handle",
+        ConvertUTF32toUTF16(NULL, bytes32 + 1, &target16, out16 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF16 NULL source end",
+        ConvertUTF32toUTF16(&source32, NULL, &target16, out16 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF16 NULL source cursor",
+        ConvertUTF32toUTF16(&nullSource32, bytes32 + 1, &target16, out16 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF16 NULL target handle",
+        ConvertUTF32toUTF16(&source32, bytes32 + 1, NULL, out16 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF16 NULL target end",
+        ConvertUTF32toUTF16(&source32, bytes32 + 1, &target16, NULL, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF16 NULL target cursor",
+        ConvertUTF32toUTF16(&source32, bytes32 + 1, &nullTarget16, out16 + 4, strictConversion));
+
+    EXPECT_INVALID("ConvertUTF16toUTF32 NULL source handle",
+        ConvertUTF16toUTF32(NULL, bytes16 + 1, &target32, out32 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF32 NULL source end",
+        ConvertUTF16toUTF32(&source16, NULL, &target32, out32 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF32 NULL source cursor",
+        ConvertUTF16toUTF32(&nullSource16, bytes16 + 1, &target32, out32 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF32 NULL target handle",
+        ConvertUTF16toUTF32(&source16, bytes16 + 1, NULL, out32 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF32 NULL target end",
+        ConvertUTF16toUTF32(&source16, bytes16 + 1, &target32, NULL, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF32 NULL target cursor",
+        ConvertUTF16toUTF32(&source16, bytes16 + 1, &nullTarget32, out32 + 4, strictConversion));
+
+    EXPECT_INVALID("ConvertUTF16toUTF8 NULL source handle",
+        ConvertUTF16toUTF8(NULL, bytes16 + 1, &target8, out8 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF8 NULL source end",
+        ConvertUTF16toUTF8(&source16, NULL, &target8, out8 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF8 NULL source cursor",
+        ConvertUTF16toUTF8(&nullSource16, bytes16 + 1, &target8, out8 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF8 NULL target handle",
+        ConvertUTF16toUTF8(&source16, bytes16 + 1, NULL, out8 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF8 NULL target end",
+        ConvertUTF16toUTF8(&source16, bytes16 + 1, &target8, NULL, strictConversion));
+    EXPECT_INVALID("ConvertUTF16toUTF8 NULL target cursor",
+        ConvertUTF16toUTF8(&source16, bytes16 + 1, &nullTarget8, out8 + 4, strictConversion));
+
+    EXPECT_INVALID("ConvertUTF8toUTF16 NULL source handle",
+        ConvertUTF8toUTF16(NULL, bytes8 + 1, &target16, out16 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF16 NULL source end",
+        ConvertUTF8toUTF16(&source8, NULL, &target16, out16 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF16 NULL source cursor",
+        ConvertUTF8toUTF16(&nullSource8, bytes8 + 1, &target16, out16 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF16 NULL target handle",
+        ConvertUTF8toUTF16(&source8, bytes8 + 1, NULL, out16 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF16 NULL target end",
+        ConvertUTF8toUTF16(&source8, bytes8 + 1, &target16, NULL, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF16 NULL target cursor",
+        ConvertUTF8toUTF16(&source8, bytes8 + 1, &nullTarget16, out16 + 4, strictConversion));
+
+    EXPECT_INVALID("ConvertUTF32toUTF8 NULL source handle",
+        ConvertUTF32toUTF8(NULL, bytes32 + 1, &target8, out8 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF8 NULL source end",
+        ConvertUTF32toUTF8(&source32, NULL, &target8, out8 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF8 NULL source cursor",
+        ConvertUTF32toUTF8(&nullSource32, bytes32 + 1, &target8, out8 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF8 NULL target handle",
+        ConvertUTF32toUTF8(&source32, bytes32 + 1, NULL, out8 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF8 NULL target end",
+        ConvertUTF32toUTF8(&source32, bytes32 + 1, &target8, NULL, strictConversion));
+    EXPECT_INVALID("ConvertUTF32toUTF8 NULL target cursor",
+        ConvertUTF32toUTF8(&source32, bytes32 + 1, &nullTarget8, out8 + 4, strictConversion));
+
+    EXPECT_INVALID("ConvertUTF8toUTF32 NULL source handle",
+        ConvertUTF8toUTF32(NULL, bytes8 + 1, &target32, out32 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF32 NULL source end",
+        ConvertUTF8toUTF32(&source8, NULL, &target32, out32 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF32 NULL source cursor",
+        ConvertUTF8toUTF32(&nullSource8, bytes8 + 1, &target32, out32 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF32 NULL target handle",
+        ConvertUTF8toUTF32(&source8, bytes8 + 1, NULL, out32 + 4, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF32 NULL target end",
+        ConvertUTF8toUTF32(&source8, bytes8 + 1, &target32, NULL, strictConversion));
+    EXPECT_INVALID("ConvertUTF8toUTF32 NULL target cursor",
+        ConvertUTF8toUTF32(&source8, bytes8 + 1, &nullTarget32, out32 + 4, strictConversion));
+
+#undef EXPECT_INVALID
+
+    if (ConvertUTF32toUTF16(&source32, bytes32, &target16, out16, strictConversion) != conversionOK ||
+        ConvertUTF16toUTF32(&source16, bytes16, &target32, out32, strictConversion) != conversionOK ||
+        ConvertUTF16toUTF8(&source16, bytes16, &target8, out8, strictConversion) != conversionOK ||
+        ConvertUTF8toUTF16(&source8, bytes8, &target16, out16, strictConversion) != conversionOK ||
+        ConvertUTF32toUTF8(&source32, bytes32, &target8, out8, strictConversion) != conversionOK ||
+        ConvertUTF8toUTF32(&source8, bytes8, &target32, out32, strictConversion) != conversionOK) {
+        fprintf(stderr, "valid empty ConvertUTF ranges were rejected\\n");
+        return 0;
+    }
+
+    if (source8 != bytes8 || source16 != bytes16 || source32 != bytes32 ||
+        target8 != out8 || target16 != out16 || target32 != out32 ||
+        nullSource8 != NULL || nullSource16 != NULL || nullSource32 != NULL ||
+        nullTarget8 != NULL || nullTarget16 != NULL || nullTarget32 != NULL ||
+        out8[0] != 0xaa || out16[0] != 0xaaaa || out32[0] != 0xaaaaaaaa) {
+        fprintf(stderr, "invalid ConvertUTF arguments changed caller cursors or output\\n");
+        return 0;
+    }
+    return 1;
+}
+
+
 int main(void)
 {
     const UTF8 empty[] = { 0 };
@@ -274,6 +404,8 @@ int main(void)
     const UTF8 truncated[] = { 0xe2, 0x82 };
     const UTF8 overlong[] = { 0xc0, 0x80 };
     const UTF8 bad_lead[] = { 0xf5, 0x80, 0x80, 0x80, 0x80 };
+
+    if (!test_invalid_buffer_arguments()) return EXIT_FAILURE;
 
     if (!expect_result("NULL source", NULL, ascii + 1, false) ||
         !expect_result("NULL end", ascii, NULL, false) ||

@@ -52,6 +52,10 @@
 	sourceEnd, targetEnd - respectively pointers to the ends of the
 		two buffers, for overflow checking only.
 
+	All four buffer pointers and both cursor handles must be non-NULL.
+	Invalid buffer arguments return sourceIllegal without changing either
+	cursor. Empty ranges are represented by equal, non-NULL start/end pointers.
+
 	These conversion functions take a ConversionFlags argument. When this
 	flag is set to strict, both irregular sequences and isolated surrogates
 	will cause an error.  When the flag is set to lenient, both irregular

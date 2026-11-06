@@ -2661,6 +2661,37 @@ jobs:
                       not (remaining_guard < sequence_validation < sequence_decode)):
                   raise SystemExit(function_name + " must check remaining source bytes before validating or decoding a multibyte sequence")
 
+          converter_names = ("ConvertUTF32toUTF16", "ConvertUTF16toUTF32",
+                             "ConvertUTF16toUTF8", "ConvertUTF8toUTF16",
+                             "ConvertUTF32toUTF8", "ConvertUTF8toUTF32")
+          for index, function_name in enumerate(converter_names):
+              converter_start = convert_source.find("ConversionResult " + function_name + " (")
+              next_start = (convert_source.find("ConversionResult " + converter_names[index + 1] + " (", converter_start)
+                            if index + 1 < len(converter_names) else convert_source.find("/* ---------------------------------------------------------------------", converter_start))
+              converter_body = convert_source[converter_start:next_start] if converter_start >= 0 and next_start > converter_start else ""
+              argument_guard = converter_body.find("if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||")
+              guard_end = converter_body.find("return sourceIllegal;", argument_guard)
+              source_read = converter_body.find("source = *sourceStart;")
+              target_read = converter_body.find("target = *targetStart;")
+              if (not converter_body or argument_guard < 0 or guard_end < argument_guard or
+                      source_read < guard_end or target_read < guard_end or
+                      "NULL == targetStart || NULL == *targetStart || NULL == targetEnd" not in converter_body[argument_guard:guard_end]):
+                  raise SystemExit(function_name + " must reject null buffer handles/cursors before dereferencing caller-owned pointers")
+
+          convert_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.h").read_text()
+          for needle in ("All four buffer pointers and both cursor handles must be non-NULL.",
+                         "Invalid buffer arguments return sourceIllegal without changing either",
+                         "Empty ranges are represented by equal, non-NULL start/end pointers."):
+              if needle not in convert_header:
+                  raise SystemExit("ConvertUTF invalid-buffer contract documentation missing: " + needle)
+          for function_name in converter_names:
+              for argument_name in ("NULL source handle", "NULL source end", "NULL source cursor",
+                                     "NULL target handle", "NULL target end", "NULL target cursor"):
+                  if function_name + " " + argument_name not in convert_test:
+                      raise SystemExit("ConvertUTF invalid-buffer regression case missing: " + function_name + " " + argument_name)
+          if "invalid ConvertUTF arguments changed caller cursors or output" not in convert_test:
+              raise SystemExit("ConvertUTF invalid-buffer regression must confirm caller cursors/output stay untouched")
+
           encoding_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c").read_text()
           truncate_start = encoding_source.find("static int UArray_truncateAfterConvertToEncoding_(UArray *self)")
           truncate_end = encoding_source.find("\nint UArray_convertToFixedSizeType", truncate_start)

@@ -67,10 +67,18 @@ ConversionResult ConvertUTF32toUTF16 (
 										ConversionFlags flags)
 {
 	ConversionResult result = conversionOK;
-	const UTF32* source = *sourceStart;
-	UTF16* target = *targetStart;
+	const UTF32* source;
+	UTF16* target;
 
-	while (source < sourceEnd)
+	
+	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
+	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
+		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	source = *sourceStart;
+	target = *targetStart;
+
+while (source < sourceEnd)
 	{
 		UTF32 ch;
 
@@ -139,10 +147,18 @@ ConversionResult ConvertUTF16toUTF32 (
 										const UTF16** sourceStart, const UTF16* sourceEnd,
 										UTF32** targetStart, UTF32* targetEnd, ConversionFlags flags) {
 	ConversionResult result = conversionOK;
-	const UTF16* source = *sourceStart;
-	UTF32* target = *targetStart;
+	const UTF16* source;
+	UTF32* target;
 	UTF32 ch, ch2;
-	while (source < sourceEnd) {
+	
+	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
+	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
+		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	source = *sourceStart;
+	target = *targetStart;
+
+while (source < sourceEnd) {
 		const UTF16* oldSource = source; /*  In case we have to back up because of target overflow. */
 		ch = *source++;
 		/* If we have a surrogate pair, convert to UTF32 first. */
@@ -245,9 +261,17 @@ ConversionResult ConvertUTF16toUTF8 (
 									 const UTF16** sourceStart, const UTF16* sourceEnd,
 									 UTF8** targetStart, UTF8* targetEnd, ConversionFlags flags) {
 	ConversionResult result = conversionOK;
-	const UTF16* source = *sourceStart;
-	UTF8* target = *targetStart;
-	while (source < sourceEnd) {
+	const UTF16* source;
+	UTF8* target;
+	
+	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
+	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
+		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	source = *sourceStart;
+	target = *targetStart;
+
+while (source < sourceEnd) {
 		UTF32 ch;
 		unsigned short bytesToWrite = 0;
 		const UTF32 byteMask = 0xBF;
@@ -372,9 +396,17 @@ ConversionResult ConvertUTF8toUTF16 (
 									 const UTF8** sourceStart, const UTF8* sourceEnd,
 									 UTF16** targetStart, UTF16* targetEnd, ConversionFlags flags) {
 	ConversionResult result = conversionOK;
-	const UTF8* source = *sourceStart;
-	UTF16* target = *targetStart;
-	while (source < sourceEnd) {
+	const UTF8* source;
+	UTF16* target;
+	
+	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
+	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
+		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	source = *sourceStart;
+	target = *targetStart;
+
+while (source < sourceEnd) {
 		UTF32 ch = 0;
 		unsigned short extraBytesToRead = trailingBytesForUTF8[*source];
 		if ((size_t)(sourceEnd - source) <= (size_t)extraBytesToRead) {
@@ -445,9 +477,17 @@ ConversionResult ConvertUTF32toUTF8 (
 									 const UTF32** sourceStart, const UTF32* sourceEnd,
 									 UTF8** targetStart, UTF8* targetEnd, ConversionFlags flags) {
 	ConversionResult result = conversionOK;
-	const UTF32* source = *sourceStart;
-	UTF8* target = *targetStart;
-	while (source < sourceEnd) {
+	const UTF32* source;
+	UTF8* target;
+	
+	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
+	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
+		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	source = *sourceStart;
+	target = *targetStart;
+
+while (source < sourceEnd) {
 		UTF32 ch;
 		unsigned short bytesToWrite = 0;
 		const UTF32 byteMask = 0xBF;
@@ -504,9 +544,17 @@ ConversionResult ConvertUTF8toUTF32 (
 									 const UTF8** sourceStart, const UTF8* sourceEnd,
 									 UTF32** targetStart, UTF32* targetEnd, ConversionFlags flags) {
 	ConversionResult result = conversionOK;
-	const UTF8* source = *sourceStart;
-	UTF32* target = *targetStart;
-	while (source < sourceEnd) {
+	const UTF8* source;
+	UTF32* target;
+	
+	/* Reject invalid buffer handles before dereferencing caller-owned cursors. */
+	if (NULL == sourceStart || NULL == *sourceStart || NULL == sourceEnd ||
+		NULL == targetStart || NULL == *targetStart || NULL == targetEnd)
+		return sourceIllegal;
+	source = *sourceStart;
+	target = *targetStart;
+
+while (source < sourceEnd) {
 		UTF32 ch = 0;
 		unsigned short extraBytesToRead = trailingBytesForUTF8[*source];
 		if ((size_t)(sourceEnd - source) <= (size_t)extraBytesToRead) {

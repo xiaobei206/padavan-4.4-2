@@ -1,3 +1,14 @@
+## 2026-11-06 21:05 CST — Validate ConvertUTF buffers before dereference
+
+- Baseline: main `09fa2efecd93be008e154fe6783084daff892499`; SkipDBv2 Regression #336 passed.
+- Scope: the six UTF-8/UTF-16/UTF-32 conversion entry points and the existing `convert_utf8_bounds` test.
+- Each converter now rejects NULL cursor handles, NULL cursor values, and NULL end pointers with `sourceIllegal` before dereferencing or comparing them. Invalid calls leave cursors and output unchanged. The public header now documents the non-NULL requirement and representation of empty ranges.
+- Added 36 invalid-argument regression calls covering all six argument categories in all six conversion paths, with cursor/output preservation checks.
+- Extended the GitHub Actions source contract to verify guard ordering in all six functions, the public contract, and the regression matrix. Existing CMake/CTest registration is reused.
+- No local compilation is claimed; mainline CI #337 is the compile/runtime gate.
+
+---
+
 ## 2026-11-06 20:58 CST — Restore the declared Datum detector API
 
 ### Baseline
