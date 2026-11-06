@@ -1,3 +1,23 @@
+## 2026-11-06 15:36 CST — Guard Date receiver and time-component access
+
+### Baseline
+- Main commit `c2a59c12518e7541d2d9dc83840faf040ea95bc1`; SkipDBv2 Regression run #286 passed source-contract preflight, configure, full build, and CTest.
+
+### Defect and fix
+- Multiple public Date entry points dereferenced caller-owned Date pointers without validation. Component accessors also dereferenced the result of `localtime()` without checking whether the timestamp could be represented.
+- Add one private local-time conversion helper, reject NULL receiver/peer arguments before state access, and give value-returning queries neutral failure values. Keep Date's public ABI unchanged.
+
+### Regression and contracts
+- Extend the existing `date_time_init.c` test with NULL receiver/argument coverage across copy, comparison, timezone, conversion, component, parsing, duration, and current-time APIs.
+- Verify normal copy and fractional-second behavior remains intact.
+- Strengthen existing Date workflow contracts for helper use, guard ordering, and regression coverage; reuse the registered CTest target.
+
+### Validation
+- Static review verifies the private helper has no exported declaration and checks precede local-time dereferences.
+- The workflow triggered by this commit is authoritative for compilation and CTest.
+
+---
+
 ## 2026-11-06 15:34 CST — Align List slice CI contract with centralized validator
 
 ### CI failure

@@ -1016,7 +1016,13 @@ jobs:
                   "Duration lifecycle test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Date.c": [
-                  "if (NULL == self)",
+                  "static struct tm *Date_localTime_(const Date *self, time_t *timestamp)",
+                  "if (NULL == self || NULL == timestamp)",
+                  "if (NULL == self || NULL == other || self == other)",
+                  "if (NULL == self || NULL == other)",
+                  "Date_localTime_(self, &t)",
+                  "if (NULL == self || NULL == s || NULL == format)",
+                  "if (NULL == self || NULL == d)",
                   "if (gettimeofday(&timeval, &timezone) != 0)",
                   "if (NULL == self || gettimeofday(&timeval, &timezone) != 0)",
                   "if (NULL == self || NULL == format)",
@@ -1027,6 +1033,10 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c": [
                   "Date_now(NULL)",
                   "Date_setToLocalTimeZone(NULL)",
+                  "Date_copy_(NULL, &sample)",
+                  "Date_compare(NULL, &sample)",
+                  "Date_asSeconds(NULL) != 0.0",
+                  "Date NULL receiver/argument contract failed",
                   "Date_SecondsFrom1970ToNow()",
                   "Date_new did not initialize the wall-clock state",
               ],
@@ -2045,6 +2055,65 @@ jobs:
                          "Date_new did not initialize the wall-clock state"):
               if needle not in date_test:
                   raise SystemExit("Date initialization regression case missing: " + needle)
+
+          local_helper_start = date_source.find("static struct tm *Date_localTime_(const Date *self, time_t *timestamp)")
+          local_helper_end = date_source.find("\\n}", local_helper_start)
+          local_helper = date_source[local_helper_start:local_helper_end] if local_helper_start >= 0 and local_helper_end > local_helper_start else ""
+          if (not local_helper or
+                  "if (NULL == self || NULL == timestamp)" not in local_helper or
+                  "*timestamp = self->tv.tv_sec;" not in local_helper or
+                  "return localtime(timestamp);" not in local_helper):
+              raise SystemExit("Date localtime helper must reject NULL and centralize timestamp conversion")
+          for signature, next_signature in (
+                  ("long Date_year(const Date *self)", "void Date_setYear_("),
+                  ("int Date_month(const Date *self)", "void Date_setMonth_("),
+                  ("int Date_day(const Date *self)", "void Date_setDay_("),
+                  ("int Date_hour(const Date *self)", "void Date_setHour_("),
+                  ("int Date_minute(const Date *self)", "void Date_setMinute_("),
+                  ("double Date_second(const Date *self)", "void Date_setSecond_("),
+                  ("unsigned char Date_isDaylightSavingsTime(const Date *self)", "int Date_isLeapYear(")):
+              start = date_source.find(signature)
+              end = date_source.find(next_signature, start)
+              body = date_source[start:end] if start >= 0 and end > start else ""
+              helper_call = body.find("Date_localTime_(self, &t)")
+              neutral_result = body.find(": 0")
+              if neutral_result < 0:
+                  neutral_result = body.find("if (NULL == tm)")
+              if not body or helper_call < 0 or neutral_result < 0 or neutral_result < helper_call:
+                  raise SystemExit("Date component accessor must handle invalid receivers/localtime results: " + signature)
+          for signature, next_signature, guard, operation in (
+                  ("void Date_copy_(Date *self, const Date *other)", "void Date_free(", "if (NULL == self || NULL == other || self == other)", "memcpy("),
+                  ("int Date_compare(const Date *self, const Date *other)", "double Date_SecondsFrom1970ToNow(", "if (NULL == self || NULL == other)", "Date_asSeconds(self)"),
+                  ("void Date_fromLocalTime_(Date *self, struct tm *t)", "void Date_fromTime_(", "if (NULL == self || NULL == t)", "mktime(t)"),
+                  ("void Date_fromString_format_(Date *self, const char *s, const char *format)", "// durations", "if (NULL == self || NULL == s || NULL == format)", "io_strptime("),
+                  ("Duration *Date_newDurationBySubtractingDate_(const Date *self, const Date *other)", "void Date_addDuration_(", "if (NULL == self || NULL == other)", "Date_secondsSince_(self, other)")):
+              start = date_source.find(signature)
+              end = date_source.find(next_signature, start)
+              body = date_source[start:end] if start >= 0 and end > start else ""
+              if not body or guard not in body or body.find(guard) > body.find(operation):
+                  raise SystemExit("Date entry point must reject invalid arguments before state access: " + signature)
+          for signature, next_signature in (
+                  ("void Date_setYear_(Date *self, long v)", "int Date_month("),
+                  ("void Date_setMonth_(Date *self, int v)", "int Date_day("),
+                  ("void Date_setDay_(Date *self, int v)", "int Date_hour("),
+                  ("void Date_setHour_(Date *self, int v)", "int Date_minute("),
+                  ("void Date_setMinute_(Date *self, int v)", "double Date_second("),
+                  ("void Date_setSecond_(Date *self, double v)", "unsigned char Date_isDaylightSavingsTime(")):
+              start = date_source.find(signature)
+              end = date_source.find(next_signature, start)
+              body = date_source[start:end] if start >= 0 and end > start else ""
+              helper_call = body.find("Date_localTime_(self, &t)")
+              null_guard = body.find("if (NULL == tm)")
+              member_write = body.find("tm->")
+              if not body or helper_call < 0 or null_guard < helper_call or member_write < null_guard:
+                  raise SystemExit("Date component setter must guard localtime before mutating its result: " + signature)
+          date_null_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
+          for needle in ("Date_copy_(NULL, &sample)", "Date_compare(NULL, &sample)",
+                         "Date_asSeconds(NULL) != 0.0",
+                         "Date NULL receiver/argument contract failed",
+                         "Date_newDurationBySubtractingDate_(&sample, NULL) != NULL"):
+              if needle not in date_null_test:
+                  raise SystemExit("Date NULL-boundary regression case missing: " + needle)
 
           date_string_start = date_source.find("UArray *Date_asString(const Date *self, const char *format)")
           date_string_end = date_source.find("\n}", date_string_start)

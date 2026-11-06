@@ -13,6 +13,15 @@
 #include "PortableStrptime.h"
 #include "UArray.h"
 
+static struct tm *Date_localTime_(const Date *self, time_t *timestamp)
+{
+	if (NULL == self || NULL == timestamp)
+		return NULL;
+	*timestamp = self->tv.tv_sec;
+	return localtime(timestamp);
+}
+
+
 Date *Date_new(void)
 {
 	Date *self = (Date *)io_calloc(1, sizeof(Date));
@@ -24,6 +33,8 @@ Date *Date_new(void)
 
 void Date_copy_(Date *self, const Date *other)
 {
+	if (NULL == self || NULL == other || self == other)
+		return;
 	memcpy(self, other, sizeof(Date));
 }
 
@@ -34,8 +45,11 @@ void Date_free(Date *self)
 
 int Date_compare(const Date *self, const Date *other)
 {
-	double s1 = Date_asSeconds(self);
-	double s2 = Date_asSeconds(other);
+	double s1, s2;
+	if (NULL == self || NULL == other)
+		return 0;
+	s1 = Date_asSeconds(self);
+	s2 = Date_asSeconds(other);
 
 	if (s1 == s2)
 	{
@@ -83,17 +97,22 @@ void Date_setToLocalTimeZone(Date *self)
 
 struct timezone Date_timeZone(const Date *self)
 {
-	return self->tz;
+	struct timezone empty = { 0, 0 };
+	return self ? self->tz : empty;
 }
 
 void Date_setTimeZone_(Date *self, struct timezone tz)
 {
-	self->tz = tz;
+	if (self)
+		self->tz = tz;
 }
 
 void Date_convertToTimeZone_(Date *self, struct timezone tz)
 {
-	double s = Date_asSeconds(self) +
+	double s;
+	if (NULL == self)
+		return;
+	s = Date_asSeconds(self) +
 	((self->tz.tz_minuteswest - tz.tz_minuteswest) * 60);
 	Date_fromSeconds_(self, s);
 	Date_setTimeZone_(self, tz);
@@ -103,42 +122,56 @@ void Date_convertToTimeZone_(Date *self, struct timezone tz)
 
 void Date_fromLocalTime_(Date *self, struct tm *t)
 {
+	if (NULL == self || NULL == t)
+		return;
 	Date_fromTime_(self, mktime(t));
 }
 
 void Date_fromTime_(Date *self, time_t t)
 {
+	if (NULL == self)
+		return;
 	Date_fromSeconds_(self, (double)t);
 }
 
 time_t Date_asTime(const Date *self)
 {
-	return (time_t)self->tv.tv_sec;
+	return self ? (time_t)self->tv.tv_sec : (time_t)0;
 }
 
 // sconds --------------------------------------------------------
 
 double Date_asSeconds(const Date *self)
 {
+	if (NULL == self)
+		return 0.0;
 	return ((double)self->tv.tv_sec) + (((double)self->tv.tv_usec) / 1000000.0);
 }
 
 void Date_fromSeconds_(Date *self, double s)
 {
-	long secs = s;
+	long secs;
+	if (NULL == self)
+		return;
+	secs = s;
 	self->tv.tv_sec = secs;
 	self->tv.tv_usec = (s - secs)*1000000;
 }
 
 void Date_addSeconds_(Date *self, double s)
 {
-	long secs = s;
+	long secs;
+	if (NULL == self)
+		return;
+	secs = s;
 	self->tv.tv_sec += secs;
 	self->tv.tv_usec += (s - secs)*1000000;
 }
 
 double Date_secondsSince_(const Date *self, const Date *other)
 {
+	if (NULL == self || NULL == other)
+		return 0.0;
 	return Date_asSeconds(self) - Date_asSeconds(other);
 }
 
@@ -146,90 +179,104 @@ double Date_secondsSince_(const Date *self, const Date *other)
 
 long Date_year(const Date *self)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
-	return tm->tm_year + 1900;
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	return tm ? (long)tm->tm_year + 1900L : 0L;
 }
 
 void Date_setYear_(Date *self, long v)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	if (NULL == tm)
+		return;
 	tm->tm_year = v - 1900;
 	self->tv.tv_sec = mktime(tm);
 }
 
 int Date_month(const Date *self)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
-	return tm->tm_mon;
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	return tm ? tm->tm_mon : 0;
 }
 
 void Date_setMonth_(Date *self, int v)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	if (NULL == tm)
+		return;
 	tm->tm_mon = v;
 	self->tv.tv_sec = mktime(tm);
 }
 
 int Date_day(const Date *self)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
-	return tm->tm_mday;
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	return tm ? tm->tm_mday : 0;
 }
 
 void Date_setDay_(Date *self, int v)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	if (NULL == tm)
+		return;
 	tm->tm_mday = v;
 	self->tv.tv_sec = mktime(tm);
 }
 
 int Date_hour(const Date *self)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
-	return tm->tm_hour;
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	return tm ? tm->tm_hour : 0;
 }
 
 void Date_setHour_(Date *self, int v)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	if (NULL == tm)
+		return;
 	tm->tm_hour = v;
 	self->tv.tv_sec = mktime(tm);
 }
 
 int Date_minute(const Date *self)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
-	return tm->tm_min;
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	return tm ? tm->tm_min : 0;
 }
 
 void Date_setMinute_(Date *self, int v)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	if (NULL == tm)
+		return;
 	tm->tm_min = v;
 	self->tv.tv_sec = mktime(tm);
 }
 
 double Date_second(const Date *self)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	if (NULL == tm)
+		return 0.0;
 	return ((double)tm->tm_sec) + ((double)self->tv.tv_usec)/1000000.0;
 }
 
 void Date_setSecond_(Date *self, double v)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	if (NULL == tm)
+		return;
 	tm->tm_sec = v;
 	self->tv.tv_sec = mktime(tm);
 	self->tv.tv_usec = (v - ((long)v))*1000000;
@@ -237,14 +284,17 @@ void Date_setSecond_(Date *self, double v)
 
 unsigned char Date_isDaylightSavingsTime(const Date *self)
 {
-	time_t t = self->tv.tv_sec;
-	struct tm *tm = localtime(&t);
-	return (unsigned char)tm->tm_isdst;
+	time_t t;
+	struct tm *tm = Date_localTime_(self, &t);
+	return tm ? (unsigned char)tm->tm_isdst : 0;
 }
 
 int Date_isLeapYear(const Date *self)
 {
-	int year = Date_year(self);
+	int year;
+	if (NULL == self)
+		return 0;
+	year = (int)Date_year(self);
 
 	if (((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0))
 	{
@@ -264,7 +314,9 @@ static struct tm EmptyTM(void)
 	struct tm *tt = localtime(&tmp);
 	struct tm t;
 
-	memcpy(&t, tt, sizeof(struct tm));
+	memset(&t, 0, sizeof(t));
+	if (tt)
+		memcpy(&t, tt, sizeof(struct tm));
 	t.tm_sec  = 0;
 	t.tm_min  = 0;
 	t.tm_hour = 0;
@@ -278,7 +330,10 @@ static struct tm EmptyTM(void)
 
 void Date_fromString_format_(Date *self, const char *s, const char *format)
 {
-	struct tm tm = EmptyTM();
+	struct tm tm;
+	if (NULL == self || NULL == s || NULL == format)
+		return;
+	tm = EmptyTM();
 	io_strptime((char *)s, (char *)format, &tm);
 	/*
 	printf("year  = %i\n", t.tm_year);
@@ -295,17 +350,24 @@ void Date_fromString_format_(Date *self, const char *s, const char *format)
 
 Duration *Date_newDurationBySubtractingDate_(const Date *self, const Date *other)
 {
-	double d = Date_secondsSince_(self, other);
+	double d;
+	if (NULL == self || NULL == other)
+		return NULL;
+	d = Date_secondsSince_(self, other);
 	return Duration_newWithSeconds_(d);
 }
 
 void Date_addDuration_(Date *self, const Duration *d)
 {
+	if (NULL == self || NULL == d)
+		return;
 	Date_addSeconds_(self, Duration_asSeconds(d));
 }
 
 void Date_subtractDuration_(Date *self, const Duration *d)
 {
+	if (NULL == self || NULL == d)
+		return;
 	Date_addSeconds_(self, -Duration_asSeconds(d));
 }
 
@@ -313,8 +375,11 @@ void Date_subtractDuration_(Date *self, const Duration *d)
 
 double Date_secondsSinceNow(const Date *self)
 {
-	double n = Date_SecondsFrom1970ToNow();
-	double s = Date_asSeconds(self);
+	double n, s;
+	if (NULL == self)
+		return 0.0;
+	n = Date_SecondsFrom1970ToNow();
+	s = Date_asSeconds(self);
 	return n - s;
 }
 
