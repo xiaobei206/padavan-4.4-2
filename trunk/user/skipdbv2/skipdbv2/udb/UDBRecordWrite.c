@@ -124,6 +124,9 @@ int UDBRecord_saveWithDatum_(UDBRecord *self, Datum d)
 
     old_file_pos = self->file->pos;
     old_max_pos = self->file->maxPos;
+    /* This API creates a row; replacement is implemented by append + retire. */
+    if (self->pos != (PID_TYPE)old_max_pos)
+        return 0;
     if (self->file->journalingOn) {
         if (NULL == self->file->log ||
             fseek(self->file->log, 0, SEEK_END) != 0 ||

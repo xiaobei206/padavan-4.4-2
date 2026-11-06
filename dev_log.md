@@ -1,3 +1,13 @@
+## 2026-11-07 07:11 CST — Enforce append-only record creation in journal mode
+
+- Baseline: main commit `9cf85ee031e186a136a22d7bce580778c625de26`; SkipDBv2 Regression run #463 passed source contracts, full build, and all 56 regression tests.
+- Scope: `UDBRecord_saveWithDatum_()` in `udb/UDBRecordWrite.c`.
+- The non-journaling path already required a new record to start at EOF, but the journaling path skipped that same invariant. A caller holding a cached live-record position could therefore overwrite its persisted header/payload without updating the PID index or retiring the old row through the replacement path.
+- Enforce the EOF precondition before either write mode and test that an existing record position is rejected without changing journal size, logical file extent, or the record cursor. Update the existing Actions source contract; no new files, public symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:08 CST — Reject record-header writes beyond the data extent
 
 - Baseline: main commit `357e616178b2da7117f40784b4a896ffbf054ead`; SkipDBv2 Regression run #462 passed source contracts, full build, and all 56 regression tests.

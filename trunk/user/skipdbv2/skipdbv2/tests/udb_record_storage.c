@@ -110,6 +110,25 @@ int main(void)
         goto done;
     }
 
+    /*
+     * saveWithDatum_ is append-only in both journaling modes. Allowing a
+     * cached live-record position here bypasses the index replacement path.
+     */
+    {
+        size_t log_before = JFile_logSize(db->records->file);
+        long max_before = db->records->file->maxPos;
+        PID_TYPE pos_before = UDBRecord_pos(record);
+
+        if (UDBRecord_saveWithDatum_(record, input) ||
+            JFile_logSize(db->records->file) != log_before ||
+            db->records->file->maxPos != max_before ||
+            UDBRecord_pos(record) != pos_before) {
+            (void)JFile_clipLog(db->records->file);
+            fprintf(stderr, "record save accepted a non-append position\n");
+            goto done;
+        }
+    }
+
     /* A record header writer must never overwrite the offset-zero metadata. */
     {
         UDBRecord metadata_probe;
