@@ -1,3 +1,16 @@
+## 2026-11-06 15:26 CST — Align UArray path source contract with guard formatting
+
+### CI failure
+- SkipDBv2 Regression run #283 stopped during source-contract preflight because the static contract expected the NULL guard on one line, while the implementation wraps the condition after `||`.
+
+### Fix
+- Match the contract needle to the actual multi-line guard prefix. No C implementation change.
+
+### Validation
+- The source-contract needle now matches `if (NULL == self || NULL == path ||`; the next run will verify preflight, configure, build, and CTest.
+
+---
+
 ## 2026-11-06 15:24 CST — Guard UArray path component entry points
 
 ### Baseline

@@ -1203,7 +1203,7 @@ jobs:
                   "UArray name lookup test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c": [
-                  "if (NULL == self || NULL == path)",
+                  "if (NULL == self || NULL == path ||",
                   "if (NULL == self || (self->size > 0 && NULL == self->data))",
                   "if (NULL == self)",
                   "if (pos < 0)",
