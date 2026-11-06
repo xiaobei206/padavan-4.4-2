@@ -127,6 +127,28 @@ int main(void)
 			goto done;
 		}
 	}
+	{
+		Stack invalid_mark = *marks;
+		void **saved_items = invalid_mark.items;
+		void **saved_top = invalid_mark.top;
+		void **saved_memEnd = invalid_mark.memEnd;
+		Stack *invalid_clone;
+
+		invalid_mark.lastMark = -1;
+		invalid_clone = Stack_clone(&invalid_mark);
+		if (invalid_clone != NULL) {
+			Stack_free(invalid_clone);
+			fprintf(stderr, "negative stack mark was accepted by clone\\n");
+			goto done;
+		}
+		Stack_compact(&invalid_mark);
+		if (Stack_memorySize(&invalid_mark) != 0 ||
+			invalid_mark.items != saved_items || invalid_mark.top != saved_top ||
+			invalid_mark.memEnd != saved_memEnd || invalid_mark.lastMark != -1) {
+			fprintf(stderr, "negative stack mark changed state during validation\\n");
+			goto done;
+		}
+	}
 	invalid_chain = Stack_clone(marks);
 	if (NULL == invalid_chain) {
 		fprintf(stderr, "malformed mark-chain clone failed\\n");

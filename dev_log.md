@@ -1,3 +1,11 @@
+## 2026-11-06 19:38 CST — Reject negative Stack mark metadata
+
+- Main baseline `7630dd2295d0a16c6e4a822265ef72dd6951c673`; SkipDBv2 Regression run #330 passed.
+- `Stack_isValid_()` validated only positive mark-chain nodes, allowing a negative `lastMark` to pass as an empty chain. Reject the invalid sentinel in the shared validator used by clone, compact, and memory-size queries.
+- Extend `stack_lifecycle` to assert negative mark metadata is rejected without changing the stack state, and update existing source contracts. No new files or build target changes.
+
+---
+
 ## 2026-11-06 19:37 CST — Preserve the existing byte-size regression contract
 
 - CI run #329 stopped in the integration-contract stage because the byte-access test combined the pre-existing byte-size overflow assertion with the new accessor assertion, removing the exact diagnostic text that the existing contract requires.

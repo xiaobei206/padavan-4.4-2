@@ -1573,6 +1573,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack.c": [
                   "static int Stack_isValid_(const Stack *self, size_t *used, size_t *capacity)",
+                  "if (active >= allocated || self->lastMark < 0)",
                   "static int Stack_copyState_(Stack *self, const Stack *other)",
                   "newItems = (void **)io_realloc(self->items,",
                   "newItems = (void **)io_malloc(slots * sizeof(void *))",
@@ -1665,6 +1666,9 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c": [
                   "Stack_copy_(destination, source);",
                   "Stack_clone(source)",
+                  "invalid_mark.lastMark = -1;",
+                  "negative stack mark was accepted by clone",
+                  "negative stack mark changed state during validation",
                   "Stack_popMarkPoint_(marks, 0)",
                   "Stack_popMarkPoint_(marks, outer_mark)",
                   "invalid_bounds.top = invalid_bounds.memEnd;",

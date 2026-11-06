@@ -23,7 +23,7 @@ static int Stack_isValid_(const Stack *self, size_t *used, size_t *capacity)
 
 	active = (size_t)(self->top - self->items);
 	allocated = (size_t)(self->memEnd - self->items);
-	if (active >= allocated)
+	if (active >= allocated || self->lastMark < 0)
 		return 0;
 
 	mark = self->lastMark;
