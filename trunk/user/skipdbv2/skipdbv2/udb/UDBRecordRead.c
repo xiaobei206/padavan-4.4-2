@@ -7,7 +7,8 @@
 /* Shared extent check for a fixed header plus its declared payload. */
 static int UDBRecord_payloadFitsFile_(UDBRecord *self, size_t file_size, PID_TYPE payload_size)
 {
-    if (NULL == self || self->pos > file_size)
+    if (NULL == self || self->pos < (PID_TYPE)sizeof(PID_TYPE) ||
+        self->pos > (PID_TYPE)LONG_MAX || self->pos > file_size)
         return 0;
     if (file_size - self->pos < sizeof(UDBRecordHeader))
         return 0;

@@ -234,6 +234,69 @@ int main(void)
     }
 
     /*
+     * Even bytes that decode as a valid record header cannot make offset zero
+     * a physical row: that location is reserved for free-list metadata.
+     */
+    {
+        FILE *data_file = db->records->file->file;
+        unsigned char saved_prefix[sizeof(UDBRecordHeader)];
+        UDBRecordHeader forged_header;
+        UDBRecord metadata_probe = {0};
+        long old_pos = db->records->file->pos;
+        long old_max = db->records->file->maxPos;
+        int forged_header_accepted = 0;
+        int restore_ok = 1;
+
+        if (fseek(data_file, 0, SEEK_SET) != 0 ||
+            fread(saved_prefix, sizeof(saved_prefix), 1, data_file) != 1) {
+            fprintf(stderr, "unable to save offset-zero bytes for reader regression\n");
+            goto done;
+        }
+        memset(&forged_header, 0, sizeof(forged_header));
+        forged_header.tag = RECORD_TAG_EMPTY;
+        forged_header.pid = (PID_TYPE)1;
+        forged_header.size = 0;
+
+        if (fseek(data_file, 0, SEEK_SET) != 0 ||
+            fwrite(&forged_header, sizeof(forged_header), 1, data_file) != 1 ||
+            fflush(data_file) != 0) {
+            restore_ok = 0;
+            if (fseek(data_file, 0, SEEK_SET) == 0 &&
+                fwrite(saved_prefix, sizeof(saved_prefix), 1, data_file) == 1 &&
+                fflush(data_file) == 0)
+                restore_ok = 1;
+            clearerr(data_file);
+            db->records->file->pos = old_pos;
+            db->records->file->maxPos = old_max;
+            fprintf(stderr, "unable to craft offset-zero reader fixture\n");
+            if (!restore_ok)
+                fprintf(stderr, "unable to restore offset-zero reader fixture\n");
+            goto done;
+        }
+
+        UDBRecord_setJFile_(&metadata_probe, db->records->file);
+        UDBRecord_setPos_(&metadata_probe, (PID_TYPE)0);
+        forged_header_accepted = UDBRecord_readHeader(&metadata_probe);
+
+        if (fseek(data_file, 0, SEEK_SET) != 0 ||
+            fwrite(saved_prefix, sizeof(saved_prefix), 1, data_file) != 1 ||
+            fflush(data_file) != 0) {
+            clearerr(data_file);
+            db->records->file->pos = old_pos;
+            db->records->file->maxPos = old_max;
+            fprintf(stderr, "unable to restore offset-zero bytes after reader regression\n");
+            goto done;
+        }
+        clearerr(data_file);
+        db->records->file->pos = old_pos;
+        db->records->file->maxPos = old_max;
+        if (forged_header_accepted) {
+            fprintf(stderr, "record reader accepted offset-zero metadata as a physical row\n");
+            goto done;
+        }
+    }
+
+    /*
      * Offset zero stores free-list metadata, not a physical record. Craft
      * metadata/header bytes that would otherwise decode as a valid EMPTY row.
      */

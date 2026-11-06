@@ -1,3 +1,13 @@
+## 2026-11-07 07:18 CST — Reject reserved metadata offsets in the record reader
+
+- Baseline: main commit `c45f5e180859c4fbfb98602ebd9378b2588a6e77`; SkipDBv2 Regression run #466 passed integration contracts, configure, full build, and all 56 tests.
+- Scope: the shared physical-extent predicate in `udb/UDBRecordRead.c`.
+- The high-level record cursor, writer, removal, and relocation paths already reserve offset zero for the first-empty pointer, but the low-level header reader only checked file bounds. Crafted metadata bytes that matched a valid `UDBRecordHeader` could still be accepted as a physical record by a direct `UDBRecord_readHeader()` caller.
+- Reject offsets below the first physical-record boundary and offsets that cannot be represented by the signed file-seek API. Add a regression that temporarily places a valid EMPTY header over the metadata bytes, verifies the reader rejects it, and restores the original bytes before continuing. Update existing source contracts only; no new files, exported symbols, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:14 CST — Make UDB journal-path updates atomic
 
 - Baseline: main commit `4891eff043e3d60d0d93254fb467917098340348`; SkipDBv2 Regression run #465 passed integration contracts, configure, full build, and all 56 tests.

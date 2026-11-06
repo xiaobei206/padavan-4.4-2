@@ -143,6 +143,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordRead.c": [
                   "static int UDBRecord_payloadFitsFile_(UDBRecord *self, size_t file_size, PID_TYPE payload_size)",
+                  "self->pos < (PID_TYPE)sizeof(PID_TYPE)",
+                  "self->pos > (PID_TYPE)LONG_MAX",
                   "UDBRecord_payloadFitsFile_(self, file_size, 0)",
                   "UDBRecord_payloadFitsFile_(self, file_size, self->header.size)",
                   "UDBRecord_payloadFitsFile_(self, (size_t)self->file->maxPos, size)",
@@ -645,6 +647,7 @@ jobs:
                   "UDBRecord_saveWithDatum_(record, input)",
                   "record save accepted a non-append position",
                   "UDBRecords_recordAtPos_(db->records, (PID_TYPE)0)",
+                  "record reader accepted offset-zero metadata as a physical row",
                   "record cursor accepted metadata offset as a physical row",
                   "record cursor did not recover after metadata boundary rejection",
                   "binary payload round-trip failed",
