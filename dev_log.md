@@ -1,3 +1,13 @@
+## 2026-11-07 01:46 CST — Bound Date calendar-year conversion before narrowing
+
+- Baseline: main commit `744afb9016bafa4757b904862573a409a60dde39`; SkipDBv2 Regression run #404 passed after the Stack cursor contract correction.
+- Scope: `Date_setYear_` calendar-year conversion.
+- The setter subtracted 1900 from a caller-supplied `long` and assigned the result to `struct tm.tm_year` (`int`) without checking either the subtraction or narrowing range. Extreme inputs could trigger signed overflow or implementation-defined truncation.
+- Add one private checked conversion helper and reject values outside `INT_MIN..INT_MAX` before calling `localtime` or mutating the Date. Extend the existing Date time-initialization regression for a normal year, `LONG_MIN`, and (where representable) `LONG_MAX`. Reuse the existing CMake target; no new files or public API.
+- No local C build is claimed; CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 01:43 CST — Align Stack cursor-reader contract with shared validation
 
 - Baseline: main commit `5f7147b8942325d252e6f4282d4317cdd6175978`; run #403 passed the static source-needle list but failed the later ordered Stack reader check.

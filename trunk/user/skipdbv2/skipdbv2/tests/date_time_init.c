@@ -100,13 +100,45 @@ static int test_timezone_conversion(void)
 }
 
 
+static int test_calendar_year_bounds(void)
+{
+    Date value = {0};
+    Date before;
+
+    Date_fromSeconds_(&value, 1000000000.25);
+    Date_setYear_(&value, 2024);
+    if (Date_year(&value) != 2024 || value.tv.tv_usec != 250000) {
+        fprintf(stderr, "Date_setYear failed to preserve a valid calendar year or fractional second\\n");
+        return 0;
+    }
+
+    before = value;
+    Date_setYear_(&value, LONG_MIN);
+    if (value.tv.tv_sec != before.tv.tv_sec ||
+        value.tv.tv_usec != before.tv.tv_usec) {
+        fprintf(stderr, "Date_setYear accepted a year whose tm_year subtraction underflows\\n");
+        return 0;
+    }
+
+#if LONG_MAX > INT_MAX + 1900LL
+    Date_setYear_(&value, LONG_MAX);
+    if (value.tv.tv_sec != before.tv.tv_sec ||
+        value.tv.tv_usec != before.tv.tv_usec) {
+        fprintf(stderr, "Date_setYear narrowed an out-of-range tm_year\\n");
+        return 0;
+    }
+#endif
+
+    return 1;
+}
+
 int main(void)
 {
     Date *date;
     double before;
     double after;
 
-    if (!test_timezone_conversion()) return EXIT_FAILURE;
+    if (!test_timezone_conversion() || !test_calendar_year_bounds()) return EXIT_FAILURE;
 
     {
         Date sample = {0};

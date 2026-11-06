@@ -1251,6 +1251,11 @@ jobs:
                   "Duration lifecycle test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Date.c": [
+                  "static int Date_tmYearFromCalendarYear_(long calendarYear, int *tmYear)",
+                  "value = (long long)calendarYear - 1900LL",
+                  "if (value < INT_MIN || value > INT_MAX)",
+                  "!Date_tmYearFromCalendarYear_(v, &tmYear)",
+                  "tm->tm_year = tmYear;",
                   "static struct tm *Date_localTime_(const Date *self, time_t *timestamp)",
                   "long long currentSeconds, offsetSeconds, newSeconds;",
                   "self->tv.tv_usec < 0 || self->tv.tv_usec >= 1000000",
@@ -1276,6 +1281,11 @@ jobs:
                   "written = strftime(buffer, capacity, format, tm);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c": [
+                  "static int test_calendar_year_bounds(void)",
+                  "Date_setYear_(&value, LONG_MIN);",
+                  "Date_setYear_(&value, LONG_MAX);",
+                  "Date_setYear accepted a year whose tm_year subtraction underflows",
+                  "Date_setYear narrowed an out-of-range tm_year",
                   "const long long exactSeconds = 9007199254740993LL;",
                   "Date timezone conversion lost exact seconds above double precision",
                   "malformed.tv.tv_usec = 1000000;",

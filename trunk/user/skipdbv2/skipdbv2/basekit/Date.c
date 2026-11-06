@@ -266,6 +266,19 @@ double Date_secondsSince_(const Date *self, const Date *other)
 
 // components --------------------------------------------------------
 
+/* Convert a calendar year to struct tm's narrower tm_year without overflow. */
+static int Date_tmYearFromCalendarYear_(long calendarYear, int *tmYear)
+{
+	long long value;
+	if (NULL == tmYear)
+		return 0;
+	value = (long long)calendarYear - 1900LL;
+	if (value < INT_MIN || value > INT_MAX)
+		return 0;
+	*tmYear = (int)value;
+	return 1;
+}
+
 long Date_year(const Date *self)
 {
 	time_t t;
@@ -276,10 +289,14 @@ long Date_year(const Date *self)
 void Date_setYear_(Date *self, long v)
 {
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
+	int tmYear;
+	struct tm *tm;
+	if (NULL == self || !Date_tmYearFromCalendarYear_(v, &tmYear))
+		return;
+	tm = Date_localTime_(self, &t);
 	if (NULL == tm)
 		return;
-	tm->tm_year = v - 1900;
+	tm->tm_year = tmYear;
 	self->tv.tv_sec = mktime(tm);
 }
 
