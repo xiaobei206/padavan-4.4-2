@@ -961,6 +961,8 @@ jobs:
                   "isdigit((unsigned char)*buf)",
                   "isspace((unsigned char)*buf)",
                   "isspace((unsigned char)c)",
+                  "if (i < 1 || i > 366)",
+                  "tm->tm_yday = i - 1;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c": [
                   "io_strptime(NULL, format, &parsed)",
@@ -969,6 +971,10 @@ jobs:
                   "io_strptime(alpha, month_format, &invalid)",
                   "io_strptime(high_byte, hour_format, &invalid)",
                   "io_strptime(hour, high_byte_format, &invalid)",
+                  "io_strptime(yday_empty, yday_format, &parsed) != NULL",
+                  "io_strptime(yday_zero, yday_format, &parsed) != NULL",
+                  "io_strptime(yday_366, yday_format, &parsed) != yday_366 + 3",
+                  "tm_yday != 365",
                   "PortableStrptime boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Duration.c": [
@@ -1876,11 +1882,22 @@ jobs:
                   "isspace((unsigned char)*buf)" not in parser or
                   "*buf == 0" in loop_prefix):
               raise SystemExit("PortableStrptime must validate arguments, ctype bytes, and missing required input")
+          day_directive_start = parser.find("case 'j':")
+          day_directive_end = parser.find("case 'M':", day_directive_start)
+          day_directive = parser[day_directive_start:day_directive_end] if day_directive_start >= 0 and day_directive_end > day_directive_start else ""
+          if (not day_directive or "if (i < 1 || i > 366)" not in day_directive or
+                  "tm->tm_yday = i - 1;" not in day_directive or
+                  "*buf == 0" in day_directive):
+              raise SystemExit("PortableStrptime %j must reject missing/out-of-range ordinals and convert 1-based input to zero-based tm_yday")
           strptime_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c").read_text()
           for needle in ("io_strptime(truncated, format, &invalid)",
                          "io_strptime(empty, hour_format, &invalid)",
                          "io_strptime(alpha, month_format, &invalid)",
-                         "io_strptime(high_byte, hour_format, &invalid)"):
+                         "io_strptime(high_byte, hour_format, &invalid)",
+                         "io_strptime(yday_empty, yday_format, &parsed) != NULL",
+                         "io_strptime(yday_zero, yday_format, &parsed) != NULL",
+                         "io_strptime(yday_366, yday_format, &parsed) != yday_366 + 3",
+                         "tm_yday != 365"):
               if needle not in strptime_test:
                   raise SystemExit("PortableStrptime boundary regression case missing: " + needle)
 

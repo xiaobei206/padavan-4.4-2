@@ -199,14 +199,11 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'j':
-						if (*buf == 0 || isspace((unsigned char)*buf))
-								break;
-
 						i = readndigits(&buf, 3);
-						if (i < 0 || i > 366)
+						if (i < 1 || i > 366)
 								return NULL;
 
-						tm->tm_yday = i;
+						tm->tm_yday = i - 1;
 						break;
 
 				case 'M':

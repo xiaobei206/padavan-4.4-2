@@ -18,6 +18,14 @@ int main(void)
     char format[] = "%Y-%m-%d";
     char month_format[] = "%M";
     char hour_format[] = "%H";
+    char yday_format[] = "%j";
+    char yday_empty[] = "";
+    char yday_space[] = " ";
+    char yday_zero[] = "000";
+    char yday_001[] = "001";
+    char yday_060[] = "060";
+    char yday_366[] = "366";
+    char yday_367[] = "367";
 
     memset(&parsed, 0, sizeof(parsed));
     if (io_strptime(NULL, format, &parsed) != NULL ||
@@ -46,6 +54,30 @@ int main(void)
     memset(&parsed, 0, sizeof(parsed));
     if (NULL == io_strptime(hour, hour_format, &parsed) || parsed.tm_hour != 12) {
         fprintf(stderr, "valid hour did not parse correctly\n");
+        return EXIT_FAILURE;
+    }
+
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(yday_001, yday_format, &parsed) != yday_001 + 3 ||
+        parsed.tm_yday != 0) {
+        fprintf(stderr, "day 001 was not converted to zero-based day 0\n");
+        return EXIT_FAILURE;
+    }
+    if (io_strptime(yday_060, yday_format, &parsed) != yday_060 + 3 ||
+        parsed.tm_yday != 59) {
+        fprintf(stderr, "day 060 was not converted to zero-based day 59\n");
+        return EXIT_FAILURE;
+    }
+    if (io_strptime(yday_366, yday_format, &parsed) != yday_366 + 3 ||
+        parsed.tm_yday != 365) {
+        fprintf(stderr, "day 366 was not converted to zero-based day 365\n");
+        return EXIT_FAILURE;
+    }
+    if (io_strptime(yday_empty, yday_format, &parsed) != NULL ||
+        io_strptime(yday_space, yday_format, &parsed) != NULL ||
+        io_strptime(yday_zero, yday_format, &parsed) != NULL ||
+        io_strptime(yday_367, yday_format, &parsed) != NULL) {
+        fprintf(stderr, "invalid or missing day-of-year input was accepted\n");
         return EXIT_FAILURE;
     }
 

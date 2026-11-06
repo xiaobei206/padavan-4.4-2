@@ -1,3 +1,22 @@
+## 2026-11-06 14:40 CST — Correct PortableStrptime day-of-year semantics
+
+### Baseline
+- Main commit `ef13522983552d59acb6335b670b09ba0c826bb3`; SkipDBv2 Regression run #273 passed source contracts, configure, full build, and CTest.
+
+### Defect and fix
+- The day-of-year directive `%j` accepted `000`, values above the valid day-of-year range could be handled inconsistently, empty/space-only input could silently succeed, and valid ordinals were stored directly in `tm_yday` even though `struct tm` uses zero-based values.
+- Require an ordinal from 1 through 366 and store `i - 1`; absent, blank, zero, and out-of-range input now fail.
+
+### Regression and contracts
+- Extend the existing `portable_strptime_bounds_test` for ordinals 001, 060, and 366 plus empty, space-only, 000, and 367 input.
+- Strengthen existing workflow contracts for the directive's range/conversion and each key boundary case. Existing CMake test target is reused.
+
+### Validation
+- Structural preflight checks the day-of-year branch, zero-based conversion, and regression assertions.
+- The workflow triggered by this commit is authoritative for the complete compile and test result.
+
+---
+
 ## 2026-11-06 14:37 CST — Correct Date source-contract delimiter
 
 ### CI contract repair
