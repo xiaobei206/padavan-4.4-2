@@ -1,3 +1,13 @@
+## 2026-11-07 00:53 CST — Validate UArray stream append item geometry
+
+- Baseline: main commit `ed0412e0c9955e51fd11451725021d4aaed3087c`; SkipDBv2 Regression run #385 passed the source contracts, full build, and all CTest cases.
+- Scope: `UArray_readFromCStream_()` and `UArray_readNumberOfItems_fromCStream_()` in the existing stream-I/O module.
+- Both paths could accept a caller-mutated item count whose byte extent overflows `size_t`; stream reads could also try to append items beyond the representable byte extent.
+- Reject malformed existing storage before consuming input and reject actual read counts that exceed the remaining representable item capacity before appending. Extend the existing stream regression to cover pre-read rejection and append-boundary failures for 16-bit items.
+- Update the existing workflow source contracts. Reuse the existing CMake/CTest target; no new files or registrations. No local C build is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:50 CST — Reject out-of-range BStream tag fields before bit-field truncation
 
 - Baseline: main commit `d10391ceb2066d8bd0ed9d92b8e0846b3fef8654`; SkipDBv2 Regression run #384 passed.

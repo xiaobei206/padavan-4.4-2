@@ -177,13 +177,19 @@ static int testMalformedDestinationRejected(void)
 {
 	FILE *stream = tmpfile();
 	UArray *array = newByteArray();
-	uint8_t payload = 'x';
+	UArray *wide = UArray_new();
+	uint8_t payload[] = {'x', 'y'};
 	uint8_t *originalData = NULL;
+	uint8_t *originalWideData = NULL;
+	size_t originalSize = 0;
+	size_t originalWideSize = 0;
+	size_t invalidWideSize = 0;
+	size_t maxWideItems = 0;
 	int okay = 0;
 
-	if (NULL == stream || NULL == array)
+	if (NULL == stream || NULL == array || NULL == wide)
 		goto done;
-	if (fwrite(&payload, 1, 1, stream) != 1 ||
+	if (fwrite(payload, 1, sizeof(payload), stream) != sizeof(payload) ||
 		fseek(stream, 0, SEEK_SET) != 0)
 		goto done;
 	UArray_setSize_(array, 1);
@@ -192,18 +198,75 @@ static int testMalformedDestinationRejected(void)
 
 	/* Public structs can be malformed by a caller; reject before appending. */
 	originalData = array->data;
+	originalSize = array->size;
 	array->data = NULL;
 	okay = UArray_readNumberOfItems_fromCStream_(array, 1, stream) == -1 &&
 		array->size == 1 && NULL == array->data && ftell(stream) == 0;
 	array->data = originalData;
 	originalData = NULL;
+	if (!okay)
+		goto done;
+	okay = 0;
+
+	UArray_setItemType_(wide, CTYPE_uint16_t);
+	UArray_setSize_(wide, 1);
+	if (wide->itemSize != sizeof(uint16_t) || wide->size != 1 ||
+		NULL == wide->data)
+		goto done;
+	originalWideData = wide->data;
+	originalWideSize = wide->size;
+	maxWideItems = (size_t)-1 / wide->itemSize;
+	invalidWideSize = maxWideItems + 1;
+
+	/* Reject an impossible current byte extent without consuming input. */
+	wide->size = invalidWideSize;
+	if (UArray_readFromCStream_(wide, stream) != -1 ||
+		wide->size != invalidWideSize || wide->data != originalWideData ||
+		ftell(stream) != 0 ||
+		UArray_readNumberOfItems_fromCStream_(wide, 1, stream) != -1 ||
+		wide->size != invalidWideSize || wide->data != originalWideData ||
+		ftell(stream) != 0) {
+		wide->size = originalWideSize;
+		fprintf(stderr, "UArray stream read accepted a malformed byte extent\n");
+		goto done;
+	}
+
+	/* A valid maximum extent must not be grown past the byte-size limit. */
+	wide->size = maxWideItems;
+	if (UArray_readFromCStream_(wide, stream) != -1 ||
+		wide->size != maxWideItems || wide->data != originalWideData ||
+		ftell(stream) != (long)sizeof(payload)) {
+		wide->size = originalWideSize;
+		fprintf(stderr, "UArray stream read allowed item-count byte overflow\n");
+		goto done;
+	}
+	wide->size = originalWideSize;
+	if (fseek(stream, 0, SEEK_SET) != 0)
+		goto done;
+	wide->size = maxWideItems;
+	if (UArray_readNumberOfItems_fromCStream_(wide, 1, stream) != -1 ||
+		wide->size != maxWideItems || wide->data != originalWideData ||
+		ftell(stream) != (long)sizeof(uint16_t)) {
+		wide->size = originalWideSize;
+		fprintf(stderr, "UArray bounded read allowed item-count byte overflow\n");
+		goto done;
+	}
+	wide->size = originalWideSize;
+	okay = 1;
 
 done:
-	if (array && originalData)
+	if (wide && originalWideData) {
+		wide->data = originalWideData;
+		wide->size = originalWideSize;
+	}
+	if (array && originalData) {
 		array->data = originalData;
-	UArray_free(array);
+		array->size = originalSize;
+	}
 	if (stream)
 		fclose(stream);
+	UArray_free(wide);
+	UArray_free(array);
 	return okay;
 }
 

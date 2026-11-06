@@ -40,6 +40,7 @@ long UArray_readFromCStream_(UArray *self, FILE *fp)
 	size_t itemsPerBuffer;
 	UArray *buffer;
 	if (NULL == self || NULL == fp || self->itemSize == 0 ||
+		self->size > (size_t)-1 / self->itemSize ||
 		(self->size > 0 && NULL == self->data))
 		return -1;
 
@@ -71,7 +72,8 @@ long UArray_readFromCStream_(UArray *self, FILE *fp)
 		}
 		itemsRead = UArray_fread_(buffer, fp);
 		if (itemsRead > (size_t)(LONG_MAX - totalItemsRead) ||
-			itemsRead > (size_t)-1 - self->size) {
+			itemsRead > (size_t)-1 - self->size ||
+			itemsRead > (size_t)-1 / self->itemSize - self->size) {
 			UArray_free(buffer);
 			return -1;
 		}
@@ -101,8 +103,9 @@ long UArray_readNumberOfItems_fromCStream_(UArray *self, size_t size, FILE *stre
 	UArray *buffer;
 	if (NULL == self || NULL == stream || self->itemSize == 0 ||
 		(self->size > 0 && NULL == self->data) ||
-		size > (size_t)LONG_MAX || size > (size_t)-1 - self->size ||
-		(size > 0 && self->size > (size_t)-1 / self->itemSize))
+		size > (size_t)LONG_MAX ||
+		self->size > (size_t)-1 / self->itemSize ||
+		size > (size_t)-1 - self->size)
 		return -1;
 
 	buffer = UArray_new();
@@ -121,6 +124,10 @@ long UArray_readNumberOfItems_fromCStream_(UArray *self, size_t size, FILE *stre
 
 	itemsRead = UArray_fread_(buffer, stream);
 	oldSize = self->size;
+	if (itemsRead > (size_t)-1 / self->itemSize - oldSize) {
+		UArray_free(buffer);
+		return -1;
+	}
 	UArray_append_(self, buffer);
 	UArray_free(buffer);
 	if (self->size != oldSize + itemsRead || ferror(stream))
