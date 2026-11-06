@@ -11,6 +11,8 @@
 #include <stddef.h>
 #include <limits.h>
 
+static int UArray_hasValidStringItemLayout_(const UArray *self);
+
 void UArray_append_(UArray *self, const UArray *other)
 {
 	if (NULL == self || NULL == other)
@@ -194,9 +196,8 @@ BASEKIT_API int UArray_clipAfterStartOf_(UArray *self, const UArray *other)
 void UArray_lstrip_(UArray *self, const UArray *other)
 {
 	size_t amount = 0;
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
+	if (!UArray_hasValidStringItemLayout_(self) ||
+		!UArray_hasValidStringItemLayout_(other))
 		return;
 	if (UArray_isFloatType(self)) {
 		UARRAY_FOREACH(self, i, v,
@@ -216,9 +217,8 @@ void UArray_lstrip_(UArray *self, const UArray *other)
 void UArray_rstrip_(UArray *self, const UArray *other)
 {
 	size_t index = 0;
-	if (NULL == self || NULL == other ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
+	if (!UArray_hasValidStringItemLayout_(self) ||
+		!UArray_hasValidStringItemLayout_(other))
 		return;
 	if (UArray_isFloatType(self)) {
 		UARRAY_RFOREACH(self, i, v,
@@ -470,8 +470,7 @@ void UArray_swapWith_(UArray *self, UArray *other)
 void UArray_escape(UArray *self)
 {
 	UArray *out;
-	if (NULL == self || (self->size > 0 && NULL == self->data) ||
-		self->itemSize == 0)
+	if (!UArray_hasValidStringItemLayout_(self))
 		return;
 	out = UArray_new();
 	if (NULL == out)

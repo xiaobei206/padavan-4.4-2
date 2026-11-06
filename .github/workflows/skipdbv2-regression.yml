@@ -1242,6 +1242,8 @@ jobs:
                   "self->itemSize != expectedItemSize",
                   "self->size > (size_t)-1 / expectedItemSize",
                   "if (!UArray_hasValidStringItemLayout_(self))",
+                  "!UArray_hasValidStringItemLayout_(self) ||",
+                  "!UArray_hasValidStringItemLayout_(other)",
                   "long nextChar = (getIndex < self->size - 1)",
                   "? UArray_longAt_(self, getIndex + 1)",
                   "static int UArray_splitInputsAreValid_(const UArray *self, const PtrUArray *delims)",
@@ -1256,6 +1258,10 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_unescape_bounds.c": [
                   "malformed_numeric_layout_is_preserved",
                   "UArray_unescape accepted mismatched item metadata",
+                  "malformed_layout_is_rejected_by_string_iteration",
+                  "UArray string iteration accepted malformed receiver storage",
+                  "UArray string iteration accepted malformed trim storage",
+                  "valid UArray strip behavior changed unexpectedly",
                   "UArray_newWithData_type_size_copy_(",
                   "UArray_unescape(single_backslash)",
                   "UArray_unescape(trailing_backslash)",
@@ -2178,6 +2184,22 @@ jobs:
               raise SystemExit("UArray pointer setter must reject malformed arrays before resizing")
 
           split_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c").read_text()
+          string_iteration_ranges = (
+              ("void UArray_lstrip_(UArray *self, const UArray *other)",
+               "void UArray_rstrip_(UArray *self, const UArray *other)", True),
+              ("void UArray_rstrip_(UArray *self, const UArray *other)",
+               "BASEKIT_API void UArray_strip_(UArray *self, const UArray *other)", True),
+              ("void UArray_escape(UArray *self)",
+               "static size_t UArray_stringExpectedItemSize_(CTYPE itemType)", False),
+          )
+          for start_signature, end_signature, checks_other in string_iteration_ranges:
+              start = split_source.find(start_signature)
+              end = split_source.find(end_signature, start)
+              body = split_source[start:end] if start >= 0 and end > start else ""
+              if not body or "!UArray_hasValidStringItemLayout_(self)" not in body:
+                  raise SystemExit("UArray string iteration must validate receiver item layout before typed access")
+              if checks_other and "!UArray_hasValidStringItemLayout_(other)" not in body:
+                  raise SystemExit("UArray strip must validate trim-set item layout before typed membership reads")
           split_validator_start = split_source.find("static int UArray_splitInputsAreValid_(const UArray *self, const PtrUArray *delims)")
           split_start = split_source.find("PtrUArray *UArray_split_(const UArray *self, const PtrUArray *delims)")
           split_end = split_source.find("size_t UArray_splitCount_", split_start)

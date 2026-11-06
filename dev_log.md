@@ -1,3 +1,13 @@
+## 2026-11-06 22:02 CST — Validate UArray string iteration item layouts
+
+- Mainline CI #341 passed after the BStream attachment guard repair.
+- Scope: UArray_lstrip_(), UArray_rstrip_(), UArray_escape(), and the existing uarray_unescape_bounds regression.
+- The strip and escape paths checked for non-NULL data but did not verify that itemSize matched itemType. Typed iteration could therefore read wider numeric elements from undersized backing storage.
+- Reuse UArray_hasValidStringItemLayout_() before those typed reads, validating both the receiver and trim set. Add malformed receiver/trim-set cases and retain a valid strip round trip; extend existing workflow source contracts without adding files or changing CMake registration.
+- No local C compilation is claimed; the mainline CI run remains the build/runtime gate.
+
+---
+
 ## 2026-11-06 21:57 CST — Cover empty BStream views in the ownership guard
 
 - CI #340 compiled all targets and passed the workflow source contracts, but the new BStream regression exposed a zero-length tail-view blind spot: the byte-write overlap helper intentionally ignores zero-byte sources.

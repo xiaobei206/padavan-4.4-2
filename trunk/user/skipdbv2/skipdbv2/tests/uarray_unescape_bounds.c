@@ -32,6 +32,55 @@ static int malformed_numeric_layout_is_preserved(void)
 	return okay;
 }
 
+static int malformed_layout_is_rejected_by_string_iteration(void)
+{
+	UArray *value = UArray_newWithCString_(" x ");
+	UArray *trim = UArray_newWithCString_(" ");
+	UArray *valid = UArray_newWithCString_(" \tvalue\t ");
+	UArray *trim_set = UArray_newWithCString_(" \t");
+	int okay = 0;
+
+	if (NULL == value || NULL == trim || NULL == valid || NULL == trim_set)
+		goto done;
+
+	/* A one-byte allocation must not be read as a wider numeric item. */
+	value->itemType = CTYPE_uint64_t;
+	UArray_escape(value);
+	UArray_lstrip_(value, trim);
+	UArray_rstrip_(value, trim);
+	if (value->itemType != CTYPE_uint64_t || value->itemSize != sizeof(uint8_t) ||
+		!equals_bytes(value, " x ", 3)) {
+		fprintf(stderr, "UArray string iteration accepted malformed receiver storage\n");
+		goto done;
+	}
+
+	value->itemType = CTYPE_uint8_t;
+	trim->itemType = CTYPE_uint64_t;
+	UArray_lstrip_(value, trim);
+	UArray_rstrip_(value, trim);
+	if (!equals_bytes(value, " x ", 3)) {
+		fprintf(stderr, "UArray string iteration accepted malformed trim storage\n");
+		goto done;
+	}
+
+	UArray_lstrip_(valid, trim_set);
+	UArray_rstrip_(valid, trim_set);
+	if (!equals_bytes(valid, "value", 5)) {
+		fprintf(stderr, "valid UArray strip behavior changed unexpectedly\n");
+		goto done;
+	}
+
+	okay = 1;
+
+done:
+	UArray_free(value);
+	UArray_free(trim);
+	UArray_free(valid);
+	UArray_free(trim_set);
+	return okay;
+}
+
+
 int main(void)
 {
     UArray *single_backslash = UArray_newWithCString_("\\");
@@ -77,6 +126,9 @@ int main(void)
         fprintf(stderr, "UArray_unescape accepted mismatched item metadata\n");
         goto done;
     }
+
+    if (!malformed_layout_is_rejected_by_string_iteration())
+        goto done;
 
     result = EXIT_SUCCESS;
     puts("UArray unescape bounds test passed");
