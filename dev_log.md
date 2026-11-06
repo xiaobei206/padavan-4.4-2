@@ -1,3 +1,19 @@
+## 2026-11-06 12:25 CST — Make RandomGen source preflight independent of escaped newlines
+
+### CI preflight repair
+- Commit `4c6aad0a10aa6eaf318acbe6b82fd7301ab0789d` contained the RandomGen runtime hardening and regression, but its source-contract scanner encoded C line breaks as Python string escapes incorrectly.
+
+### Repair
+- Replace the newline-sensitive constructor check with explicit function-range and statement-order checks.
+- Verify the Gaussian NULL and zero-radius checks occur before the logarithm, without relying on escaped line delimiters.
+- No C source, test, or CMake target changed.
+
+### Validation
+- Static inspection confirms the contract compares source positions for the constructor guard, state initialization, zero-radius rejection, and logarithm.
+- Run #232 was active when corrected; the following mainline run validates the full suite.
+
+---
+
 ## 2026-11-06 12:23 CST — Harden RandomGen lifecycle and Gaussian rejection
 
 ### Baseline and scope

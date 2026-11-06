@@ -1167,9 +1167,20 @@ jobs:
                   raise SystemExit("Common allocator lifecycle regression case missing: " + needle)
 
           random_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c").read_text()
-          if ("if (NULL == self)\\n\\t\\treturn NULL;" not in random_source or
+          constructor_start = random_source.find("RandomGen *RandomGen_new(void)")
+          constructor_end = random_source.find("void RandomGen_free(", constructor_start)
+          constructor = random_source[constructor_start:constructor_end] if constructor_start >= 0 and constructor_end > constructor_start else ""
+          constructor_guard = constructor.find("if (NULL == self)")
+          state_init = constructor.find("self->mti =")
+          gaussian_start = random_source.find("double RandomGen_gaussian(RandomGen *self, double m, double s)")
+          gaussian_body = random_source[gaussian_start:] if gaussian_start >= 0 else ""
+          gaussian_null_guard = gaussian_body.find("if (NULL == self)")
+          zero_radius_guard = gaussian_body.find("w >= 1.0 || w == 0.0")
+          logarithm = gaussian_body.find("log( w )")
+          if (not constructor or constructor_guard < 0 or state_init < 0 or constructor_guard > state_init or
                   "return self ? genrand_real2(self) : 0.0;" not in random_source or
-                  "w >= 1.0 || w == 0.0" not in random_source):
+                  gaussian_null_guard < 0 or zero_radius_guard < 0 or logarithm < 0 or
+                  zero_radius_guard > logarithm):
               raise SystemExit("RandomGen lifecycle and zero-radius Gaussian guards are incomplete")
           random_test = Path("trunk/user/skipdbv2/skipdbv2/tests/random_gen_lifecycle.c").read_text()
           if ("RandomGen_setSeed(NULL, 5489UL)" not in random_test or
