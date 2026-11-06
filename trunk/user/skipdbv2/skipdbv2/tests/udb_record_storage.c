@@ -9,6 +9,7 @@ int main(void)
 {
     UDB *db = NULL;
     UDBRecord *record = NULL;
+    UDBRecord *clone = NULL;
     UDBRecord *probe = NULL;
     unsigned char payload[] = {0x41, 0x00, 0x7f, 0x80, 0xff, 0x5a};
     Datum input = {sizeof(payload), payload};
@@ -80,6 +81,49 @@ int main(void)
         goto done;
     }
 
+    /* A clone owns a distinct payload buffer and safely rejects NULL. */
+    if (UDBRecord_clone(NULL) != NULL) {
+        fprintf(stderr, "UDBRecord clone accepted a NULL source\n");
+        goto done;
+    }
+    clone = UDBRecord_clone(record);
+    if (NULL == clone) {
+        fprintf(stderr, "UDBRecord clone allocation failed\n");
+        goto done;
+    }
+    if (clone == record) {
+        clone = NULL;
+        fprintf(stderr, "UDBRecord clone returned the source object\n");
+        goto done;
+    }
+    if (clone->data == record->data) {
+        /* Keep the regression failure from double-freeing a shallow clone. */
+        clone->data = NULL;
+        UDBRecord_free(clone);
+        clone = NULL;
+        fprintf(stderr, "UDBRecord clone aliased the source payload\n");
+        goto done;
+    }
+    if (clone->file != record->file || clone->pos != record->pos ||
+        clone->header.tag != record->header.tag ||
+        clone->header.pid != record->header.pid ||
+        clone->header.size != record->header.size ||
+        NULL == clone->data || clone->data->itemSize != 1 ||
+        clone->data->size != sizeof(payload) ||
+        NULL == UArray_bytes(clone->data) ||
+        memcmp(UArray_bytes(clone->data), payload, sizeof(payload)) != 0) {
+        fprintf(stderr, "UDBRecord clone did not preserve metadata and payload\n");
+        goto done;
+    }
+    UDBRecord_free(clone);
+    clone = NULL;
+    restored = UDBRecord_readDatum(record);
+    if (restored.data == NULL || restored.size != sizeof(payload) ||
+        memcmp(restored.data, payload, sizeof(payload)) != 0) {
+        fprintf(stderr, "freeing a record clone damaged the source payload\n");
+        goto done;
+    }
+
     /* Invalid inputs and out-of-file moves must fail without changing bytes. */
     if (UDBRecord_saveWithDatum_(record, invalid) ||
         UDBRecord_moveToPos_(record, (PID_TYPE)saved_file_end)) {
@@ -123,6 +167,7 @@ int main(void)
     puts("udb record storage test passed");
 
 done:
+    if (clone) UDBRecord_free(clone);
     if (probe) UDBRecord_free(probe);
     if (record) UDBRecord_free(record);
     UDB_delete(db);

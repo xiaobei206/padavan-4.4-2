@@ -1,3 +1,12 @@
+## 2026-11-07 01:01 CST — Make UDBRecord clones independent and failure-safe
+
+- Baseline: main commit `47f7566f0c8fe929b42c2fddf5b0de474a42d249`; SkipDBv2 Regression run #388 passed source contracts, the full build, and all CTest cases.
+- Scope: `UDBRecord_clone()` and the existing `udb_record_storage` regression.
+- The old clone copied the struct byte-for-byte: a NULL source returned uninitialized allocated state, while a populated source shared its owned `UArray` with the original. Freeing both could double-free the payload; the struct allocation also bypassed the record's normal `calloc/free` ownership pairing.
+- Allocate clones through `UDBRecord_new()`, copy file/position/header metadata, and deep-clone owned payload storage with failure cleanup. Test NULL input, metadata and payload preservation, non-aliasing, and source lifetime after clone destruction. Update existing workflow source contracts; no new files or CMake registrations. No local C build is claimed.
+
+---
+
 ## 2026-11-07 00:59 CST — Restore string declarations for ConvertUTF range regression
 
 - Baseline: main commit `e9c77fba669c6a57bff04f78b0be7584339595b8`; regression run #387 failed during test compilation.

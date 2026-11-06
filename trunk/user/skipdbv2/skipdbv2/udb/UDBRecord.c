@@ -11,7 +11,24 @@ UDBRecord *UDBRecord_new(void)
 
 UDBRecord *UDBRecord_clone(UDBRecord *self)
 {
-    UDBRecord *clone = (UDBRecord *)cpalloc(self, sizeof(UDBRecord));
+    UDBRecord *clone;
+
+    if (NULL == self)
+        return NULL;
+    clone = UDBRecord_new();
+    if (NULL == clone)
+        return NULL;
+
+    clone->file = self->file;
+    clone->pos = self->pos;
+    clone->header = self->header;
+    if (self->data) {
+        clone->data = UArray_clone(self->data);
+        if (NULL == clone->data) {
+            UDBRecord_free(clone);
+            return NULL;
+        }
+    }
     return clone;
 }
 
