@@ -77,6 +77,24 @@ static size_t Sorting_quickSortRearrange_(SDSort *self, size_t lb, size_t ub)
     if (NULL == self || NULL == self->comp || NULL == self->swap)
         return lb;
 
+    /*
+     * Use the median of the first, middle, and last values as the pivot.
+     * This avoids the quadratic split produced by an endpoint pivot on
+     * reverse-ordered input while keeping all callback indexes in range.
+     */
+    if (ub - lb > 1) {
+        size_t mid = lb + (ub - lb) / 2;
+
+        if (self->comp(self->context, (int)mid, (int)lb) < 0)
+            self->swap(self->context, (int)mid, (int)lb);
+        if (self->comp(self->context, (int)ub, (int)lb) < 0)
+            self->swap(self->context, (int)ub, (int)lb);
+        if (self->comp(self->context, (int)ub, (int)mid) < 0)
+            self->swap(self->context, (int)ub, (int)mid);
+
+        self->swap(self->context, (int)lb, (int)mid);
+    }
+
     while (lb < ub) {
         while (lb < ub &&
                self->comp(self->context, (int)ub, (int)lb) >= 0)

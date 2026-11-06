@@ -1,3 +1,23 @@
+## 2026-11-06 20:45 CST — Avoid quadratic quicksort partitions on reverse-ordered input
+
+### Baseline
+- Main commit `a4d9fa22f6ab6f66e5430ca9c6af8611ebfc6043`; SkipDBv2 Regression run #334 (`42215666889`) passed integration contracts, CMake configuration, all target builds, and the complete CTest regression step.
+- Scope: the pivot selection in `basekit/Sorting.c` and the existing sorting boundary regression.
+
+### Defect and fix
+- The partitioner always used the first item as its pivot. On a 4,096-item reverse-ordered input this produced highly unbalanced partitions and quadratic comparison growth, despite the existing smaller-side recursion guard.
+- Select the median of the first, middle, and last values before partitioning. Keep the existing callback API, endpoint partition mechanics, int-index boundary, and bounded-recursion strategy unchanged.
+
+### Regression and contracts
+- Extend `sorting_boundaries.c` with a comparison budget for the existing 4,096-item reverse-order fixture. It must sort correctly in fewer than `LARGE_SORT_COUNT * 32` comparisons.
+- Update the existing Sorting source contracts to require median-of-three sampling and pivot installation. Reuse `sorting_boundaries_test`; no new files, public declarations, or CMake changes.
+
+### Validation
+- Static review confirms the midpoint calculation cannot exceed `ub`, all sampled indexes are within the already-validated `INT_MAX` range, and the pivot is installed before the partition scan.
+- No local C compilation or CTest result is claimed. Mainline CI will compile and execute the new comparison-bound regression.
+
+---
+
 ## 2026-11-06 20:05 CST — Preserve BStream writes sourced from the stream tail
 
 ### Baseline

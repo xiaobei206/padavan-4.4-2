@@ -103,6 +103,8 @@ int main(void)
                                          LARGE_SORT_COUNT, SDQuickSort);
     CHECK(is_sorted(large_reverse, LARGE_SORT_COUNT),
           "large reverse-order input was not sorted");
+    CHECK(sort.comparisons < LARGE_SORT_COUNT * 32u,
+          "large reverse-order input triggered quadratic comparison growth");
 
     guard.values = guarded;
     guard.comparisons = 0;

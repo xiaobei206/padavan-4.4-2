@@ -889,6 +889,11 @@ jobs:
                   "if (leftSize < rightSize)",
                   "lb = pivot + 1;",
                   "ub = pivot - 1;",
+                  "size_t mid = lb + (ub - lb) / 2;",
+                  "self->comp(self->context, (int)mid, (int)lb) < 0",
+                  "self->comp(self->context, (int)ub, (int)lb) < 0",
+                  "self->comp(self->context, (int)ub, (int)mid) < 0",
+                  "self->swap(self->context, (int)lb, (int)mid);",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Sorting.h": [
                   "#ifndef IOSORTING_DEFINED",
@@ -901,6 +906,7 @@ jobs:
                   "duplicate and negative values were not sorted",
                   "#define LARGE_SORT_COUNT 4096",
                   "large reverse-order input was not sorted",
+                  "large reverse-order input triggered quadratic comparison growth",
                   "oversized = (size_t)INT_MAX + 2u;",
                   "invalid callbacks or unsupported index range invoked a callback",
                   "Sorting boundary test passed",
@@ -3291,6 +3297,21 @@ jobs:
               raise SystemExit("Sorting must recurse only into the smaller partition and iterate over the larger partition")
           if quick_sort_body.count("Sorting_quickSort_(self,") != 2:
               raise SystemExit("Sorting must not restore unbounded two-sided recursive calls")
+
+          rearrange_start = sorting_source.find("static size_t Sorting_quickSortRearrange_(", quick_sort_end)
+          rearrange_body = sorting_source[rearrange_start:] if rearrange_start >= 0 else ""
+          median_start = rearrange_body.find("if (ub - lb > 1)")
+          median_end = rearrange_body.find("while (lb < ub)", median_start)
+          median_body = rearrange_body[median_start:median_end] if median_start >= 0 and median_end > median_start else ""
+          median_needles = (
+              "size_t mid = lb + (ub - lb) / 2;",
+              "self->comp(self->context, (int)mid, (int)lb) < 0",
+              "self->comp(self->context, (int)ub, (int)lb) < 0",
+              "self->comp(self->context, (int)ub, (int)mid) < 0",
+              "self->swap(self->context, (int)lb, (int)mid);",
+          )
+          if not median_body or any(needle not in median_body for needle in median_needles):
+              raise SystemExit("Sorting partition must install a median-of-three pivot before scanning")
 
           sorting_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/Sorting.h").read_text()
           if ("#ifndef IOSORTING_DEFINED" not in sorting_header or
