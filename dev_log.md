@@ -1,3 +1,14 @@
+## 2026-11-06 23:23 CST — Guard UArray scalar assignment transforms
+
+- Baseline: main commit `a4b40e9d93835c1bb75b09f07bd01a3859bc7496`; SkipDBv2 Regression run #363 completed successfully.
+- Scope: `UArray_round()`, `UArray_clear()`, `UArray_setItemsToLong_()`, `UArray_setItemsToDouble_()`, and `UArray_rangeFill()`, the shared single-array assignment-transform family.
+- These functions sent unvalidated metadata directly to `UARRAY_FOREACHASSIGN`, which has no pointer-sized CTYPE branch, and none invalidated the cached hash after mutation.
+- Move the existing numeric-storage validator declaration ahead of the assignment family, reject malformed/pointer-sized layouts and empty arrays before dispatch, and clear the hash once after each nonempty transform. Preserve each operation's existing conversion and rounding rules.
+- Extend the existing `uarray_math_extrema` regression and workflow contracts for valid transforms, NULL/empty/malformed storage, overflow geometry, pointer-sized arrays, and hash lifecycle. Reuse the existing CMake target; no new files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:20 CST — Harden UArray logical binary mutations
 
 - Baseline: main commit `83d13e501b2cade038310352f82b384ba216ea19`; SkipDBv2 Regression run #362 completed successfully.

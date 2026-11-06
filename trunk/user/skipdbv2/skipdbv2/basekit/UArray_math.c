@@ -20,6 +20,8 @@
 
 #define VEC_SIZE 4
 
+static int UArray_hasValidNumericStorage_(const UArray *self);
+
 #define LLVEC_DUALARG_OP(VNAME, COP, TYPE) \
 void v ## TYPE ## _ ## VNAME(TYPE ##_t *aa, TYPE ##_t *bb, size_t size)\
 {\
@@ -41,27 +43,47 @@ LLVEC_DUALARG_OP(div,  /=, float32);
 
 void UArray_round(UArray *self)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
 	UARRAY_FOREACHASSIGN(self, i, v, floor((double)(v+.5)));
+	UArray_changed(self);
 }
 
 void UArray_clear(UArray *self)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
 	UARRAY_FOREACHASSIGN(self, i, v, 0);
+	UArray_changed(self);
 }
 
 void UArray_setItemsToLong_(UArray *self, long x)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
 	UARRAY_FOREACHASSIGN(self, i, v, x);
+	UArray_changed(self);
 }
 
 void UArray_setItemsToDouble_(UArray *self, double x)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
 	UARRAY_FOREACHASSIGN(self, i, v, x);
+	UArray_changed(self);
 }
 
 void UArray_rangeFill(UArray *self)
 {
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
 	UARRAY_FOREACHASSIGN(self, i, v, i);
+	UArray_changed(self);
 }
 
 void UArray_negate(const UArray *self)
@@ -78,7 +100,6 @@ void UArray_negate(const UArray *self)
 
 // basic vector math
 
-static int UArray_hasValidNumericStorage_(const UArray *self);
 static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count);
 
 void UArray_add_(UArray *self, const UArray *other)

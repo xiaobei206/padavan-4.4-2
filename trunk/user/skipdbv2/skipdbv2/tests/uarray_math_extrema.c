@@ -974,6 +974,171 @@ cleanup:
     return result;
 }
 
+
+static int test_assignment_transforms(void)
+{
+    const int16_t clearValues[] = {7, -2, 9};
+    const double roundValues[] = {1.2, 1.8, -1.8};
+    const int32_t fillValues[] = {9, 9, 9};
+    const int32_t expectedRange[] = {0, 1, 2};
+    const double expectedRound[] = {1.0, 2.0, -2.0};
+    const uintptr_t pointerValues[] = {7, 8, 9};
+    UArray *cleared = UArray_newWithData_type_size_copy_(
+        (void *)clearValues, CTYPE_int16_t, 3, 1);
+    UArray *longFilled = UArray_newWithData_type_size_copy_(
+        (void *)fillValues, CTYPE_int32_t, 3, 1);
+    UArray *doubleFilled = UArray_newWithData_type_size_copy_(
+        (void *)roundValues, CTYPE_float64_t, 3, 1);
+    UArray *range = UArray_newWithData_type_size_copy_(
+        (void *)fillValues, CTYPE_int32_t, 3, 1);
+    UArray *rounded = UArray_newWithData_type_size_copy_(
+        (void *)roundValues, CTYPE_float64_t, 3, 1);
+    UArray *pointerArray = UArray_newWithData_type_size_copy_(
+        (void *)pointerValues, CTYPE_uintptr_t, 3, 1);
+    UArray *empty = UArray_new();
+    UArray invalid;
+    int result = EXIT_FAILURE;
+
+    if (!cleared || !longFilled || !doubleFilled || !range ||
+        !rounded || !pointerArray || !empty) {
+        fail("UArray assignment transform allocation failed");
+        goto cleanup;
+    }
+
+    cleared->hash = 0x1111;
+    UArray_clear(cleared);
+    if (UArray_rawDoubleAt_(cleared, 0) != 0.0 ||
+        UArray_rawDoubleAt_(cleared, 1) != 0.0 ||
+        UArray_rawDoubleAt_(cleared, 2) != 0.0 || cleared->hash != 0) {
+        fail("UArray clear changed values incorrectly or retained the cached hash");
+        goto cleanup;
+    }
+
+    longFilled->hash = 0x2222;
+    UArray_setItemsToLong_(longFilled, 6);
+    if (UArray_rawDoubleAt_(longFilled, 0) != 6.0 ||
+        UArray_rawDoubleAt_(longFilled, 2) != 6.0 || longFilled->hash != 0) {
+        fail("UArray long fill changed values incorrectly or retained the cached hash");
+        goto cleanup;
+    }
+
+    doubleFilled->hash = 0x3333;
+    UArray_setItemsToDouble_(doubleFilled, 2.75);
+    if (UArray_rawDoubleAt_(doubleFilled, 0) != 2.75 ||
+        UArray_rawDoubleAt_(doubleFilled, 2) != 2.75 || doubleFilled->hash != 0) {
+        fail("UArray double fill changed values incorrectly or retained the cached hash");
+        goto cleanup;
+    }
+
+    range->hash = 0x4444;
+    UArray_rangeFill(range);
+    if (memcmp(range->data, expectedRange, sizeof(expectedRange)) != 0 ||
+        range->hash != 0) {
+        fail("UArray range fill changed values incorrectly or retained the cached hash");
+        goto cleanup;
+    }
+
+    rounded->hash = 0x5555;
+    UArray_round(rounded);
+    if (UArray_rawDoubleAt_(rounded, 0) != expectedRound[0] ||
+        UArray_rawDoubleAt_(rounded, 1) != expectedRound[1] ||
+        UArray_rawDoubleAt_(rounded, 2) != expectedRound[2] || rounded->hash != 0) {
+        fail("UArray round changed results or retained the cached hash");
+        goto cleanup;
+    }
+
+    empty->hash = 0x6666;
+    UArray_clear(empty);
+    UArray_setItemsToLong_(empty, 1);
+    UArray_setItemsToDouble_(empty, 2.0);
+    UArray_rangeFill(empty);
+    UArray_round(empty);
+    UArray_clear(NULL);
+    UArray_setItemsToLong_(NULL, 1);
+    UArray_setItemsToDouble_(NULL, 2.0);
+    UArray_rangeFill(NULL);
+    UArray_round(NULL);
+    if (empty->size != 0 || empty->hash != 0x6666) {
+        fail("UArray empty assignment transforms changed receiver state");
+        goto cleanup;
+    }
+
+    invalid = *longFilled;
+    invalid.data = NULL;
+    invalid.hash = 0x7777;
+    UArray_clear(&invalid);
+    UArray_setItemsToLong_(&invalid, 1);
+    UArray_setItemsToDouble_(&invalid, 2.0);
+    UArray_rangeFill(&invalid);
+    UArray_round(&invalid);
+    if (invalid.data != NULL || invalid.hash != 0x7777) {
+        fail("UArray assignment transforms accepted missing backing storage");
+        goto cleanup;
+    }
+
+    invalid = *longFilled;
+    invalid.itemSize = 0;
+    invalid.hash = 0x8888;
+    UArray_clear(&invalid);
+    UArray_setItemsToLong_(&invalid, 1);
+    UArray_setItemsToDouble_(&invalid, 2.0);
+    UArray_rangeFill(&invalid);
+    UArray_round(&invalid);
+    if (invalid.hash != 0x8888) {
+        fail("UArray assignment transforms accepted malformed item width");
+        goto cleanup;
+    }
+
+    invalid = *longFilled;
+    invalid.itemType = (CTYPE)9999;
+    invalid.hash = 0x9999;
+    UArray_clear(&invalid);
+    UArray_setItemsToLong_(&invalid, 1);
+    UArray_setItemsToDouble_(&invalid, 2.0);
+    UArray_rangeFill(&invalid);
+    UArray_round(&invalid);
+    if (invalid.hash != 0x9999) {
+        fail("UArray assignment transforms accepted unsupported item type");
+        goto cleanup;
+    }
+
+    invalid = *longFilled;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    invalid.hash = 0xaaaa;
+    UArray_clear(&invalid);
+    UArray_setItemsToLong_(&invalid, 1);
+    UArray_setItemsToDouble_(&invalid, 2.0);
+    UArray_rangeFill(&invalid);
+    UArray_round(&invalid);
+    if (invalid.hash != 0xaaaa) {
+        fail("UArray assignment transforms accepted overflowing storage geometry");
+        goto cleanup;
+    }
+
+    pointerArray->hash = 0xbbbb;
+    UArray_clear(pointerArray);
+    UArray_setItemsToLong_(pointerArray, 1);
+    UArray_setItemsToDouble_(pointerArray, 2.0);
+    UArray_rangeFill(pointerArray);
+    UArray_round(pointerArray);
+    if (pointerArray->hash != 0xbbbb ||
+        memcmp(pointerArray->data, pointerValues, sizeof(pointerValues)) != 0) {
+        fail("UArray assignment transforms accepted pointer-sized item type");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(cleared);
+    UArray_free(longFilled);
+    UArray_free(doubleFilled);
+    UArray_free(range);
+    UArray_free(rounded);
+    UArray_free(pointerArray);
+    UArray_free(empty);
+    return result;
+}
+
 typedef void (*UArrayUnaryTransform_)(UArray *);
 typedef double (*UArrayUnaryMathFunction_)(double);
 
@@ -1112,6 +1277,8 @@ int main(void)
     if (test_pairwise_extrema() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_logical_mutations() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (test_assignment_transforms() != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
 

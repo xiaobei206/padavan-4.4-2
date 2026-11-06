@@ -1309,6 +1309,18 @@ jobs:
                   "== INT16_MIN",
                   "== INT32_MIN",
                   "== INT64_MIN",
+                  "void UArray_round(UArray *self)",
+                  "void UArray_clear(UArray *self)",
+                  "void UArray_setItemsToLong_(UArray *self, long x)",
+                  "void UArray_setItemsToDouble_(UArray *self, double x)",
+                  "void UArray_rangeFill(UArray *self)",
+                  "static int UArray_hasValidNumericStorage_(const UArray *self);",
+                  "self->itemType == CTYPE_uintptr_t || self->size == 0",
+                  "UARRAY_FOREACHASSIGN(self, i, v, floor((double)(v+.5)));",
+                  "UARRAY_FOREACHASSIGN(self, i, v, 0);",
+                  "UARRAY_FOREACHASSIGN(self, i, v, x);",
+                  "UARRAY_FOREACHASSIGN(self, i, v, i);",
+                  "UArray_changed(self);",
                   "#define UARRAY_DOP(OP) \\",
                   "void UArray_ ## OP (UArray *self) \\",
                   "self->itemType == CTYPE_uintptr_t || self->size == 0",
@@ -1483,6 +1495,19 @@ jobs:
                   "UArray logical operations accepted overflowing receiver geometry",
                   "UArray logical operations accepted overflowing operand geometry",
                   "if (test_logical_mutations() != EXIT_SUCCESS)",
+                  "UArray assignment transform allocation failed",
+                  "UArray clear changed values incorrectly or retained the cached hash",
+                  "UArray long fill changed values incorrectly or retained the cached hash",
+                  "UArray double fill changed values incorrectly or retained the cached hash",
+                  "UArray range fill changed values incorrectly or retained the cached hash",
+                  "UArray round changed results or retained the cached hash",
+                  "UArray empty assignment transforms changed receiver state",
+                  "UArray assignment transforms accepted missing backing storage",
+                  "UArray assignment transforms accepted malformed item width",
+                  "UArray assignment transforms accepted unsupported item type",
+                  "UArray assignment transforms accepted overflowing storage geometry",
+                  "UArray assignment transforms accepted pointer-sized item type",
+                  "if (test_assignment_transforms() != EXIT_SUCCESS)",
                   "if (test_pairwise_extrema() != EXIT_SUCCESS)",
                   "UArray division allocation failed",
                   "UArray integer division changed mixed-width prefix results or retained the cached hash",
@@ -2382,6 +2407,28 @@ jobs:
                   "UArray_minSizeWith_(" in body
               ):
                   raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")
+
+          assignment_transform_ranges = (
+              ("round", "void UArray_round(UArray *self)", "void UArray_clear"),
+              ("clear", "void UArray_clear(UArray *self)", "void UArray_setItemsToLong_"),
+              ("long fill", "void UArray_setItemsToLong_(UArray *self, long x)", "void UArray_setItemsToDouble_"),
+              ("double fill", "void UArray_setItemsToDouble_(UArray *self, double x)", "void UArray_rangeFill"),
+              ("range fill", "void UArray_rangeFill(UArray *self)", "void UArray_negate"),
+          )
+          for label, start_marker, end_marker in assignment_transform_ranges:
+              start = bit_math_source.find(start_marker)
+              end = bit_math_source.find(end_marker, start)
+              body = bit_math_source[start:end] if start >= 0 and end > start else ""
+              storage_guard = body.find("UArray_hasValidNumericStorage_(self)")
+              first_assign = body.find("UARRAY_FOREACHASSIGN(")
+              changed = body.find("UArray_changed(self);")
+              if (
+                  not body or storage_guard < 0 or first_assign < 0 or
+                  storage_guard > first_assign or
+                  "self->itemType == CTYPE_uintptr_t || self->size == 0" not in body or
+                  changed < 0 or changed < first_assign
+              ):
+                  raise SystemExit(f"UArray {label} assignment must validate numeric storage before dispatch and invalidate hash after writes")
 
           logical_type_helper = bit_math_source.find(
               "static int UArray_hasSupportedLogicalTypes_(const UArray *self, const UArray *other)"
