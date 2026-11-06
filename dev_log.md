@@ -1,3 +1,16 @@
+## 2026-11-06 14:17 CST — Fix platform-dependent UTF-32 width
+
+### CI root cause and repair
+- Run #264 shows conversion status 0 while the input UArray remains UTF-8, with item type uint8 and size 3. Inspection traced the failure to `ConvertUTF.h` declaring `UTF32` as `unsigned long`: that is 64 bits on LP64 systems, but UArray's `CTYPE_uint32_t` storage is 32 bits, so `UArray_asUTF32()` rejects the mismatched item size before conversion.
+- Define UTF32/UTF16/UTF8 using `uint32_t`/`uint16_t`/`uint8_t`, matching the actual fixed-width storage and preventing ABI-dependent output sizes or writes.
+- Keep the diagnostic regression assertion until CI confirms the Euro and supplementary-plane cases pass.
+
+### Contracts
+- Extend the workflow source-contract dictionary and embedded Python checks to require the fixed-width ConvertUTF typedefs.
+- Re-run configure, full build, and all regression tests; do not claim a green result before the new run completes.
+
+---
+
 ## 2026-11-06 14:14 CST — Instrument UTF-32 conversion regression
 
 ### CI diagnosis

@@ -1014,6 +1014,12 @@ jobs:
                   "self->encoding != CENCODING_UTF32",
                   "self->itemType != CTYPE_uint32_t",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.h": [
+                  "#include <stdint.h>",
+                  "typedef uint32_t UTF32;",
+                  "typedef uint16_t UTF16;",
+                  "typedef uint8_t  UTF8;",
+              ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_encoding_conversion.c": [
                   "UArray_convertToFixedSizeType(NULL)",
                   "CENCODING_ASCII",
@@ -1595,6 +1601,12 @@ jobs:
                          "add_test(NAME uarray_encoding_conversion_test COMMAND uarray_encoding_conversion_test)"):
               if needle not in encoding_cmake:
                   raise SystemExit("UArray encoding conversion test is not registered in CMake/CTest: " + needle)
+          convert_utf_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.h").read_text()
+          for needle in ("#include <stdint.h>", "typedef uint32_t UTF32;",
+                         "typedef uint16_t UTF16;", "typedef uint8_t  UTF8;"):
+              if needle not in convert_utf_header:
+                  raise SystemExit("ConvertUTF storage types must match fixed-width UArray element layouts: " + needle)
+
           date_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Date.c").read_text()
           date_ctor_start = date_source.find("Date *Date_new(void)")
           date_ctor_end = date_source.find("void Date_copy_(", date_ctor_start)

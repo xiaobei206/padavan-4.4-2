@@ -87,10 +87,13 @@
 	bit mask & shift operations.
 ------------------------------------------------------------------------ */
 
-typedef unsigned long   UTF32;   /* at least 32 bits */
-typedef unsigned short  UTF16;   /* at least 16 bits */
-typedef unsigned char   UTF8;    /* typically 8 bits */
-typedef unsigned char   Boolean; /* 0 or 1 */
+#include <stdint.h>
+
+/* Match the fixed-width UArray storage types on both ILP32 and LP64 targets. */
+typedef uint32_t UTF32;
+typedef uint16_t UTF16;
+typedef uint8_t  UTF8;
+typedef unsigned char Boolean; /* 0 or 1 */
 
 /* Some fundamental constants */
 #define UNI_REPLACEMENT_CHAR (UTF32)0x0000FFFD
