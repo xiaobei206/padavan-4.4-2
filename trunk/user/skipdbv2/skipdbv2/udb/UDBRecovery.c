@@ -42,6 +42,12 @@ void UDB_open(UDB *self)
 		UDB_close(self);
 		return;
 	}
+	/* Persist the marker's directory entry before either data artifact is created. */
+	if (marker_created &&
+		UDBCommitMarker_syncParentDirectory(self->commitMarker.path) != 0) {
+		UDB_close(self);
+		return;
+	}
 	marker = UDBCommitMarker_read(&self->commitMarker);
 	if (marker == -1 && UDBCommitMarker_artifactsAreEmpty(artifact_paths,4)) {
 		/* Recover a crash during first-time marker initialization only. */

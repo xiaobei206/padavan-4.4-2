@@ -1,3 +1,14 @@
+## 2026-11-07 05:01 CST — Make first UDB commit-marker creation directory-durable
+
+- Baseline: main commit `bfd9e71c5bf7d11b73c798dac96becd5ddb94b77`; SkipDBv2 Regression run #434 completed successfully after the cache-age traversal correction.
+- Scope: first-open crash ordering in `udb/UDBRecovery.c`.
+- On a brand-new database, the marker file contents were fsynced before index and record artifacts were created, but the marker's parent directory entry was not fsynced until the very end of startup. A power loss in between could leave durable database artifacts with no durable marker name; the next open correctly refuses that ambiguous state.
+- Immediately fsync the commit-marker parent directory after its initial clean-marker write and before opening either database artifact. Retain the existing end-of-open directory syncs for the data and journal directories.
+- Strengthen the existing Actions source contract with an ordering assertion proving marker write, marker-directory sync, and first artifact open remain in that order. No new API, file, or CTest target.
+- No local C compilation or crash-injection test is claimed; mainline CI is the compile and integration gate.
+
+---
+
 ## 2026-11-07 04:58 CST — Bound SkipDB cache-age traversal and recover cycles
 
 - Baseline: main commit `41f6250563ec6d97b7de6562395a8749c4aade97`; SkipDBv2 Regression run #433 completed successfully after the UArray path-boundary correction.

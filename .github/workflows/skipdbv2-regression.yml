@@ -113,6 +113,8 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecovery.c": [
                   "int UDB_streamsOpen_(UDB *self)",
                   "void UDB_open(UDB *self)",
+                  "if (marker_created && UDBCommitMarker_write(&self->commitMarker, 0) != 0)",
+                  "UDBCommitMarker_syncParentDirectory(self->commitMarker.path) != 0",
                   "UDBCommitMarker_verifyJournal(self->index->file->logPath)",
                   "JFile_applyLogToFile(self->index->file)",
                   "JFile_applyLogToFile(self->records->file)",
@@ -2570,6 +2572,27 @@ jobs:
           ).read_text()
           if commit_marker_source.count("UDBCommitMarker_verifyOpenedFile_(") != 3:
               raise SystemExit("UDB commit marker file identity validation is not centralized")
+
+          recovery_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecovery.c"
+          ).read_text()
+          marker_write_order = recovery_source.find(
+              "if (marker_created && UDBCommitMarker_write(&self->commitMarker, 0) != 0)"
+          )
+          marker_directory_sync_order = recovery_source.find(
+              "UDBCommitMarker_syncParentDirectory(self->commitMarker.path) != 0"
+          )
+          first_artifact_open_order = recovery_source.find("if (!UDBIndex_open(self->index))")
+          marker_parent_sync_calls = recovery_source.count(
+              "UDBCommitMarker_syncParentDirectory(self->commitMarker.path)"
+          )
+          if (
+              marker_write_order < 0 or marker_directory_sync_order < 0 or
+              first_artifact_open_order < 0 or
+              not marker_write_order < marker_directory_sync_order < first_artifact_open_order or
+              marker_parent_sync_calls != 2
+          ):
+              raise SystemExit("new UDB commit marker directory entry must be durable before database artifacts are opened")
 
           index_lifecycle_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndex.c"
