@@ -1,3 +1,23 @@
+## 2026-11-06 16:14 CST — Fail closed on malformed BStream write storage
+
+### Baseline
+- Main commit `93b55a18155d0584df97915026689cb9c7d556b3`; SkipDBv2 Regression run #295 passed source contracts, configure, full build, and all 49 CTest cases.
+
+### Defects and fixes
+- The shared `BStream_appendBytes_()` primitive validated the UArray item width but did not reject a non-empty byte array with a NULL data pointer before calling `UArray_appendBytes_size_()`.
+- `BStream_writeTaggedData_length_()` silently returned for invalid byte width or a non-empty NULL payload, leaving callers without the sticky error state used by the rest of the binary writer API.
+- Reject malformed existing storage at the append boundary. Make invalid tagged-data arguments latch an explicit error while preserving the existing terminal-error behavior.
+
+### Regression and contracts
+- Extend the existing `bstream_tag_boundaries_test` with malformed backing-store tests for plain and tagged writes, plus a NULL tagged-payload test. Fixtures restore the original UArray fields before normal destruction.
+- Extend existing BStream implementation/test source contracts. CMake registration and public declarations remain unchanged.
+
+### Validation
+- Static review confirms all invalid test fixtures restore owned storage before destruction and the implementation changes only the BStream write path.
+- The next mainline workflow is authoritative for compilation and the full CTest run.
+
+---
+
 ## 2026-11-06 16:10 CST — Validate SHash growth metadata before rehash
 
 ### Baseline

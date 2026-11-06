@@ -168,7 +168,9 @@ static int BStream_appendBytes_(BStream *self, const unsigned char *bytes, size_
 {
 	size_t oldSize;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
-		self->ba->itemSize != 1 || UArray_size(self->errorBa) != 0 ||
+		self->ba->itemSize != 1 ||
+		(self->ba->size > 0 && NULL == self->ba->data) ||
+		UArray_size(self->errorBa) != 0 ||
 		(length > 0 && NULL == bytes)) {
 		BStream_error_(self, "invalid binary stream write");
 		return 0;
@@ -616,10 +618,16 @@ void BStream_writeTaggedData_length_(BStream *self, const unsigned char *data, s
 {
 	size_t oldSize;
 	void *snapshot = NULL;
-	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
-		(self->ba->itemSize != 1) || (length > 0 && NULL == data) ||
-		UArray_size(self->errorBa) != 0)
+	if (NULL == self || NULL == self->ba || NULL == self->errorBa)
 		return;
+	if (UArray_size(self->errorBa) != 0)
+		return;
+	if (self->ba->itemSize != 1 ||
+		(self->ba->size > 0 && NULL == self->ba->data) ||
+		(length > 0 && NULL == data)) {
+		BStream_error_(self, "invalid tagged binary stream write");
+		return;
+	}
 	if (length > INT32_MAX) {
 		BStream_error_(self, "tagged data length is out of range");
 		return;

@@ -67,6 +67,68 @@ static int testBStreamClone(void)
 	return EXIT_SUCCESS;
 }
 
+static int testBStreamWriteValidation(void)
+{
+	const unsigned char payload[] = { 0x31, 0x32, 0x33 };
+	BStream *stream;
+	unsigned char *originalData;
+	size_t originalSize;
+	const char *error;
+
+	stream = BStream_new();
+	if (NULL == stream)
+		return fail("BStream write validation allocation failed");
+	originalData = stream->ba->data;
+	originalSize = stream->ba->size;
+	stream->ba->size = 1;
+	stream->ba->data = NULL;
+	BStream_writeData_length_(stream, payload, sizeof(payload));
+	error = BStream_errorString(stream);
+	if (NULL == error || error[0] == '\0' ||
+		stream->ba->size != 1 || stream->ba->data != NULL) {
+		stream->ba->size = originalSize;
+		stream->ba->data = originalData;
+		BStream_free(stream);
+		return fail("BStream write accepted malformed existing backing storage");
+	}
+	stream->ba->size = originalSize;
+	stream->ba->data = originalData;
+	BStream_free(stream);
+
+	stream = BStream_new();
+	if (NULL == stream)
+		return fail("BStream tagged write validation allocation failed");
+	BStream_writeTaggedData_length_(stream, NULL, 1);
+	error = BStream_errorString(stream);
+	if (NULL == error || error[0] == '\0' ||
+		stream->ba->size != 0 || stream->index != 0) {
+		BStream_free(stream);
+		return fail("BStream tagged write silently accepted a NULL payload");
+	}
+	BStream_free(stream);
+
+	stream = BStream_new();
+	if (NULL == stream)
+		return fail("BStream tagged storage validation allocation failed");
+	originalData = stream->ba->data;
+	originalSize = stream->ba->size;
+	stream->ba->size = 1;
+	stream->ba->data = NULL;
+	BStream_writeTaggedData_length_(stream, payload, sizeof(payload));
+	error = BStream_errorString(stream);
+	if (NULL == error || error[0] == '\0' ||
+		stream->ba->size != 1 || stream->ba->data != NULL) {
+		stream->ba->size = originalSize;
+		stream->ba->data = originalData;
+		BStream_free(stream);
+		return fail("BStream tagged write accepted malformed existing backing storage");
+	}
+	stream->ba->size = originalSize;
+	stream->ba->data = originalData;
+	BStream_free(stream);
+	return EXIT_SUCCESS;
+}
+
 int main(void)
 {
 	unsigned int arrayFlag, type, byteCount;
@@ -103,6 +165,8 @@ int main(void)
 	if (strcmp(BStreamTag_typeName(&sample), "pointer") != 0)
 		return fail("BStreamTag valid type name changed");
 	if (testBStreamClone() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (testBStreamWriteValidation() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	puts("BStreamTag boundaries test passed");
 	return EXIT_SUCCESS;
