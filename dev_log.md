@@ -1,3 +1,22 @@
+## 2026-11-06 16:07 CST — Reject malformed PHash growth metadata
+
+### Baseline
+- Main commit `1883d9b06e9fb3ba4e3627620541aca82d809c95`; SkipDBv2 Regression run #292 passed source contracts, configure, full build, and all 49 CTest cases.
+
+### Defect and fix
+- `PHash_grow()` trusted `tableSize`, `log2tableSize`, `mask`, and `numKeys` independently. A stale or corrupted table size could make the rehash loop read beyond the allocation; a mismatched mask could select records outside the backing table; an impossible key count could be rehashed as though the table were valid.
+- Apply the same core geometry/count invariants already enforced by `PHash_compact()` before saving state or iterating source records. Invalid inputs now leave the table untouched.
+
+### Regression and contracts
+- Extend the existing `phash_compact_test` with isolated shallow-table cases for inconsistent geometry, mask, and key count. Each case starts with a separately allocated empty table so the test safely verifies the rejected mutation.
+- Extend the existing workflow source/test contracts. No new file, public symbol, CMake target, or build registration is introduced.
+
+### Validation
+- Static review confirms the shift is evaluated only after the log2 range guard and the source record loop is reached only after all metadata invariants pass.
+- The post-commit SkipDBv2 Regression run is authoritative for compilation and the full CTest suite.
+
+---
+
 ## 2026-11-06 16:04 CST — Repair UArray stream link failure
 
 ### CI diagnosis

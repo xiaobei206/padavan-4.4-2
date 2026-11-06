@@ -11,6 +11,52 @@ static int check(int condition, const char *message)
 	return 0;
 }
 
+static int phashGrowRejectsInvalidState(int corruption)
+{
+	PHash *hash = PHash_new();
+	PHashRecord *originalRecords;
+	unsigned int originalTableSize, originalLog2, originalMask, originalNumKeys;
+	int unchanged;
+
+	if (NULL == hash)
+		return 0;
+	originalRecords = hash->records;
+	originalTableSize = hash->tableSize;
+	originalLog2 = hash->log2tableSize;
+	originalMask = hash->mask;
+	originalNumKeys = hash->numKeys;
+
+	switch (corruption) {
+		case 0:
+			hash->tableSize = 1; /* allocation is still large enough for this safe fixture */
+			break;
+		case 1:
+			hash->mask ^= 1u;
+			break;
+		case 2:
+			hash->numKeys = hash->tableSize + 1;
+			break;
+		default:
+			PHash_free(hash);
+			return 0;
+	}
+
+	{
+		unsigned int malformedTableSize = hash->tableSize;
+		unsigned int malformedMask = hash->mask;
+		unsigned int malformedNumKeys = hash->numKeys;
+		PHash_grow(hash);
+		unchanged = hash->records == originalRecords &&
+			hash->tableSize == malformedTableSize &&
+			hash->log2tableSize == originalLog2 &&
+			hash->mask == malformedMask &&
+			hash->numKeys == malformedNumKeys;
+	}
+	PHash_free(hash);
+	return unchanged && originalTableSize == 2 && originalMask == 1 &&
+		originalNumKeys == 0;
+}
+
 int main(void)
 {
 	PHash *hash;
@@ -19,6 +65,16 @@ int main(void)
 	size_t oldMemory;
 
 	PHash_compact(NULL);
+	if (!check(phashGrowRejectsInvalidState(0),
+		"PHash_grow accepted inconsistent table geometry"))
+		return EXIT_FAILURE;
+	if (!check(phashGrowRejectsInvalidState(1),
+		"PHash_grow accepted an inconsistent hash mask"))
+		return EXIT_FAILURE;
+	if (!check(phashGrowRejectsInvalidState(2),
+		"PHash_grow accepted an impossible key count"))
+		return EXIT_FAILURE;
+
 	hash = PHash_new();
 	if (!check(hash != NULL, "PHash allocation failed"))
 		return EXIT_FAILURE;
