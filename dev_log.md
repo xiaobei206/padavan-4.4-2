@@ -1,3 +1,21 @@
+## 2026-11-06 07:38 CST — Harden Stack storage and mark lifecycle
+
+### Baseline and scope
+- Base commit: `bd6b6d60d84ec3808df6a1894be31a1161a2cb81`; main's latest SkipDBv2 Regression run #221 completed successfully.
+- Scope is limited to the basekit Stack implementation and inline API, one focused lifecycle regression, its CMake registration, and the existing workflow source contracts.
+
+### Changes
+- Make Stack construction, cloning, copying, freeing, compaction, and growth preserve valid storage on allocation failure; failed reallocations no longer discard the owning pointer or leave stack pointers stale.
+- Correct Stack_copy_ to copy the source's active items and mark chain, and correct Stack_memorySize to report allocated bytes.
+- Guard empty/null stack operations, failed growth during push, invalid mark positions, and the zero-mark pop case before pointer arithmetic or mutation.
+- Add a focused regression for repeated growth, copy/clone state, compaction, pop order, nested mark rollback, and invalid zero-mark handling. Register it in the existing CMake test suite and enforce its source/build contract in the existing GitHub Actions workflow.
+
+### Validation
+- Static preflight checked all new helpers remain private, the public Stack API declarations are reused, the existing basekit source glob already compiles Stack.c, and the new test is registered exactly once.
+- No local full firmware build is available; the pushed SkipDBv2 Regression run is authoritative for source contracts, compilation, and CTest.
+
+---
+
 ## 2026-11-06 07:10 CST — Preserve newer PID-cache mappings during stale-record cleanup
 
 ### Baseline

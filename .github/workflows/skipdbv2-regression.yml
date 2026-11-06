@@ -688,6 +688,8 @@ jobs:
                   "ADD_LIBRARY(skipdb STATIC ${BASEKIT_SRC} ${JFILE_SRC} ${UDB_SRC} ${SKIPDB_SRC})",
                   "jfile_journal_test",
                   "add_test(NAME jfile_journal_test COMMAND jfile_journal_test)",
+                  "ADD_EXECUTABLE(stack_lifecycle_test",
+                  "add_test(NAME stack_lifecycle_test COMMAND stack_lifecycle_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -727,6 +729,27 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/Stack.c": [
+                  "static int Stack_isValid_(const Stack *self, size_t *used, size_t *capacity)",
+                  "static int Stack_copyState_(Stack *self, const Stack *other)",
+                  "newItems = (void **)io_realloc(self->items,",
+                  "newItems = (void **)io_malloc(slots * sizeof(void *))",
+                  "self->memEnd = newItems + newCapacity;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h": [
+                  "if (self->top >= self->memEnd - 1)",
+                  "if (mark <= 0)",
+                  "if (cursor != mark)",
+                  "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c": [
+                  "Stack_copy_(destination, source);",
+                  "Stack_clone(source)",
+                  "Stack_popMarkPoint_(marks, 0)",
+                  "Stack_popMarkPoint_(marks, outer_mark)",
+                  "Stack_compact(source);",
+                  "copied mark chain was not usable",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/ipc_io.c": [
                   "skipdb_wait_socket_until(sockets[0], POLLIN, now + 10ULL)",

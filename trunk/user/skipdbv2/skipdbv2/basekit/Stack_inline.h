@@ -10,153 +10,213 @@
 #define IO_IN_C_FILE
 #endif
 #include "Common_inline.h"
+#include <limits.h>
 #ifdef IO_DECLARE_INLINES
 
 IOINLINE void Stack_do_(const Stack *self, StackDoCallback *callback)
 {
-	void **itemP = self->top;
-	intptr_t mark = self->lastMark;
+	void **itemP;
+	intptr_t mark;
+
+	if (NULL == self || NULL == callback || NULL == self->items ||
+		NULL == self->top || self->top < self->items)
+		return;
+	itemP = self->top;
+	mark = self->lastMark;
 
 	while (itemP > self->items)
 	{
-		if (itemP - self->items == mark)
+		if (mark > 0 && itemP - self->items == mark)
 		{
-			mark = (intptr_t)(*itemP);
+			intptr_t previous = (intptr_t)(*itemP);
+			mark = previous >= 0 && previous < mark ? previous : 0;
 		}
 		else
 		{
 			(*callback)(*itemP);
 		}
-
-		itemP --;
+		itemP--;
 	}
 }
 
 IOINLINE void Stack_doUntilMark_(const Stack *self, StackDoCallback *callback)
 {
-	void **itemP = self->top;
-	intptr_t mark = self->lastMark;
+	void **itemP;
+	intptr_t mark;
+
+	if (NULL == self || NULL == callback || NULL == self->items ||
+		NULL == self->top || self->top < self->items)
+		return;
+	itemP = self->top;
+	mark = self->lastMark;
 
 	while (itemP > self->items)
 	{
-		if (itemP - self->items == mark)
-		{
+		if (mark > 0 && itemP - self->items == mark)
 			return;
-		}
-		else
-		{
-			(*callback)(*itemP);
-		}
-
-		itemP --;
+		(*callback)(*itemP);
+		itemP--;
 	}
 }
 
 IOINLINE void Stack_clear(Stack *self)
 {
+	if (NULL == self || NULL == self->items)
+		return;
 	self->top = self->items;
 	self->lastMark = 0;
 }
 
 IOINLINE size_t Stack_totalSize(const Stack *self)
 {
-	return (self->top - self->items);
+	if (NULL == self || NULL == self->items || NULL == self->top ||
+		self->top < self->items)
+		return 0;
+	return (size_t)(self->top - self->items);
 }
 
 IOINLINE int Stack_count(const Stack *self)
 {
-	return (self->top - self->items);
+	size_t count = Stack_totalSize(self);
+	return count > (size_t)INT_MAX ? INT_MAX : (int)count;
 }
 
 IOINLINE void Stack_push_(Stack *self, void *item)
 {
-	self->top ++;
+	if (NULL == self || NULL == self->items || NULL == self->top ||
+		NULL == self->memEnd || self->memEnd <= self->items ||
+		self->top < self->items || self->top >= self->memEnd)
+		return;
 
-	if (self->top == self->memEnd)
-	{
+	if (self->top >= self->memEnd - 1)
 		Stack_resize(self);
-	}
+	if (self->top >= self->memEnd - 1)
+		return;
 
+	self->top++;
 	*(self->top) = item;
 }
 
 IOINLINE void Stack_pushMark(Stack *self)
 {
-	Stack_push_(self, (void *)self->lastMark);
-	self->lastMark = self->top - self->items;
+	(void)Stack_pushMarkPoint(self);
 }
 
 IOINLINE intptr_t Stack_pushMarkPoint(Stack *self)
 {
+	size_t oldUsed;
+
+	if (NULL == self || NULL == self->items || NULL == self->top ||
+		NULL == self->memEnd || self->memEnd <= self->items ||
+		self->top < self->items || self->top >= self->memEnd ||
+		self->lastMark < 0 ||
+		(size_t)self->lastMark > (size_t)(self->top - self->items))
+		return 0;
+
+	oldUsed = (size_t)(self->top - self->items);
 	Stack_push_(self, (void *)self->lastMark);
-	self->lastMark = self->top - self->items;
+	if ((size_t)(self->top - self->items) == oldUsed)
+		return 0;
+	self->lastMark = (intptr_t)(self->top - self->items);
 	return self->lastMark;
 }
 
 IOINLINE void *Stack_pop(Stack *self)
 {
-	void *top = *(self->top);
+	void *top;
 
-	if (self->items != self->top)
-	{
+	if (NULL == self || NULL == self->items || NULL == self->top ||
+		NULL == self->memEnd || self->top <= self->items ||
+		self->top >= self->memEnd)
+		return NULL;
+	top = *(self->top);
 #ifdef STACK_POP_CALLBACK
-		if(self->popCallback) self->popCallback(*(self->top));
+	if (self->popCallback)
+		self->popCallback(top);
 #endif
-		self->top --;
-	}
-
+	self->top--;
 	return top;
 }
 
 IOINLINE void Stack_popMark(Stack *self)
 {
+	intptr_t mark, previous;
+
+	if (NULL == self || NULL == self->items || NULL == self->top ||
+		NULL == self->memEnd || self->top < self->items ||
+		self->top >= self->memEnd)
+		return;
+	mark = self->lastMark;
+	if (mark <= 0 || (size_t)mark > (size_t)(self->top - self->items))
+		return;
+
 #ifdef STACK_POP_CALLBACK
-	if(self->popCallback) Stack_doUntilMark_(self, self->popCallback);
+	if (self->popCallback)
+		Stack_doUntilMark_(self, self->popCallback);
 #endif
-
-	self->top = self->items + self->lastMark - 1;
-
-	if (self->lastMark)
-	{
-		self->lastMark = (intptr_t)(self->items[self->lastMark]);
-	}
+	previous = (intptr_t)self->items[mark];
+	if (previous < 0 || previous >= mark)
+		return;
+	self->top = self->items + (size_t)mark - 1;
+	self->lastMark = previous;
 }
 
 IOINLINE int Stack_popMarkPoint_(Stack *self, intptr_t mark)
 {
-	while (self->lastMark && self->lastMark != mark)
-	{
-		Stack_popMark(self);
-	}
+	intptr_t cursor;
+	size_t used;
 
-	if (self->lastMark != mark)
-	{
+	if (NULL == self || NULL == self->items || NULL == self->top ||
+		self->top < self->items || mark <= 0)
 		return 0;
-	}
+	used = (size_t)(self->top - self->items);
+	cursor = self->lastMark;
 
+	/* Validate the complete chain before mutating the stack. */
+	while (cursor > 0) {
+		intptr_t previous;
+		if ((size_t)cursor > used)
+			return 0;
+		if (cursor == mark)
+			break;
+		previous = (intptr_t)self->items[cursor];
+		if (previous < 0 || previous >= cursor)
+			return 0;
+		cursor = previous;
+	}
+	if (cursor != mark)
+		return 0;
+
+	while (self->lastMark != mark)
+		Stack_popMark(self);
 	Stack_popMark(self);
 	return 1;
 }
 
 IOINLINE void Stack_clearTop(Stack *self)
 {
+	if (NULL == self || self->lastMark <= 0)
+		return;
 	Stack_popMark(self);
 	Stack_pushMark(self);
-	//self->top = self->items + self->lastMark;
 }
 
 IOINLINE void *Stack_top(const Stack *self)
 {
+	if (NULL == self || NULL == self->items || NULL == self->top ||
+		NULL == self->memEnd || self->top <= self->items ||
+		self->top >= self->memEnd)
+		return NULL;
 	return *(self->top);
 }
 
 IOINLINE void *Stack_at_(const Stack *self, int i)
 {
-	return self->items[i + 1];
+	if (NULL == self || NULL == self->items || NULL == self->top ||
+		i < 0 || (size_t)i >= (size_t)(self->top - self->items))
+		return NULL;
+	return self->items[(size_t)i + 1];
 }
-
-
 
 #undef IO_IN_C_FILE
 #endif
-
