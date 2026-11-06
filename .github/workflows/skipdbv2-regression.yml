@@ -2017,7 +2017,7 @@ jobs:
           distance_start = bit_math_source.find("double UArray_distanceTo_(const UArray *self, const UArray *other)")
           distance_end = bit_math_source.find("\n// hash", distance_start)
           distance_body = bit_math_source[distance_start:distance_end] if distance_start >= 0 and distance_end > distance_start else ""
-          float64_branch_start = distance_body.find("else if (self->itemType == CTYPE_float64_t")
+          float64_branch_start = distance_body.find("if (self->itemType == CTYPE_float64_t)")
           float64_branch = distance_body[float64_branch_start:] if float64_branch_start >= 0 else ""
           if (
               not float64_branch or

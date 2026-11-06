@@ -1,3 +1,11 @@
+## 2026-11-06 19:34 CST — Repair UArray distance precision source contract
+
+- CI run #327 stopped in the source-contract stage before compilation: the check still searched for the old `else if` float64 branch after `UArray_distanceTo_()` was changed to validate both vectors up front and use explicit typed branches.
+- Update the existing assertion to locate the float64 branch by its current `if (self->itemType == CTYPE_float64_t)` form. Keep the check that requires a `float64_t` intermediate and rejects a `float32_t` intermediate.
+- Contract-only in-place repair; no C implementation, regression, build target, or file list changes. The next CI run must execute the full regression pipeline.
+
+---
+
 ## 2026-11-06 19:32 CST — Validate UArray distance vector storage
 
 ### Baseline
