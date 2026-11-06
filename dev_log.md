@@ -1,3 +1,22 @@
+## 2026-11-06 14:47 CST — Guard trailing percent in UArray formatter
+
+### Baseline
+- Main commit `9889ef828ebfc70da6d1759d7258620d2784035d`; SkipDBv2 Regression run #276 passed source contracts, configure, full build, and CTest.
+
+### Defect and fix
+- `UArray_fromVargs_()` advanced the format pointer once for `%` and again at loop end. When the marker was the final byte, this advanced past the NUL terminator and the next loop condition read outside the format string.
+- Detect a terminating percent marker immediately, append it as a literal, and return before the loop can advance past the terminator.
+
+### Regression and contracts
+- Add an isolated test for `"prefix%"`, a format consisting only of `"%"`, and an ordinary `%i` substitution.
+- Register the new test with CMake/CTest and add static/dynamic workflow contracts for the guard, the expected output, and target registration.
+
+### Validation
+- Structural preflight verifies the terminator check and literal-percent path are present.
+- The workflow triggered by this commit is authoritative for compilation and runtime testing.
+
+---
+
 ## 2026-11-06 14:45 CST — Repair RandomGen source-contract delimiter
 
 ### CI diagnosis

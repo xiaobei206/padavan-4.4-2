@@ -714,6 +714,10 @@ jobs:
                   "ADD_EXECUTABLE(uarray_size_in_bytes_test",
                   "${PROJECT_SOURCE_DIR}/tests/uarray_size_in_bytes.c",
                   "add_test(NAME uarray_size_in_bytes_test COMMAND uarray_size_in_bytes_test)",
+                  "ADD_EXECUTABLE(uarray_format_trailing_percent_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_format_trailing_percent.c",
+                  "TARGET_LINK_LIBRARIES(uarray_format_trailing_percent_test skipdb m)",
+                  "add_test(NAME uarray_format_trailing_percent_test COMMAND uarray_format_trailing_percent_test)",
                   "ADD_EXECUTABLE(uarray_search_bounds_test",
                   "${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c",
                   "TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)",
@@ -1032,6 +1036,19 @@ jobs:
                   "truncated sequence",
                   "overlong sequence",
                   "illegal lead byte",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/UArray_format.c": [
+                  "void UArray_fromVargs_(UArray *self, const char *format, va_list ap)",
+                  "if (*format == 0)",
+                  "UArray_appendCString_(self, \"%\");",
+                  "A trailing format marker must not advance past the terminator.",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_format_trailing_percent.c": [
+                  "UArray_newWithFormat_(\"prefix%\")",
+                  "UArray_newWithFormat_(\"%\")",
+                  "trailing format marker was not preserved safely",
+                  "format consisting only of a percent marker was mishandled",
+                  "UArray trailing format marker test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
@@ -1537,6 +1554,24 @@ jobs:
                   overflow_guard < 0 or byte_multiply < 0 or
                   max(null_guard, zero_item_guard, overflow_guard) > byte_multiply):
               raise SystemExit("UArray byte-size query must reject null, zero-item-size, and multiplication-overflow states before multiplying")
+          uarray_format_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_format.c").read_text()
+          if ("if (*format == 0)" not in uarray_format_source or
+                  'UArray_appendCString_(self, "%");' not in uarray_format_source):
+              raise SystemExit("UArray formatter must terminate safely and preserve a trailing percent marker")
+          uarray_format_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_format_trailing_percent.c").read_text()
+          for needle in ('UArray_newWithFormat_("prefix%")',
+                         'UArray_newWithFormat_("%")',
+                         "ordinary UArray formatting changed unexpectedly"):
+              if needle not in uarray_format_test:
+                  raise SystemExit("UArray formatter regression coverage missing: " + needle)
+          uarray_format_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(uarray_format_trailing_percent_test",
+                         "${PROJECT_SOURCE_DIR}/tests/uarray_format_trailing_percent.c",
+                         "TARGET_LINK_LIBRARIES(uarray_format_trailing_percent_test skipdb m)",
+                         "add_test(NAME uarray_format_trailing_percent_test COMMAND uarray_format_trailing_percent_test)"):
+              if needle not in uarray_format_cmake:
+                  raise SystemExit("UArray format regression is not registered in CMake/CTest: " + needle)
+
           uarray_size_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c").read_text()
           for needle in ("UArray_sizeInBytes(NULL)", "UArray_sizeInBytes(&valid)",
                          "UArray_sizeInBytes(&empty)", "UArray_sizeInBytes(&invalid)",

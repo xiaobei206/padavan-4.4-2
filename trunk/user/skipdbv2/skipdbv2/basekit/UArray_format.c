@@ -54,6 +54,13 @@ void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 		{
 			format ++;
 
+			/* A trailing format marker must not advance past the terminator. */
+			if (*format == 0)
+			{
+				UArray_appendCString_(self, "%");
+				return;
+			}
+
 			if (*format == 's')
 			{
 				char *s = va_arg(ap, char *);
