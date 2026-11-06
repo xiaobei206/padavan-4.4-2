@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int check(int condition, const char *message)
 {
@@ -57,6 +58,65 @@ static int phashGrowRejectsInvalidState(int corruption)
 		originalNumKeys == 0;
 }
 
+
+static int phashCuckooFailurePreservesState(void)
+{
+	PHash *hash = PHash_new();
+	int keys[64], values[3] = {101, 202, 303};
+	void *keysByPair[4][3] = {{NULL}};
+	unsigned int counts[4] = {0, 0, 0, 0};
+	PHashRecord originalRecords[4], incoming;
+	PHashRecord *record;
+	unsigned int originalBalance, i, pair, selectedPair;
+	int okay;
+
+	if (NULL == hash)
+		return 0;
+	selectedPair = 4;
+	for (i = 0; i < 64; ++i) {
+		unsigned int primaryHash, primaryIndex, alternateIndex;
+		keys[i] = (int)i + 1;
+		primaryHash = PHash_hash(hash, &keys[i]);
+		primaryIndex = primaryHash & hash->mask;
+		alternateIndex = PHash_hash_more(hash, primaryHash) & hash->mask;
+		pair = primaryIndex | (alternateIndex << 1);
+		if (counts[pair] < 3)
+			keysByPair[pair][counts[pair]++] = &keys[i];
+	}
+	for (pair = 0; pair < 4; ++pair) {
+		if (counts[pair] == 3) {
+			selectedPair = pair;
+			break;
+		}
+	}
+	if (selectedPair == 4) {
+		PHash_free(hash);
+		return 0;
+	}
+
+	PHash_at_put_(hash, keysByPair[selectedPair][0], &values[0]);
+	PHash_at_put_(hash, keysByPair[selectedPair][1], &values[1]);
+	if (hash->tableSize != 2 || hash->numKeys != 2) {
+		PHash_free(hash);
+		return 0;
+	}
+
+	memcpy(originalRecords, hash->records, sizeof(originalRecords));
+	originalBalance = hash->balance;
+	incoming.key = keysByPair[selectedPair][2];
+	incoming.value = &values[2];
+	record = PHash_cuckoo_(hash, &incoming);
+	okay = NULL == record &&
+		incoming.key == keysByPair[selectedPair][2] &&
+		incoming.value == &values[2] &&
+		hash->balance == originalBalance && hash->numKeys == 2 &&
+		0 == memcmp(originalRecords, hash->records, sizeof(originalRecords)) &&
+		PHash_at_(hash, keysByPair[selectedPair][0]) == &values[0] &&
+		PHash_at_(hash, keysByPair[selectedPair][1]) == &values[1];
+	PHash_free(hash);
+	return okay;
+}
+
 int main(void)
 {
 	PHash *hash;
@@ -65,6 +125,10 @@ int main(void)
 	size_t oldMemory;
 
 	PHash_compact(NULL);
+
+	if (!check(phashCuckooFailurePreservesState(),
+		"PHash cuckoo failure altered the original table or input record"))
+		return EXIT_FAILURE;
 	if (!check(phashGrowRejectsInvalidState(0),
 		"PHash_grow accepted inconsistent table geometry"))
 		return EXIT_FAILURE;

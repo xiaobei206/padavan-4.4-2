@@ -1,3 +1,23 @@
+## 2026-11-06 19:00 CST — Roll back failed PHash cuckoo kick chains
+
+### Baseline
+- Main commit `ad8abec4603f445e0271d19ade1fe9f21c3f80fc`; SkipDBv2 Regression run #317 passed.
+- Scope: `PHash_cuckoo_()`, its kick-loop bound, and the existing pointer-hash regression fixture.
+
+### Defect and fix
+- An exhausted pointer-hash cuckoo chain returned failure after swapping records in-place, leaving the live table partially rewritten if growth could not complete.
+- Bound the kick chain to 20 iterations, matching SHash, and record the previous value of each touched slot before swapping. On failure, restore all touched slots in reverse order, the incoming record, and the balance bit before returning `NULL`.
+
+### Regression and contracts
+- Extend the existing `phash_compact_test` with dynamically selected pointer keys that share both candidate slots, forcing kick-chain exhaustion deterministically. Verify slot-for-slot table identity, existing key/value mappings, incoming record, count, and balance.
+- Update workflow source contracts for the loop bound, rollback ordering, and regression. Reuse the existing CMake/CTest target; no new files or exported declarations.
+
+### Validation
+- Static checks confirm at most 41 swaps can occur (one balancing kick plus two swaps per each of 20 iterations), and all three swap sites save prior slot contents.
+- Mainline CI will validate the source contracts, compilation, and full CTest suite.
+
+---
+
 ## 2026-11-06 18:57 CST — Correct SHash loop-bound contract header path
 
 - CI run #316 stopped in the source-contract phase before configure/build: `SHash_maxLoops` is declared in `SHash.h`, but the new check read `SHash_inline.h`.

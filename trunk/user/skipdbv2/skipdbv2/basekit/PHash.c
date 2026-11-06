@@ -203,11 +203,20 @@ void PHash_copy_(PHash *self, PHash *other)
 */
 PHashRecord *PHash_cuckoo_(PHash *self, PHashRecord* thisRecord)
 {
-	unsigned int hash;
+	enum { PHASH_CUCKOO_MAX_SWAPS = 41 };
+	PHashRecord originalRecord;
+	PHashRecord *swappedRecords[PHASH_CUCKOO_MAX_SWAPS];
+	PHashRecord previousRecords[PHASH_CUCKOO_MAX_SWAPS];
+	unsigned int hash, originalBalance;
 	PHashRecord *record;
+	size_t swapCount = 0;
+
 	if (NULL == self || NULL == self->records || self->tableSize == 0 ||
 		NULL == thisRecord || NULL == thisRecord->key)
 		return NULL;
+
+	originalRecord = *thisRecord;
+	originalBalance = self->balance;
 	record = PHash_recordAt_(self, thisRecord->key);
 	if (record != &self->nullRecord && NULL == record->key)
 		return record;
@@ -221,6 +230,8 @@ PHashRecord *PHash_cuckoo_(PHash *self, PHashRecord* thisRecord)
 			record = PHASH_RECORDS_AT_HASH_(self, 1, hash);
 			if (NULL == record->key)
 				return record;
+			swappedRecords[swapCount] = record;
+			previousRecords[swapCount++] = *record;
 			PHashRecord_swap(record, thisRecord);
 			if (PHashKey_isEqual_(thisRecord->key, record->key))
 				return record;
@@ -231,6 +242,8 @@ PHashRecord *PHash_cuckoo_(PHash *self, PHashRecord* thisRecord)
 			record = PHASH_RECORDS_AT_HASH_(self, 0, hash);
 			if (NULL == record->key)
 				return record;
+			swappedRecords[swapCount] = record;
+			previousRecords[swapCount++] = *record;
 			PHashRecord_swap(record, thisRecord);
 			if (PHashKey_isEqual_(thisRecord->key, record->key))
 				return record;
@@ -238,11 +251,21 @@ PHashRecord *PHash_cuckoo_(PHash *self, PHashRecord* thisRecord)
 			record = PHASH_RECORDS_AT_HASH_(self, 1, hash);
 			if (NULL == record->key)
 				return record;
+			swappedRecords[swapCount] = record;
+			previousRecords[swapCount++] = *record;
 			PHashRecord_swap(record, thisRecord);
 			if (PHashKey_isEqual_(thisRecord->key, record->key))
 				return record;
 		}
 	}
+
+	/* A failed kick chain must not publish partial table mutations. */
+	while (swapCount > 0) {
+		--swapCount;
+		*swappedRecords[swapCount] = previousRecords[swapCount];
+	}
+	*thisRecord = originalRecord;
+	self->balance = originalBalance;
 	return NULL;
 }
 

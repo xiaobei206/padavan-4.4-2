@@ -988,11 +988,16 @@ jobs:
                   "self->tableSize != (1u << self->log2tableSize)",
                   "self->mask != self->tableSize - 1",
                   "self->numKeys > self->tableSize * 2",
+                  "enum { PHASH_CUCKOO_MAX_SWAPS = 41 };",
+                  "PHashRecord *swappedRecords[PHASH_CUCKOO_MAX_SWAPS];",
+                  "*thisRecord = originalRecord;",
+                  "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c": [
                   "PHash_compact did not reduce the table while preserving count",
                   "PHash_compact lost a retained key/value mapping",
                   "PHash_compact did not return an empty table to its minimum size",
+                  "PHash cuckoo failure altered the original table or input record",
                   "PHash_grow accepted inconsistent table geometry",
                   "PHash_grow accepted an inconsistent hash mask",
                   "PHash_grow accepted an impossible key count",
@@ -3037,6 +3042,43 @@ jobs:
                          "add_test(NAME phash_compact_test COMMAND phash_compact_test)"):
               if needle not in phash_cmake:
                   raise SystemExit("PHash compaction CTest registration missing: " + needle)
+
+
+          phash_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/PHash.h").read_text()
+          if "#define PHash_maxLoops(self) (self->tableSize < 20 ? self->tableSize : 20)" not in phash_header:
+              raise SystemExit("PHash cuckoo rollback capacity must match the bounded kick-loop limit")
+          cuckoo_start = phash_source.find("PHashRecord *PHash_cuckoo_(PHash *self, PHashRecord* thisRecord)")
+          cuckoo_end = phash_source.find("void PHash_grow(", cuckoo_start)
+          cuckoo_body = phash_source[cuckoo_start:cuckoo_end] if cuckoo_start >= 0 and cuckoo_end > cuckoo_start else ""
+          for needle in ("enum { PHASH_CUCKOO_MAX_SWAPS = 41 };",
+                         "PHashRecord originalRecord;",
+                         "PHashRecord *swappedRecords[PHASH_CUCKOO_MAX_SWAPS];",
+                         "PHashRecord previousRecords[PHASH_CUCKOO_MAX_SWAPS];",
+                         "originalRecord = *thisRecord;",
+                         "originalBalance = self->balance;",
+                         "swappedRecords[swapCount] = record;",
+                         "previousRecords[swapCount++] = *record;",
+                         "while (swapCount > 0)",
+                         "*swappedRecords[swapCount] = previousRecords[swapCount];",
+                         "*thisRecord = originalRecord;",
+                         "self->balance = originalBalance;"):
+              if needle not in cuckoo_body:
+                  raise SystemExit("PHash failed-kick rollback contract missing: " + needle)
+          if cuckoo_body.count("PHashRecord_swap(record, thisRecord);") != 3:
+              raise SystemExit("PHash cuckoo swaps must all record their prior slot state")
+          rollback_start = cuckoo_body.find("while (swapCount > 0)")
+          slot_restore = cuckoo_body.find("*swappedRecords[swapCount] = previousRecords[swapCount];", rollback_start)
+          record_restore = cuckoo_body.find("*thisRecord = originalRecord;", slot_restore)
+          balance_restore = cuckoo_body.find("self->balance = originalBalance;", record_restore)
+          failure_return = cuckoo_body.find("return NULL;", balance_restore)
+          if min(rollback_start, slot_restore, record_restore, balance_restore, failure_return) < 0 or not (
+              rollback_start < slot_restore < record_restore < balance_restore < failure_return
+          ):
+              raise SystemExit("PHash cuckoo failure must restore slots, input record, and balance before returning")
+          if "static int phashCuckooFailurePreservesState(void)" not in phash_test or \
+             "PHash_cuckoo_" not in phash_test or \
+             "0 == memcmp(originalRecords, hash->records, sizeof(originalRecords))" not in phash_test:
+              raise SystemExit("PHash failed-kick regression must verify table and input rollback")
 
           bstream_tag_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c").read_text()
           bstream_tag_test = Path("trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c").read_text()
