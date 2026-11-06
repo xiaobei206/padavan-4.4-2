@@ -1,3 +1,23 @@
+## 2026-11-06 19:03 CST — Reject hard-linked UDB commit markers and journals
+
+### Baseline
+- Main commit `56496d9e8e8ff2e143cfa890829eee423010a589`; SkipDBv2 Regression run #318 passed.
+- Scope: UDB commit-marker opened-file validation and its existing regression fixture.
+
+### Defect and fix
+- UDB's secure-open helper verified regular-file type, ownership, and inode stability but accepted files with multiple hard links. A second path could therefore alias the commit marker or a recovery journal and undermine the path-based persistence trust boundary.
+- Require the opened inode's link count to be exactly one. The same verifier protects both marker opens and journal validation.
+
+### Regression and contracts
+- Extend `commit_marker_test` to create hard-linked marker and journal fixtures and verify both aliases are rejected with the expected marker-open error or invalid-journal result.
+- Update existing GitHub Actions source contracts. The existing CMake/CTest target is reused; no new files or exported declarations.
+
+### Validation
+- Static review confirms hard-link rejection occurs after `fstat` and before changing file permissions or exposing a `FILE *`.
+- Mainline CI will execute the updated source contracts, compile the C changes, and run the existing regression suite.
+
+---
+
 ## 2026-11-06 19:00 CST — Roll back failed PHash cuckoo kick chains
 
 ### Baseline

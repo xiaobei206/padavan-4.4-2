@@ -18,12 +18,12 @@ static int journal(const char *p,int term){
 }
 #define CHECK(x,m) do{if(!(x)){result=fail(m);goto done;}}while(0)
 int main(void){
- char dir[]="/tmp/udb-marker.XXXXXX",mp[256]="",dp[256]="",jp[256]="",tp[256]="",lp[256]="";
+ char dir[]="/tmp/udb-marker.XXXXXX",mp[256]="",dp[256]="",jp[256]="",tp[256]="",lp[256]="",hp[256]="";
  const char *paths[2];UDBCommitMarker marker={NULL,NULL};int result=0,fd=-1;char c='d';
  CHECK(mkdtemp(dir)!=NULL,"mkdtemp");
  CHECK(join(mp,sizeof(mp),dir,"marker")&&join(dp,sizeof(dp),dir,"data")&&
  join(jp,sizeof(jp),dir,"journal")&&join(tp,sizeof(tp),dir,"target")&&
- join(lp,sizeof(lp),dir,"link"),"path setup");
+ join(lp,sizeof(lp),dir,"link")&&join(hp,sizeof(hp),dir,"hardlink"),"path setup");
  paths[0]=dp;paths[1]=jp;
  CHECK(UDBCommitMarker_artifactsExist(paths,2)==0&&UDBCommitMarker_artifactsAreEmpty(paths,2),"missing artifact classification");
  CHECK(UDBCommitMarker_setPath_(&marker,mp)==0,"set path");
@@ -50,7 +50,14 @@ int main(void){
  CHECK(symlink(tp,lp)==0&&UDBCommitMarker_setPath_(&marker,lp)==0,"symlink setup");
  CHECK(UDBCommitMarker_open(&marker,0)==-1,"symlink followed");
  CHECK(UDBCommitMarker_setPath_(&marker,mp)==0,"restore path");
+ CHECK(link(mp,hp)==0,"hard-link marker");
+ CHECK(UDBCommitMarker_setPath_(&marker,hp)==0,"hard-link marker path");
+ errno=0;CHECK(UDBCommitMarker_open(&marker,0)==-1&&errno==EPERM,"hard-linked marker accepted");
+ CHECK(UDBCommitMarker_setPath_(&marker,mp)==0&&unlink(hp)==0,"remove marker hard-link");
  CHECK(journal(jp,2)&&UDBCommitMarker_verifyJournal(jp)==1,"complete journal rejected");
+ CHECK(link(jp,hp)==0,"hard-link journal");
+ CHECK(UDBCommitMarker_verifyJournal(jp)==0&&UDBCommitMarker_verifyJournal(hp)==0,"hard-linked journal accepted");
+ CHECK(unlink(hp)==0,"remove journal hard-link");
  CHECK(journal(jp,1)&&UDBCommitMarker_verifyJournal(jp)==0,"incomplete journal accepted");
 done:
  if(fd>=0)close(fd);
@@ -58,6 +65,7 @@ done:
  if(mp[0])unlink(mp);
  if(dp[0])unlink(dp);
  if(jp[0])unlink(jp);
+ if(hp[0])unlink(hp);
  if(tp[0])unlink(tp);
  if(lp[0])unlink(lp);
  rmdir(dir);
