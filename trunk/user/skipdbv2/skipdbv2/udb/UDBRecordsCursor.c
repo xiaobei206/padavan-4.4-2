@@ -27,13 +27,42 @@ UDBRecord *UDBRecords_newRecord(UDBRecords *self)
 static int UDBRecords_nextPosition_(UDBRecord *record, PID_TYPE *next_pos)
 {
 	PID_TYPE size;
-	if (NULL == record || NULL == next_pos)
+	UDBRecordHeader previous_header;
+	JFile *file;
+	long previous_pos, previous_max;
+
+	if (NULL == record || NULL == next_pos || NULL == record->file ||
+		NULL == record->file->file ||
+		record->pos < (PID_TYPE)sizeof(PID_TYPE))
 		return 0;
+
+	file = record->file;
+	previous_header = record->header;
+	previous_pos = file->pos;
+	previous_max = file->maxPos;
+	if (!UDBRecord_readHeader(record)) {
+		/* A broken chain must not be advanced using stale cached metadata. */
+		record->header = previous_header;
+		file->pos = previous_pos;
+		file->maxPos = previous_max;
+		JFile_close(file);
+		return 0;
+	}
+
 	size = UDBRecord_totalSize(record);
 	if (size == 0 || size > (PID_TYPE)LONG_MAX ||
-		record->pos > (PID_TYPE)LONG_MAX - size)
+		record->pos > (PID_TYPE)LONG_MAX - size) {
+		record->header = previous_header;
+		file->pos = previous_pos;
+		file->maxPos = previous_max;
+		JFile_close(file);
 		return 0;
+	}
+
+	/* Preserve JFile's logical cursor while retaining the refreshed header. */
 	*next_pos = record->pos + size;
+	file->pos = previous_pos;
+	file->maxPos = previous_max;
 	return 1;
 }
 

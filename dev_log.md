@@ -1,3 +1,13 @@
+## 2026-11-07 06:33 CST — Advance UDB cursors using validated persisted extents
+
+- Baseline: main commit `2e76f4feed899064ae9271d3f8624977510a9058`; SkipDBv2 Regression run #451 passed source contracts, configure, complete build, and all regression tests.
+- Scope: shared sequential/relative record-offset helper in `udb/UDBRecordsCursor.c`.
+- `UDBRecords_nextPosition_()` calculated the next row from the public `UDBRecord.header.size` cache. If a caller or prior failed operation left that cache stale, iteration could jump into payload bytes and treat a valid database as a corrupt chain.
+- Reload and validate the physical header before deriving the next offset; retain the refreshed header and restore JFile's logical cursor on success. If the on-disk chain is invalid, close the streams rather than continuing from stale metadata. Add a regression that poisons the shared cursor's cached PID/size and requires EOF to be reached normally with the database stream still open. Update existing Actions contracts only; no new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:31 CST — Prevent UDB header writes from clobbering free-list metadata
 
 - Baseline: main commit `757ac6a408b739653089ac3943199e5b14f18e2e`; SkipDBv2 Regression run #450 passed source contracts, configure, full build, and all regression tests.

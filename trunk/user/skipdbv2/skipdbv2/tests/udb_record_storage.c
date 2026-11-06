@@ -118,6 +118,28 @@ int main(void)
         goto done;
     }
 
+    /*
+     * Advancing a sequential cursor must derive its offset from the persisted
+     * header, not the public record object's possibly stale cache.
+     */
+    {
+        UDBRecord *cursor = UDBRecords_recordAtPos_(db->records, saved_pos);
+
+        if (NULL == cursor) {
+            fprintf(stderr, "unable to position record cursor for stale-header regression\n");
+            goto done;
+        }
+        cursor->header.pid = 0;
+        cursor->header.size = 1;
+        if (UDBRecords_nextRecord(db->records) != NULL ||
+            NULL == db->records->file->file ||
+            UDBRecord_pid(cursor) != (PID_TYPE)77 ||
+            UDBRecord_size(cursor) != (PID_TYPE)sizeof(payload)) {
+            fprintf(stderr, "record cursor trusted stale cached extent\n");
+            goto done;
+        }
+    }
+
     /* A physical move must not trust a caller-modified cached extent. */
     {
         int move_accepted;
