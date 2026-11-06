@@ -14,28 +14,11 @@ Notes: first element of items is always 0x0.
 static int Stack_isValid_(const Stack *self, size_t *used, size_t *capacity)
 {
 	size_t active, allocated;
-	intptr_t mark;
+	/* mark-chain validation is shared with inline mark operations. */
 
-	if (NULL == self || NULL == self->items || NULL == self->top ||
-		NULL == self->memEnd || self->memEnd <= self->items ||
-		self->top < self->items || self->top >= self->memEnd)
+	if (!Stack_hasValidStorage_(self, &active, &allocated) ||
+		!Stack_hasValidMarkChain_(self, active))
 		return 0;
-
-	active = (size_t)(self->top - self->items);
-	allocated = (size_t)(self->memEnd - self->items);
-	if (active >= allocated || self->lastMark < 0)
-		return 0;
-
-	mark = self->lastMark;
-	while (mark > 0) {
-		intptr_t previous;
-		if ((size_t)mark > active)
-			return 0;
-		previous = (intptr_t)self->items[mark];
-		if (previous < 0 || previous >= mark)
-			return 0;
-		mark = previous;
-	}
 
 	if (used)
 		*used = active;
@@ -64,7 +47,7 @@ static int Stack_copyState_(Stack *self, const Stack *other)
 	copy.items = newItems;
 	copy.memEnd = newItems + slots;
 	copy.top = newItems + used;
-	oldItems = self->items;
+	oldItems = Stack_hasValidStorage_(self, NULL, NULL) ? self->items : NULL;
 	*self = copy;
 	io_free(oldItems);
 	return 1;

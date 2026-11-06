@@ -1,3 +1,14 @@
+## 2026-11-07 01:37 CST — Validate Stack cursor geometry without undefined pointer arithmetic
+
+- Baseline: main commit `1538ea8f5f5a172b5733abd4fa4ad167128b270d`; SkipDBv2 Regression run #401 passed.
+- Scope: the Stack storage/cursor invariant in `basekit/Stack.c` and its inline API.
+- The validity checks compared and subtracted caller-visible `items`, `top`, and `memEnd` pointers before proving they belonged to one array. A corrupted or misaligned cursor can make those relational operations undefined before the guard has a chance to reject it. The same range logic was duplicated across push/pop/accessor paths.
+- Centralize storage validation using `uintptr_t` address ordering and pointer-slot alignment before any subtraction or indexing; share the mark-chain validator with clone/resize and mark mutation paths. Keep the existing stack layout and public API. Copy replacement now frees the old backing store only when its storage geometry is valid, avoiding an invalid free on a malformed destination.
+- Add a malformed-cursor regression that exercises accessors, mutation, clone, memory sizing, and copy-source rejection. Update the existing Actions source contracts. No new files, public API, or CMake targets.
+- No local C build is claimed; CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 01:23 CST — Scope UArray path extensions to the basename
 
 - Baseline: main commit `21459851297d0f71e75507a639e7b2b92fb83048`; mainline regression run #399 passed.

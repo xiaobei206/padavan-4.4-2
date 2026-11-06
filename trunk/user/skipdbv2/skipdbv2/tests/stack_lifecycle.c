@@ -1,6 +1,7 @@
 #include "Stack.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 #define VALUE_COUNT 1300
@@ -162,8 +163,67 @@ static void count_stack_item(void *value)
 	++stack_callback_count;
 }
 
+
+static int test_misaligned_pointer_metadata(void)
+{
+    Stack *source = NULL;
+    Stack *destination = NULL;
+    Stack malformed;
+    void **savedTop;
+    uintptr_t malformedTop;
+    int values[] = { 17, 29 };
+    int result = EXIT_FAILURE;
+
+    source = Stack_new();
+    destination = Stack_new();
+    if (NULL == source || NULL == destination)
+        goto done;
+    Stack_push_(source, &values[0]);
+    Stack_push_(destination, &values[1]);
+    malformed = *source;
+    savedTop = malformed.top;
+    malformedTop = (uintptr_t)malformed.items + 1u;
+    malformed.top = (void **)malformedTop;
+
+    if (Stack_hasValidStorage_(&malformed, NULL, NULL) ||
+        Stack_totalSize(&malformed) != 0 ||
+        Stack_count(&malformed) != 0 ||
+        Stack_memorySize(&malformed) != 0 ||
+        Stack_top(&malformed) != NULL ||
+        Stack_at_(&malformed, 0) != NULL ||
+        Stack_pop(&malformed) != NULL ||
+        Stack_popMarkPoint_(&malformed, 1) != 0 ||
+        Stack_clone(&malformed) != NULL) {
+        fprintf(stderr, "misaligned Stack cursor was accepted\\n");
+        goto done;
+    }
+
+    Stack_push_(&malformed, &values[1]);
+    Stack_clear(&malformed);
+    if ((uintptr_t)malformed.top != malformedTop) {
+        fprintf(stderr, "invalid Stack cursor was modified by push or clear\\n");
+        goto done;
+    }
+
+    Stack_copy_(destination, &malformed);
+    if (Stack_top(destination) != &values[1] ||
+        Stack_totalSize(destination) != 1) {
+        fprintf(stderr, "copy from malformed Stack changed the destination\\n");
+        goto done;
+    }
+
+    malformed.top = savedTop;
+    result = EXIT_SUCCESS;
+
+done:
+    Stack_free(destination);
+    Stack_free(source);
+    return result;
+}
+
 int main(void)
-{	if (test_callback_iteration_reentrancy() != EXIT_SUCCESS)
+{	if (test_callback_iteration_reentrancy() != EXIT_SUCCESS ||
+		test_misaligned_pointer_metadata() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 
 
