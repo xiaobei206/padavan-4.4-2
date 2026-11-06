@@ -21,6 +21,8 @@ license
 
 static int BStream_sourceOverlapsStream_(const UArray *streamArray,
     const void *source, size_t length);
+static int BStream_viewOverlapsStream_(const UArray *streamArray,
+    const UArray *view);
 
 BStream *BStream_new(void)
 {
@@ -115,7 +117,7 @@ void BStream_setUArray_(BStream *self, UArray *ba)
 	}
 	/* Do not free an owned stream buffer while the incoming view borrows it. */
 	if (self->ownsUArray && self->ba &&
-		BStream_sourceOverlapsStream_(self->ba, ba->data, ba->size))
+		BStream_viewOverlapsStream_(self->ba, ba))
 		return;
 	if (self->ownsUArray && self->ba)
 		UArray_free(self->ba);
@@ -190,6 +192,28 @@ static int BStream_sourceOverlapsStream_(const UArray *streamArray,
     if (sourceStart >= streamStart)
         return sourceStart - streamStart <= streamBytes;
     return streamStart - sourceStart < length;
+}
+
+
+static int BStream_viewOverlapsStream_(const UArray *streamArray,
+    const UArray *view)
+{
+    uintptr_t streamStart, viewStart;
+
+    if (NULL == streamArray || NULL == view ||
+        NULL == streamArray->data || NULL == view->data ||
+        streamArray->itemSize != 1 || view->itemSize != 1 ||
+        streamArray->size == (size_t)-1)
+        return 0;
+
+    streamStart = (uintptr_t)streamArray->data;
+    viewStart = (uintptr_t)view->data;
+
+    /* A zero-length view still dangles if its cursor points into the owner. */
+    if (viewStart >= streamStart)
+        return viewStart - streamStart <= streamArray->size;
+
+    return BStream_sourceOverlapsStream_(streamArray, view->data, view->size);
 }
 
 

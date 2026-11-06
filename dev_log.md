@@ -1,3 +1,12 @@
+## 2026-11-06 21:57 CST — Cover empty BStream views in the ownership guard
+
+- CI #340 compiled all targets and passed the workflow source contracts, but the new BStream regression exposed a zero-length tail-view blind spot: the byte-write overlap helper intentionally ignores zero-byte sources.
+- Add a dedicated UArray-view overlap predicate for attachment. It rejects pointers anywhere inside the currently owned byte allocation, including an empty view at the trailing NUL, while retaining the byte-write helper's zero-length behavior.
+- Keep the regression for exact, interior, and trailing-NUL aliases. Extend the workflow contract to verify the empty-view boundary rule and that attachment preflight occurs before freeing the old owner.
+- The failure was confined to the new regression; the other 54 CTest cases passed.
+
+---
+
 ## 2026-11-06 21:49 CST — Prevent BStream owned-buffer use-after-free during attachment
 
 - Baseline: main `bf6ae8c72896324cc5418bf241ba887c26fbe142`; SkipDBv2 Regression #339 passed.

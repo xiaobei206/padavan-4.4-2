@@ -1023,7 +1023,10 @@ jobs:
                   "BStream_sourceOverlapsStream_(self->ba, bytes, length)",
                   "BStream_sourceOverlapsStream_(self->ba, ba->data, length)",
                   "BStream_sourceOverlapsStream_(self->ba, data, length)",
-                  "BStream_sourceOverlapsStream_(self->ba, ba->data, ba->size)",
+                  "BStream_viewOverlapsStream_(self->ba, ba)",
+                  "static int BStream_viewOverlapsStream_(const UArray *streamArray,",
+                  "viewStart - streamStart <= streamArray->size",
+                  "BStream_sourceOverlapsStream_(streamArray, view->data, view->size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c": [
                   "if (NULL == self)",
@@ -2040,7 +2043,7 @@ jobs:
               else ""
           )
           alias_preflight = set_array_body.find(
-              "BStream_sourceOverlapsStream_(self->ba, ba->data, ba->size)"
+              "BStream_viewOverlapsStream_(self->ba, ba)"
           )
           old_buffer_free = set_array_body.find("UArray_free(self->ba)")
           if (
@@ -2050,6 +2053,24 @@ jobs:
               alias_preflight > old_buffer_free
           ):
               raise SystemExit("BStream setUArray must reject borrowed views before freeing owned storage")
+
+          view_helper_start = bstream_source.find(
+              "static int BStream_viewOverlapsStream_(const UArray *streamArray,"
+          )
+          view_helper_end = bstream_source.find(
+              "\nstatic int BStream_appendBytes_", view_helper_start
+          )
+          view_helper_body = (
+              bstream_source[view_helper_start:view_helper_end]
+              if view_helper_start >= 0 and view_helper_end > view_helper_start
+              else ""
+          )
+          if (
+              not view_helper_body or
+              "viewStart - streamStart <= streamArray->size" not in view_helper_body or
+              "BStream_sourceOverlapsStream_(streamArray, view->data, view->size)" not in view_helper_body
+          ):
+              raise SystemExit("BStream attachment guard must cover empty interior and partial borrowed views")
 
           bit_math_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c").read_text()
           bit_helper_start = bit_math_source.find(
