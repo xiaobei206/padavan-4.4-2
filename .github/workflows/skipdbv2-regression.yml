@@ -1423,6 +1423,10 @@ jobs:
                   "self->itemType != CTYPE_uint16_t",
                   "self->encoding != CENCODING_UTF32",
                   "self->itemType != CTYPE_uint32_t",
+                  "if (!UArray_hasValidEncodingLayout_(self) ||",
+                  "self->encoding != CENCODING_UTF8",
+                  "self->itemType != CTYPE_uint8_t && self->itemType != CTYPE_int8_t",
+                  "if (ismbchar(self->data[i]))",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.h": [
                   "#include <stdint.h>",
@@ -2919,9 +2923,26 @@ jobs:
               if (not wrapper_body or converted < 0 or null_guard < converted or
                       swap < 0 or null_guard > swap):
                   raise SystemExit("UArray conversion wrappers must leave the source untouched when conversion fails")
+          multibyte_start = encoding_source.find("int UArray_isMultibyte(const UArray *self)")
+          multibyte_end = encoding_source.find("\nint UArray_isLegalUTF8", multibyte_start)
+          multibyte_body = (
+              encoding_source[multibyte_start:multibyte_end]
+              if multibyte_start >= 0 and multibyte_end > multibyte_start
+              else ""
+          )
+          if (
+              not multibyte_body or
+              "!UArray_hasValidEncodingLayout_(self)" not in multibyte_body or
+              "self->encoding != CENCODING_UTF8" not in multibyte_body or
+              "self->itemType != CTYPE_uint8_t && self->itemType != CTYPE_int8_t" not in multibyte_body or
+              "ismbchar(self->data[i])" not in multibyte_body or
+              "UARRAY_INTFOREACH" in multibyte_body
+          ):
+              raise SystemExit("UArray multibyte detection must scan validated UTF-8 bytes without typed-width dispatch")
           encoding_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_encoding_conversion.c").read_text()
           for needle in ("UArray_convertToFixedSizeType(NULL)", "0x00a2", "0x20ac",
-                         "0x1f4a9", "invalid UTF-8 conversion reported success or changed the source"):
+                         "0x1f4a9", "invalid UTF-8 conversion reported success or changed the source",
+                         "UArray multibyte detection accepted a wide item type over byte storage"):
               if needle not in encoding_test:
                   raise SystemExit("UArray encoding conversion regression case missing: " + needle)
           encoding_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()

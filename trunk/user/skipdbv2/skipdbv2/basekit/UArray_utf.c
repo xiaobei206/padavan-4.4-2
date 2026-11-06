@@ -142,11 +142,15 @@ int UArray_convertToFixedSizeType(UArray *self)
 
 int UArray_isMultibyte(const UArray *self)
 {
-	if (NULL == self || (self->size > 0 && NULL == self->data))
+	size_t i;
+	if (!UArray_hasValidEncodingLayout_(self) ||
+		self->encoding != CENCODING_UTF8 ||
+		(self->itemType != CTYPE_uint8_t && self->itemType != CTYPE_int8_t))
 		return 0;
-	if (self->encoding == CENCODING_UTF8 && self->itemSize == 1)
-	{
-		UARRAY_INTFOREACH(self, i, v, if (ismbchar((unsigned char)v)) return 1; );
+
+	for (i = 0; i < self->size; ++i) {
+		if (ismbchar(self->data[i]))
+			return 1;
 	}
 	return 0;
 }

@@ -145,6 +145,20 @@ int main(void)
 		goto done;
 	}
 
+	{
+		uint64_t wideStorage[] = {
+			UINT64_C(0x81), UINT64_C(0x82)
+		};
+		UArray malformed = UArray_stackAllocedWithData_type_size_(
+			wideStorage, CTYPE_uint64_t, 2);
+		malformed.encoding = CENCODING_UTF8;
+		malformed.itemSize = sizeof(uint8_t);
+
+		if (UArray_isMultibyte(&malformed) != 0) {
+			fprintf(stderr, "UArray multibyte detection accepted a wide item type over byte storage\n");
+			goto done;
+		}
+	}
 	result = EXIT_SUCCESS;
 	puts("UArray encoding conversion test passed");
 

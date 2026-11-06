@@ -1,3 +1,13 @@
+## 2026-11-06 22:27 CST — Validate UArray UTF-8 multibyte iteration layout
+
+- Mainline CI #347 passed after the UArray cross-product storage guard.
+- Scope: UArray_isMultibyte() and the existing uarray_encoding_conversion regression.
+- The UTF-8 path checked itemSize == 1 but iterated through UARRAY_INTFOREACH, which dispatches by itemType. A malformed wide itemType paired with byte-sized metadata could therefore read beyond the backing allocation.
+- Require a valid UTF-8 byte layout and a uint8_t/int8_t item type, then scan the validated data bytes directly. Add a malformed wide-type fixture and enforce the raw-byte iteration in the workflow source contract; no new files or CMake changes.
+- No local C compilation is claimed; mainline CI remains the build/runtime gate.
+
+---
+
 ## 2026-11-06 22:22 CST — Guard UArray cross-product storage
 
 - Mainline CI #346 passed after UArray path storage validation.
