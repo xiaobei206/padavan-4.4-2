@@ -4,6 +4,14 @@
 
 #define VALUE_COUNT 1300
 
+static size_t stack_callback_count;
+
+static void count_stack_item(void *value)
+{
+	(void)value;
+	++stack_callback_count;
+}
+
 int main(void)
 {
 	Stack *source = NULL;
@@ -97,6 +105,26 @@ int main(void)
 		Stack_totalSize(marks) != 5) {
 		fprintf(stderr, "invalid zero mark changed stack state\\n");
 		goto done;
+	}
+	{
+		Stack invalid_bounds = *marks;
+		invalid_bounds.top = invalid_bounds.memEnd;
+		invalid_bounds.lastMark = outer_mark;
+		stack_callback_count = 0;
+		if (Stack_totalSize(&invalid_bounds) != 0 ||
+			Stack_count(&invalid_bounds) != 0 ||
+			Stack_at_(&invalid_bounds, 0) != NULL ||
+			Stack_top(&invalid_bounds) != NULL ||
+			Stack_popMarkPoint_(&invalid_bounds, outer_mark) != 0) {
+			fprintf(stderr, "one-past-end stack cursor was accepted\\n");
+			goto done;
+		}
+		Stack_do_(&invalid_bounds, count_stack_item);
+		Stack_doUntilMark_(&invalid_bounds, count_stack_item);
+		if (stack_callback_count != 0) {
+			fprintf(stderr, "stack bounds callback ran on invalid storage\\n");
+			goto done;
+		}
 	}
 	if (!Stack_popMarkPoint_(marks, outer_mark) ||
 		Stack_totalSize(marks) != 1 || Stack_top(marks) != &values[0]) {

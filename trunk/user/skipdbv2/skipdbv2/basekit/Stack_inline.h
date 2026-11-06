@@ -19,7 +19,9 @@ IOINLINE void Stack_do_(const Stack *self, StackDoCallback *callback)
 	intptr_t mark;
 
 	if (NULL == self || NULL == callback || NULL == self->items ||
-		NULL == self->top || self->top < self->items)
+		NULL == self->top || NULL == self->memEnd ||
+		self->memEnd <= self->items || self->top < self->items ||
+		self->top >= self->memEnd)
 		return;
 	itemP = self->top;
 	mark = self->lastMark;
@@ -45,7 +47,9 @@ IOINLINE void Stack_doUntilMark_(const Stack *self, StackDoCallback *callback)
 	intptr_t mark;
 
 	if (NULL == self || NULL == callback || NULL == self->items ||
-		NULL == self->top || self->top < self->items)
+		NULL == self->top || NULL == self->memEnd ||
+		self->memEnd <= self->items || self->top < self->items ||
+		self->top >= self->memEnd)
 		return;
 	itemP = self->top;
 	mark = self->lastMark;
@@ -70,7 +74,8 @@ IOINLINE void Stack_clear(Stack *self)
 IOINLINE size_t Stack_totalSize(const Stack *self)
 {
 	if (NULL == self || NULL == self->items || NULL == self->top ||
-		self->top < self->items)
+		NULL == self->memEnd || self->memEnd <= self->items ||
+		self->top < self->items || self->top >= self->memEnd)
 		return 0;
 	return (size_t)(self->top - self->items);
 }
@@ -167,7 +172,9 @@ IOINLINE int Stack_popMarkPoint_(Stack *self, intptr_t mark)
 	size_t used;
 
 	if (NULL == self || NULL == self->items || NULL == self->top ||
-		self->top < self->items || mark <= 0)
+		NULL == self->memEnd || self->memEnd <= self->items ||
+		self->top < self->items || self->top >= self->memEnd ||
+		mark <= 0)
 		return 0;
 	used = (size_t)(self->top - self->items);
 	cursor = self->lastMark;
@@ -213,6 +220,8 @@ IOINLINE void *Stack_top(const Stack *self)
 IOINLINE void *Stack_at_(const Stack *self, int i)
 {
 	if (NULL == self || NULL == self->items || NULL == self->top ||
+		NULL == self->memEnd || self->memEnd <= self->items ||
+		self->top < self->items || self->top >= self->memEnd ||
 		i < 0 || (size_t)i >= (size_t)(self->top - self->items))
 		return NULL;
 	return self->items[(size_t)i + 1];

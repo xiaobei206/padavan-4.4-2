@@ -1,3 +1,23 @@
+## 2026-11-06 14:30 CST — Reject one-past-end Stack cursors
+
+### Baseline
+- Main commit `e9827701787634511dd0641ee5e644eac63ed28c`; SkipDBv2 Regression run #269 passed source contracts, configure, full build, and all 41 CTest cases.
+
+### Defect and fix
+- Several inline readers accepted `top == memEnd`, even though `memEnd` is one-past the allocated slots. Iteration could dereference that out-of-bounds cursor; size/index queries could report capacity as logical contents; `Stack_popMarkPoint_` could report success without making progress.
+- Fail closed in `Stack_do_`, `Stack_doUntilMark_`, `Stack_totalSize`, `Stack_at_`, and `Stack_popMarkPoint_` when the allocation end is NULL/inconsistent or the cursor is at/beyond it.
+
+### Regression and contracts
+- Extend the existing `stack_lifecycle_test` with a shallow malformed-stack view whose `top` equals `memEnd`; check safe size/index/mark-query behavior and that iterators call no callbacks.
+- Strengthen workflow contracts to verify each affected function contains the boundary guard and that the one-past-end regression remains present.
+- Reuse the existing CMake test target; no new source or build target is introduced.
+
+### Validation
+- Structural preflight confirms all five targeted inline functions independently reject the invalid cursor.
+- The workflow triggered by this commit must confirm the full remote compile and regression suite.
+
+---
+
 ## 2026-11-06 14:27 CST — Correct case-sensitive UArray search fixture
 
 ### CI diagnosis and repair

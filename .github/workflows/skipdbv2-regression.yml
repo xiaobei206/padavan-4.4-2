@@ -1156,6 +1156,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h": [
                   "if (self->top >= self->memEnd - 1)",
+                  "NULL == self->memEnd || self->memEnd <= self->items",
+                  "self->top >= self->memEnd",
                   "mark <= 0",
                   "if (cursor != mark)",
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
@@ -1194,6 +1196,10 @@ jobs:
                   "Stack_clone(source)",
                   "Stack_popMarkPoint_(marks, 0)",
                   "Stack_popMarkPoint_(marks, outer_mark)",
+                  "invalid_bounds.top = invalid_bounds.memEnd;",
+                  "Stack_totalSize(&invalid_bounds) != 0",
+                  "Stack_popMarkPoint_(&invalid_bounds, outer_mark) != 0",
+                  "stack bounds callback ran on invalid storage",
                   "Stack_compact(source);",
                   "copied mark chain was not usable",
               ],
@@ -1556,6 +1562,33 @@ jobs:
                          "add_test(NAME uarray_search_bounds_test COMMAND uarray_search_bounds_test)"):
               if needle not in search_cmake:
                   raise SystemExit("UArray search regression is not registered in CMake/CTest: " + needle)
+
+          stack_inline_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h").read_text()
+          for stack_signature in (
+              "IOINLINE void Stack_do_(const Stack *self, StackDoCallback *callback)",
+              "IOINLINE void Stack_doUntilMark_(const Stack *self, StackDoCallback *callback)",
+              "IOINLINE size_t Stack_totalSize(const Stack *self)",
+              "IOINLINE int Stack_popMarkPoint_(Stack *self, intptr_t mark)",
+              "IOINLINE void *Stack_at_(const Stack *self, int i)",
+          ):
+              stack_start = stack_inline_source.find(stack_signature)
+              stack_end = stack_inline_source.find("\n}", stack_start)
+              stack_body = (
+                  stack_inline_source[stack_start:stack_end]
+                  if stack_start >= 0 and stack_end > stack_start
+                  else ""
+              )
+              if ("NULL == self->memEnd" not in stack_body or
+                      "self->top >= self->memEnd" not in stack_body):
+                  raise SystemExit("Stack cursor reader must reject a missing allocation end and one-past-end cursor: " + stack_signature)
+          stack_test = Path("trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c").read_text()
+          for needle in ("invalid_bounds.top = invalid_bounds.memEnd;",
+                         "Stack_totalSize(&invalid_bounds) != 0",
+                         "Stack_popMarkPoint_(&invalid_bounds, outer_mark) != 0",
+                         "Stack_do_(&invalid_bounds, count_stack_item);",
+                         "stack bounds callback ran on invalid storage"):
+              if needle not in stack_test:
+                  raise SystemExit("Stack lifecycle regression lost one-past-end cursor coverage: " + needle)
 
           common_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Common.c").read_text()
           realloc_start = common_source.find("MemoryBlock *MemoryBlock_reallocToSize_(MemoryBlock *self, size_t size)")
