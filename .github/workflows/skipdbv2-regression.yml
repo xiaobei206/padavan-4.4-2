@@ -2974,8 +2974,8 @@ jobs:
                   raise SystemExit("SHash compaction CTest registration missing: " + needle)
 
 
-          shash_inline = Path("trunk/user/skipdbv2/skipdbv2/basekit/SHash_inline.h").read_text()
-          if "#define SHash_maxLoops(self) (self->tableSize < 20 ? self->tableSize : 20)" not in shash_inline:
+          shash_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/SHash.h").read_text()
+          if "#define SHash_maxLoops(self) (self->tableSize < 20 ? self->tableSize : 20)" not in shash_header:
               raise SystemExit("SHash cuckoo rollback capacity must match the 20-iteration loop bound")
           cuckoo_start = shash_source.find("SHashRecord *SHash_cuckoo_(SHash *self, SHashRecord* thisRecord)")
           cuckoo_end = shash_source.find("void SHash_grow(", cuckoo_start)

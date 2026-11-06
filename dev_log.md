@@ -1,3 +1,11 @@
+## 2026-11-06 18:57 CST — Correct SHash loop-bound contract header path
+
+- CI run #316 stopped in the source-contract phase before configure/build: `SHash_maxLoops` is declared in `SHash.h`, but the new check read `SHash_inline.h`.
+- Point the source contract at the declaration owner. The SHash rollback implementation and regression fixture are unchanged.
+- Mainline CI run #317 will validate the contract, compilation, and full CTest suite.
+
+---
+
 ## 2026-11-06 18:56 CST — Roll back failed SHash cuckoo kick chains
 
 ### Baseline
