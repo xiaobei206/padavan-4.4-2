@@ -543,6 +543,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordMove.c": [
                   "int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)",
+                  "self->pos < (PID_TYPE)sizeof(PID_TYPE)",
+                  "newPos < (PID_TYPE)sizeof(PID_TYPE)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_record_storage.c": [
                   "UDBRecord_saveWithDatum_(record, input)",
@@ -551,6 +553,7 @@ jobs:
                   "UDBRecord clone aliased the source payload",
                   "UDBRecord clone did not preserve metadata and payload",
                   "freeing a record clone damaged the source payload",
+                  "record move accepted reserved metadata offset",
                   "truncated record header was accepted",
                   "removal accepted a truncated record position",
                   "record tombstone did not survive commit",

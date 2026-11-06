@@ -124,6 +124,15 @@ int main(void)
         goto done;
     }
 
+    /* Offset zero stores free-list metadata, never a physical record. */
+    if (UDBRecord_moveToPos_(record, 0) ||
+        !UDBRecord_readHeader(record) ||
+        UDBRecord_pid(record) != (PID_TYPE)77 ||
+        UDBRecord_size(record) != (PID_TYPE)sizeof(payload)) {
+        fprintf(stderr, "record move accepted reserved metadata offset\n");
+        goto done;
+    }
+
     /* Invalid inputs and out-of-file moves must fail without changing bytes. */
     if (UDBRecord_saveWithDatum_(record, invalid) ||
         UDBRecord_moveToPos_(record, (PID_TYPE)saved_file_end)) {

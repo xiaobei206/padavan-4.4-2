@@ -1,3 +1,12 @@
+## 2026-11-07 01:17 CST — Protect UDB free-list metadata from record relocation
+
+- Baseline: main commit `8a6fc2639fcd036790b02eae56cadb2c2935883d`; SkipDBv2 Regression run #395 passed source contracts, full build, and all regression tests.
+- Scope: `UDBRecord_moveToPos_()` in the physical-record relocation module.
+- The bounds checks validated file extents but allowed a caller to relocate a record to offset zero, which stores the persisted first-empty/free-list pointer, or to another byte inside that metadata header. This could overwrite allocator metadata and corrupt subsequent record reuse.
+- Reject source and destination positions before `sizeof(PID_TYPE)` before allocating or writing. Extend the existing record-storage regression to verify a move to offset zero is rejected and the source header remains intact. Update existing source contracts; no new files or CMake changes. No local C build is claimed.
+
+---
+
 ## 2026-11-07 01:14 CST — Reject UDB tombstones outside complete record extents
 
 - Baseline: main commit `0f3fabcc1b86082f175c10b8904a9ba219c6765f`; SkipDBv2 Regression run #394 passed source-contract checks, the full build, and regression tests.

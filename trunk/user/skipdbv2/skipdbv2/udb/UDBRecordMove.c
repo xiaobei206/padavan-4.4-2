@@ -13,7 +13,9 @@ int UDBRecord_moveToPos_(UDBRecord *self, PID_TYPE newPos)
 
     if (NULL == self || NULL == self->file || self->file->file == NULL ||
         self->file->maxPos < 0 || self->pos > (PID_TYPE)LONG_MAX ||
-        newPos > (PID_TYPE)LONG_MAX)
+        self->pos < (PID_TYPE)sizeof(PID_TYPE) ||
+        newPos > (PID_TYPE)LONG_MAX ||
+        newPos < (PID_TYPE)sizeof(PID_TYPE))
         return 0;
 
     file_size = (size_t)self->file->maxPos;
