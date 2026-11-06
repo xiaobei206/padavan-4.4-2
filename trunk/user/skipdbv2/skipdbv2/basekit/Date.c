@@ -82,18 +82,13 @@ void Date_free(Date *self)
 
 int Date_compare(const Date *self, const Date *other)
 {
-	double s1, s2;
 	if (NULL == self || NULL == other)
 		return 0;
-	s1 = Date_asSeconds(self);
-	s2 = Date_asSeconds(other);
-
-	if (s1 == s2)
-	{
-		return 0;
-	}
-
-	return s1 > s2 ? 1 : -1;
+	if (self->tv.tv_sec != other->tv.tv_sec)
+		return self->tv.tv_sec > other->tv.tv_sec ? 1 : -1;
+	if (self->tv.tv_usec != other->tv.tv_usec)
+		return self->tv.tv_usec > other->tv.tv_usec ? 1 : -1;
+	return 0;
 }
 
 double Date_SecondsFrom1970ToNow(void)

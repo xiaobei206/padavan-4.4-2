@@ -1099,6 +1099,10 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c": [
                   "if (NULL == self)",
                   "if (NULL == self || NULL == other)",
+                  "self->tv.tv_sec != other->tv.tv_sec",
+                  "self->tv.tv_usec != other->tv.tv_usec",
+                  "self->tv.tv_sec > other->tv.tv_sec ? 1 : -1",
+                  "self->tv.tv_usec > other->tv.tv_usec ? 1 : -1",
                   "return BStreamTag_asUnsignedChar(self) == BStreamTag_asUnsignedChar(other);",
                   "return \"UNKNOWN TYPE\";",
               ],
@@ -1292,6 +1296,9 @@ jobs:
                   "written = strftime(buffer, capacity, format, tm);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c": [
+                  "static int test_date_compare_precision(void)",
+                  "Date_compare collapsed distinct whole seconds above double precision",
+                  "Date_compare collapsed distinct microseconds at a large timestamp",
                   "static int test_calendar_year_bounds(void)",
                   "Date_setYear_(&value, LONG_MIN);",
                   "Date_setYear_(&value, LONG_MAX);",
@@ -3963,6 +3970,14 @@ jobs:
                   raise SystemExit("UArray character ctype test is not registered in CMake/CTest: " + needle)
 
           date_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Date.c").read_text()
+          compare_start = date_source.find("int Date_compare(const Date *self, const Date *other)")
+          compare_end = date_source.find("double Date_SecondsFrom1970ToNow(void)", compare_start)
+          compare_body = date_source[compare_start:compare_end] if compare_start >= 0 and compare_end > compare_start else ""
+          if (not compare_body or
+                  "self->tv.tv_sec != other->tv.tv_sec" not in compare_body or
+                  "self->tv.tv_usec != other->tv.tv_usec" not in compare_body or
+                  "Date_asSeconds(" in compare_body):
+              raise SystemExit("Date_compare must order exact timeval fields without converting timestamps to double")
           date_ctor_start = date_source.find("Date *Date_new(void)")
           date_ctor_end = date_source.find("void Date_copy_(", date_ctor_start)
           date_ctor = date_source[date_ctor_start:date_ctor_end] if date_ctor_start >= 0 and date_ctor_end > date_ctor_start else ""

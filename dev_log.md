@@ -1,3 +1,12 @@
+## 2026-11-07 02:26 CST — Compare Date timestamps without double precision loss
+
+- Baseline: main commit `8909b11b2b2a705fbcc88d1f5b44f1c37a0d9f6a`; SkipDBv2 Regression run #413 passed.
+- Scope: `Date_compare()` in `basekit/Date.c` and the existing `date_time_init` regression.
+- The comparator converted both timestamps to `double` through `Date_asSeconds()`. Above 2^53 seconds, adjacent whole seconds can compare equal; microsecond differences at the same large second are also lost.
+- Compare `tv_sec` first and `tv_usec` second, returning the existing -1/0/1 convention without floating-point conversion. Add guarded regression coverage for adjacent large seconds and adjacent microseconds, plus static/dynamic Actions contracts. Reuse the registered CMake target; no new files or public API changes.
+- No local C build or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
 ## 2026-11-07 02:24 CST — Repair UArray distance return after scaled accumulation
 
 - Baseline: main commit `4b32dcbbf6c275d3a7bd13e6bdc4f03e4651c9fe`; SkipDBv2 Regression run #412 failed in `uarray_distance_precision_test`.

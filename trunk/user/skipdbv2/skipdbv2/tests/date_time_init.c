@@ -144,13 +144,48 @@ static int test_calendar_year_bounds(void)
     return 1;
 }
 
+static int test_date_compare_precision(void)
+{
+#if LONG_MAX > 9007199254740992LL
+    const long long exactSeconds = 9007199254740992LL;
+    Date earlier = {0};
+    Date later = {0};
+
+    earlier.tv.tv_sec = (time_t)exactSeconds;
+    later.tv.tv_sec = (time_t)(exactSeconds + 1LL);
+    if ((long long)earlier.tv.tv_sec == exactSeconds &&
+        (long long)later.tv.tv_sec == exactSeconds + 1LL) {
+        if (Date_compare(&earlier, &later) != -1 ||
+            Date_compare(&later, &earlier) != 1) {
+            fprintf(stderr, "Date_compare collapsed distinct whole seconds above double precision\\n");
+            return 0;
+        }
+    }
+
+    earlier.tv.tv_sec = (time_t)exactSeconds;
+    later.tv.tv_sec = (time_t)exactSeconds;
+    earlier.tv.tv_usec = 100;
+    later.tv.tv_usec = 101;
+    if ((long long)earlier.tv.tv_sec == exactSeconds &&
+        (long long)later.tv.tv_sec == exactSeconds) {
+        if (Date_compare(&earlier, &later) != -1 ||
+            Date_compare(&later, &earlier) != 1) {
+            fprintf(stderr, "Date_compare collapsed distinct microseconds at a large timestamp\\n");
+            return 0;
+        }
+    }
+#endif
+    return 1;
+}
+
 int main(void)
 {
     Date *date;
     double before;
     double after;
 
-    if (!test_timezone_conversion() || !test_calendar_year_bounds()) return EXIT_FAILURE;
+    if (!test_timezone_conversion() || !test_calendar_year_bounds() ||
+        !test_date_compare_precision()) return EXIT_FAILURE;
 
     {
         Date sample = {0};
