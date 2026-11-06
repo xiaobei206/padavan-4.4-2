@@ -1,3 +1,11 @@
+## 2026-11-07 00:14 CST — Repair Date timezone workflow contract
+
+- CI #378 stopped in the pre-build source-contract step. The workflow's older Date-specific ordering check still required the replaced `double` conversion and `Date_splitSeconds_()` call, so it rejected the new checked-integer implementation before CMake or compilation.
+- Replace that stale assertion with ordered checks for normalized microseconds, exact integer offset arithmetic, overflow/range validation, `time_t` representability, and final state commit. Add the high-timestamp and malformed-microsecond regression markers to the dynamic test contract.
+- No production C or regression behavior changed in this contract-only repair; CMake registration remains unchanged. The next CI run is the build/runtime gate.
+
+---
+
 ## 2026-11-07 00:13 CST — Preserve exact Date timezone shifts
 
 - Baseline: main commit `31c2db01c222ecc73281149967cbb938557d90f7`; SkipDBv2 Regression run #377 passed the source contracts, full build, and all CTest cases.

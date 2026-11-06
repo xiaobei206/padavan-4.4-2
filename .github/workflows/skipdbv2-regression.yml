@@ -3803,16 +3803,28 @@ jobs:
               raise SystemExit("Date_setSecond_ must validate tm_sec conversion and normalized microseconds")
 
           timezone_start = date_source.find("void Date_convertToTimeZone_(Date *self, struct timezone tz)")
-          timezone_end = date_source.find("\n// time", timezone_start)
+          timezone_end = date_source.find("\\n// time", timezone_start)
           timezone_body = date_source[timezone_start:timezone_end] if timezone_start >= 0 and timezone_end > timezone_start else ""
-          timezone_order = [timezone_body.find(x) for x in ("((double)self->tz.tz_minuteswest - (double)tz.tz_minuteswest) * 60.0",
-              "Date_splitSeconds_(s, &secs, &usecs)", "(long double)timestamp != (long double)secs",
-              "self->tv.tv_sec = timestamp;", "self->tz = tz;")]
+          timezone_order = [timezone_body.find(x) for x in (
+              "if (NULL == self || self->tv.tv_usec < 0 || self->tv.tv_usec >= 1000000)",
+              "currentSeconds = (long long)self->tv.tv_sec;",
+              "currentSeconds < (long long)LONG_MIN",
+              "offsetSeconds = ((long long)self->tz.tz_minuteswest -",
+              "if ((offsetSeconds > 0 &&",
+              "newSeconds = currentSeconds + offsetSeconds;",
+              "timestamp = (time_t)newSeconds;",
+              "if ((long long)timestamp != newSeconds)",
+              "self->tv.tv_sec = timestamp;",
+              "self->tz = tz;")]
           if not timezone_body or min(timezone_order) < 0 or timezone_order != sorted(timezone_order):
-              raise SystemExit("Date timezone conversion must validate offset/time range before state commit")
+              raise SystemExit("Date timezone conversion must check normalized state, exact offset arithmetic, range, and commit ordering")
 
           date_null_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
-          for needle in ("Date_copy_(NULL, &sample)", "Date_compare(NULL, &sample)",
+          for needle in ("const long long exactSeconds = 9007199254740993LL;",
+                         "Date timezone conversion lost exact seconds above double precision",
+                         "malformed.tv.tv_usec = 1000000;",
+                         "Date timezone conversion accepted malformed microseconds",
+                         "Date_copy_(NULL, &sample)", "Date_compare(NULL, &sample)",
                          "Date_asSeconds(NULL) != 0.0",
                          "Date NULL receiver/argument contract failed",
                          "Date_fromSeconds_(&value, -0.5)",
