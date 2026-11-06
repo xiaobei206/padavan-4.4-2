@@ -1,3 +1,12 @@
+## 2026-11-07 06:19 CST — Align UDB cursor-restoration contract with stale-header rejection
+
+- Baseline: main commit `c0fdb6b536c4f22ed1b5e4731e7c5fa20a50c50d`; SkipDBv2 Regression run #446 stopped in the XY-C1 source-contract step before configure/build because the existing contract expected five references to `UDBRecord_restoreFileState_()`.
+- The stale-header tombstone fix adds one deliberate failure-path cursor restoration after `UDBRecord_readHeader()` rejects an invalid persisted header. The implementation now has six references including the helper definition; update the existing exact-count contract from five to six.
+- Workflow contract only; the C fix and regression test remain unchanged. No new files, declarations, or CMake changes.
+- Compile and runtime regression gates remain pending until the next mainline run.
+
+---
+
 ## 2026-11-07 06:17 CST — Preserve persisted metadata when removing stale UDB records
 
 - Baseline: main commit `d29026875cd3b3180418c5b4975389c145f3b2f5`; SkipDBv2 Regression run #445 passed source contracts, configure, full build, and all regression tests.

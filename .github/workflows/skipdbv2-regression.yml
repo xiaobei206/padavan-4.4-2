@@ -2616,7 +2616,7 @@ jobs:
           record_write_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordWrite.c"
           ).read_text()
-          if record_write_source.count("UDBRecord_restoreFileState_(") != 5:
+          if record_write_source.count("UDBRecord_restoreFileState_(") != 6:
               raise SystemExit("UDB record-write cursor restoration is not centralized")
 
           records_storage_source = Path(
