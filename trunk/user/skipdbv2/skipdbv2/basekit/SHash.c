@@ -120,7 +120,62 @@ size_t SHash_memorySize(SHash *self)
 
 void SHash_compact(SHash *self)
 {
-	printf("need to implement SHash_compact\n");
+	SHashRecord *oldRecords;
+	unsigned int oldTableSize, targetLog2;
+	int log2tableSize;
+
+	if (NULL == self || NULL == self->records ||
+		self->log2tableSize < 1 || self->log2tableSize > 20 ||
+		self->tableSize != (1u << self->log2tableSize) ||
+		self->mask != self->tableSize - 1 ||
+		self->numKeys > self->tableSize ||
+		self->log2tableSize <= 1 || self->numKeys >= self->tableSize ||
+		NULL == self->keysEqual || NULL == self->hashForKey)
+		return;
+
+	targetLog2 = 1;
+	while (targetLog2 < self->log2tableSize &&
+		(1u << targetLog2) < self->numKeys)
+		targetLog2++;
+	if (targetLog2 >= self->log2tableSize)
+		return;
+
+	oldRecords = self->records;
+	oldTableSize = self->tableSize;
+	for (log2tableSize = (int)targetLog2;
+		log2tableSize < (int)self->log2tableSize; ++log2tableSize) {
+		SHash candidate = *self;
+		size_t i, recordCount = (size_t)oldTableSize * 2;
+		int failed = 0;
+
+		candidate.records = NULL;
+		candidate.numKeys = 0;
+		candidate.balance = 0;
+		SHash_tableInit_(&candidate, log2tableSize);
+		if (NULL == candidate.records)
+			return;
+
+		for (i = 0; i < recordCount; ++i) {
+			SHashRecord thisRecord = oldRecords[i];
+			SHashRecord *record;
+			if (NULL == thisRecord.key)
+				continue;
+			record = SHash_cuckoo_(&candidate, &thisRecord);
+			if (NULL == record || record == &candidate.nullRecord) {
+				failed = 1;
+				break;
+			}
+			*record = thisRecord;
+			candidate.numKeys++;
+		}
+
+		if (!failed && candidate.numKeys == self->numKeys) {
+			*self = candidate;
+			io_free(oldRecords);
+			return;
+		}
+		io_free(candidate.records);
+	}
 }
 
 void SHash_copy_(SHash *self, SHash *other)

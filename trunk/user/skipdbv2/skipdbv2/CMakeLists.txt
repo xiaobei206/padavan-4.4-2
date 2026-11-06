@@ -282,4 +282,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})
     add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test)
 
+    ADD_EXECUTABLE(shash_compact_test
+        ${PROJECT_SOURCE_DIR}/tests/shash_compact.c)
+    TARGET_LINK_LIBRARIES(shash_compact_test skipdb m)
+    add_test(NAME shash_compact_test COMMAND shash_compact_test)
+
 endif()

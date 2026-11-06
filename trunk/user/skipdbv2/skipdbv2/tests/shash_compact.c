@@ -1,0 +1,88 @@
+#include "SHash.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
+static int keys_equal(void *left, void *right)
+{
+	return left != NULL && right != NULL && *(int *)left == *(int *)right;
+}
+
+static intptr_t hash_key(void *key)
+{
+	return key ? (intptr_t)*(int *)key : 0;
+}
+
+static int check(int condition, const char *message)
+{
+	if (condition)
+		return 1;
+	fprintf(stderr, "%s\n", message);
+	return 0;
+}
+
+int main(void)
+{
+	SHash *hash;
+	int keys[12], values[12];
+	unsigned int i, oldTableSize;
+	size_t oldMemory;
+
+	SHash_compact(NULL);
+	hash = SHash_new();
+	if (!check(hash != NULL, "SHash allocation failed"))
+		return EXIT_FAILURE;
+	SHash_setKeysEqualCallback(hash, keys_equal);
+	SHash_setHashForKeyCallback(hash, hash_key);
+
+	for (i = 0; i < 12; ++i) {
+		keys[i] = (int)i + 1;
+		values[i] = (int)(i + 100);
+		SHash_at_put_(hash, &keys[i], &values[i]);
+	}
+	if (!check(hash->numKeys == 12, "SHash inserts lost entries before compaction"))
+		goto failure;
+	oldTableSize = hash->tableSize;
+	oldMemory = SHash_memorySize(hash);
+	if (!check(oldTableSize > 2, "SHash did not grow enough for the compaction test"))
+		goto failure;
+
+	for (i = 2; i < 12; ++i)
+		SHash_removeKey_(hash, &keys[i]);
+	if (!check(hash->numKeys == 2 &&
+		SHash_at_(hash, &keys[0]) == &values[0] &&
+		SHash_at_(hash, &keys[1]) == &values[1],
+		"SHash removals or retained values are incorrect"))
+		goto failure;
+
+	SHash_compact(hash);
+	if (!check(hash->tableSize < oldTableSize &&
+		hash->numKeys == 2 && SHash_memorySize(hash) < oldMemory,
+		"SHash_compact did not reduce the table while preserving count"))
+		goto failure;
+	for (i = 0; i < 2; ++i) {
+		if (!check(SHash_at_(hash, &keys[i]) == &values[i],
+			"SHash_compact lost a retained key/value mapping"))
+			goto failure;
+	}
+
+	SHash_at_put_(hash, &keys[2], &values[2]);
+	if (!check(hash->numKeys == 3 &&
+		SHash_at_(hash, &keys[2]) == &values[2],
+		"SHash insertion failed after compaction"))
+		goto failure;
+	for (i = 0; i < 3; ++i)
+		SHash_removeKey_(hash, &keys[i]);
+	SHash_compact(hash);
+	if (!check(hash->numKeys == 0 && hash->tableSize == 2,
+		"SHash_compact did not return an empty table to its minimum size"))
+		goto failure;
+
+	SHash_free(hash);
+	puts("SHash compact test passed");
+	return EXIT_SUCCESS;
+
+failure:
+	SHash_free(hash);
+	return EXIT_FAILURE;
+}

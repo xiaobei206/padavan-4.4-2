@@ -736,6 +736,10 @@ jobs:
                   "ADD_EXECUTABLE(datum_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/datum_boundaries.c",
                   "add_test(NAME datum_boundaries_test COMMAND datum_boundaries_test)",
+                  "ADD_EXECUTABLE(shash_compact_test",
+                  "${PROJECT_SOURCE_DIR}/tests/shash_compact.c",
+                  "TARGET_LINK_LIBRARIES(shash_compact_test skipdb m)",
+                  "add_test(NAME shash_compact_test COMMAND shash_compact_test)",
                   "ADD_EXECUTABLE(dynlib_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/dynlib_lifecycle.c",
                   "TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})",
@@ -833,6 +837,20 @@ jobs:
                   "malformed prefix comparison must be antisymmetric",
                   "malformed Datum must not match its own prefix or suffix",
                   "Datum boundary test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/SHash.c": [
+                  "void SHash_compact(SHash *self)",
+                  "SHash_tableInit_(&candidate, log2tableSize)",
+                  "SHash_cuckoo_(&candidate, &thisRecord)",
+                  "if (!failed && candidate.numKeys == self->numKeys)",
+                  "*self = candidate;",
+                  "io_free(oldRecords);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c": [
+                  "SHash_compact did not reduce the table while preserving count",
+                  "SHash_compact lost a retained key/value mapping",
+                  "SHash_compact did not return an empty table to its minimum size",
+                  "SHash compact test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
                   "int gettimeofday(struct timeval *tv, struct timezone *tz)",
@@ -1510,6 +1528,32 @@ jobs:
                          "add_test(NAME datum_boundaries_test COMMAND datum_boundaries_test)"):
               if needle not in datum_cmake:
                   raise SystemExit("Datum boundary CTest registration missing: " + needle)
+
+          shash_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/SHash.c").read_text()
+          shash_test = Path("trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c").read_text()
+          shash_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          compact_start = shash_source.find("void SHash_compact(SHash *self)")
+          compact_end = shash_source.find("void SHash_copy_(", compact_start)
+          compact_body = shash_source[compact_start:compact_end] if compact_start >= 0 and compact_end > compact_start else ""
+          compact_tokens = ("SHash_tableInit_(&candidate, log2tableSize)",
+                            "SHash_cuckoo_(&candidate, &thisRecord)",
+                            "if (!failed && candidate.numKeys == self->numKeys)",
+                            "*self = candidate;", "io_free(oldRecords);")
+          compact_positions = [compact_body.find(token) for token in compact_tokens]
+          if not compact_body or min(compact_positions) < 0 or compact_positions != sorted(compact_positions):
+              raise SystemExit("SHash_compact must build a candidate table and publish it only after complete rehash")
+          if "need to implement SHash_compact" in compact_body:
+              raise SystemExit("SHash_compact remains an unimplemented stub")
+          for needle in ("SHash_compact did not reduce the table while preserving count",
+                         "SHash_compact lost a retained key/value mapping",
+                         "SHash compact test passed"):
+              if needle not in shash_test:
+                  raise SystemExit("SHash compaction regression case missing: " + needle)
+          for needle in ("ADD_EXECUTABLE(shash_compact_test",
+                         "${PROJECT_SOURCE_DIR}/tests/shash_compact.c",
+                         "add_test(NAME shash_compact_test COMMAND shash_compact_test)"):
+              if needle not in shash_cmake:
+                  raise SystemExit("SHash compaction CTest registration missing: " + needle)
 
           dynlib_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c").read_text()
           replace_start = dynlib_source.find("static int DynLib_replaceString_(")

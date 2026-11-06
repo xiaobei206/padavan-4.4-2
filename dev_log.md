@@ -1,3 +1,21 @@
+## 2026-11-06 13:10 CST — Implement transactional SHash compaction
+
+### Baseline and scope
+- Base commit: `97dab20bc60c9b687f1eb1041cc270595837d360`; SkipDBv2 Regression run #246 passed source contracts, compilation, and CTest.
+- Scope is limited to the existing SHash_compact API stub, one focused regression, and CMake/workflow registration.
+
+### Changes
+- Replace the console-printing stub with a best-effort rehash into the smallest practical smaller power-of-two table.
+- Build replacement storage separately and publish it only after every live key/value mapping has been reinserted and the key count matches.
+- Retry larger candidate sizes when cuckoo placement cannot fit the smaller table; preserve the original table on placement or allocation failure.
+- Cover shrinkage, retained lookups, memory reduction, post-compaction insertion, and empty-table compaction.
+
+### Validation
+- Add static and dynamic workflow contracts that enforce candidate-before-publish ordering and check the CTest registration.
+- The post-push SkipDBv2 Regression run remains authoritative for compilation and runtime results.
+
+---
+
 ## 2026-11-06 13:06 CST — Make Datum invalid-storage comparisons consistent
 
 ### Baseline and scope
