@@ -699,6 +699,137 @@ cleanup:
     return result;
 }
 
+
+static int test_pairwise_extrema(void)
+{
+    const int32_t initial[] = {3, -5, 8, 10};
+    const double candidates[] = {4.0, -6.0, 2.0};
+    const int32_t expectedMax[] = {4, -5, 8, 10};
+    const int32_t expectedMin[] = {3, -6, 2, 10};
+    const uintptr_t pointerValues[] = {4, 6, 2};
+    UArray *values = UArray_newWithData_type_size_copy_(
+        (void *)initial, CTYPE_int32_t, 4, 1);
+    UArray *other = UArray_newWithData_type_size_copy_(
+        (void *)candidates, CTYPE_float64_t, 3, 1);
+    UArray *empty = UArray_new();
+    UArray *pointerArray = UArray_newWithData_type_size_copy_(
+        (void *)pointerValues, CTYPE_uintptr_t, 3, 1);
+    UArray invalid;
+    int result = EXIT_FAILURE;
+
+    if (NULL == values || NULL == other || NULL == empty || NULL == pointerArray) {
+        fail("UArray pairwise extrema allocation failed");
+        goto cleanup;
+    }
+
+    values->hash = 0x1111;
+    UArray_Max(values, other);
+    if (memcmp(values->data, expectedMax, sizeof(expectedMax)) != 0 ||
+        values->hash != 0) {
+        fail("UArray pairwise maximum changed prefix results or retained the cached hash");
+        goto cleanup;
+    }
+
+    memcpy(values->data, initial, sizeof(initial));
+    values->hash = 0x2222;
+    UArray_Min(values, other);
+    if (memcmp(values->data, expectedMin, sizeof(expectedMin)) != 0 ||
+        values->hash != 0) {
+        fail("UArray pairwise minimum changed prefix results or retained the cached hash");
+        goto cleanup;
+    }
+
+    empty->hash = 0x3333;
+    UArray_Max(empty, other);
+    UArray_Min(empty, other);
+    UArray_Max(NULL, other);
+    UArray_Min(values, NULL);
+    if (empty->size != 0 || empty->hash != 0x3333) {
+        fail("UArray pairwise extrema changed empty receiver state");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.data = NULL;
+    invalid.hash = 0x4444;
+    UArray_Max(&invalid, other);
+    UArray_Min(&invalid, other);
+    if (invalid.data != NULL || invalid.hash != 0x4444) {
+        fail("UArray pairwise extrema accepted missing receiver storage");
+        goto cleanup;
+    }
+
+    invalid = *other;
+    invalid.data = NULL;
+    values->hash = 0x5555;
+    UArray_Max(values, &invalid);
+    UArray_Min(values, &invalid);
+    if (values->hash != 0x5555 ||
+        memcmp(values->data, expectedMin, sizeof(expectedMin)) != 0) {
+        fail("UArray pairwise extrema accepted missing operand storage");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemSize = 0;
+    invalid.hash = 0x6666;
+    UArray_Max(&invalid, other);
+    UArray_Min(&invalid, other);
+    if (invalid.hash != 0x6666) {
+        fail("UArray pairwise extrema accepted malformed item width");
+        goto cleanup;
+    }
+
+    invalid = *other;
+    invalid.itemType = (CTYPE)9999;
+    values->hash = 0x7777;
+    UArray_Max(values, &invalid);
+    UArray_Min(values, &invalid);
+    if (values->hash != 0x7777) {
+        fail("UArray pairwise extrema accepted unsupported operand type");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    invalid.hash = 0x8888;
+    UArray_Max(&invalid, other);
+    UArray_Min(&invalid, other);
+    if (invalid.hash != 0x8888) {
+        fail("UArray pairwise extrema accepted overflowing receiver geometry");
+        goto cleanup;
+    }
+
+    invalid = *other;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    values->hash = 0x9999;
+    UArray_Max(values, &invalid);
+    UArray_Min(values, &invalid);
+    if (values->hash != 0x9999) {
+        fail("UArray pairwise extrema accepted overflowing operand geometry");
+        goto cleanup;
+    }
+
+    pointerArray->hash = 0xaaaa;
+    values->hash = 0xbbbb;
+    UArray_Max(pointerArray, other);
+    UArray_Min(values, pointerArray);
+    if (pointerArray->hash != 0xaaaa || values->hash != 0xbbbb ||
+        memcmp(pointerArray->data, pointerValues, sizeof(pointerValues)) != 0 ||
+        memcmp(values->data, expectedMin, sizeof(expectedMin)) != 0) {
+        fail("UArray pairwise extrema accepted pointer-sized item type");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(values);
+    UArray_free(other);
+    UArray_free(empty);
+    UArray_free(pointerArray);
+    return result;
+}
+
 typedef void (*UArrayUnaryTransform_)(UArray *);
 typedef double (*UArrayUnaryMathFunction_)(double);
 
@@ -833,6 +964,8 @@ int main(void)
     if (test_normalize() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_unary_transforms() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (test_pairwise_extrema() != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
 

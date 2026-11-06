@@ -662,9 +662,16 @@ double UArray_minAsDouble(const UArray *self)
 
 BASEKIT_API void UArray_Max(UArray *self, const UArray *other)
 {
-	size_t i, minSize = self->size < other->size ? self->size : other->size;
+	size_t i, minSize;
 
-	for(i = 0; i < minSize; i ++)
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other) ||
+		self->itemType == CTYPE_uintptr_t ||
+		other->itemType == CTYPE_uintptr_t)
+		return;
+
+	minSize = self->size < other->size ? self->size : other->size;
+	for (i = 0; i < minSize; ++i)
 	{
 		double v1 = UArray_rawDoubleAt_(self, i);
 		double v2 = UArray_rawDoubleAt_(other, i);
@@ -675,9 +682,16 @@ BASEKIT_API void UArray_Max(UArray *self, const UArray *other)
 
 BASEKIT_API void UArray_Min(UArray *self, const UArray *other)
 {
-	size_t i, minSize = self->size < other->size ? self->size : other->size;
+	size_t i, minSize;
 
-	for(i = 0; i < minSize; i ++)
+	if (!UArray_hasValidNumericStorage_(self) ||
+		!UArray_hasValidNumericStorage_(other) ||
+		self->itemType == CTYPE_uintptr_t ||
+		other->itemType == CTYPE_uintptr_t)
+		return;
+
+	minSize = self->size < other->size ? self->size : other->size;
+	for (i = 0; i < minSize; ++i)
 	{
 		double v1 = UArray_rawDoubleAt_(self, i);
 		double v2 = UArray_rawDoubleAt_(other, i);

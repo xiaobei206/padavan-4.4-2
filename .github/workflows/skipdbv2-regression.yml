@@ -1331,6 +1331,11 @@ jobs:
                   "UARRAY_DOP(fabs);",
                   "void UArray_abs(UArray *self)",
                   "minimum = UArray_rawDoubleAt_(self, 0);",
+                  "BASEKIT_API void UArray_Max(UArray *self, const UArray *other)",
+                  "BASEKIT_API void UArray_Min(UArray *self, const UArray *other)",
+                  "!UArray_hasValidNumericStorage_(self)",
+                  "!UArray_hasValidNumericStorage_(other)",
+                  "UArray_at_putDouble_(self, i, m);",
                   "void UArray_crossProduct_(UArray *self, const UArray *other)",
                   "if (!UArray_hasValidNumericStorage_(self) ||",
                   "!UArray_hasValidNumericStorage_(other) ||",
@@ -1442,6 +1447,18 @@ jobs:
                   "UArray unary transforms accepted unsupported item type",
                   "UArray unary transforms accepted overflowing storage geometry",
                   "if (test_unary_transforms() != EXIT_SUCCESS)",
+                  "UArray pairwise extrema allocation failed",
+                  "UArray pairwise maximum changed prefix results or retained the cached hash",
+                  "UArray pairwise minimum changed prefix results or retained the cached hash",
+                  "UArray pairwise extrema changed empty receiver state",
+                  "UArray pairwise extrema accepted missing receiver storage",
+                  "UArray pairwise extrema accepted missing operand storage",
+                  "UArray pairwise extrema accepted malformed item width",
+                  "UArray pairwise extrema accepted unsupported operand type",
+                  "UArray pairwise extrema accepted overflowing receiver geometry",
+                  "UArray pairwise extrema accepted overflowing operand geometry",
+                  "UArray pairwise extrema accepted pointer-sized item type",
+                  "if (test_pairwise_extrema() != EXIT_SUCCESS)",
                   "UArray division allocation failed",
                   "UArray integer division changed mixed-width prefix results or retained the cached hash",
                   "UArray float32 division changed results or retained the cached hash",
@@ -2340,6 +2357,28 @@ jobs:
                   "UArray_minSizeWith_(" in body
               ):
                   raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")
+
+          pairwise_extrema_ranges = (
+              ("maximum", "BASEKIT_API void UArray_Max(UArray *self, const UArray *other)", "BASEKIT_API void UArray_Min"),
+              ("minimum", "BASEKIT_API void UArray_Min(UArray *self, const UArray *other)", "void UArray_normalize"),
+          )
+          for label, start_marker, end_marker in pairwise_extrema_ranges:
+              start = bit_math_source.find(start_marker)
+              end = bit_math_source.find(end_marker, start)
+              body = bit_math_source[start:end] if start >= 0 and end > start else ""
+              receiver_guard = body.find("UArray_hasValidNumericStorage_(self)")
+              operand_guard = body.find("UArray_hasValidNumericStorage_(other)")
+              first_read = body.find("UArray_rawDoubleAt_(self, i)")
+              write = body.find("UArray_at_putDouble_(self, i, m);")
+              if (
+                  not body or receiver_guard < 0 or operand_guard < 0 or
+                  receiver_guard > first_read or operand_guard > first_read or
+                  "self->itemType == CTYPE_uintptr_t" not in body or
+                  "other->itemType == CTYPE_uintptr_t" not in body or
+                  "minSize = self->size < other->size ? self->size : other->size;" not in body or
+                  first_read < 0 or write < 0 or write < first_read
+              ):
+                  raise SystemExit(f"UArray pairwise {label} must validate both numeric layouts before reads and preserve prefix writes")
 
           division_prototype = bit_math_source.find(
               "static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count);"

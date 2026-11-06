@@ -1,3 +1,14 @@
+## 2026-11-06 23:15 CST — Guard UArray pairwise extrema mutations
+
+- Baseline: main commit `bcb8cc4dea53e44db2a8d955f3644ddc04ea8c31`; SkipDBv2 Regression run #360 completed successfully after the elementwise-division source-contract correction.
+- Scope: `UArray_Max()` and `UArray_Min()` in the existing basekit math module.
+- Both functions read receiver and operand elements without checking either array's type/width/storage geometry. Malformed metadata could reach typed reads, and pointer-sized values were accepted as numeric extrema. Writes used the bounded setter, but its implicit hash invalidation did not protect the unsafe reads.
+- Preflight both operands with the shared numeric-storage validator, reject pointer-sized elements, preserve the common-prefix result semantics, and retain the existing setter-based write/hash lifecycle.
+- Extend the existing `uarray_math_extrema` regression and workflow source contract for mixed-width prefix results, NULL/empty/malformed storage, overflow geometry, pointer-sized types, and hash invalidation. Reuse the existing CMake target; no new files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:09 CST — Fix UArray division source-contract helper lookup
 
 - CI #359 stopped in the workflow source-contract stage before configure/build: the helper-definition search encoded a literal backslash-n instead of matching the C source newline.
