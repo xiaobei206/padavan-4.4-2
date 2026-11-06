@@ -42,8 +42,8 @@ static inline int List_hasValidStorage_(const List *self)
 #define LIST_SAFEFOREACH(list, index, value, code) \
 { \
 	const List *foreachList = list; \
-	size_t index, foreachMax = List_hasValidStorage_(foreachList) ? foreachList->size : 0; \
-	for (index = 0; foreachList && index < foreachMax; index ++) \
+	size_t index; \
+	for (index = 0; foreachList && List_hasValidStorage_(foreachList) && index < List_size(foreachList); index ++) \
 	{ \
 		void *value = List_at_(foreachList, index); \
 		code; \

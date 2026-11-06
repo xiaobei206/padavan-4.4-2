@@ -4,11 +4,21 @@
 #include <stdlib.h>
 
 static size_t callback_count;
+static List *safe_iteration_list;
+static size_t safe_iteration_count;
 
 static void count_visit(void *item)
 {
 	(void)item;
 	callback_count++;
+}
+
+static void shrink_safe_iteration(void *item)
+{
+	(void)item;
+	safe_iteration_count++;
+	if (safe_iteration_count == 1)
+		List_setSize_(safe_iteration_list, 1);
 }
 
 static void *remove_everything(void *item)
@@ -52,6 +62,15 @@ int main(void)
 	if (!check(clone != NULL && List_equals_(source, clone),
 		"valid list clone/equality changed unexpectedly"))
 		goto failure;
+
+	safe_iteration_list = source;
+	safe_iteration_count = 0;
+	LIST_SAFEFOREACH(source, live_index, live_value, shrink_safe_iteration(live_value));
+	if (!check(safe_iteration_count == 1 && source->size == 1,
+		"safe List iteration ignored a live size reduction"))
+		goto failure;
+	List_setSize_(source, 2);
+	List_at_put_(source, 1, &values[1]);
 
 
 	malformed_source = *source;

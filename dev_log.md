@@ -1,3 +1,23 @@
+## 2026-11-06 17:23 CST — Preserve live-size semantics in LIST_SAFEFOREACH
+
+### Baseline
+- Main commit `d46f3f4d0a2dd2b6decb9d4442872a891e449f17`; initial List inline storage hardening is in CI run #308.
+- Scope remains the List inline storage/iteration contract.
+
+### Review correction
+- `LIST_SAFEFOREACH` previously re-evaluated `List_size()` on every iteration so callbacks could shrink the list safely.
+- Retain that live-size behavior while checking `List_hasValidStorage_()` on every pass. Avoid caching the initial length, which could invoke callbacks with synthetic NULL elements after an in-loop shrink.
+
+### Regression and contracts
+- Add a callback-driven regression that shrinks a valid two-element List during the first safe-iteration visit and verifies the loop stops at the new size.
+- Extend workflow source contracts to enforce the dynamic loop bound and regression case. No new files or CMake changes.
+
+### Validation
+- Static checks confirm storage validation precedes each live-size check in `LIST_SAFEFOREACH`.
+- Mainline CI run #309 will validate the correction.
+
+---
+
 ## 2026-11-06 17:19 CST — Guard List inline operations against corrupt capacity metadata
 
 ### Baseline
