@@ -6,18 +6,6 @@
 #undef LIST_C
 #include <stdlib.h>
 
-static int List_hasValidStorage_(const List *self)
-{
-	if (NULL == self ||
-		self->size > (size_t)-1 / sizeof(void *) ||
-		self->size > self->memSize / sizeof(void *) ||
-		(self->memSize > 0 && NULL == self->items) ||
-		(self->size > 0 && NULL == self->items))
-		return 0;
-	return 1;
-}
-
-
 List *List_new(void)
 {
 	List *self = (List *)io_calloc(1, sizeof(List));

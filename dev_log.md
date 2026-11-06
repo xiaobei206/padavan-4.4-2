@@ -1,3 +1,23 @@
+## 2026-11-06 17:19 CST — Guard List inline operations against corrupt capacity metadata
+
+### Baseline
+- Main commit `409631f08834efeaf8e66def09823ae9a044e718`; SkipDBv2 Regression run #307 passed source contracts, configure, full build, and CTest.
+- Scope: the shared List storage invariant used by inline accessors and mutators.
+
+### Defect and fix
+- `List.c` validated that logical size fit the declared capacity, but the public inline API in `List_inline.h` often checked only NULL pointers or logical indexes before reading or mutating `items`.
+- Move the private validator into the inline header as a `static inline` helper, remove its duplicate C-only definition, and apply the invariant before backing-array access in inline readers, writers, removers, stack operations, and iteration macros.
+
+### Regression and contracts
+- Extend the existing `list_storage_bounds_test` with malformed source/destination coverage for inline reads, all iteration macros, append, indexed writes/removals, filtering, and stack access; verify malformed storage remains unchanged.
+- Update workflow source contracts to enforce validator ownership, preflight ordering, and regression coverage. Reuse the existing CMake target; no new files or public declarations.
+
+### Validation
+- Static source checks confirm the validator precedes inline callers and rejects capacity mismatch and missing backing storage before dereference.
+- Mainline CI run #308 will validate the complete build and regression suite.
+
+---
+
 ## 2026-11-06 17:04 CST — Make UArray byte translation reject invalid inputs safely
 
 ### Baseline

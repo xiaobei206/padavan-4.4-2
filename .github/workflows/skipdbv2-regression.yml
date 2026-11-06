@@ -1497,19 +1497,32 @@ jobs:
                   "retainedSize = end - start + 1;",
                   "memmove(self->items, self->items + start, retainedSize * sizeof(void *));",
                   "memset(self->items + retainedSize, 0, (oldSize - retainedSize) * sizeof(void *));",
-                  "static int List_hasValidStorage_(const List *self)",
-                  "self->size > self->memSize / sizeof(void *)",
-                  "(self->memSize > 0 && NULL == self->items)",
                   "List_hasValidStorage_(otherList)",
                   "List_hasValidStorage_(self)",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/List_inline.h": [
+                  "static inline int List_hasValidStorage_(const List *self)",
+                  "self->size > (size_t)-1 / sizeof(void *)",
+                  "self->size > self->memSize / sizeof(void *)",
+                  "(self->memSize > 0 && NULL == self->items)",
+                  "(self->size > 0 && NULL == self->items)",
+                  "if (!List_hasValidStorage_(self) || index >= self->size)",
+                  "if (!List_hasValidStorage_(self) || self->size < 2)",
+                  "if (!List_hasValidStorage_(self) || NULL == callback)",
+                  "size_t index, foreachMax = List_hasValidStorage_(foreachList) ? foreachList->size : 0;",
+              ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_storage_bounds.c": [
                   "malformed_source.memSize = sizeof(void *)",
-                  "List_copy_(target, &malformed_source)",
-                  "List_equals_(source, &malformed_source) == 0",
-                  "List_clone(&malformed_source) == NULL",
-                  "malformed_target.size = 2;",
-                  "List_setSize_(&malformed_target, 0)",
+                  "List_rawAt_(&malformed_source, 0) == NULL",
+                  "LIST_FOREACH(&malformed_source, inline_index, inline_value, ++callback_count)",
+                  "LIST_SAFEFOREACH(&malformed_source, safe_index, safe_value, ++callback_count)",
+                  "LIST_REVERSEFOREACH(&malformed_source, reverse_index, reverse_value, ++callback_count)",
+                  "LIST_SAFEREVERSEFOREACH(&malformed_source, safe_reverse_index, safe_reverse_value, ++callback_count)",
+                  "LIST_DO_(&malformed_source, count_visit)",
+                  "List_appendSeq_(target, &malformed_source)",
+                  "List_at_put_(&malformed_target, 0, &values[2])",
+                  "List_removeTrueFor_(&malformed_target, remove_everything)",
+                  "malformed_target.items[1] == saved_target_items[1]",
                   "List_asStackAllocatedUArray(&malformed_source)",
                   "list storage bounds test passed",
               ],
@@ -2066,18 +2079,39 @@ jobs:
                   raise SystemExit("UArray name lookup regression is not registered in CMake/CTest: " + needle)
 
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
-          storage_helper_start = list_source.find("static int List_hasValidStorage_(const List *self)")
-          storage_helper_end = list_source.find("\n}", storage_helper_start)
+          list_inline_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List_inline.h").read_text()
+          storage_helper_start = list_inline_source.find("static inline int List_hasValidStorage_(const List *self)")
+          storage_helper_end = list_inline_source.find("\n}", storage_helper_start)
           storage_helper = (
-              list_source[storage_helper_start:storage_helper_end]
+              list_inline_source[storage_helper_start:storage_helper_end]
               if storage_helper_start >= 0 and storage_helper_end > storage_helper_start
               else ""
           )
           if (not storage_helper or
+                  "self->size > (size_t)-1 / sizeof(void *)" not in storage_helper or
                   "self->size > self->memSize / sizeof(void *)" not in storage_helper or
                   "(self->memSize > 0 && NULL == self->items)" not in storage_helper or
                   "(self->size > 0 && NULL == self->items)" not in storage_helper):
-              raise SystemExit("List storage validator must reject size/capacity mismatches and missing backing pointers")
+              raise SystemExit("List inline storage validator must reject overflow, capacity mismatch, and missing backing pointers")
+          for signature in (
+                  "IOINLINE void *List_rawAt_(List *self, size_t index)",
+                  "IOINLINE void *List_at_(const List *self, size_t index)",
+                  "IOINLINE void *List_append_(List *self, void *item)",
+                  "IOINLINE void List_appendSeq_(List *self, const List *otherList)",
+                  "IOINLINE void List_at_insert_(List *self, size_t index, void *item)",
+                  "IOINLINE void List_at_put_(List *self, size_t index, void *item)",
+                  "IOINLINE void List_removeIndex_(List *self, size_t index)",
+                  "IOINLINE void *List_pop(List *self)",
+                  "IOINLINE void *List_top(const List *self)",
+                  "IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)",
+          ):
+              start = list_inline_source.find(signature)
+              end = list_inline_source.find("\n}", start)
+              body = list_inline_source[start:end] if start >= 0 and end > start else ""
+              guard = body.find("List_hasValidStorage_(")
+              first_items_use = body.find("self->items")
+              if not body or guard < 0 or (first_items_use >= 0 and guard > first_items_use):
+                  raise SystemExit("List inline storage validation must precede backing-array access: " + signature)
           for signature, next_signature in (
                   ("void List_copy_(List *self, const List *otherList)", "int List_equals_("),
                   ("int List_equals_(const List *self, const List *otherList)", "/* --- sizing"),
@@ -2096,7 +2130,16 @@ jobs:
                          "List_copy_(target, &malformed_source)",
                          "List_equals_(source, &malformed_source) == 0",
                          "List_clone(&malformed_source) == NULL",
-                         "malformed_target.size = 2;",
+                         "List_rawAt_(&malformed_source, 0) == NULL",
+                         "LIST_FOREACH(&malformed_source, inline_index, inline_value, ++callback_count)",
+                         "LIST_SAFEFOREACH(&malformed_source, safe_index, safe_value, ++callback_count)",
+                         "LIST_REVERSEFOREACH(&malformed_source, reverse_index, reverse_value, ++callback_count)",
+                         "LIST_SAFEREVERSEFOREACH(&malformed_source, safe_reverse_index, safe_reverse_value, ++callback_count)",
+                         "LIST_DO_(&malformed_source, count_visit)",
+                         "List_appendSeq_(target, &malformed_source)",
+                         "List_at_put_(&malformed_target, 0, &values[2])",
+                         "List_removeTrueFor_(&malformed_target, remove_everything)",
+                         "malformed_target.items[1] == saved_target_items[1]",
                          "List_asStackAllocatedUArray(&malformed_source)"):
               if needle not in list_storage_test:
                   raise SystemExit("List storage-boundary regression coverage missing: " + needle)
