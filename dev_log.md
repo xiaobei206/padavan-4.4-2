@@ -1,3 +1,10 @@
+## 2026-11-07 03:46 CST — Repair UArray reverse range contract boundary
+
+- CI run #431 stopped in the XY-C1 source-contract check before configure because the `UArray_reverse()` contract could not locate its end boundary.
+- The workflow used `/*\\n#define` as a literal backslash-n marker, but the C source has a real newline before the following comment. The empty extracted function body therefore failed the otherwise-correct CTYPE-layout guard check.
+- Bound the reverse-function contract at `chr(10) + "/*"`, preserving the existing guard/order assertions while matching the source layout. No C implementation, test, or CMake behavior changed.
+
+---
 ## 2026-11-07 03:40 CST — Refresh stale UArray string source contract
 
 - CI run #430 stopped in the XY-C1 source-contract check because the `UArray_string.c` manifest still required the old inline `self->size / self->itemSize` check in `UArray_splitInputsAreValid_()`.

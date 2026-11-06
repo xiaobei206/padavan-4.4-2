@@ -3435,7 +3435,7 @@ jobs:
               ("void UArray_swapIndex_withIndex_(UArray *self, size_t i, size_t j)",
                "BASEKIT_API void UArray_reverse(UArray *self)"),
               ("BASEKIT_API void UArray_reverse(UArray *self)",
-               "/*\\n#define UARRAY_MATCHPREFIXLENGTH_TYPES"),
+               chr(10) + "/*"),
           )
           for start_signature, end_signature in reverse_ranges:
               start = split_source.find(start_signature)
