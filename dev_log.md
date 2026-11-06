@@ -1,3 +1,23 @@
+## 2026-11-06 13:36 CST — Guard UArray character ctype inputs and hash state
+
+### Baseline and scope
+- Base commit: `9c957505e56c0c80d02bc00a3eea1fce446b53a1`; RandomGen state-index hardening is the latest mainline change.
+- Scope is limited to `UArray_character.c`, one focused domain-boundary regression, and its CMake/workflow contracts.
+
+### Changes
+- Validate values against the unsigned-byte domain before passing them to `ctype.h`; this avoids undefined behavior from negative values and out-of-range integer/floating-point conversions.
+- Classification operations map non-byte values to false; case-conversion operations preserve non-byte values instead of narrowing them.
+- Guard NULL UArray receivers and non-empty arrays with NULL backing storage.
+- Invalidate the cached UArray hash after mutating character classification or case-conversion operations.
+- Keep the `UArray_isLowercase` / `UArray_isUppercase` queries on the same checked byte-domain path.
+
+### Validation
+- Add CTest fixtures for negative signed bytes, wide integers, floating-point NaN/infinity, out-of-range values, NULL/malformed storage, and post-mutation hash refresh.
+- Register the new test in CMake and extend workflow source contracts for safe narrowing, input guards, hash invalidation, and test registration.
+- No local firmware build is claimed; the remote regression run is authoritative for compilation and runtime behavior.
+
+---
+
 ## 2026-11-06 13:28 CST — Guard RandomGen state-index bounds
 
 ### Baseline and scope

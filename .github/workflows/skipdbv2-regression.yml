@@ -759,6 +759,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/sorting_boundaries.c",
                   "TARGET_LINK_LIBRARIES(sorting_boundaries_test skipdb m)",
                   "add_test(NAME sorting_boundaries_test COMMAND sorting_boundaries_test)",
+                  "ADD_EXECUTABLE(uarray_character_domain_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_character_domain.c",
+                  "TARGET_LINK_LIBRARIES(uarray_character_domain_test skipdb m)",
+                  "add_test(NAME uarray_character_domain_test COMMAND uarray_character_domain_test)",
                   "SET(UDB_SRC",
                   "UDBRead.c",
                   "UDBRecordWrite.c",
@@ -1043,6 +1047,23 @@ jobs:
                   "size_t UArray_sizeInBytes(const UArray *self)",
                   "self->size > (size_t)-1 / self->itemSize",
                   "return self->size * self->itemSize;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/UArray_character.c": [
+                  "static int UArray_characterValueIsByte_(long double value)",
+                  "value <= (long double)UCHAR_MAX",
+                  "UArray_characterValueIsByte_((long double)v)",
+                  "OP((unsigned char)(v))",
+                  ": (v));",
+                  "UArray_changed(self);",
+                  "if (NULL == self || (self->size > 0 && NULL == self->data)) return;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_character_domain.c": [
+                  "signed high bytes were not handled as non-ASCII characters",
+                  "case conversion changed values outside the unsigned-byte domain",
+                  "case conversion did not invalidate the cached hash",
+                  "floating-point values were narrowed before byte-range validation",
+                  "non-empty array with NULL storage was not rejected",
+                  "UArray character-domain test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c": [
                   "UArray_sizeInBytes(NULL)",
@@ -1791,6 +1812,46 @@ jobs:
                          "add_test(NAME sorting_boundaries_test COMMAND sorting_boundaries_test)"):
               if needle not in sorting_cmake:
                   raise SystemExit("Sorting regression CMake registration missing: " + needle)
+
+          character_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_character.c").read_text()
+          if ("return value >= 0.0L && value <= (long double)UCHAR_MAX;" not in character_source):
+              raise SystemExit("UArray character helpers must validate the complete unsigned-byte domain before calling ctype")
+          for macro_name, invocation in (("UARRAY_IOP", "UARRAY_IOP(isalnum);"),
+                                          ("UARRAY_TOP", "UARRAY_TOP(tolower);")):
+              macro_start = character_source.find("#define " + macro_name + "(OP)")
+              macro_end = character_source.find(invocation, macro_start)
+              macro_body = character_source[macro_start:macro_end] if macro_start >= 0 and macro_end > macro_start else ""
+              range_guard = macro_body.find("UArray_characterValueIsByte_((long double)v)")
+              byte_cast = macro_body.find("OP((unsigned char)(v))")
+              hash_invalidate = macro_body.find("UArray_changed(self);")
+              if (not macro_body or min(range_guard, byte_cast, hash_invalidate) < 0 or
+                      not (range_guard < byte_cast < hash_invalidate) or
+                      "if (NULL == self || (self->size > 0 && NULL == self->data)) return;" not in macro_body):
+                  raise SystemExit(macro_name + " must validate inputs, avoid unsafe ctype narrowing, and invalidate the cached hash")
+          for function_name, ctype_name in (("UArray_isLowercase", "tolower"),
+                                            ("UArray_isUppercase", "toupper")):
+              function_start = character_source.find("int " + function_name + "(UArray *self)")
+              function_end = character_source.find("\n}", function_start)
+              function_body = character_source[function_start:function_end] if function_start >= 0 and function_end > function_start else ""
+              if ("UArray_characterValueIsByte_((long double)v)" not in function_body or
+                      ctype_name + "((unsigned char)v)" not in function_body or
+                      "if (NULL == self" not in function_body):
+                  raise SystemExit(function_name + " must guard malformed arrays and classify only valid byte values")
+
+          character_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_character_domain.c").read_text()
+          for needle in ("CTYPE_int8_t", "CTYPE_int16_t", "CTYPE_float64_t",
+                         "NAN", "INFINITY", "UArray_hash(wide)",
+                         "UArray character-domain test passed"):
+              if needle not in character_test:
+                  raise SystemExit("UArray character-domain boundary fixture missing: " + needle)
+
+          character_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(uarray_character_domain_test",
+                         "${PROJECT_SOURCE_DIR}/tests/uarray_character_domain.c",
+                         "TARGET_LINK_LIBRARIES(uarray_character_domain_test skipdb m)",
+                         "add_test(NAME uarray_character_domain_test COMMAND uarray_character_domain_test)"):
+              if needle not in character_cmake:
+                  raise SystemExit("UArray character-domain CTest registration missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

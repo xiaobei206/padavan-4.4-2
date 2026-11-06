@@ -307,4 +307,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(sorting_boundaries_test skipdb m)
     add_test(NAME sorting_boundaries_test COMMAND sorting_boundaries_test)
 
+    ADD_EXECUTABLE(uarray_character_domain_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_character_domain.c)
+    TARGET_LINK_LIBRARIES(uarray_character_domain_test skipdb m)
+    add_test(NAME uarray_character_domain_test COMMAND uarray_character_domain_test)
+
 endif()
