@@ -1,3 +1,19 @@
+## 2026-11-06 16:37 CST — Correct BStream read-contract boundary matching
+
+### CI diagnosis
+- SkipDBv2 Regression run #298 stopped in the added BStream source-contract preflight after the existing integration contracts passed.
+- The new Python boundary detector searched for a literal backslash-n instead of a newline, so it produced an empty function-body slice. This was a workflow assertion defect; configure, compilation, and CTest were not reached.
+
+### Fix
+- Correct both reader-body delimiters to use the same newline escape convention as the existing BStream read-path contracts.
+- No C implementation, regression case, CMake target, or public declaration changed in this repair.
+
+### Validation
+- Static checks confirm each delimiter occurs once and the BStream read-contract checks remain wired to the existing implementation and test source contracts.
+- The next mainline workflow will validate the full preflight, build, and regression suite.
+
+---
+
 ## 2026-11-06 16:35 CST — Fail closed on invalid BStream array reads
 
 ### Baseline

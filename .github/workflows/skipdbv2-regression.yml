@@ -1663,8 +1663,8 @@ jobs:
           )
           plain_array_start = bstream_source.find("void BStream_readUArray_(BStream *self, UArray *b)")
           tagged_array_start = bstream_source.find("void BStream_readTaggedUArray_(BStream *self, UArray *b)")
-          plain_array_end = bstream_source.find("\\nUArray *BStream_readUArray(", plain_array_start)
-          tagged_array_end = bstream_source.find("\\nUArray *BStream_readTaggedUArray(", tagged_array_start)
+          plain_array_end = bstream_source.find("\nUArray *BStream_readUArray(", plain_array_start)
+          tagged_array_end = bstream_source.find("\nUArray *BStream_readTaggedUArray(", tagged_array_start)
           array_helper_body = (
               bstream_source[array_helper_start:plain_array_start]
               if array_helper_start >= 0 and plain_array_start > array_helper_start
