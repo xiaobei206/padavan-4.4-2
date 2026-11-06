@@ -1,3 +1,11 @@
+## 2026-11-06 14:37 CST — Correct Date source-contract delimiter
+
+### CI contract repair
+- Structural review found the new embedded Python check searched for a literal backslash-plus-`n` instead of the newline preceding the end of `Date_asString()`. This would make its extracted function body empty and fail preflight regardless of the C implementation.
+- Correct the delimiter in the existing workflow contract; production code and regression behavior are unchanged.
+
+---
+
 ## 2026-11-06 14:36 CST — Harden Date string formatting bounds
 
 ### Baseline

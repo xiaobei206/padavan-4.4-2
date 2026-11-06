@@ -1803,7 +1803,7 @@ jobs:
                   raise SystemExit("Date initialization regression case missing: " + needle)
 
           date_string_start = date_source.find("UArray *Date_asString(const Date *self, const char *format)")
-          date_string_end = date_source.find("\\n}", date_string_start)
+          date_string_end = date_source.find("\n}", date_string_start)
           date_string_body = date_source[date_string_start:date_string_end] if date_string_start >= 0 and date_string_end > date_string_start else ""
           date_alloc = date_string_body.find("u = UArray_new();")
           array_size = date_string_body.find("UArray_setSize_(u, capacity);")
