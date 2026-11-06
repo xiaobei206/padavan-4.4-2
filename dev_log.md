@@ -1,3 +1,14 @@
+## 2026-11-07 00:16 CST — Make PortableStrlcpy reject invalid pointers safely
+
+- Baseline: main commit `31b43e70a4716e9bcc236b6d2567cd9af0820004`; SkipDBv2 Regression run #380 passed source contracts, full build, and CTest.
+- Scope: the existing `PortableStrlcpy()` implementation and one focused regression target.
+- The function dereferenced `src` and `dest` without validation. A NULL source could be dereferenced even when the destination was valid; a NULL destination with nonzero capacity also caused a write through NULL.
+- Reject NULL sources without modifying the destination. Permit a NULL destination only for a zero-capacity length query, returning the source length. Preserve normal copy, truncation, NUL-termination, and size-zero behavior.
+- Add a dedicated regression for full/exact/truncated/empty/zero-size copies and NULL argument combinations. Register it in CMake and the workflow source contracts. The basekit source is already covered by the existing source glob; no new production symbol or source file is introduced.
+- No local C build is claimed; CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:15 CST — Correct Date workflow function-boundary delimiter
 
 - CI #379 reached the updated Date contract but still stopped before configure/build. Its Python function-boundary lookup contained a double-escaped newline, so it searched for the literal characters `\\n` instead of the source newline and extracted an empty function body.

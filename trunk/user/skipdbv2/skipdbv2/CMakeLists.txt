@@ -312,6 +312,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_COMPILE_DEFINITIONS(common_alloc_test PRIVATE IO_CHECK_ALLOC)
     add_test(NAME common_alloc_test COMMAND common_alloc_test)
 
+    ADD_EXECUTABLE(portable_strlcpy_test
+        ${PROJECT_SOURCE_DIR}/tests/portable_strlcpy.c)
+    TARGET_LINK_LIBRARIES(portable_strlcpy_test skipdb m)
+    add_test(NAME portable_strlcpy_test COMMAND portable_strlcpy_test)
+
     ADD_EXECUTABLE(random_gen_lifecycle_test
         ${PROJECT_SOURCE_DIR}/tests/random_gen_lifecycle.c)
     TARGET_LINK_LIBRARIES(random_gen_lifecycle_test skipdb m)

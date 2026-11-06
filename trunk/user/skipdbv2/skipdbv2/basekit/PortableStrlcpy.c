@@ -26,6 +26,8 @@
  */
 
 #include <sys/types.h>
+#include <stddef.h>
+#include <string.h>
 #include "PortableStrlcpy.h"
 
 /*
@@ -38,6 +40,12 @@ size_t PortableStrlcpy(char* dest, const char* src, size_t len)
 	char* d = dest;
 	const char* s = src;
 	size_t n = len;
+
+	/* Reject invalid pointers without touching a partially valid destination. */
+	if (NULL == src)
+		return 0;
+	if (NULL == dest)
+		return len == 0 ? strlen(src) : 0;
 
 	/* Copy as many bytes as will fit */
 	if (n != 0 && --n != 0)
