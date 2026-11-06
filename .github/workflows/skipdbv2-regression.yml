@@ -1309,6 +1309,17 @@ jobs:
                   "== INT16_MIN",
                   "== INT32_MIN",
                   "== INT64_MIN",
+                  "static int UArray_hasUnsafeNegation_(const UArray *self);",
+                  "void UArray_negate(const UArray *self)",
+                  "if (!UArray_hasValidNumericStorage_(self))",
+                  "if (!UArray_isSignedType(self))",
+                  "if (self->size == 0 || UArray_hasUnsafeNegation_(self))",
+                  "UARRAY_FOREACHASSIGN(mutableSelf, i, v, -v);",
+                  "INT8_MIN",
+                  "INT16_MIN",
+                  "INT32_MIN",
+                  "INT64_MIN",
+                  "UArray_changed(mutableSelf);",
                   "void UArray_round(UArray *self)",
                   "void UArray_clear(UArray *self)",
                   "void UArray_setItemsToLong_(UArray *self, long x)",
@@ -1496,6 +1507,15 @@ jobs:
                   "UArray logical operations accepted overflowing operand geometry",
                   "if (test_logical_mutations() != EXIT_SUCCESS)",
                   "UArray assignment transform allocation failed",
+                  "UArray negate allocation failed",
+                  "UArray integer negate changed values incorrectly or retained the cached hash",
+                  "UArray floating negate changed values incorrectly or retained the cached hash",
+                  "UArray negate did not reject signed minimum values atomically",
+                  "UArray negate accepted missing backing storage",
+                  "UArray negate accepted malformed item width",
+                  "UArray negate accepted unsupported item type",
+                  "UArray negate accepted overflowing storage geometry",
+                  "if (test_negate() != EXIT_SUCCESS)",
                   "UArray clear changed values incorrectly or retained the cached hash",
                   "UArray long fill changed values incorrectly or retained the cached hash",
                   "UArray double fill changed values incorrectly or retained the cached hash",
@@ -2407,6 +2427,30 @@ jobs:
                   "UArray_minSizeWith_(" in body
               ):
                   raise SystemExit(f"UArray elementwise {label} must validate both operands and hash lifecycle before typed dispatch")
+
+          negate_start = bit_math_source.find("void UArray_negate(const UArray *self)")
+          negate_end = bit_math_source.find("// basic vector math", negate_start)
+          negate_body = bit_math_source[negate_start:negate_end] if negate_start >= 0 and negate_end > negate_start else ""
+          negate_helper_start = bit_math_source.find(
+              "static int UArray_hasUnsafeNegation_(const UArray *self)\\n{"
+          )
+          negate_helper_end = bit_math_source.find("/* Preflight every affected element", negate_helper_start)
+          negate_helper_body = bit_math_source[negate_helper_start:negate_helper_end] if negate_helper_start >= 0 and negate_helper_end > negate_helper_start else ""
+          negate_storage_guard = negate_body.find("UArray_hasValidNumericStorage_(self)")
+          negate_signed_guard = negate_body.find("UArray_isSignedType(self)")
+          negate_boundary_guard = negate_body.find("UArray_hasUnsafeNegation_(self)")
+          negate_mutation = negate_body.find("UARRAY_FOREACHASSIGN(mutableSelf, i, v, -v);")
+          negate_changed = negate_body.find("UArray_changed(mutableSelf);")
+          if (
+              not negate_body or negate_storage_guard < 0 or negate_signed_guard < 0 or
+              negate_boundary_guard < 0 or negate_mutation < 0 or negate_changed < 0 or
+              not (negate_storage_guard < negate_signed_guard < negate_boundary_guard < negate_mutation < negate_changed) or
+              not negate_helper_body or
+              any(f"== {minimum}" not in negate_helper_body for minimum in (
+                  "INT8_MIN", "INT16_MIN", "INT32_MIN", "INT64_MIN"
+              ))
+          ):
+              raise SystemExit("UArray negate must validate storage and signed integer boundaries before mutation, then invalidate hash")
 
           assignment_transform_ranges = (
               ("round", "void UArray_round(UArray *self)", "void UArray_clear"),

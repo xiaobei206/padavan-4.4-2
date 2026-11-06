@@ -21,6 +21,7 @@
 #define VEC_SIZE 4
 
 static int UArray_hasValidNumericStorage_(const UArray *self);
+static int UArray_hasUnsafeNegation_(const UArray *self);
 
 #define LLVEC_DUALARG_OP(VNAME, COP, TYPE) \
 void v ## TYPE ## _ ## VNAME(TYPE ##_t *aa, TYPE ##_t *bb, size_t size)\
@@ -88,14 +89,21 @@ void UArray_rangeFill(UArray *self)
 
 void UArray_negate(const UArray *self)
 {
-	if(UArray_isSignedType(self))
-	{
-		UARRAY_FOREACHASSIGN(self, i, v, -v);
-	}
-	else
-	{
+	UArray *mutableSelf;
+
+	if (!UArray_hasValidNumericStorage_(self))
+		return;
+	if (!UArray_isSignedType(self)) {
 		UArray_error_(self, "UArray_negate not supported on this type");
+		return;
 	}
+	if (self->size == 0 || UArray_hasUnsafeNegation_(self))
+		return;
+
+	/* The legacy API is const-qualified despite mutating the array contents. */
+	mutableSelf = (UArray *)self;
+	UARRAY_FOREACHASSIGN(mutableSelf, i, v, -v);
+	UArray_changed(mutableSelf);
 }
 
 // basic vector math
@@ -253,6 +261,35 @@ static int UArray_hasValidNumericStorage_(const UArray *self)
 		(self->size > 0 && NULL == self->data))
 		return 0;
 	return 1;
+}
+
+
+/* Signed minimum values cannot be negated in their own C integer type. */
+static int UArray_hasUnsafeNegation_(const UArray *self)
+{
+	size_t i;
+
+	switch (self->itemType) {
+		case CTYPE_int8_t:
+			for (i = 0; i < self->size; ++i)
+				if (((const int8_t *)self->data)[i] == INT8_MIN) return 1;
+			break;
+		case CTYPE_int16_t:
+			for (i = 0; i < self->size; ++i)
+				if (((const int16_t *)self->data)[i] == INT16_MIN) return 1;
+			break;
+		case CTYPE_int32_t:
+			for (i = 0; i < self->size; ++i)
+				if (((const int32_t *)self->data)[i] == INT32_MIN) return 1;
+			break;
+		case CTYPE_int64_t:
+			for (i = 0; i < self->size; ++i)
+				if (((const int64_t *)self->data)[i] == INT64_MIN) return 1;
+			break;
+		default:
+			break;
+	}
+	return 0;
 }
 
 

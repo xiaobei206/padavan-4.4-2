@@ -1139,6 +1139,115 @@ cleanup:
     return result;
 }
 
+
+static int test_negate(void)
+{
+    const int32_t valuesData[] = {1, -2, 3};
+    const int32_t expected[] = {-1, 2, -3};
+    const double floatData[] = {1.5, -2.25};
+    const double floatExpected[] = {-1.5, 2.25};
+    const int8_t min8[] = {INT8_MIN};
+    const int16_t min16[] = {INT16_MIN};
+    const int32_t min32[] = {INT32_MIN};
+    const int64_t min64[] = {INT64_MIN};
+    UArray *values = UArray_newWithData_type_size_copy_(
+        (void *)valuesData, CTYPE_int32_t, 3, 1);
+    UArray *floats = UArray_newWithData_type_size_copy_(
+        (void *)floatData, CTYPE_float64_t, 2, 1);
+    UArray *minimum8 = UArray_newWithData_type_size_copy_(
+        (void *)min8, CTYPE_int8_t, 1, 1);
+    UArray *minimum16 = UArray_newWithData_type_size_copy_(
+        (void *)min16, CTYPE_int16_t, 1, 1);
+    UArray *minimum32 = UArray_newWithData_type_size_copy_(
+        (void *)min32, CTYPE_int32_t, 1, 1);
+    UArray *minimum64 = UArray_newWithData_type_size_copy_(
+        (void *)min64, CTYPE_int64_t, 1, 1);
+    UArray invalid;
+    int result = EXIT_FAILURE;
+
+    if (!values || !floats || !minimum8 || !minimum16 || !minimum32 || !minimum64) {
+        fail("UArray negate allocation failed");
+        goto cleanup;
+    }
+
+    values->hash = 0x1111;
+    UArray_negate(values);
+    if (memcmp(values->data, expected, sizeof(expected)) != 0 || values->hash != 0) {
+        fail("UArray integer negate changed values incorrectly or retained the cached hash");
+        goto cleanup;
+    }
+
+    floats->hash = 0x2222;
+    UArray_negate(floats);
+    if (memcmp(floats->data, floatExpected, sizeof(floatExpected)) != 0 || floats->hash != 0) {
+        fail("UArray floating negate changed values incorrectly or retained the cached hash");
+        goto cleanup;
+    }
+
+    minimum8->hash = 0x3333;
+    minimum16->hash = 0x4444;
+    minimum32->hash = 0x5555;
+    minimum64->hash = 0x6666;
+    UArray_negate(minimum8);
+    UArray_negate(minimum16);
+    UArray_negate(minimum32);
+    UArray_negate(minimum64);
+    if (memcmp(minimum8->data, min8, sizeof(min8)) != 0 || minimum8->hash != 0x3333 ||
+        memcmp(minimum16->data, min16, sizeof(min16)) != 0 || minimum16->hash != 0x4444 ||
+        memcmp(minimum32->data, min32, sizeof(min32)) != 0 || minimum32->hash != 0x5555 ||
+        memcmp(minimum64->data, min64, sizeof(min64)) != 0 || minimum64->hash != 0x6666) {
+        fail("UArray negate did not reject signed minimum values atomically");
+        goto cleanup;
+    }
+
+    UArray_negate(NULL);
+    invalid = *values;
+    invalid.data = NULL;
+    invalid.hash = 0x7777;
+    UArray_negate(&invalid);
+    if (invalid.data != NULL || invalid.hash != 0x7777) {
+        fail("UArray negate accepted missing backing storage");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemSize = 0;
+    invalid.hash = 0x8888;
+    UArray_negate(&invalid);
+    if (invalid.hash != 0x8888) {
+        fail("UArray negate accepted malformed item width");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.itemType = (CTYPE)9999;
+    invalid.hash = 0x9999;
+    UArray_negate(&invalid);
+    if (invalid.hash != 0x9999) {
+        fail("UArray negate accepted unsupported item type");
+        goto cleanup;
+    }
+
+    invalid = *values;
+    invalid.size = (size_t)-1 / invalid.itemSize + 1;
+    invalid.hash = 0xaaaa;
+    UArray_negate(&invalid);
+    if (invalid.hash != 0xaaaa) {
+        fail("UArray negate accepted overflowing storage geometry");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(values);
+    UArray_free(floats);
+    UArray_free(minimum8);
+    UArray_free(minimum16);
+    UArray_free(minimum32);
+    UArray_free(minimum64);
+    return result;
+}
+
 typedef void (*UArrayUnaryTransform_)(UArray *);
 typedef double (*UArrayUnaryMathFunction_)(double);
 
@@ -1279,6 +1388,8 @@ int main(void)
     if (test_logical_mutations() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_assignment_transforms() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (test_negate() != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
 

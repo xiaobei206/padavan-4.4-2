@@ -1,3 +1,14 @@
+## 2026-11-06 23:27 CST — Guard UArray_negate against invalid storage and signed overflow
+
+- Baseline: main commit `619e1fa7e8087a20843a6b0b0987dd9f67ca19c3`; SkipDBv2 Regression run #364 completed successfully.
+- Scope: the single-array `UArray_negate()` mutation.
+- The function dereferenced its receiver through `UArray_isSignedType()` before validating storage, modified a const-qualified receiver through the assignment macro, and negating a signed minimum value invoked undefined behavior.
+- Validate storage first, retain the legacy unsupported-type error for valid unsigned receivers, preflight all signed integer widths for their minimum value before any write, and invalidate the receiver hash after successful mutation. Keep the existing public signature unchanged.
+- Extend the existing `uarray_math_extrema` regression and workflow source contracts for integer/floating results, INT8/16/32/64 minimum atomicity, NULL/malformed storage, overflow geometry, and hash lifecycle. Reuse the existing CMake target; no new files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:23 CST — Guard UArray scalar assignment transforms
 
 - Baseline: main commit `a4b40e9d93835c1bb75b09f07bd01a3859bc7496`; SkipDBv2 Regression run #363 completed successfully.
