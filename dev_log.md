@@ -1,3 +1,11 @@
+## 2026-11-07 07:27 CST — Repair next-PID preview source contract
+
+- Baseline: main commit `50ab4c3432a431a5f761d1aa0e46506ff23e44cb`; SkipDBv2 Regression run #470 failed at the integration-contract step before configure/build.
+- The assertion text `next-PID preview returned a slot beyond LONG_MAX` was incorrectly attached to the production `UDBIndexFreeList.c` contract even though it is emitted by `tests/udb_index_layers.c`.
+- Remove it from the production contract; keep the existing test-file assertion. No C source or test behavior changed.
+
+---
+
 ## 2026-11-07 07:26 CST — Keep PID preview within the allocatable index range
 
 - Baseline: main commit `4ac85843f6bbd9b3a5ac150258c88c3b1c187eee`; SkipDBv2 Regression run #469 passed integration contracts, configure, full build, and all 56 tests.

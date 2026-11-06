@@ -183,7 +183,6 @@ jobs:
                   "static int UDBIndex_pushAndVerify_(List *list, void *value)",
                   "PID_TYPE UDBIndex_nextPid(UDBIndex *self)",
                   "UDBIndex_offsetForPid_(hole, &offset)",
-                  "next-PID preview returned a slot beyond LONG_MAX",
                   "UDBIndex_offsetForPid_(pid, &offset)",
                   "UDBIndex_pushAndVerify_(self->reserved, (void *)pid)",
                   "UDBIndex_pushAndVerify_(self->holes, (void *)pid)",
