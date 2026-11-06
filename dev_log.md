@@ -1,3 +1,15 @@
+## 2026-11-06 12:26 CST — Include the declaration for NULL in ConvertUTF
+
+### CI repair
+- Run #234 reached compilation and reported `NULL` undeclared in `isLegalUTF8Sequence()`; `ConvertUTF.c` did not include a header that guarantees the definition.
+- Add the standard `<stddef.h>` include directly to the implementation and pin it in the existing source contract.
+
+### Validation
+- The boundary logic and test remain unchanged.
+- Run #234 is red at compilation; the following mainline run validates the include fix and full regression suite.
+
+---
+
 ## 2026-11-06 12:28 CST — Bound-check standalone UTF-8 sequence validation
 
 ### Baseline and scope

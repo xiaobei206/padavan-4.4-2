@@ -759,6 +759,7 @@ jobs:
                   "mgr/ipc_transport.c",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.c": [
+                  "#include <stddef.h>",
                   "Boolean isLegalUTF8Sequence(const UTF8 *source, const UTF8 *sourceEnd)",
                   "NULL == source || NULL == sourceEnd || source >= sourceEnd",
                   "sourceEnd - source < length",
