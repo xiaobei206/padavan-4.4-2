@@ -403,29 +403,42 @@ IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)
 	size_t getIndex = 0;
 	size_t putIndex = 0;
 	size_t count;
-	void **items;
 	if (!List_hasValidStorage_(self) || NULL == callback)
 		return 0;
 	count = self->size;
-	items = self->items;
 
 	while (getIndex < count)
 	{
-		void *item = items[getIndex];
+		void *item;
+		void *shouldRemove = NULL;
 
-		if (item && !((*callback)(item)))
+		if (!List_hasValidStorage_(self) || self->size != count)
+			return 0;
+
+		item = self->items[getIndex];
+		if (item) {
+			shouldRemove = (*callback)(item);
+			/* A callback may move the backing store or change list size. */
+			if (!List_hasValidStorage_(self) || self->size != count)
+				return 0;
+		}
+
+		if (item && !shouldRemove)
 		{
 			if (getIndex != putIndex)
-				items[putIndex] = item;
+				self->items[putIndex] = item;
 			putIndex++;
 		}
 		getIndex++;
 	}
 
-	if (items && count > putIndex)
-		memset(items + putIndex, 0, (count - putIndex) * sizeof(void *));
+	if (!List_hasValidStorage_(self) || self->size != count)
+		return 0;
+	if (count > putIndex)
+		memset(self->items + putIndex, 0, (count - putIndex) * sizeof(void *));
 	self->size = putIndex;
-	return getIndex - putIndex;
+	count -= putIndex;
+	return count > (size_t)INT_MAX ? INT_MAX : (int)count;
 }
 
 IOINLINE void List_qsort(List *self, ListSortCallback *callback)

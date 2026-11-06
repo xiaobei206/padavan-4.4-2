@@ -1922,6 +1922,12 @@ jobs:
                   "if (!List_hasValidStorage_(self) || index >= self->size)",
                   "if (!List_hasValidStorage_(self) || self->size < 2)",
                   "if (!List_hasValidStorage_(self) || NULL == callback)",
+                  "IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)",
+                  "if (!List_hasValidStorage_(self) || self->size != count)",
+                  "shouldRemove = (*callback)(item);",
+                  "self->items[putIndex] = item;",
+                  "memset(self->items + putIndex, 0, (count - putIndex) * sizeof(void *));",
+                  "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
                   "size_t index, foreachMax = List_hasValidStorage_(foreachList) ? foreachList->size : 0;",
                   "foreachList && List_hasValidStorage_(foreachList) && index < List_size(foreachList)",
               ],
@@ -1940,6 +1946,13 @@ jobs:
                   "List_removeTrueFor_(&malformed_target, remove_everything)",
                   "malformed_target.items[1] == saved_target_items[1]",
                   "List_asStackAllocatedUArray(&malformed_source)",
+                  "List filter fixture allocation failed",
+                  "List filter fixture append failed",
+                  "List filter realloc blocker allocation failed",
+                  "List_removeTrueFor_(filter_list, expand_list_during_filter)",
+                  "List_removeTrueFor_ wrote through a stale backing pointer after callback realloc",
+                  "List_removeTrueFor_(shrink_list, shrink_list_during_filter)",
+                  "List_removeTrueFor_ continued filtering after its callback changed list size",
                   "List map-in-place fixture allocation failed",
                   "List map-in-place fixture append failed",
                   "List map-in-place realloc blocker allocation failed",
@@ -2469,6 +2482,30 @@ jobs:
           list_source = Path(
               "trunk/user/skipdbv2/skipdbv2/basekit/List.c"
           ).read_text()
+          list_inline_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/basekit/List_inline.h"
+          ).read_text()
+          list_filter_start = list_inline_source.find(
+              "IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)"
+          )
+          list_filter_end = list_inline_source.find("IOINLINE void List_qsort", list_filter_start)
+          list_filter_body = list_inline_source[list_filter_start:list_filter_end] if list_filter_start >= 0 and list_filter_end > list_filter_start else ""
+          list_filter_callback = list_filter_body.find("shouldRemove = (*callback)(item);")
+          list_filter_guard = list_filter_body.find(
+              "if (!List_hasValidStorage_(self) || self->size != count)",
+              list_filter_callback
+          )
+          list_filter_store = list_filter_body.find("self->items[putIndex] = item;")
+          if (
+              not list_filter_body or
+              "void **items;" in list_filter_body or
+              "count = self->size;" not in list_filter_body or
+              list_filter_callback < 0 or list_filter_guard <= list_filter_callback or
+              list_filter_store <= list_filter_guard or
+              "return count > (size_t)INT_MAX ? INT_MAX : (int)count;" not in list_filter_body
+          ):
+              raise SystemExit("List_removeTrueFor_ must revalidate callback-mutated storage, use the live backing pointer, and bound its int result")
+
           list_map_start = list_source.find(
               "void List_mapInPlace_(List *self, ListCollectCallback *callback)"
           )

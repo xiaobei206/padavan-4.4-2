@@ -1,3 +1,14 @@
+## 2026-11-06 23:47 CST — Make List_removeTrueFor_ callback-reallocation safe
+
+- Baseline: main commit `371f54aa525e38a0fb311e435ad15facf5ef22e1`; SkipDBv2 Regression run #368 completed successfully.
+- Scope: the in-place predicate-removal loop in `List_inline.h`.
+- The filter cached `self->items` across user callbacks. A predicate that grows the list allocation can move storage, leaving subsequent reads, compaction writes, and tail clearing pointed at the old block. A callback that changes list size can also invalidate the captured traversal bound. The API returns `int` while the number removed is `size_t`, so very large results previously narrowed without bounds.
+- Revalidate storage and the captured size before and after each callback, use the current `self->items` for every access, and abort if callback code structurally resizes the list. Preserve existing null-item filtering semantics and clamp the removed count to `INT_MAX`.
+- Extend the existing `list_storage_bounds` regression with callback-driven reallocation and shrink cases. Strengthen inline source contracts; reuse the existing CMake target and add no files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-06 23:42 CST — Fix List_mapInPlace_ workflow source loading
 
 - CI #367 passed checkout and dependency installation, then stopped in the source-contract script before configure/build. The new List mapping contract referenced `list_source` before the workflow's later List ownership checks initialized that variable.

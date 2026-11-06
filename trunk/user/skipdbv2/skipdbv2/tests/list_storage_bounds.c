@@ -62,6 +62,108 @@ static void *shrink_list_during_map(void *item)
     return map_callback_replacement;
 }
 
+
+static List *filter_callback_list;
+static void **filter_callback_original_items;
+static void *filter_callback_remove_a;
+static void *filter_callback_remove_b;
+static size_t filter_callback_target_size;
+static size_t filter_callback_calls;
+static int filter_callback_storage_moved;
+
+static void *expand_list_during_filter(void *item)
+{
+    if (filter_callback_calls++ == 0) {
+        List_preallocateToSize_(filter_callback_list, filter_callback_target_size);
+        filter_callback_storage_moved =
+            filter_callback_list->items != filter_callback_original_items;
+    }
+    return (item == filter_callback_remove_a || item == filter_callback_remove_b)
+        ? filter_callback_list->items[0] : NULL;
+}
+
+static void *shrink_list_during_filter(void *item)
+{
+    (void)item;
+    filter_callback_calls++;
+    List_setSize_(filter_callback_list, 1);
+    return NULL;
+}
+
+static int test_remove_true_for_reentrancy(void)
+{
+    int values[] = {10, 20, 30, 40};
+    List *filter_list = List_new();
+    List *shrink_list = List_new();
+    void *blocker = NULL;
+    int removed;
+    int result = EXIT_FAILURE;
+
+    if (NULL == filter_list || NULL == shrink_list) {
+        check(0, "List filter fixture allocation failed");
+        goto done;
+    }
+    if (List_append_(filter_list, &values[0]) != &values[0] ||
+        List_append_(filter_list, &values[1]) != &values[1] ||
+        List_append_(filter_list, &values[2]) != &values[2] ||
+        List_append_(filter_list, &values[3]) != &values[3] ||
+        List_append_(shrink_list, &values[0]) != &values[0] ||
+        List_append_(shrink_list, &values[1]) != &values[1] ||
+        List_append_(shrink_list, &values[2]) != &values[2]) {
+        check(0, "List filter fixture append failed");
+        goto done;
+    }
+
+    blocker = malloc(filter_list->memSize);
+    if (NULL == blocker) {
+        check(0, "List filter realloc blocker allocation failed");
+        goto done;
+    }
+    memset(blocker, 0x5a, filter_list->memSize);
+
+    filter_callback_list = filter_list;
+    filter_callback_original_items = filter_list->items;
+    filter_callback_remove_a = &values[1];
+    filter_callback_remove_b = &values[3];
+    filter_callback_target_size =
+        filter_list->memSize / sizeof(void *) + 1024;
+    filter_callback_calls = 0;
+    filter_callback_storage_moved = 0;
+
+    removed = List_removeTrueFor_(filter_list, expand_list_during_filter);
+    if (!check(removed == 2 && filter_callback_storage_moved &&
+        filter_callback_calls == 4 && filter_list->size == 2 &&
+        filter_list->items[0] == &values[0] &&
+        filter_list->items[1] == &values[2],
+        "List_removeTrueFor_ wrote through a stale backing pointer after callback realloc")) {
+        goto done;
+    }
+
+    filter_callback_list = shrink_list;
+    filter_callback_calls = 0;
+    removed = List_removeTrueFor_(shrink_list, shrink_list_during_filter);
+    if (!check(removed == 0 && filter_callback_calls == 1 &&
+        shrink_list->size == 1 && shrink_list->items[0] == &values[0],
+        "List_removeTrueFor_ continued filtering after its callback changed list size")) {
+        goto done;
+    }
+
+    result = EXIT_SUCCESS;
+
+done:
+    free(blocker);
+    List_free(filter_list);
+    List_free(shrink_list);
+    filter_callback_list = NULL;
+    filter_callback_original_items = NULL;
+    filter_callback_remove_a = NULL;
+    filter_callback_remove_b = NULL;
+    filter_callback_target_size = 0;
+    filter_callback_calls = 0;
+    filter_callback_storage_moved = 0;
+    return result;
+}
+
 static int test_map_in_place_reentrancy(void)
 {
     int values[] = {10, 20, 30};
@@ -137,7 +239,10 @@ done:
 }
 
 int main(void)
-{	if (test_map_in_place_reentrancy() != EXIT_SUCCESS)
+{
+	if (test_remove_true_for_reentrancy() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (test_map_in_place_reentrancy() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 
 
