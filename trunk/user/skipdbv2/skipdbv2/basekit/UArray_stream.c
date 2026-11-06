@@ -145,18 +145,35 @@ long UArray_readNumberOfItems_fromCStream_(UArray *self, size_t size, FILE *stre
 	return (long)itemsRead;
 }
 
+static UArray *UArray_streamSystemPath_(const UArray *path)
+{
+	UArray *sysPath;
+
+	if (!UArray_streamHasValidLayout_(path))
+		return NULL;
+	sysPath = UArray_asUTF8(path);
+	if (NULL == sysPath)
+		return NULL;
+	if (!UArray_streamHasValidLayout_(sysPath) || sysPath->itemSize != 1 ||
+		(sysPath->size > 0 && memchr(sysPath->data, 0, sysPath->size) != NULL) ||
+		NULL == UArray_asCString(sysPath)) {
+		UArray_free(sysPath);
+		return NULL;
+	}
+	return sysPath;
+}
+
 long UArray_readFromFilePath_(UArray *self, const UArray *path)
 {
 	FILE *stream;
 	UArray *sysPath;
 	long itemsRead;
-	if (NULL == self || NULL == path)
+
+	if (!UArray_streamHasValidLayout_(self))
 		return -1;
-	sysPath = UArray_asUTF8(path);
-	if (NULL == sysPath || NULL == UArray_asCString(sysPath)) {
-		UArray_free(sysPath);
+	sysPath = UArray_streamSystemPath_(path);
+	if (NULL == sysPath)
 		return -1;
-	}
 	stream = fopen(UArray_asCString(sysPath), "rb");
 	if (NULL == stream) {
 		UArray_free(sysPath);
@@ -273,13 +290,12 @@ long UArray_writeToFilePath_(const UArray *self, const UArray *path)
 	UArray *sysPath;
 	FILE *fp;
 	long itemsWritten;
-	if (NULL == path || !UArray_streamCanWrite_(self))
+
+	if (!UArray_streamCanWrite_(self))
 		return -1;
-	sysPath = UArray_asUTF8(path);
-	if (NULL == sysPath || NULL == UArray_asCString(sysPath)) {
-		UArray_free(sysPath);
+	sysPath = UArray_streamSystemPath_(path);
+	if (NULL == sysPath)
 		return -1;
-	}
 	fp = fopen(UArray_asCString(sysPath), "wb");
 	if (NULL == fp) {
 		UArray_free(sysPath);

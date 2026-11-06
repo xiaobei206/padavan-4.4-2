@@ -466,6 +466,92 @@ done:
 	return okay;
 }
 
+
+static int testEmbeddedNulFilePathsRejected(void)
+{
+	char pathName[] = "/tmp/uarray-stream-nul-path-XXXXXX";
+	static const uint8_t original[] = {'k', 'e', 'e', 'p'};
+	static const uint8_t replacement[] = {'n', 'e', 'w'};
+	static const char suffix[] = "ignored";
+	uint8_t invalidPath[128];
+	uint8_t actual[sizeof(original)];
+	size_t prefixSize = strlen(pathName);
+	size_t invalidPathSize;
+	int fd = -1;
+	FILE *initial = NULL;
+	FILE *check = NULL;
+	UArray *path = NULL;
+	UArray *source = newByteArray();
+	UArray *readTarget = newByteArray();
+	int okay = 0;
+
+	fd = mkstemp(pathName);
+	if (fd < 0 || NULL == source || NULL == readTarget)
+		goto done;
+	initial = fdopen(fd, "wb");
+	if (NULL == initial)
+		goto done;
+	fd = -1;
+	if (fwrite(original, 1, sizeof(original), initial) != sizeof(original))
+		goto done;
+	if (fclose(initial) != 0) {
+		initial = NULL;
+		goto done;
+	}
+	initial = NULL;
+
+	invalidPathSize = prefixSize + 1 + sizeof(suffix) - 1;
+	if (invalidPathSize > sizeof(invalidPath))
+		goto done;
+	memcpy(invalidPath, pathName, prefixSize);
+	invalidPath[prefixSize] = 0;
+	memcpy(invalidPath + prefixSize + 1, suffix, sizeof(suffix) - 1);
+	path = UArray_newWithData_type_encoding_size_copy_(
+		invalidPath, CTYPE_uint8_t, CENCODING_UTF8, invalidPathSize, 1);
+	if (NULL == path)
+		goto done;
+
+	UArray_setSize_(source, sizeof(replacement));
+	if (source->size != sizeof(replacement) || NULL == source->data)
+		goto done;
+	memcpy(source->data, replacement, sizeof(replacement));
+
+	/* The UTF-8 path is length-delimited; fopen must not accept its prefix. */
+	if (UArray_readFromFilePath_(readTarget, path) != -1 ||
+		readTarget->size != 0) {
+		fprintf(stderr, "UArray read accepted a file path with an embedded NUL\n");
+		goto done;
+	}
+	if (UArray_writeToFilePath_(source, path) != -1) {
+		fprintf(stderr, "UArray write accepted a file path with an embedded NUL\n");
+		goto done;
+	}
+
+	check = fopen(pathName, "rb");
+	if (NULL == check)
+		goto done;
+	if (fread(actual, 1, sizeof(actual), check) != sizeof(actual) ||
+		fgetc(check) != EOF || ferror(check) ||
+		memcmp(actual, original, sizeof(original)) != 0) {
+		fprintf(stderr, "UArray embedded-NUL path write changed the prefix file\n");
+		goto done;
+	}
+	okay = 1;
+
+done:
+	if (initial)
+		fclose(initial);
+	if (fd >= 0)
+		close(fd);
+	if (check)
+		fclose(check);
+	UArray_free(path);
+	UArray_free(readTarget);
+	UArray_free(source);
+	unlink(pathName);
+	return okay;
+}
+
 int main(void)
 {
 	if (!testMismatchedItemWidthRejected()) {
@@ -490,6 +576,10 @@ int main(void)
 	}
 	if (!testMalformedDestinationRejected()) {
 		fprintf(stderr, "UArray bounded read accepted malformed destination storage\n");
+		return EXIT_FAILURE;
+	}
+	if (!testEmbeddedNulFilePathsRejected()) {
+		fprintf(stderr, "UArray file path handling accepted embedded NUL bytes\n");
 		return EXIT_FAILURE;
 	}
 	puts("UArray stream I/O test passed");

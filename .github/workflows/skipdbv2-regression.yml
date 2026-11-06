@@ -1914,6 +1914,9 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c": [
                   "extern size_t CTYPE_size(CTYPE type);",
                   "static int UArray_streamHasValidLayout_(const UArray *self)",
+                  "static UArray *UArray_streamSystemPath_(const UArray *path)",
+                  "memchr(sysPath->data, 0, sysPath->size)",
+                  "sysPath = UArray_streamSystemPath_(path);",
                   "expectedItemSize = CTYPE_size(self->itemType);",
                   "self->itemSize != expectedItemSize",
                   "!UArray_streamHasValidLayout_(self)",
@@ -1947,6 +1950,10 @@ jobs:
                   "testInvalidFileWritePreservesDestination",
                   "UArray_writeToFilePath_(source, path) != -1",
                   "UArray file write truncated an existing destination for invalid source storage",
+                  "static int testEmbeddedNulFilePathsRejected(void)",
+                  "UArray_readFromFilePath_(readTarget, path) != -1",
+                  "UArray_writeToFilePath_(source, path) != -1",
+                  "UArray file path handling accepted embedded NUL bytes",
                   "UArray_readLineFromCStream_",
                   "testLineArgumentValidation",
                   "UArray line reader accepted a NULL destination",
@@ -2667,12 +2674,28 @@ jobs:
                   "self->size > (size_t)-1 / expectedItemSize" not in stream_layout or
                   "(self->size > 0 && NULL == self->data)" not in stream_layout):
               raise SystemExit("UArray stream I/O layout validator must verify CTYPE width, overflow, and storage")
+          path_helper_start = line_source.find("static UArray *UArray_streamSystemPath_(const UArray *path)")
+          path_helper_end = line_source.find("\nlong UArray_readFromFilePath_", path_helper_start)
+          path_helper = line_source[path_helper_start:path_helper_end] if path_helper_start >= 0 and path_helper_end > path_helper_start else ""
+          if (not path_helper or
+                  "memchr(sysPath->data, 0, sysPath->size)" not in path_helper or
+                  "!UArray_streamHasValidLayout_(path)" not in path_helper):
+              raise SystemExit("UArray file paths must be validated as length-delimited UTF-8 without embedded NUL bytes")
+          read_path_start = line_source.find("long UArray_readFromFilePath_(UArray *self, const UArray *path)")
+          read_path_end = line_source.find("\n#define CHUNK_SIZE", read_path_start)
+          read_path_body = line_source[read_path_start:read_path_end] if read_path_start >= 0 and read_path_end > read_path_start else ""
+          read_path_guard = read_path_body.find("sysPath = UArray_streamSystemPath_(path);")
+          read_path_open = read_path_body.find('stream = fopen(UArray_asCString(sysPath), "rb");')
+          if (not read_path_body or read_path_guard < 0 or read_path_open < 0 or read_path_guard > read_path_open):
+              raise SystemExit("UArray file reads must validate the complete path before opening it")
           write_path_start = line_source.find("long UArray_writeToFilePath_(const UArray *self, const UArray *path)")
           write_path_body = line_source[write_path_start:] if write_path_start >= 0 else ""
-          write_guard = write_path_body.find("if (NULL == path || !UArray_streamCanWrite_(self))")
+          write_guard = write_path_body.find("if (!UArray_streamCanWrite_(self))")
+          write_path_validation = write_path_body.find("sysPath = UArray_streamSystemPath_(path);")
           write_open = write_path_body.find('fp = fopen(UArray_asCString(sysPath), "wb");')
-          if (not write_path_body or write_guard < 0 or write_open < 0 or write_guard > write_open):
-              raise SystemExit("UArray file writes must reject malformed source storage before opening/truncating the destination")
+          if (not write_path_body or write_guard < 0 or write_path_validation < 0 or write_open < 0 or
+                  write_guard > write_path_validation or write_path_validation > write_open):
+              raise SystemExit("UArray file writes must validate source and full path before opening/truncating the destination")
           stream_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_stream_io.c").read_text()
           for needle in ("testMismatchedItemWidthRejected()",
                          "UArray_fread_(wide, readStream)",
@@ -2684,7 +2707,11 @@ jobs:
                          "source->itemSize = 2;",
                          "testInvalidFileWritePreservesDestination",
                          "UArray_writeToFilePath_(source, path) != -1",
-                         "UArray file write truncated an existing destination for invalid source storage"):
+                         "UArray file write truncated an existing destination for invalid source storage",
+                         "testEmbeddedNulFilePathsRejected()",
+                         "UArray_readFromFilePath_(readTarget, path) != -1",
+                         "UArray_writeToFilePath_(source, path) != -1",
+                         "UArray file path handling accepted embedded NUL bytes"):
               if needle not in stream_test:
                   raise SystemExit("UArray stream write-preservation regression missing: " + needle)
 

@@ -1,3 +1,14 @@
+## 2026-11-07 05:26 CST — Reject embedded NUL bytes in UArray file paths
+
+- Baseline: main commit `cf06b1b3f34dbc46672a4cec09715e3326e97a20`; SkipDBv2 Regression run #437 passed the complete configure, build, and CTest sequence after the preceding UDB correction.
+- Scope: file-path handling in `basekit/UArray_stream.c`.
+- UArray text is length-delimited and `UArray_asUTF8()` preserves embedded U+0000. Passing that buffer to `fopen()` through `UArray_asCString()` silently truncates the path at its first NUL. On the write path this can truncate an unintended prefix file.
+- Centralize path preflight: validate the source UArray layout, convert to UTF-8, validate the converted byte layout, reject NUL bytes within the logical path extent, and only then pass the C string to `fopen()`. Apply the same rule to reads and writes; validate the read destination before opening.
+- Extend the existing `uarray_stream_io_test` to verify embedded-NUL paths are rejected for both read and write and that the prefix file remains unchanged. Add source and runtime regression contracts in the existing Actions workflow. Reuse the registered CTest target; no new files, APIs, or CMake changes.
+- No local C compilation or CTest run is claimed; the existing mainline CI remains the compile and runtime gate.
+
+---
+
 ## 2026-11-07 05:22 CST — Restore nonzero UDB PID mapping writes
 
 - Baseline: main commit `b8a59323c4a51005047e1a0b952c1cef1c5c1e2e` (`fix(udb): reject mappings for unreserved PIDs`). The preceding SkipDBv2 Regression run #435 passed against commit `08a2873b6a0c72db2f00b4bf19b7a60e586a4f4c`; no CI result for the b8a5932 revision was recorded when this correction was prepared.
