@@ -1,3 +1,14 @@
+## 2026-11-07 05:55 CST — Detach shallow aliases in List_copy_
+
+- Baseline: main commit `a60d663d68d045d48f532205ee4a272a7c3a23ee`; SkipDBv2 Regression run #441 passed source contracts, configure, full build, and regression tests.
+- Scope: List ownership/copy semantics in `basekit/List.c`.
+- `List_copy_()` accepted two distinct structs that shared the same `items` allocation, then copied/truncated in place. The destination remained aliased to the source, so subsequent destination writes could silently mutate the source view; reallocating the aliased buffer would also risk invalidating the source pointer.
+- Detect identical non-NULL backing pointers and allocate a separate destination buffer before publishing the copy. Preserve destination capacity where possible, zero-initialize spare slots, and leave the shared source allocation untouched on allocation failure or success.
+- Extend the existing `list_storage_bounds_test` to verify detachment, element preservation, independent subsequent writes, and safe cleanup. Add source/runtime contract markers to the existing Actions workflow. No new files, declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; the mainline CI run is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 05:56 CST — Make MainArgs accessors NULL- and bounds-safe
 
 - Baseline: main commit `fb74b42d610c21f12577cf7aa2348dd175b6072b`; SkipDBv2 Regression run #440 passed source contracts, configure, full compilation, and CTest after the SkipDB link-level contract repair.

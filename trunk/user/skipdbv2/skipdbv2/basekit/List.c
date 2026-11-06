@@ -136,6 +136,32 @@ void List_copy_(List *self, const List *otherList)
 		return;
 	if (otherList->size > (size_t)-1 / sizeof(void *))
 		return;
+
+	/*
+	 * A distinct List struct may be a shallow view of the source allocation.
+	 * Detach before copying so truncation or later writes cannot alter the
+	 * source view, and never realloc/free storage still owned by that view.
+	 */
+	if (self->items && self->items == otherList->items) {
+		size_t copyBytes = otherList->size * sizeof(void *);
+		size_t newMemSize = self->memSize;
+		void **newItems = NULL;
+
+		if (newMemSize < copyBytes)
+			newMemSize = copyBytes;
+		if (newMemSize > 0) {
+			newItems = (void **)io_calloc(1, newMemSize);
+			if (NULL == newItems)
+				return;
+			if (copyBytes > 0)
+				memcpy(newItems, otherList->items, copyBytes);
+		}
+		self->items = newItems;
+		self->memSize = newMemSize;
+		self->size = otherList->size;
+		return;
+	}
+
 	oldSize = self->size;
 	if (otherList->size > 0) {
 		List_preallocateToSize_(self, otherList->size);

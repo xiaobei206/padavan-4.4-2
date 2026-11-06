@@ -471,8 +471,74 @@ done:
     return result;
 }
 
+static int test_copy_shared_storage(void)
+{
+	int values[] = {10, 20, 30, 40};
+	List *source = List_new();
+	List *destination = List_new();
+	void **sharedItems = NULL;
+	int result = EXIT_FAILURE;
+
+	if (NULL == source || NULL == destination) {
+		check(0, "List shared copy fixture allocation failed");
+		goto done;
+	}
+	if (List_append_(source, &values[0]) != &values[0] ||
+		List_append_(source, &values[1]) != &values[1] ||
+		List_append_(source, &values[2]) != &values[2]) {
+		check(0, "List shared copy fixture initialization failed");
+		goto done;
+	}
+	List_preallocateToSize_(source, 8);
+	if (!check(source->memSize >= 8 * sizeof(void *),
+		"List shared copy fixture capacity setup failed"))
+		goto done;
+
+	io_free(destination->items);
+	*destination = *source;
+	sharedItems = source->items;
+
+	List_copy_(destination, source);
+	if (!check(destination->items != sharedItems && source->items == sharedItems,
+		"List_copy_ did not detach a destination sharing source storage"))
+		goto done;
+	if (!check(destination->size == 3 &&
+		destination->items[0] == &values[0] &&
+		destination->items[1] == &values[1] &&
+		destination->items[2] == &values[2],
+		"List_copy_ lost elements while detaching shared storage"))
+		goto done;
+
+	List_at_put_(destination, 0, &values[3]);
+	if (!check(destination->items[0] == &values[3] &&
+		source->items[0] == &values[0] &&
+		source->items[1] == &values[1] &&
+		source->items[2] == &values[2],
+		"List_copy_ left source and destination sharing mutable elements"))
+		goto done;
+
+	result = EXIT_SUCCESS;
+
+done:
+	/*
+	 * If copy-on-write did not detach, the source remains owner of the shared
+	 * allocation. Do not double-free it while cleaning up the failed fixture.
+	 */
+	if (destination && source && destination->items == source->items) {
+		destination->items = NULL;
+		destination->memSize = 0;
+		destination->size = 0;
+	}
+	List_free(destination);
+	List_free(source);
+	return result;
+}
+
+
 int main(void)
 {
+	if (test_copy_shared_storage() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 	if (test_append_seq_shared_storage() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (test_map_select_source_mutation() != EXIT_SUCCESS)
