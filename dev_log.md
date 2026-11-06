@@ -1,3 +1,12 @@
+## 2026-11-07 02:35 CST — Preserve full-width UArray floating-format output
+
+- Baseline: main commit `2d320cb4eb92b567a075957e98ff29d4a3cd2080`; SkipDBv2 Regression run #416 passed.
+- Scope: the `%f` branch in `basekit/UArray_format.c` and the existing formatter regression.
+- The formatter used a fixed 100-byte buffer and ignored `snprintf()`'s required output length. Large finite doubles such as `DBL_MAX` therefore produced silently truncated text even though the formatted output is valid and longer than the buffer.
+- Query the required length with C99 `snprintf(NULL, 0, ...)`, allocate exactly the required storage, verify the second formatting pass, append only a complete result, and free the temporary buffer. Add a `DBL_MAX` regression and strengthen static/dynamic Actions contracts. Reuse the registered CMake target; no new files or API changes.
+- No local C build or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
 ## 2026-11-07 02:32 CST — Update Date_compare ordered contract for exact field comparison
 
 - Baseline: main commit `64aea53ab55aa4d3bfc8e3c7db578a5a91e6bd2f`; SkipDBv2 Regression run #415 failed in the XY-C1 integration/source-contract step after the Date needles were correctly moved into the Date block.

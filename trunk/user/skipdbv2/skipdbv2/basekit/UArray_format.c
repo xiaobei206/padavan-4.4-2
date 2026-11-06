@@ -6,6 +6,7 @@
 #include "UArray.h"
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
 
@@ -78,10 +79,19 @@ void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 			else if (*format == 'f')
 			{
 				double d = va_arg(ap, double);
-				char s[100];
+				int formattedLength = snprintf(NULL, 0, "%f", d);
+				size_t formattedSize;
+				char *formatted;
 
-				snprintf(s, 100, "%f", d);
-				UArray_appendCString_(self, s);
+				if (formattedLength < 0)
+					return;
+				formattedSize = (size_t)formattedLength + 1;
+				formatted = (char *)malloc(formattedSize);
+				if (NULL == formatted)
+					return;
+				if (snprintf(formatted, formattedSize, "%f", d) == formattedLength)
+					UArray_appendCString_(self, formatted);
+				free(formatted);
 			}
 			else if (*format == 'p')
 			{

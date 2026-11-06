@@ -1,6 +1,7 @@
 #include "UArray.h"
 
 #include <stdio.h>
+#include <float.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,6 +17,9 @@ int main(void)
     UArray *trailing = UArray_newWithFormat_("prefix%");
     UArray *only_marker = UArray_newWithFormat_("%");
     UArray *normal = UArray_newWithFormat_("value %i", 42);
+    UArray *large_float = NULL;
+    char expected_large_float[512];
+    int expected_large_float_length;
     int result = EXIT_FAILURE;
 
     if (!equals_bytes(trailing, "prefix%", 7)) {
@@ -28,6 +32,18 @@ int main(void)
     }
     if (!equals_bytes(normal, "value 42", 8)) {
         fprintf(stderr, "ordinary UArray formatting changed unexpectedly\n");
+        goto done;
+    }
+
+    expected_large_float_length = snprintf(expected_large_float,
+        sizeof(expected_large_float), "%f", DBL_MAX);
+    large_float = UArray_newWithFormat_("%f", DBL_MAX);
+    if (expected_large_float_length < 0 ||
+        (size_t)expected_large_float_length >= sizeof(expected_large_float) ||
+        expected_large_float_length <= 100 ||
+        !equals_bytes(large_float, expected_large_float,
+            (size_t)expected_large_float_length)) {
+        fprintf(stderr, "UArray floating formatter truncated DBL_MAX output\n");
         goto done;
     }
 
@@ -78,6 +94,7 @@ int main(void)
     puts("UArray trailing format marker and hex-byte test passed");
 
 done:
+    UArray_free(large_float);
     UArray_free(normal);
     UArray_free(only_marker);
     UArray_free(trailing);

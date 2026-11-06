@@ -1387,6 +1387,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_format.c": [
                   "void UArray_fromVargs_(UArray *self, const char *format, va_list ap)",
+                  "snprintf(NULL, 0, \"%f\", d)",
+                  "formattedSize = (size_t)formattedLength + 1;",
+                  "snprintf(formatted, formattedSize, \"%f\", d)",
+                  "free(formatted);",
                   "if (*format == 0)",
                   "UArray_appendCString_(self, \"%\");",
                   "A trailing format marker must not advance past the terminator.",
@@ -1396,6 +1400,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_format_trailing_percent.c": [
                   "UArray_newWithFormat_(\"prefix%\")",
                   "UArray_newWithFormat_(\"%\")",
+                  "UArray floating formatter truncated DBL_MAX output",
                   "trailing format marker was not preserved safely",
                   "format consisting only of a percent marker was mishandled",
                   "UArray hex conversion changed byte order or casing",
@@ -3339,6 +3344,16 @@ jobs:
           if ("if (*format == 0)" not in uarray_format_source or
                   'UArray_appendCString_(self, "%");' not in uarray_format_source):
               raise SystemExit("UArray formatter must terminate safely and preserve a trailing percent marker")
+          float_start = uarray_format_source.find("else if (*format == 'f')")
+          pointer_start = uarray_format_source.find("else if (*format == 'p')", float_start)
+          float_body = uarray_format_source[float_start:pointer_start] if float_start >= 0 and pointer_start > float_start else ""
+          if (not float_body or
+                  'snprintf(NULL, 0, "%f", d)' not in float_body or
+                  "formattedSize = (size_t)formattedLength + 1;" not in float_body or
+                  'snprintf(formatted, formattedSize, "%f", d)' not in float_body or
+                  "free(formatted);" not in float_body or
+                  "char s[100]" in float_body):
+              raise SystemExit("UArray %f formatting must allocate the complete snprintf result instead of truncating at a fixed buffer")
           uarray_format_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_format_trailing_percent.c").read_text()
           for needle in ('UArray_newWithFormat_("prefix%")',
                          'UArray_newWithFormat_("%")',
