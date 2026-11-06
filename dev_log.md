@@ -1,3 +1,25 @@
+## 2026-11-06 16:41 CST — Correct UArray bit indexing and assignment semantics
+
+### Baseline
+- Main commit `0dc84335e24deab45a3c6b1dbf97e80dce5654e2`; SkipDBv2 Regression run #299 passed source contracts, configure, full build, and CTest after the BStream read-side repair.
+- Scope: the raw bit getter/setter pair in `UArray_math.c`; other math operations remain untouched.
+
+### Defects and fixes
+- Both accessors calculated the in-byte position as `i - i / 8`, which produces invalid bit offsets after the first byte and can trigger oversized shifts.
+- The getter assigned the extracted bit back into the source byte, corrupting the array during a read.
+- The setter toggled bits when asked to clear them, so repeated false assignments were not idempotent.
+- Centralize the shared storage/overflow preflight, use `i % 8`, make reads strictly non-mutating, and implement explicit set/clear masks. Successful writes invalidate the cached UArray hash.
+
+### Regression and contracts
+- Add `uarray_bit_access_test` for cross-byte indices, read-only behavior, idempotent set/clear, out-of-range and maximum-size indices, malformed storage, multiplication overflow, and hash invalidation.
+- Register the new test in CMake and add workflow source contracts for the helper, both accessors, target registration, and regression assertions. No exported declarations changed.
+
+### Validation
+- Static review confirms the helper rejects zero item width, overflowing byte geometry, and non-empty NULL storage before pointer access or shifts.
+- The mainline workflow is authoritative for compile and test validation.
+
+---
+
 ## 2026-11-06 16:37 CST — Correct BStream read-contract boundary matching
 
 ### CI diagnosis

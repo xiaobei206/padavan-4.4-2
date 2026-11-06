@@ -271,6 +271,11 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(uarray_reverse_item_byte_order_test skipdb m)
     add_test(NAME uarray_reverse_item_byte_order_test COMMAND uarray_reverse_item_byte_order_test)
 
+    ADD_EXECUTABLE(uarray_bit_access_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_bit_access.c)
+    TARGET_LINK_LIBRARIES(uarray_bit_access_test skipdb m)
+    add_test(NAME uarray_bit_access_test COMMAND uarray_bit_access_test)
+
     ADD_EXECUTABLE(uarray_search_bounds_test
         ${PROJECT_SOURCE_DIR}/tests/uarray_search_bounds.c)
     TARGET_LINK_LIBRARIES(uarray_search_bounds_test skipdb m)

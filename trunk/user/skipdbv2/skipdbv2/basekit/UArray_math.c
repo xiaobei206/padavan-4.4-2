@@ -203,12 +203,26 @@ void UArray_setAllBitsTo_(UArray *self, uint8_t aBool)
 
 // adjust for endianess?
 
+static int UArray_hasValidBitStorage_(const UArray *self, size_t *byteCount)
+{
+    if (NULL == self || NULL == byteCount || self->itemSize == 0 ||
+        self->size > (size_t)-1 / self->itemSize ||
+        (self->size > 0 && NULL == self->data))
+        return 0;
+    *byteCount = self->size * self->itemSize;
+    return 1;
+}
+
 int UArray_bitAt_(UArray *self, size_t i)
 {
-	size_t bytePos = i / 8;
-	size_t bitPos  = i - bytePos;
-	if (bytePos >= UArray_sizeInBytes(self)) return 0;
-	return self->data[bytePos] = (self->data[bytePos] >> bitPos) & 0x1;
+    size_t byteCount, bytePosition, bitPosition;
+    if (!UArray_hasValidBitStorage_(self, &byteCount))
+        return 0;
+    bytePosition = i / 8;
+    if (bytePosition >= byteCount)
+        return 0;
+    bitPosition = i % 8;
+    return (self->data[bytePosition] >> bitPosition) & 0x1;
 }
 
 uint8_t UArray_byteAt_(UArray *self, size_t i)
@@ -219,15 +233,20 @@ uint8_t UArray_byteAt_(UArray *self, size_t i)
 
 void UArray_setBit_at_(UArray *self, int aBool, size_t i)
 {
-	size_t bytePos = i / 8;
-	size_t bitPos  = i - bytePos;
-	uint8_t n = 0x1 << bitPos;
-	uint8_t b;
-	if (bytePos >= UArray_sizeInBytes(self)) return;
-	b = self->data[bytePos];
-	b ^= n;
-	if (aBool) b |= (0x1 << bitPos);
-	self->data[bytePos] = b;
+    size_t byteCount, bytePosition, bitPosition;
+    uint8_t mask;
+    if (!UArray_hasValidBitStorage_(self, &byteCount))
+        return;
+    bytePosition = i / 8;
+    if (bytePosition >= byteCount)
+        return;
+    bitPosition = i % 8;
+    mask = (uint8_t)(1u << bitPosition);
+    if (aBool)
+        self->data[bytePosition] |= mask;
+    else
+        self->data[bytePosition] &= (uint8_t)~mask;
+    UArray_changed(self);
 }
 
 UArray *UArray_asBits(const UArray *self)

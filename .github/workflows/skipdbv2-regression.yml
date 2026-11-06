@@ -704,6 +704,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/uarray_path_null.c",
                   "TARGET_LINK_LIBRARIES(uarray_path_null_test skipdb m)",
                   "add_test(NAME uarray_path_null_test COMMAND uarray_path_null_test)",
+                  "ADD_EXECUTABLE(uarray_bit_access_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_bit_access.c",
+                  "TARGET_LINK_LIBRARIES(uarray_bit_access_test skipdb m)",
+                  "add_test(NAME uarray_bit_access_test COMMAND uarray_bit_access_test)",
                   "ADD_EXECUTABLE(bstream_tag_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c",
                   "add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)",
@@ -1128,6 +1132,13 @@ jobs:
                   "uint8_t *item = self->data + i * itemSize;",
                   "for (j = 0; j < itemSize / 2; ++j)",
                   "item[itemSize - 1 - j]",
+                  "static int UArray_hasValidBitStorage_(const UArray *self, size_t *byteCount)",
+                  "bytePosition = i / 8;",
+                  "bitPosition = i % 8;",
+                  "return (self->data[bytePosition] >> bitPosition) & 0x1;",
+                  "mask = (uint8_t)(1u << bitPosition);",
+                  "self->data[bytePosition] &= (uint8_t)~mask;",
+                  "UArray_changed(self);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_reverse_item_byte_order.c": [
                   "UArray_reverseItemByteOrders(NULL)",
@@ -1135,6 +1146,19 @@ jobs:
                   "CTYPE_uint32_t, 1",
                   "single-item byte reversal accessed bytes outside the item",
                   "UArray reverse item byte order test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_bit_access.c": [
+                  "UArray_setBit_at_(array, 1, 8);",
+                  "UArray bit setter used the wrong bit after a byte boundary",
+                  "UArray bit false assignment toggled instead of clearing",
+                  "UArray bit reader returned an incorrect byte-boundary result",
+                  "UArray bit read mutated the source bytes",
+                  "UArray invalid bit index was not rejected",
+                  "UArray bit mutation did not invalidate the cached hash",
+                  "UArray malformed backing storage was not rejected",
+                  "UArray zero-width bit storage was not rejected",
+                  "UArray overflowing bit storage geometry was not rejected",
+                  "UArray bit access test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
                   "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
@@ -1697,6 +1721,51 @@ jobs:
               'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")' not in tagged_array_body
           ):
               raise SystemExit("tagged BStream array reads must validate before consuming input")
+
+          bit_math_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c").read_text()
+          bit_helper_start = bit_math_source.find(
+              "static int UArray_hasValidBitStorage_(const UArray *self, size_t *byteCount)"
+          )
+          bit_reader_start = bit_math_source.find("int UArray_bitAt_(UArray *self, size_t i)")
+          bit_setter_start = bit_math_source.find("void UArray_setBit_at_(UArray *self, int aBool, size_t i)")
+          bit_reader_end = bit_math_source.find("void UArray_setBit_at_", bit_reader_start)
+          bit_setter_end = bit_math_source.find("UArray *UArray_asBits", bit_setter_start)
+          bit_helper_body = (
+              bit_math_source[bit_helper_start:bit_reader_start]
+              if bit_helper_start >= 0 and bit_reader_start > bit_helper_start
+              else ""
+          )
+          bit_reader_body = (
+              bit_math_source[bit_reader_start:bit_reader_end]
+              if bit_reader_start >= 0 and bit_reader_end > bit_reader_start
+              else ""
+          )
+          bit_setter_body = (
+              bit_math_source[bit_setter_start:bit_setter_end]
+              if bit_setter_start >= 0 and bit_setter_end > bit_setter_start
+              else ""
+          )
+          if (
+              not bit_helper_body or
+              "self->size > (size_t)-1 / self->itemSize" not in bit_helper_body or
+              "(self->size > 0 && NULL == self->data)" not in bit_helper_body
+          ):
+              raise SystemExit("UArray bit access must reject malformed or overflowing storage")
+          if (
+              not bit_reader_body or
+              "bitPosition = i % 8;" not in bit_reader_body or
+              "return (self->data[bytePosition] >> bitPosition) & 0x1;" not in bit_reader_body or
+              "self->data[bytePosition] =" in bit_reader_body
+          ):
+              raise SystemExit("UArray bit reader must be byte-correct and read-only")
+          if (
+              not bit_setter_body or
+              "bitPosition = i % 8;" not in bit_setter_body or
+              "self->data[bytePosition] |= mask;" not in bit_setter_body or
+              "self->data[bytePosition] &= (uint8_t)~mask;" not in bit_setter_body or
+              "UArray_changed(self);" not in bit_setter_body
+          ):
+              raise SystemExit("UArray bit setter must set/clear the target bit and invalidate cached hash")
           list_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/List.c").read_text()
           memory_start = list_source.find("size_t List_memorySize(const List *self)")
           memory_end = list_source.find("\nvoid List_removeAll", memory_start)
