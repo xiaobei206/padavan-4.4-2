@@ -749,6 +749,10 @@ jobs:
                   "${PROJECT_SOURCE_DIR}/tests/phash_compact.c",
                   "TARGET_LINK_LIBRARIES(phash_compact_test skipdb m)",
                   "add_test(NAME phash_compact_test COMMAND phash_compact_test)",
+                  "ADD_EXECUTABLE(sorting_boundaries_test",
+                  "${PROJECT_SOURCE_DIR}/tests/sorting_boundaries.c",
+                  "TARGET_LINK_LIBRARIES(sorting_boundaries_test skipdb m)",
+                  "add_test(NAME sorting_boundaries_test COMMAND sorting_boundaries_test)",
                   "SET(UDB_SRC",
                   "UDBRead.c",
                   "UDBRecordWrite.c",
@@ -787,6 +791,27 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/Sorting.c": [
+                  "static int Sorting_isSorted_(",
+                  "static void Sorting_quickSort_(",
+                  "static size_t Sorting_quickSortRearrange_(",
+                  "size - 1 > (size_t)INT_MAX",
+                  "if (pivot > lb)",
+                  "if (pivot < ub)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/Sorting.h": [
+                  "#ifndef IOSORTING_DEFINED",
+                  "typedef int (SDSortCompareCallback)(void *context, int i, int j);",
+                  "INT_MAX are rejected without invoking either callback",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/sorting_boundaries.c": [
+                  "already-sorted input was changed to an invalid order",
+                  "reverse-order input was not sorted",
+                  "duplicate and negative values were not sorted",
+                  "oversized = (size_t)INT_MAX + 2u;",
+                  "invalid callbacks or unsupported index range invoked a callback",
+                  "Sorting boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c": [
                   "static int DynLib_replaceString_",
@@ -1657,6 +1682,50 @@ jobs:
                          "add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test)"):
               if needle not in dynlib_cmake:
                   raise SystemExit("DynLib regression CMake registration missing: " + needle)
+
+          sorting_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Sorting.c").read_text()
+          sorting_entry = sorting_source.find("void Sorting_context_comp_swap_size_type_(")
+          sorting_end = sorting_source.find("static int Sorting_isSorted_(", sorting_entry)
+          sorting_body = sorting_source[sorting_entry:sorting_end] if sorting_entry >= 0 and sorting_end > sorting_entry else ""
+          argument_guard = sorting_body.find("if (type != SDQuickSort || size < 2 || NULL == comp || NULL == swap")
+          index_limit = sorting_body.find("size - 1 > (size_t)INT_MAX")
+          sort_call = sorting_body.find("Sorting_quickSort_(&sort, 0, size - 1);")
+          if (not sorting_body or argument_guard < 0 or index_limit < 0 or sort_call < 0 or
+                  not (argument_guard < index_limit < sort_call)):
+              raise SystemExit("Sorting must validate callbacks and int-index bounds before accessing the array")
+
+          quick_sort_declaration = sorting_source.find("static void Sorting_quickSort_(")
+          quick_sort_start = sorting_source.find("static void Sorting_quickSort_(", quick_sort_declaration + 1)
+          quick_sort_end = sorting_source.find("static size_t Sorting_quickSortRearrange_(", quick_sort_start)
+          quick_sort_body = sorting_source[quick_sort_start:quick_sort_end] if quick_sort_start >= 0 and quick_sort_end > quick_sort_start else ""
+          left_guard = quick_sort_body.find("if (pivot > lb)")
+          right_guard = quick_sort_body.find("if (pivot < ub)")
+          if (not quick_sort_body or left_guard < 0 or right_guard < 0 or
+                  quick_sort_body.find("pivot - 1") < left_guard or
+                  quick_sort_body.find("pivot + 1") < right_guard):
+              raise SystemExit("Sorting recursion must guard both pivot-side bounds before unsigned arithmetic")
+
+          sorting_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/Sorting.h").read_text()
+          if ("#ifndef IOSORTING_DEFINED" not in sorting_header or
+                  "INT_MAX are rejected without invoking either callback" not in sorting_header):
+              raise SystemExit("Sorting header must have an include guard and document the callback index limit")
+
+          sorting_test = Path("trunk/user/skipdbv2/skipdbv2/tests/sorting_boundaries.c").read_text()
+          for needle in ("already-sorted input was changed to an invalid order",
+                         "reverse-order input was not sorted",
+                         "duplicate and negative values were not sorted",
+                         "oversized = (size_t)INT_MAX + 2u;",
+                         "Sorting boundary test passed"):
+              if needle not in sorting_test:
+                  raise SystemExit("Sorting boundary regression case missing: " + needle)
+
+          sorting_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(sorting_boundaries_test",
+                         "${PROJECT_SOURCE_DIR}/tests/sorting_boundaries.c",
+                         "TARGET_LINK_LIBRARIES(sorting_boundaries_test skipdb m)",
+                         "add_test(NAME sorting_boundaries_test COMMAND sorting_boundaries_test)"):
+              if needle not in sorting_cmake:
+                  raise SystemExit("Sorting regression CMake registration missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

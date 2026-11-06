@@ -1,3 +1,26 @@
+## 2026-11-06 13:19 CST — Bound Sorting callback indexes and recursion
+
+### Baseline and scope
+- Base commit: `a53c09d2e005c833b6baf569d1402f9649c54ae6`; PHash compaction regression run `42167640249` passed.
+- Scope is limited to basekit Sorting, one boundary regression, and its CMake/workflow registration.
+
+### Changes
+- Treat arrays shorter than two elements as no-ops and reject missing compare/swap callbacks before invoking either callback.
+- Enforce the callback's `int` index contract; reject arrays whose largest index exceeds `INT_MAX` instead of narrowing `size_t`.
+- Make internal sorting helpers static, retain `size_t` for the pivot, and guard both recursive partitions before unsigned subtraction/addition.
+- Add an include guard and document the callback index boundary in `Sorting.h`.
+
+### CI preflight repair
+- Initial branch run `42166824493` stopped before compilation because the recursion contract selected the forward declaration rather than the function definition.
+- The scanner now skips the declaration and inspects the implementation body. Corrected pre-rebase branch run `42167028310` passed source contracts, configuration, full build, and CTest.
+
+### Validation
+- Add CTest coverage for sorted/reverse/duplicate inputs, null callbacks, zero/one-element inputs, and oversized index ranges.
+- Register the test in the existing CMake suite and enforce callback/index validation, pivot bounds, test fixtures, and target registration in the workflow.
+- The rebased full-tree regression validates this module together with the latest mainline commits.
+
+---
+
 ## 2026-11-06 13:15 CST — Implement transactional PHash compaction
 
 ### Baseline and scope

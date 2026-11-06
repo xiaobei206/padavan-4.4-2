@@ -292,4 +292,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(phash_compact_test skipdb m)
     add_test(NAME phash_compact_test COMMAND phash_compact_test)
 
+    ADD_EXECUTABLE(sorting_boundaries_test
+        ${PROJECT_SOURCE_DIR}/tests/sorting_boundaries.c)
+    TARGET_LINK_LIBRARIES(sorting_boundaries_test skipdb m)
+    add_test(NAME sorting_boundaries_test COMMAND sorting_boundaries_test)
+
 endif()

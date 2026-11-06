@@ -1,3 +1,6 @@
+#ifndef IOSORTING_DEFINED
+#define IOSORTING_DEFINED 1
+
 #include "Common.h"
 
 #ifdef __cplusplus
@@ -10,23 +13,27 @@ extern "C" {
    two objects if we want to do something like use an
    Io block to do the comparison and using globals is
    unacceptable for several reasons.
+
+   Callback indexes are int values. Inputs whose largest index exceeds
+   INT_MAX are rejected without invoking either callback.
 */
 
 typedef enum
 {
-	SDQuickSort
-	//SDShellSort
+    SDQuickSort
+    //SDShellSort
 } SDSortType;
 
 typedef int (SDSortCompareCallback)(void *context, int i, int j);
 typedef void (SDSortSwapCallback)(void *context, int i, int j);
 
 BASEKIT_API void Sorting_context_comp_swap_size_type_(void *context,
-													  SDSortCompareCallback *comp,
-													  SDSortSwapCallback *swap,
-													  size_t size,
-													  SDSortType type);
+                                                      SDSortCompareCallback *comp,
+                                                      SDSortSwapCallback *swap,
+                                                      size_t size,
+                                                      SDSortType type);
 
 #ifdef __cplusplus
 }
+#endif
 #endif
