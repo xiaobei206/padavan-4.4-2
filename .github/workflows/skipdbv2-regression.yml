@@ -1253,7 +1253,7 @@ jobs:
                   "BStream_error_(self, \"truncated binary stream byte\")",
                   "BStream_error_(self, \"truncated binary stream data\")",
                   "(self->ba->size > 0 && NULL == self->ba->data)",
-                  "BStream_error_(self, \\"invalid tagged binary stream write\\");",
+                  "BStream_error_(self, \"invalid tagged binary stream write\");",
                   "self->ba->itemSize != 1 ||",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray.c": [

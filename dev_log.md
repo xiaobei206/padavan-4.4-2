@@ -1,3 +1,17 @@
+## 2026-11-06 16:15 CST — Escape BStream source contract string correctly
+
+### CI diagnosis
+- SkipDBv2 Regression run #296 stopped in source-contract preflight with a Python `SyntaxError`; compilation and CTest were not reached.
+- The new BStream implementation contract contained two backslashes before embedded quotes, terminating the Python string incorrectly.
+
+### Fix
+- Correct the workflow literal to use one escape before each embedded quote. The BStream implementation and regression cases are unchanged.
+
+### Validation
+- The corrected source-contract string is present in the workflow; the next mainline run will validate the preflight and full test suite.
+
+---
+
 ## 2026-11-06 16:14 CST — Fail closed on malformed BStream write storage
 
 ### Baseline
