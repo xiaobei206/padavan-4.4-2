@@ -620,17 +620,29 @@ void UArray_setSize_(UArray *self, size_t size)
 		return;
 	oldSizeInBytes = self->size * self->itemSize;
 	newSizeInBytes = self->itemSize * size;
-	if (newSizeInBytes == (size_t)-1)
+	if (newSizeInBytes == (size_t)-1 ||
+		(oldSizeInBytes > 0 && NULL == self->data))
 		return;
 	if (size != self->size)
 	{
+		if (self->stackAllocated) {
+			size_t copyBytes = oldSizeInBytes < newSizeInBytes ?
+				oldSizeInBytes : newSizeInBytes;
+			newData = (uint8_t *)io_malloc(newSizeInBytes + 1);
+			if (NULL == newData)
+				return;
+			if (copyBytes > 0)
+				memcpy(newData, self->data, copyBytes);
+		} else {
 #ifdef UARRAY_DEBUG
-		UArray_checkIfOkToRelloc(self);
+			UArray_checkIfOkToRelloc(self);
 #endif
-		newData = (uint8_t *)io_realloc(self->data, newSizeInBytes + 1);
-		if (NULL == newData)
-			return;
+			newData = (uint8_t *)io_realloc(self->data, newSizeInBytes + 1);
+			if (NULL == newData)
+				return;
+		}
 		self->data = newData;
+		self->stackAllocated = 0;
 		self->data[newSizeInBytes] = 0x0;
 		self->size = size;
 

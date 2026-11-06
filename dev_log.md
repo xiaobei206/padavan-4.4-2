@@ -1,3 +1,22 @@
+## 2026-11-06 11:15 CST — Detach borrowed UArray storage before resizing
+
+### Baseline and scope
+- Base commit: `1627ac42d4bce61a8de80511381fbff48b3cf0c3`; SkipDBv2 Regression run #226 passed source contracts, compilation, and CTest.
+- Scope is limited to `UArray_setSize_()`, one borrowed-buffer resize regression, its CMake/workflow registration, and this handoff log.
+
+### Changes
+- Fix resizing of stack-allocated/borrowed UArray buffers: allocate owned storage and copy the surviving bytes instead of passing a borrowed pointer to `realloc`.
+- Bound the copy to the smaller of old and new byte lengths, so both growth and shrink operations are safe.
+- Clear the borrowed-storage ownership flag only after the new allocation succeeds; preserve the original source buffer and leave the UArray unchanged on allocation failure.
+- Add a dedicated regression for both growing and shrinking borrowed byte arrays, including source-buffer preservation and ownership transition.
+
+### Validation
+- Static preflight verifies the borrowed-buffer allocation branch precedes the dynamic `realloc` path, bounds the copied range, and is covered by the new test.
+- Register the test in CMake and require the implementation, regression, and registration through the workflow's source contracts.
+- No local firmware build is available; the next remote SkipDBv2 Regression run is authoritative.
+
+---
+
 ## 2026-11-06 11:12 CST — Report List allocated capacity in memorySize
 
 ### Baseline and scope

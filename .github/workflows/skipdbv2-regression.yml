@@ -701,6 +701,9 @@ jobs:
                   "ADD_EXECUTABLE(list_memory_size_test",
                   "${PROJECT_SOURCE_DIR}/tests/list_memory_size.c",
                   "add_test(NAME list_memory_size_test COMMAND list_memory_size_test)",
+                  "ADD_EXECUTABLE(uarray_stack_resize_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_stack_resize.c",
+                  "add_test(NAME uarray_stack_resize_test COMMAND uarray_stack_resize_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -747,6 +750,13 @@ jobs:
                   "BStream_error_(self, \"truncated binary stream byte\")",
                   "BStream_error_(self, \"truncated binary stream data\")",
               ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/UArray.c": [
+                  "void UArray_setSize_(UArray *self, size_t size)",
+                  "if (self->stackAllocated)",
+                  "newData = (uint8_t *)io_malloc(newSizeInBytes + 1)",
+                  "copyBytes = oldSizeInBytes < newSizeInBytes",
+                  "self->stackAllocated = 0;",
+              ],
               "trunk/user/skipdbv2/skipdbv2/basekit/List.c": [
                   "size_t List_memorySize(const List *self)",
                   "self->memSize > (size_t)-1 - sizeof(List)",
@@ -764,6 +774,17 @@ jobs:
                   "mark <= 0",
                   "if (cursor != mark)",
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c": [
+                  "UArray_stackAllocedWithData_type_size_",
+                  "UArray_setSize_(&grown, 5)",
+                  "UArray_setSize_(&shrunk, 2)",
+                  "grown.stackAllocated",
+                  "shrunk.stackAllocated",
+                  "grow_source",
+                  "shrink_source",
+                  "growing a borrowed UArray did not detach",
+                  "shrinking a borrowed UArray did not detach",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_memory_size.c": [
                   "List_new()",
@@ -1026,6 +1047,26 @@ jobs:
           list_test = Path("trunk/user/skipdbv2/skipdbv2/tests/list_memory_size.c").read_text()
           if list_test.count("List_memorySize(list) != expected") != 3:
               raise SystemExit("List memory accounting regression must cover initial, grown, and compacted allocations")
+
+          uarray_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text()
+          resize_start = uarray_source.find("void UArray_setSize_(UArray *self, size_t size)")
+          resize_end = uarray_source.find("\nsize_t UArray_size(", resize_start)
+          resize_body = uarray_source[resize_start:resize_end] if resize_start >= 0 and resize_end > resize_start else ""
+          borrowed_branch = resize_body.find("if (self->stackAllocated)")
+          borrowed_alloc = resize_body.find("io_malloc(newSizeInBytes + 1)", borrowed_branch)
+          dynamic_realloc = resize_body.find("io_realloc(self->data, newSizeInBytes + 1)")
+          ownership_clear = resize_body.find("self->stackAllocated = 0;")
+          if (not resize_body or borrowed_branch < 0 or borrowed_alloc < borrowed_branch or
+                  dynamic_realloc < 0 or borrowed_alloc > dynamic_realloc or ownership_clear < dynamic_realloc):
+              raise SystemExit("UArray resize must copy borrowed storage before relinquishing stack ownership")
+          if "copyBytes = oldSizeInBytes < newSizeInBytes ?" not in resize_body:
+              raise SystemExit("UArray borrowed-buffer resize must bound copies when shrinking")
+          resize_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c").read_text()
+          if ("UArray_setSize_(&grown, 5)" not in resize_test or
+                  "UArray_setSize_(&shrunk, 2)" not in resize_test or
+                  "memcmp(grow_source, grown_expected" not in resize_test or
+                  "shrink_source[3] != 0xd4" not in resize_test):
+              raise SystemExit("UArray stack-resize regression must cover detach, growth, shrink, and source preservation")
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

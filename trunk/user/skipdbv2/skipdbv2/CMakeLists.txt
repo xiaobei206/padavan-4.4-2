@@ -221,4 +221,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(list_memory_size_test skipdb m)
     add_test(NAME list_memory_size_test COMMAND list_memory_size_test)
 
+    ADD_EXECUTABLE(uarray_stack_resize_test
+        ${PROJECT_SOURCE_DIR}/tests/uarray_stack_resize.c)
+    TARGET_LINK_LIBRARIES(uarray_stack_resize_test skipdb m)
+    add_test(NAME uarray_stack_resize_test COMMAND uarray_stack_resize_test)
+
 endif()
