@@ -215,6 +215,8 @@ jobs:
                   "void SkipDB_list_prefix(",
                   "SkipDBRecord *SkipDB_list_next(",
                   "SkipDBRecord *SkipDB_list_first(",
+                  "cursor->sdb != self",
+                  "SkipDBCursor_next(cursor);",
               ],
                             "trunk/user/skipdbv2/skipdbv2/tests/skipdb_prefix.c": [
                   "SkipDB_list_first(",
@@ -397,6 +399,10 @@ jobs:
                   "source->header->level=-1;",
                   "negative root level was treated as an empty search",
                   "SkipDB failed to recover after rejecting invalid search level",
+                  "foreignCursor=SkipDB_createCursor(target);",
+                  "SkipDB_list_next(source,prefix,foreignCursor)!=NULL",
+                  "SkipDB_list_next advanced a cursor owned by another database",
+                  "if(foreignCursor)SkipDBCursor_release(foreignCursor);",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecords.c": [
                   "UDBRecords *UDBRecords_new(void)",

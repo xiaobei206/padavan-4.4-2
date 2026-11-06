@@ -15,7 +15,7 @@ static int key_is(SkipDBRecord *record,const char *expected)
 }
 int main(void)
 {
- SkipDB *source=NULL,*target=NULL;SkipDBCursor *cursor=NULL;SkipDBRecord *record;
+ SkipDB *source=NULL,*target=NULL;SkipDBCursor *cursor=NULL,*foreignCursor=NULL;SkipDBRecord *record;
  Datum prefix=Datum_FromCString_("al");char sp[128],tp[128];int sl,tl,result=EXIT_FAILURE;
  source=SkipDB_new();target=SkipDB_new();
  if(!source||!target){fprintf(stderr,"SkipDB allocation failed\n");goto done;}
@@ -83,6 +83,14 @@ int main(void)
  if(!SkipDB_isOpen(target)||SkipDB_count(target)!=3||!value_is(target,"alpha","updated")||
   !value_is(target,"alpine","2")||!value_is(target,"gamma","4")){
   fprintf(stderr,"merge persistence failed\n");goto done;}
+ /* A prefix cursor is owned by exactly one SkipDB instance. */
+ foreignCursor=SkipDB_createCursor(target);
+ if(!foreignCursor||!key_is(SkipDBCursor_goto_(foreignCursor,Datum_FromCString_("alpha")),"alpha")){
+  fprintf(stderr,"foreign prefix cursor fixture failed\n");goto done;}
+ if(SkipDB_list_next(source,prefix,foreignCursor)!=NULL||
+    !key_is(SkipDBCursor_current(foreignCursor),"alpha")){
+  fprintf(stderr,"SkipDB_list_next advanced a cursor owned by another database\n");goto done;}
+ SkipDBCursor_release(foreignCursor);foreignCursor=NULL;
  if(!key_is(SkipDB_firstRecord(source),"alpha")||!key_is(SkipDB_lastRecord(source),"gamma")||
   !key_is(SkipDB_goto_(source,Datum_FromCString_("al")),"alpha")){
   fprintf(stderr,"first/last/lower-bound query failed\n");goto done;}
@@ -141,6 +149,7 @@ int main(void)
  }
  result=EXIT_SUCCESS;puts("skipdb core layers test passed");
 done:
+ if(foreignCursor)SkipDBCursor_release(foreignCursor);
  if(cursor)SkipDBCursor_release(cursor);
  if(source){SkipDB_delete(source);SkipDB_free(source);}
  if(target){SkipDB_delete(target);SkipDB_free(target);}

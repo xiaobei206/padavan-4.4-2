@@ -60,7 +60,8 @@ SkipDBRecord *SkipDB_list_next(SkipDB *self, Datum k, SkipDBCursor *cursor)
 {
 	SkipDBRecord *record;
 	Datum key;
-	if (NULL == self || NULL == cursor || k.size == 0 || NULL == k.data)
+	if (NULL == self || NULL == cursor || k.size == 0 || NULL == k.data ||
+		cursor->sdb != self)
 		return NULL;
 	record = SkipDBCursor_next(cursor);
 	if (record) {

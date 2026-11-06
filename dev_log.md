@@ -1,3 +1,13 @@
+## 2026-11-07 05:57 CST — Reject foreign cursors in SkipDB prefix iteration
+
+- Baseline: main commit `5e7127ccdf802a4cbe61bd8c5bec83c9ed6a343b`; SkipDBv2 Regression run #442 passed source contracts, configure, complete build, and all regression tests.
+- Scope: prefix-bound cursor iteration in `skipdb/SkipDBPrefix.c`.
+- `SkipDB_list_next(self, key, cursor)` checked that both pointers were non-NULL but advanced the cursor without verifying that it belonged to `self`. Passing a cursor created by another open SkipDB silently traversed and returned records from the wrong database.
+- Require `cursor->sdb == self` before stepping; mismatched cursors now return NULL without changing their position. Extend the existing `skipdb_core_layers_test` using two open databases, verifying a foreign cursor remains positioned on its original record. Update the existing workflow source/runtime contracts. No new files, declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 05:55 CST — Detach shallow aliases in List_copy_
 
 - Baseline: main commit `a60d663d68d045d48f532205ee4a272a7c3a23ee`; SkipDBv2 Regression run #441 passed source contracts, configure, full build, and regression tests.
