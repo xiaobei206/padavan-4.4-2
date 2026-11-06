@@ -1118,6 +1118,8 @@ jobs:
                   "if ((size_t)(targetEnd - target) < bytesToWrite)",
                   "ch = UNI_REPLACEMENT_CHAR;",
                   "if ((size_t)(sourceEnd - source) <= (size_t)extraBytesToRead)",
+                  "if (ch >= UNI_SUR_LOW_START && ch <= UNI_SUR_LOW_END)",
+                  "if ((size_t)(targetEnd - target) < bytesToWrite)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/convert_utf8_bounds.c": [
                   "NULL source",
@@ -1139,6 +1141,18 @@ jobs:
                   "ConvertUTF8toUTF32 malformed input was accepted or consumed",
                   "ConvertUTF8toUTF16 oversized sequence lead was accepted",
                   "ConvertUTF8toUTF32 oversized sequence lead was accepted",
+                  "test_utf16_source_semantics",
+                  "UTF16toUTF32 strict high surrogate did not preserve cursor",
+                  "UTF16toUTF32 lenient high surrogate replacement failed",
+                  "UTF16toUTF32 strict low surrogate did not preserve cursor",
+                  "UTF16toUTF32 lenient low surrogate replacement failed",
+                  "UTF16toUTF32 truncated high surrogate was consumed",
+                  "UTF16toUTF8 strict high surrogate did not preserve cursor",
+                  "UTF16toUTF8 lenient high surrogate replacement failed",
+                  "UTF16toUTF8 strict low surrogate did not preserve cursor",
+                  "UTF16toUTF8 lenient low surrogate replacement failed",
+                  "UTF16toUTF8 truncated high surrogate was consumed",
+                  "UTF16toUTF8 target exhaustion changed source or output",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_format.c": [
                   "void UArray_fromVargs_(UArray *self, const char *format, va_list ap)",
@@ -2423,6 +2437,28 @@ jobs:
                   utf32_to8_body.count("--source;") < 2 or utf32_to8_capacity < 0 or
                   utf32_to8_advance < 0 or utf32_to8_capacity > utf32_to8_advance):
               raise SystemExit("ConvertUTF32toUTF8 must replace lenient invalid scalars, preserve strict cursors, and preflight target capacity")
+
+          utf16_to32_start = convert_source.find("ConversionResult ConvertUTF16toUTF32")
+          utf16_to32_end = convert_source.find("static const char trailingBytesForUTF8", utf16_to32_start)
+          utf16_to32_body = convert_source[utf16_to32_start:utf16_to32_end] if utf16_to32_start >= 0 and utf16_to32_end > utf16_to32_start else ""
+          utf16_to8_start = convert_source.find("ConversionResult ConvertUTF16toUTF8")
+          utf16_to8_end = convert_source.find("static Boolean isLegalUTF8", utf16_to8_start)
+          utf16_to8_body = convert_source[utf16_to8_start:utf16_to8_end] if utf16_to8_start >= 0 and utf16_to8_end > utf16_to8_start else ""
+          for function_name, body in (("ConvertUTF16toUTF32", utf16_to32_body),
+                                      ("ConvertUTF16toUTF8", utf16_to8_body)):
+              high_guard = body.find("} else if (flags == strictConversion) { /* it's an unpaired high surrogate */")
+              high_replacement = body.find("ch = UNI_REPLACEMENT_CHAR;", high_guard)
+              low_guard = body.find("else if (ch >= UNI_SUR_LOW_START && ch <= UNI_SUR_LOW_END)")
+              low_replacement = body.find("ch = UNI_REPLACEMENT_CHAR;", low_guard)
+              if (not body or min(high_guard, high_replacement, low_guard, low_replacement) < 0 or
+                      not (high_guard < high_replacement and low_guard < low_replacement) or
+                      "--source;" not in body or "result = sourceExhausted;" not in body):
+                  raise SystemExit(function_name + " must replace isolated surrogates in lenient mode and preserve strict/truncated source cursors")
+          utf16_to8_capacity = utf16_to8_body.find("if ((size_t)(targetEnd - target) < bytesToWrite)")
+          utf16_to8_advance = utf16_to8_body.find("target += bytesToWrite;", utf16_to8_capacity)
+          if (utf16_to8_capacity < 0 or utf16_to8_advance < 0 or
+                  utf16_to8_capacity > utf16_to8_advance or "target > targetEnd" in utf16_to8_body):
+              raise SystemExit("ConvertUTF16toUTF8 must preflight target capacity before forming an advanced output pointer")
 
           for function_name, next_name in (("ConvertUTF8toUTF16", "ConvertUTF32toUTF8"),
                                            ("ConvertUTF8toUTF32", None)):

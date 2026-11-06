@@ -159,19 +159,21 @@ ConversionResult ConvertUTF16toUTF32 (
 					--source; /* return to the illegal value itself */
 					result = sourceIllegal;
 					break;
+				} else {
+					ch = UNI_REPLACEMENT_CHAR;
 				}
 			} else { /* We don't have the 16 bits following the high surrogate. */
 				--source; /* return to the high surrogate */
 				result = sourceExhausted;
 				break;
 			}
-		} else if (flags == strictConversion) {
-			/* UTF-16 surrogate values are illegal in UTF-32 */
-			if (ch >= UNI_SUR_LOW_START && ch <= UNI_SUR_LOW_END) {
+		} else if (ch >= UNI_SUR_LOW_START && ch <= UNI_SUR_LOW_END) {
+			if (flags == strictConversion) {
 				--source; /* return to the illegal value itself */
 				result = sourceIllegal;
 				break;
 			}
+			ch = UNI_REPLACEMENT_CHAR;
 		}
 		if (target >= targetEnd) {
 			source = oldSource; /* Back up source pointer! */
@@ -266,19 +268,21 @@ ConversionResult ConvertUTF16toUTF8 (
 					--source; /* return to the illegal value itself */
 					result = sourceIllegal;
 					break;
+				} else {
+					ch = UNI_REPLACEMENT_CHAR;
 				}
 			} else { /* We don't have the 16 bits following the high surrogate. */
 				--source; /* return to the high surrogate */
 				result = sourceExhausted;
 				break;
 			}
-		} else if (flags == strictConversion) {
-			/* UTF-16 surrogate values are illegal in UTF-32 */
-			if (ch >= UNI_SUR_LOW_START && ch <= UNI_SUR_LOW_END) {
+		} else if (ch >= UNI_SUR_LOW_START && ch <= UNI_SUR_LOW_END) {
+			if (flags == strictConversion) {
 				--source; /* return to the illegal value itself */
 				result = sourceIllegal;
 				break;
 			}
+			ch = UNI_REPLACEMENT_CHAR;
 		}
 		/* Figure out how many bytes the result will require */
 		if (ch < (UTF32)0x80) {             bytesToWrite = 1;
@@ -289,11 +293,12 @@ ConversionResult ConvertUTF16toUTF8 (
 			ch = UNI_REPLACEMENT_CHAR;
 		}
 
-		target += bytesToWrite;
-		if (target > targetEnd) {
+		if ((size_t)(targetEnd - target) < bytesToWrite) {
 			source = oldSource; /* Back up source pointer! */
-			target -= bytesToWrite; result = targetExhausted; break;
+			result = targetExhausted;
+			break;
 		}
+		target += bytesToWrite;
 		switch (bytesToWrite) { /* note: everything falls through. */
 			case 4: *--target = (UTF8)((ch | byteMark) & byteMask); ch >>= 6;
 			case 3: *--target = (UTF8)((ch | byteMark) & byteMask); ch >>= 6;

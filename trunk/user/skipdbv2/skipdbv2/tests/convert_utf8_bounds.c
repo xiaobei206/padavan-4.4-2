@@ -143,6 +143,128 @@ static int test_utf8_conversion_bounds(void)
     return 1;
 }
 
+
+static int test_utf16_source_semantics(void)
+{
+    const UTF16 high_then_ascii[] = {0xd800, 0x41};
+    const UTF16 low_then_ascii[] = {0xdc00, 0x42};
+    const UTF16 valid_pair[] = {0xd83d, 0xdca9};
+    const UTF16 trailing_high[] = {0xd800};
+    UTF32 out32[4] = {0xaaaaaaaa, 0xbbbbbbbb, 0xcccccccc, 0xdddddddd};
+    UTF8 out8[8] = {0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa};
+    const UTF16 *source16;
+    UTF32 *target32;
+    UTF8 *target8;
+    ConversionResult r;
+
+    source16 = high_then_ascii; target32 = out32;
+    r = ConvertUTF16toUTF32(&source16, high_then_ascii + 2, &target32,
+                            out32 + 4, strictConversion);
+    if (r != sourceIllegal || source16 != high_then_ascii || target32 != out32) {
+        fprintf(stderr, "UTF16toUTF32 strict high surrogate did not preserve cursor\\n");
+        return 0;
+    }
+    source16 = high_then_ascii; target32 = out32;
+    r = ConvertUTF16toUTF32(&source16, high_then_ascii + 2, &target32,
+                            out32 + 4, lenientConversion);
+    if (r != conversionOK || source16 != high_then_ascii + 2 || target32 != out32 + 2 ||
+        out32[0] != 0xfffd || out32[1] != 0x41) {
+        fprintf(stderr, "UTF16toUTF32 lenient high surrogate replacement failed\\n");
+        return 0;
+    }
+
+    source16 = low_then_ascii; target32 = out32;
+    r = ConvertUTF16toUTF32(&source16, low_then_ascii + 2, &target32,
+                            out32 + 4, strictConversion);
+    if (r != sourceIllegal || source16 != low_then_ascii || target32 != out32) {
+        fprintf(stderr, "UTF16toUTF32 strict low surrogate did not preserve cursor\\n");
+        return 0;
+    }
+    source16 = low_then_ascii; target32 = out32;
+    r = ConvertUTF16toUTF32(&source16, low_then_ascii + 2, &target32,
+                            out32 + 4, lenientConversion);
+    if (r != conversionOK || source16 != low_then_ascii + 2 || target32 != out32 + 2 ||
+        out32[0] != 0xfffd || out32[1] != 0x42) {
+        fprintf(stderr, "UTF16toUTF32 lenient low surrogate replacement failed\\n");
+        return 0;
+    }
+
+    source16 = valid_pair; target32 = out32;
+    r = ConvertUTF16toUTF32(&source16, valid_pair + 2, &target32,
+                            out32 + 4, strictConversion);
+    if (r != conversionOK || source16 != valid_pair + 2 || target32 != out32 + 1 ||
+        out32[0] != 0x1f4a9) return 0;
+
+    source16 = trailing_high; target32 = out32;
+    r = ConvertUTF16toUTF32(&source16, trailing_high + 1, &target32,
+                            out32 + 4, lenientConversion);
+    if (r != sourceExhausted || source16 != trailing_high || target32 != out32) {
+        fprintf(stderr, "UTF16toUTF32 truncated high surrogate was consumed\\n");
+        return 0;
+    }
+
+    source16 = high_then_ascii; target8 = out8;
+    r = ConvertUTF16toUTF8(&source16, high_then_ascii + 2, &target8,
+                           out8 + sizeof(out8), strictConversion);
+    if (r != sourceIllegal || source16 != high_then_ascii || target8 != out8) {
+        fprintf(stderr, "UTF16toUTF8 strict high surrogate did not preserve cursor\\n");
+        return 0;
+    }
+    source16 = high_then_ascii; target8 = out8;
+    r = ConvertUTF16toUTF8(&source16, high_then_ascii + 2, &target8,
+                           out8 + sizeof(out8), lenientConversion);
+    if (r != conversionOK || source16 != high_then_ascii + 2 || target8 != out8 + 4 ||
+        out8[0] != 0xef || out8[1] != 0xbf || out8[2] != 0xbd || out8[3] != 0x41) {
+        fprintf(stderr, "UTF16toUTF8 lenient high surrogate replacement failed\\n");
+        return 0;
+    }
+
+    source16 = low_then_ascii; target8 = out8;
+    r = ConvertUTF16toUTF8(&source16, low_then_ascii + 2, &target8,
+                           out8 + sizeof(out8), strictConversion);
+    if (r != sourceIllegal || source16 != low_then_ascii || target8 != out8) {
+        fprintf(stderr, "UTF16toUTF8 strict low surrogate did not preserve cursor\\n");
+        return 0;
+    }
+    source16 = low_then_ascii; target8 = out8;
+    r = ConvertUTF16toUTF8(&source16, low_then_ascii + 2, &target8,
+                           out8 + sizeof(out8), lenientConversion);
+    if (r != conversionOK || source16 != low_then_ascii + 2 || target8 != out8 + 4 ||
+        out8[0] != 0xef || out8[1] != 0xbf || out8[2] != 0xbd || out8[3] != 0x42) {
+        fprintf(stderr, "UTF16toUTF8 lenient low surrogate replacement failed\\n");
+        return 0;
+    }
+
+    source16 = valid_pair; target8 = out8;
+    r = ConvertUTF16toUTF8(&source16, valid_pair + 2, &target8,
+                           out8 + sizeof(out8), strictConversion);
+    if (r != conversionOK || source16 != valid_pair + 2 || target8 != out8 + 4 ||
+        out8[0] != 0xf0 || out8[1] != 0x9f || out8[2] != 0x92 || out8[3] != 0xa9)
+        return 0;
+
+    {
+        UTF8 small[3] = {0xaa, 0xaa, 0xaa};
+        source16 = valid_pair; target8 = small;
+        r = ConvertUTF16toUTF8(&source16, valid_pair + 2, &target8,
+                               small + sizeof(small), strictConversion);
+        if (r != targetExhausted || source16 != valid_pair || target8 != small ||
+            small[0] != 0xaa || small[1] != 0xaa || small[2] != 0xaa) {
+            fprintf(stderr, "UTF16toUTF8 target exhaustion changed source or output\\n");
+            return 0;
+        }
+    }
+
+    source16 = trailing_high; target8 = out8;
+    r = ConvertUTF16toUTF8(&source16, trailing_high + 1, &target8,
+                           out8 + sizeof(out8), lenientConversion);
+    if (r != sourceExhausted || source16 != trailing_high || target8 != out8) {
+        fprintf(stderr, "UTF16toUTF8 truncated high surrogate was consumed\\n");
+        return 0;
+    }
+
+    return 1;
+}
+
 int main(void)
 {
     const UTF8 empty[] = { 0 };
@@ -165,7 +287,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    if (!test_utf32_source_semantics() || !test_utf8_conversion_bounds()) return EXIT_FAILURE;
+    if (!test_utf32_source_semantics() || !test_utf8_conversion_bounds() || !test_utf16_source_semantics()) return EXIT_FAILURE;
 
     puts("ConvertUTF sequence-boundary test passed");
     return EXIT_SUCCESS;

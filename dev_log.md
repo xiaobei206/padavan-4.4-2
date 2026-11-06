@@ -1,3 +1,24 @@
+## 2026-11-06 17:55 CST — Normalize malformed UTF-16 surrogate input
+
+### Baseline
+- Main commit `6117729f4642f2c186bf56cca91baaa9a4fed428`; SkipDBv2 Regression run #311 passed.
+- Scope: `ConvertUTF16toUTF32()` and `ConvertUTF16toUTF8()` source handling.
+
+### Changes
+- Lenient conversion now emits U+FFFD for an unmatched high surrogate followed by a non-low code unit and for an isolated low surrogate. The following source unit remains available to the next iteration.
+- Strict conversion preserves the offending source cursor. A trailing high surrogate still returns `sourceExhausted` for streaming callers.
+- UTF-16 to UTF-8 output now preflights remaining target capacity before advancing the output pointer.
+
+### Regression and contracts
+- Extend the existing ConvertUTF test with strict/lenient isolated-high and isolated-low cases, valid-pair preservation, trailing-high streaming behavior, and target-exhaustion rollback.
+- Extend workflow source contracts. Reuse the existing CMake target; no new files or public declarations.
+
+### Validation
+- Static review confirms both converters preserve strict/truncated source positions and replace isolated surrogates in lenient mode.
+- Mainline CI run #312 will validate compilation and the complete regression suite.
+
+---
+
 ## 2026-11-06 17:51 CST — Bound UTF-8 decoder reads by remaining source length
 
 ### Baseline
