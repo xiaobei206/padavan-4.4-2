@@ -297,4 +297,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(sorting_boundaries_test skipdb m)
     add_test(NAME sorting_boundaries_test COMMAND sorting_boundaries_test)
 
+    ADD_EXECUTABLE(bstream_tag_boundaries_test
+        ${PROJECT_SOURCE_DIR}/tests/bstream_tag_boundaries.c)
+    TARGET_LINK_LIBRARIES(bstream_tag_boundaries_test skipdb m)
+    add_test(NAME bstream_tag_boundaries_test COMMAND bstream_tag_boundaries_test)
+
 endif()

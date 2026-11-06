@@ -1,3 +1,22 @@
+## 2026-11-06 13:23 CST — Harden BStreamTag wire encoding and NULL handling
+
+### Baseline and scope
+- Base commit: `f94e8c15ed38c4ad30ec5e40fbf588342a2f08be`; mainline Sorting regression run `42167906208` passed.
+- Scope is limited to the BStreamTag wire-format codec and public helper behavior, with one focused regression and CMake/workflow registration.
+
+### Changes
+- Mask each constructor field to its declared wire width before assigning the bitfields.
+- Keep decoding and encoding explicit: array bit 7, type bits 5–6, and byte-count bits 0–4.
+- Make serialization, equality, printing, and type-name helpers safe for NULL pointers; distinguish two NULL tags from a NULL/non-NULL comparison.
+- Return a stable unknown-type string for out-of-range type values.
+
+### Validation
+- Add an exhaustive round-trip test for all 256 possible wire bytes, field extraction, constructor masking, NULL behavior, and all four known type names.
+- Register the focused CTest and add workflow source contracts for wire masks, public declarations, fixtures, and CMake registration.
+- The post-push regression validates compilation and runtime behavior.
+
+---
+
 ## 2026-11-06 13:19 CST — Bound Sorting callback indexes and recursion
 
 ### Baseline and scope
