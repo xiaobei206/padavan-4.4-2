@@ -8,6 +8,9 @@
 #include <ctype.h>
 #include <limits.h>
 
+/* Internal hash invalidation helper shared with UArray_math.c. */
+extern void UArray_changed(UArray *self);
+
 /*
  * The C character-classification functions accept only EOF or an unsigned
  * char value. UArray can also contain signed integers, wide integers, and

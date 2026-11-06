@@ -15,7 +15,7 @@
 
 int main(void)
 {
-	int8_t signedBytes[] = { (int8_t)0x80, (int8_t)0xff, -2, 'A', 'z' };
+	int8_t signedBytes[] = { INT8_MIN, -1, -2, 'A', 'z' };
 	int16_t wideValues[] = { -1, 256, 'A', 'Z' };
 	int16_t lowerValues[] = { 'a', 'b', 'z' };
 	int16_t upperValues[] = { 'A', 'B', 'Z' };
@@ -26,7 +26,6 @@ int main(void)
 	UArray *upper = NULL;
 	UArray *floats = NULL;
 	UArray *malformed = NULL;
-	uintptr_t originalHash;
 	int result = EXIT_FAILURE;
 
 	UArray_isalnum(NULL);
@@ -38,6 +37,7 @@ int main(void)
 		signedBytes, CTYPE_int8_t,
 		sizeof(signedBytes) / sizeof(signedBytes[0]), 1);
 	CHECK(NULL != classified, "signed-byte array allocation failed");
+	classified->hash = (uintptr_t)0x4321u;
 	UArray_isalpha(classified);
 	{
 		int8_t *values = (int8_t *)classified->data;
@@ -45,12 +45,14 @@ int main(void)
 			values[3] != 0 && values[4] != 0,
 			"signed high bytes were not handled as non-ASCII characters");
 	}
+	CHECK(classified->hash == 0,
+		"character classification did not invalidate the cached hash");
 
 	wide = UArray_newWithData_type_size_copy_(
 		wideValues, CTYPE_int16_t,
 		sizeof(wideValues) / sizeof(wideValues[0]), 1);
 	CHECK(NULL != wide, "wide integer array allocation failed");
-	originalHash = UArray_hash(wide);
+	wide->hash = (uintptr_t)0x1234u;
 	UArray_tolower(wide);
 	{
 		int16_t *values = (int16_t *)wide->data;
@@ -58,8 +60,7 @@ int main(void)
 			values[2] == 'a' && values[3] == 'z',
 			"case conversion changed values outside the unsigned-byte domain");
 	}
-	CHECK(UArray_hash(wide) == UArray_calcHash(wide) &&
-		UArray_hash(wide) != originalHash,
+	CHECK(wide->hash == 0,
 		"case conversion did not invalidate the cached hash");
 	UArray_toupper(wide);
 	{

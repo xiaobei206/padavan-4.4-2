@@ -1049,6 +1049,7 @@ jobs:
                   "return self->size * self->itemSize;",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_character.c": [
+                  "extern void UArray_changed(UArray *self);",
                   "static int UArray_characterValueIsByte_(long double value)",
                   "value <= (long double)UCHAR_MAX",
                   "UArray_characterValueIsByte_((long double)v)",
@@ -1061,6 +1062,7 @@ jobs:
                   "signed high bytes were not handled as non-ASCII characters",
                   "case conversion changed values outside the unsigned-byte domain",
                   "case conversion did not invalidate the cached hash",
+                  "character classification did not invalidate the cached hash",
                   "floating-point values were narrowed before byte-range validation",
                   "non-empty array with NULL storage was not rejected",
                   "UArray character-domain test passed",
@@ -1840,7 +1842,7 @@ jobs:
 
           character_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_character_domain.c").read_text()
           for needle in ("CTYPE_int8_t", "CTYPE_int16_t", "CTYPE_float64_t",
-                         "NAN", "INFINITY", "UArray_hash(wide)",
+                         "NAN", "INFINITY", "wide->hash = (uintptr_t)0x1234u;",
                          "UArray character-domain test passed"):
               if needle not in character_test:
                   raise SystemExit("UArray character-domain boundary fixture missing: " + needle)
