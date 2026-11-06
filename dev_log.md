@@ -1,3 +1,17 @@
+## 2026-11-06 13:52 CST — Propagate UArray encoding conversion failures
+
+### Scope and changes
+- Make UTF-16/UTF-32 truncation report status and fail conversion if shrinking output to its terminator position did not complete.
+- Guard all three in-place encoding conversion wrappers against NULL conversion results, preserving the original UArray after conversion/allocation failure.
+- Make `UArray_convertToFixedSizeType()` verify resulting encoding, item type, item size, and storage bounds before returning success.
+
+### Regression and contracts
+- Add `uarray_encoding_conversion_test` for ASCII, two-byte UTF-8 to UTF-16, three-/four-byte UTF-8 to UTF-32, NULL wrapper inputs, and invalid-sequence source preservation.
+- Register the test in CMake/CTest and extend source contracts for truncation failure, wrapper NULL guards, result metadata, and test registration.
+- Baseline main CI run #261 passed List slicing, source contracts, configure, build, and CTest.
+
+---
+
 ## 2026-11-06 13:49 CST — Fix List CMake contract variable scope
 
 ### CI repair

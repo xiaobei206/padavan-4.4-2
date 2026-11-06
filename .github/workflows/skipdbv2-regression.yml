@@ -728,6 +728,10 @@ jobs:
                   "ADD_EXECUTABLE(convert_utf8_bounds_test",
                   "${PROJECT_SOURCE_DIR}/tests/convert_utf8_bounds.c",
                   "add_test(NAME convert_utf8_bounds_test COMMAND convert_utf8_bounds_test)",
+                  "ADD_EXECUTABLE(uarray_encoding_conversion_test",
+                  "${PROJECT_SOURCE_DIR}/tests/uarray_encoding_conversion.c",
+                  "TARGET_LINK_LIBRARIES(uarray_encoding_conversion_test skipdb m)",
+                  "add_test(NAME uarray_encoding_conversion_test COMMAND uarray_encoding_conversion_test)",
                   "ADD_EXECUTABLE(date_time_init_test",
                   "${PROJECT_SOURCE_DIR}/tests/date_time_init.c",
                   "add_test(NAME date_time_init_test COMMAND date_time_init_test)",
@@ -993,6 +997,26 @@ jobs:
                   "truncated sequence",
                   "overlong sequence",
                   "illegal lead byte",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
+                  "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
+                  "if (self->size > (size_t)LONG_MAX)",
+                  "return self->size == (size_t)newSize;",
+                  "if (!UArray_truncateAfterConvertToEncoding_(out))",
+                  "if (NULL == a)",
+                  "self->encoding != CENCODING_UTF16",
+                  "self->itemType != CTYPE_uint16_t",
+                  "self->encoding != CENCODING_UTF32",
+                  "self->itemType != CTYPE_uint32_t",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_encoding_conversion.c": [
+                  "UArray_convertToFixedSizeType(NULL)",
+                  "CENCODING_ASCII",
+                  "0x00a2",
+                  "0x20ac",
+                  "0x1f4a9",
+                  "invalid UTF-8 conversion reported success or changed the source",
+                  "UArray encoding conversion test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c": [
                   "if (self->mti < 0 || self->mti > N+1)",
@@ -1512,6 +1536,47 @@ jobs:
               if needle not in convert_test:
                   raise SystemExit("ConvertUTF boundary regression case missing: " + needle)
 
+          encoding_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c").read_text()
+          truncate_start = encoding_source.find("static int UArray_truncateAfterConvertToEncoding_(UArray *self)")
+          truncate_end = encoding_source.find("\nint UArray_convertToFixedSizeType", truncate_start)
+          truncate_body = encoding_source[truncate_start:truncate_end] if truncate_start >= 0 and truncate_end > truncate_start else ""
+          if (not truncate_body or "if (self->size > (size_t)LONG_MAX)" not in truncate_body or
+                  "if (newSize == -1)" not in truncate_body or
+                  "UArray_setSize_(self, (size_t)newSize);" not in truncate_body or
+                  "return self->size == (size_t)newSize;" not in truncate_body):
+              raise SystemExit("UArray conversion truncation must propagate failed resize and bound its search index")
+          fixed_start = encoding_source.find("int UArray_convertToFixedSizeType(UArray *self)")
+          fixed_end = encoding_source.find("\nint UArray_isMultibyte", fixed_start)
+          fixed_body = encoding_source[fixed_start:fixed_end] if fixed_start >= 0 and fixed_end > fixed_start else ""
+          if (not fixed_body or "if (self->encoding != CENCODING_UTF16" not in fixed_body or
+                  "self->itemType != CTYPE_uint16_t" not in fixed_body or
+                  "if (self->encoding != CENCODING_UTF32" not in fixed_body or
+                  "self->itemType != CTYPE_uint32_t" not in fixed_body):
+              raise SystemExit("UArray fixed-size conversion must confirm the resulting encoding and item layout")
+          for wrapper_name in ("void UArray_convertToUTF8(UArray *self)",
+                               "void UArray_convertToUTF16(UArray *self)",
+                               "void UArray_convertToUTF32(UArray *self)"):
+              wrapper_start = encoding_source.find(wrapper_name)
+              wrapper_close = encoding_source.find("\n}", wrapper_start)
+              wrapper_body = encoding_source[wrapper_start:wrapper_close] if wrapper_start >= 0 and wrapper_close > wrapper_start else ""
+              converted = wrapper_body.find("UArray_asUTF")
+              null_guard = wrapper_body.find("if (NULL == a)")
+              swap = wrapper_body.find("UArray_swapWith_(self, a)")
+              if (not wrapper_body or converted < 0 or null_guard < converted or
+                      swap < 0 or null_guard > swap):
+                  raise SystemExit("UArray conversion wrappers must leave the source untouched when conversion fails")
+          encoding_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_encoding_conversion.c").read_text()
+          for needle in ("UArray_convertToFixedSizeType(NULL)", "0x00a2", "0x20ac",
+                         "0x1f4a9", "invalid UTF-8 conversion reported success or changed the source"):
+              if needle not in encoding_test:
+                  raise SystemExit("UArray encoding conversion regression case missing: " + needle)
+          encoding_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("ADD_EXECUTABLE(uarray_encoding_conversion_test",
+                         "${PROJECT_SOURCE_DIR}/tests/uarray_encoding_conversion.c",
+                         "TARGET_LINK_LIBRARIES(uarray_encoding_conversion_test skipdb m)",
+                         "add_test(NAME uarray_encoding_conversion_test COMMAND uarray_encoding_conversion_test)"):
+              if needle not in encoding_cmake:
+                  raise SystemExit("UArray encoding conversion test is not registered in CMake/CTest: " + needle)
           date_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/Date.c").read_text()
           date_ctor_start = date_source.find("Date *Date_new(void)")
           date_ctor_end = date_source.find("void Date_copy_(", date_ctor_start)

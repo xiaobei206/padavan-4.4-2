@@ -88,49 +88,56 @@ int UArray_maxCharSize(const UArray *self)
 	return self->itemSize <= INT_MAX ? (int)self->itemSize : -1;
 }
 
-void UArray_truncateAfterConvertToEncoding_(UArray *self){
-	if(self->encoding == CENCODING_NUMBER)
-	{
-		return;
-	}
-
-	{
-		UArray tmp = UArray_stackAllocedWithData_type_size_("\0", CTYPE_uint8_t, 1);
-		long newSize = UArray_find_(self, &tmp);
-		if(newSize != -1)
-		{
-			UArray_setSize_(self, newSize);
-		}
-	}
-}
-
-int UArray_convertToFixedSizeType(UArray *self)
+static int UArray_truncateAfterConvertToEncoding_(UArray *self)
 {
+	long newSize;
 	if (NULL == self)
 		return 0;
-	if (self->encoding == CENCODING_UTF8)
+	if (self->encoding == CENCODING_NUMBER)
+		return 1;
+	if (self->size > (size_t)LONG_MAX)
+		return 0;
 	{
-		int maxCharSize = UArray_maxCharSize(self);
-		if (maxCharSize < 1)
-			return 0;
-
-		if(maxCharSize == 1)
-		{
-			self->encoding = CENCODING_ASCII;
-		}
-		else if(maxCharSize == 2)
-		{
-			UArray_convertToUTF16(self);
-		}
-		else
-		{
-			UArray_convertToUTF32(self);
-		}
-
+		UArray tmp = UArray_stackAllocedWithData_type_size_("\0", CTYPE_uint8_t, 1);
+		newSize = UArray_find_(self, &tmp);
+	}
+	if (newSize == -1)
+		return 1;
+	if (newSize < 0 || (size_t)newSize > self->size)
+		return 0;
+	UArray_setSize_(self, (size_t)newSize);
+	return self->size == (size_t)newSize;
+}
+int UArray_convertToFixedSizeType(UArray *self)
+{
+	int maxCharSize;
+	if (NULL == self || self->encoding != CENCODING_UTF8)
+		return 0;
+	maxCharSize = UArray_maxCharSize(self);
+	if (maxCharSize < 1)
+		return 0;
+	if (maxCharSize == 1) {
+		self->encoding = CENCODING_ASCII;
 		return 1;
 	}
-
-	return 0;
+	if (maxCharSize == 2) {
+		UArray_convertToUTF16(self);
+		if (self->encoding != CENCODING_UTF16 ||
+			self->itemType != CTYPE_uint16_t ||
+			self->itemSize != sizeof(UTF16) ||
+			self->size > (size_t)-1 / self->itemSize ||
+			(self->size > 0 && NULL == self->data))
+			return 0;
+		return 1;
+	}
+	UArray_convertToUTF32(self);
+	if (self->encoding != CENCODING_UTF32 ||
+		self->itemType != CTYPE_uint32_t ||
+		self->itemSize != sizeof(UTF32) ||
+		self->size > (size_t)-1 / self->itemSize ||
+		(self->size > 0 && NULL == self->data))
+		return 0;
+	return 1;
 }
 
 int UArray_isMultibyte(const UArray *self)
@@ -353,7 +360,10 @@ UArray *UArray_asUTF16(const UArray *self)
 		UArray_free(out);
 		return NULL;
 	}
-	UArray_truncateAfterConvertToEncoding_(out);
+	if (!UArray_truncateAfterConvertToEncoding_(out)) {
+		UArray_free(out);
+		return NULL;
+	}
 	return out;
 }
 
@@ -425,7 +435,10 @@ UArray *UArray_asUTF32(const UArray *self)
 		UArray_free(out);
 		return NULL;
 	}
-	UArray_truncateAfterConvertToEncoding_(out);
+	if (!UArray_truncateAfterConvertToEncoding_(out)) {
+		UArray_free(out);
+		return NULL;
+	}
 	return out;
 }
 
@@ -433,6 +446,8 @@ UArray *UArray_asUTF32(const UArray *self)
 void UArray_convertToUTF8(UArray *self)
 {
 	UArray *a = UArray_asUTF8(self);
+	if (NULL == a)
+		return;
 	UArray_swapWith_(self, a);
 	UArray_free(a);
 }
@@ -440,6 +455,8 @@ void UArray_convertToUTF8(UArray *self)
 void UArray_convertToUTF16(UArray *self)
 {
 	UArray *a = UArray_asUTF16(self);
+	if (NULL == a)
+		return;
 	UArray_swapWith_(self, a);
 	UArray_free(a);
 }
@@ -447,6 +464,8 @@ void UArray_convertToUTF16(UArray *self)
 void UArray_convertToUTF32(UArray *self)
 {
 	UArray *a = UArray_asUTF32(self);
+	if (NULL == a)
+		return;
 	UArray_swapWith_(self, a);
 	UArray_free(a);
 }
