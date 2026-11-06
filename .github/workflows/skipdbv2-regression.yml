@@ -1876,6 +1876,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h": [
                   "if (self->top >= self->memEnd - 1)",
+                  "IOINLINE void Stack_do_(const Stack *self, StackDoCallback *callback)",
+                  "IOINLINE void Stack_doUntilMark_(const Stack *self, StackDoCallback *callback)",
+                  "snapshot = Stack_clone(self);",
+                  "Stack_free(snapshot);",
                   "NULL == self->memEnd || self->memEnd <= self->items",
                   "self->top >= self->memEnd",
                   "mark <= 0",
@@ -2001,6 +2005,16 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/stack_lifecycle.c": [
                   "Stack_copy_(destination, source);",
+                  "test_callback_iteration_reentrancy()",
+                  "Stack callback iteration fixture allocation failed",
+                  "Stack callback iteration realloc blocker allocation failed",
+                  "Stack_do_ was not isolated from callback-time source reallocation",
+                  "Stack_do_ changed reverse snapshot traversal order",
+                  "Stack do-until-mark fixture allocation failed",
+                  "Stack do-until-mark realloc blocker allocation failed",
+                  "Stack do-until-mark fixture mark creation failed",
+                  "Stack_doUntilMark_ was not isolated from callback-time source reallocation",
+                  "Stack_doUntilMark_ changed mark-bounded snapshot traversal order",
                   "Stack_clone(source)",
                   "invalid_mark.lastMark = -1;",
                   "negative stack mark was accepted by clone",
@@ -2615,6 +2629,26 @@ jobs:
                   changed < 0 or changed < first_assign
               ):
                   raise SystemExit(f"UArray {label} assignment must validate numeric storage before dispatch and invalidate hash after writes")
+
+          stack_inline_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h"
+          ).read_text()
+          for label, start_marker, end_marker in (
+              ("do", "IOINLINE void Stack_do_(const Stack *self, StackDoCallback *callback)", "IOINLINE void Stack_doUntilMark_"),
+              ("do-until-mark", "IOINLINE void Stack_doUntilMark_(const Stack *self, StackDoCallback *callback)", "IOINLINE void Stack_clear"),
+          ):
+              start = stack_inline_source.find(start_marker)
+              end = stack_inline_source.find(end_marker, start)
+              body = stack_inline_source[start:end] if start >= 0 and end > start else ""
+              clone = body.find("snapshot = Stack_clone(self);")
+              callback = body.find("(*callback)(*itemP)")
+              release = body.find("Stack_free(snapshot);")
+              if (
+                  not body or clone < 0 or callback < 0 or release <= callback or
+                  "itemP = snapshot->top;" not in body or
+                  "mark = snapshot->lastMark;" not in body
+              ):
+                  raise SystemExit(f"Stack_{label} callback traversal must iterate over a validated private snapshot and release it")
 
           logical_type_helper = bit_math_source.find(
               "static int UArray_hasSupportedLogicalTypes_(const UArray *self, const UArray *other)"

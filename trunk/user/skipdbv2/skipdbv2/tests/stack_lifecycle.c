@@ -1,10 +1,160 @@
 #include "Stack.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define VALUE_COUNT 1300
 
 static size_t stack_callback_count;
+
+
+#define STACK_CALLBACK_SEEN_MAX 128
+
+static Stack *callback_iteration_stack;
+static void *callback_iteration_extra;
+static size_t callback_iteration_count;
+static void *callback_iteration_seen[STACK_CALLBACK_SEEN_MAX];
+static int callback_iteration_reallocated;
+
+static void push_during_stack_iteration(void *value)
+{
+    if (callback_iteration_count < STACK_CALLBACK_SEEN_MAX)
+        callback_iteration_seen[callback_iteration_count] = value;
+    callback_iteration_count++;
+
+    if (callback_iteration_count == 1) {
+        void **original_items = callback_iteration_stack->items;
+        Stack_push_(callback_iteration_stack, callback_iteration_extra);
+        callback_iteration_reallocated =
+            callback_iteration_stack->items != original_items;
+    }
+}
+
+static void reset_stack_iteration_callback(Stack *stack, void *extra)
+{
+    callback_iteration_stack = stack;
+    callback_iteration_extra = extra;
+    callback_iteration_count = 0;
+    callback_iteration_reallocated = 0;
+}
+
+static int test_callback_iteration_reentrancy(void)
+{
+    int values[STACK_CALLBACK_SEEN_MAX];
+    int extra = -1;
+    Stack *all_items = NULL;
+    Stack *until_mark = NULL;
+    void *all_items_blocker = NULL;
+    void *until_mark_blocker = NULL;
+    size_t all_count = 0;
+    size_t marked_count = 0;
+    size_t expected_until_count;
+    intptr_t mark;
+    size_t i;
+    int result = EXIT_FAILURE;
+
+    for (i = 0; i < STACK_CALLBACK_SEEN_MAX; ++i)
+        values[i] = (int)i;
+
+    all_items = Stack_new();
+    if (NULL == all_items) {
+        fprintf(stderr, "Stack callback iteration fixture allocation failed\n");
+        goto done;
+    }
+    all_items_blocker = malloc((size_t)(all_items->memEnd - all_items->items) * sizeof(void *));
+    if (NULL == all_items_blocker) {
+        fprintf(stderr, "Stack callback iteration realloc blocker allocation failed\n");
+        goto done;
+    }
+    memset(all_items_blocker, 0xa5,
+        (size_t)(all_items->memEnd - all_items->items) * sizeof(void *));
+
+    while (all_items->top < all_items->memEnd - 1 &&
+        all_count < STACK_CALLBACK_SEEN_MAX) {
+        Stack_push_(all_items, &values[all_count]);
+        all_count++;
+    }
+    if (all_items->top != all_items->memEnd - 1 || all_count == 0) {
+        fprintf(stderr, "Stack callback iteration fixture did not fill its storage\n");
+        goto done;
+    }
+
+    reset_stack_iteration_callback(all_items, &extra);
+    Stack_do_(all_items, push_during_stack_iteration);
+    if (!callback_iteration_reallocated || callback_iteration_count != all_count ||
+        Stack_totalSize(all_items) != all_count + 1 ||
+        Stack_top(all_items) != &extra) {
+        fprintf(stderr, "Stack_do_ was not isolated from callback-time source reallocation\n");
+        goto done;
+    }
+    for (i = 0; i < all_count; ++i) {
+        if (callback_iteration_seen[i] != &values[all_count - i - 1]) {
+            fprintf(stderr, "Stack_do_ changed reverse snapshot traversal order\n");
+            goto done;
+        }
+    }
+
+    until_mark = Stack_new();
+    if (NULL == until_mark) {
+        fprintf(stderr, "Stack do-until-mark fixture allocation failed\n");
+        goto done;
+    }
+    until_mark_blocker = malloc((size_t)(until_mark->memEnd - until_mark->items) * sizeof(void *));
+    if (NULL == until_mark_blocker) {
+        fprintf(stderr, "Stack do-until-mark realloc blocker allocation failed\n");
+        goto done;
+    }
+    memset(until_mark_blocker, 0x5a,
+        (size_t)(until_mark->memEnd - until_mark->items) * sizeof(void *));
+
+    Stack_push_(until_mark, &values[0]);
+    mark = Stack_pushMarkPoint(until_mark);
+    if (mark <= 0) {
+        fprintf(stderr, "Stack do-until-mark fixture mark creation failed\n");
+        goto done;
+    }
+    marked_count = 1;
+    while (until_mark->top < until_mark->memEnd - 1 &&
+        marked_count < STACK_CALLBACK_SEEN_MAX) {
+        Stack_push_(until_mark, &values[marked_count]);
+        marked_count++;
+    }
+    if (until_mark->top != until_mark->memEnd - 1) {
+        fprintf(stderr, "Stack do-until-mark fixture did not fill its storage\n");
+        goto done;
+    }
+    expected_until_count = Stack_totalSize(until_mark) - (size_t)mark;
+
+    reset_stack_iteration_callback(until_mark, &extra);
+    Stack_doUntilMark_(until_mark, push_during_stack_iteration);
+    if (!callback_iteration_reallocated ||
+        callback_iteration_count != expected_until_count ||
+        Stack_totalSize(until_mark) != expected_until_count + (size_t)mark + 1 ||
+        Stack_top(until_mark) != &extra) {
+        fprintf(stderr, "Stack_doUntilMark_ was not isolated from callback-time source reallocation\n");
+        goto done;
+    }
+    for (i = 0; i < expected_until_count; ++i) {
+        if (callback_iteration_seen[i] != &values[marked_count - i - 1]) {
+            fprintf(stderr, "Stack_doUntilMark_ changed mark-bounded snapshot traversal order\n");
+            goto done;
+        }
+    }
+
+    result = EXIT_SUCCESS;
+
+done:
+    free(until_mark_blocker);
+    free(all_items_blocker);
+    Stack_free(until_mark);
+    Stack_free(all_items);
+    callback_iteration_stack = NULL;
+    callback_iteration_extra = NULL;
+    callback_iteration_count = 0;
+    callback_iteration_reallocated = 0;
+    return result;
+}
+
 
 static void count_stack_item(void *value)
 {
@@ -13,7 +163,10 @@ static void count_stack_item(void *value)
 }
 
 int main(void)
-{
+{	if (test_callback_iteration_reentrancy() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+
+
 	Stack *source = NULL;
 	Stack *destination = NULL;
 	Stack *clone = NULL;

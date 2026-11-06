@@ -15,20 +15,21 @@
 
 IOINLINE void Stack_do_(const Stack *self, StackDoCallback *callback)
 {
+	Stack *snapshot;
 	void **itemP;
 	intptr_t mark;
 
-	if (NULL == self || NULL == callback || NULL == self->items ||
-		NULL == self->top || NULL == self->memEnd ||
-		self->memEnd <= self->items || self->top < self->items ||
-		self->top >= self->memEnd)
+	if (NULL == self || NULL == callback)
 		return;
-	itemP = self->top;
-	mark = self->lastMark;
+	snapshot = Stack_clone(self);
+	if (NULL == snapshot)
+		return;
 
-	while (itemP > self->items)
+	itemP = snapshot->top;
+	mark = snapshot->lastMark;
+	while (itemP > snapshot->items)
 	{
-		if (mark > 0 && itemP - self->items == mark)
+		if (mark > 0 && itemP - snapshot->items == mark)
 		{
 			intptr_t previous = (intptr_t)(*itemP);
 			mark = previous >= 0 && previous < mark ? previous : 0;
@@ -39,28 +40,31 @@ IOINLINE void Stack_do_(const Stack *self, StackDoCallback *callback)
 		}
 		itemP--;
 	}
+	Stack_free(snapshot);
 }
 
 IOINLINE void Stack_doUntilMark_(const Stack *self, StackDoCallback *callback)
 {
+	Stack *snapshot;
 	void **itemP;
 	intptr_t mark;
 
-	if (NULL == self || NULL == callback || NULL == self->items ||
-		NULL == self->top || NULL == self->memEnd ||
-		self->memEnd <= self->items || self->top < self->items ||
-		self->top >= self->memEnd)
+	if (NULL == self || NULL == callback)
 		return;
-	itemP = self->top;
-	mark = self->lastMark;
+	snapshot = Stack_clone(self);
+	if (NULL == snapshot)
+		return;
 
-	while (itemP > self->items)
+	itemP = snapshot->top;
+	mark = snapshot->lastMark;
+	while (itemP > snapshot->items)
 	{
-		if (mark > 0 && itemP - self->items == mark)
-			return;
+		if (mark > 0 && itemP - snapshot->items == mark)
+			break;
 		(*callback)(*itemP);
 		itemP--;
 	}
+	Stack_free(snapshot);
 }
 
 IOINLINE void Stack_clear(Stack *self)

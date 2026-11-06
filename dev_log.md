@@ -1,3 +1,14 @@
+## 2026-11-07 00:25 CST — Isolate Stack callback traversal from source mutation
+
+- Baseline: main commit `30faa535d7118785000b241d2731ff0c73974342`; SkipDBv2 Regression run #374 completed successfully.
+- Scope: inline `Stack_do_()` and `Stack_doUntilMark_()` callback traversal.
+- Both functions retained raw pointers into the live Stack allocation while invoking user callbacks. A callback can push onto the same Stack and trigger `Stack_resize()`, invalidating the iterator's backing pointers; mark traversal has the same exposure.
+- Clone and validate the Stack before callback iteration, then traverse the private snapshot in the existing reverse order while preserving mark-chain semantics. Release the snapshot after iteration. This gives callbacks a stable traversal view while allowing them to mutate the original stack.
+- Extend the existing `stack_lifecycle_test` with forced backing-store growth from callbacks for both full traversal and mark-bounded traversal. Strengthen Stack_inline source contracts; reuse the current CMake target and add no files.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:16 CST — Fix List map/select workflow function-boundary lookup
 
 - CI #373 stopped in the source-contract stage before configure/build. The new contract searched for a literal backslash-`n` sequence because the Python source contained a double-escaped newline, so it could not find the end of either C function.
