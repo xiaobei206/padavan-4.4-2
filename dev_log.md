@@ -1,3 +1,22 @@
+## 2026-11-06 12:40 CST — Harden PortableStrptime input boundaries
+
+### Baseline and scope
+- Base commit: `a3c839f2a5e7c45e046668cebbe0d679b0b28847`; SkipDBv2 Regression run #238 passed source contracts, full compilation, and CTest.
+- Scope is limited to the custom `io_strptime()` parser and its private parsing helpers, one boundary regression, and the existing CMake/workflow registrations.
+
+### Changes
+- Reject NULL input, format, or `struct tm` pointers before parsing.
+- Stop treating a depleted input buffer as a successful match while format directives remain; required fields and literals now reach their own validation paths.
+- Make digit parsing report “no digits” as failure instead of accepting a zero value for alphabetic input.
+- Cast bytes to unsigned char before passing them to `isdigit`/`isspace`, avoiding undefined behavior on non-ASCII input.
+- Keep parsing helpers private to this implementation.
+
+### Validation
+- Regression covers NULL arguments, valid date/hour parsing, truncated input, missing required fields, alphabetic numeric fields, and a high-bit input byte.
+- Workflow contracts verify the guards and helper behavior; remote regression validates compilation and CTest.
+
+---
+
 ## 2026-11-06 12:36 CST — Harden Duration lifecycle and component conversion
 
 ### Baseline and scope

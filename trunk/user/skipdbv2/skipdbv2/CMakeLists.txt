@@ -257,4 +257,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(duration_lifecycle_test skipdb m)
     add_test(NAME duration_lifecycle_test COMMAND duration_lifecycle_test)
 
+    ADD_EXECUTABLE(portable_strptime_bounds_test
+        ${PROJECT_SOURCE_DIR}/tests/portable_strptime_bounds.c)
+    TARGET_LINK_LIBRARIES(portable_strptime_bounds_test skipdb m)
+    add_test(NAME portable_strptime_bounds_test COMMAND portable_strptime_bounds_test)
+
 endif()

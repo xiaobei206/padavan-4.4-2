@@ -72,30 +72,31 @@ struct dtconv {
 	#define strncasecmp _strnicmp
 #endif
 
-int readndigits(char **const buf, const size_t count)
+static int readndigits(char **const buf, const size_t count)
 {
 	int result = 0;
-	int i;
+	size_t i;
 
+	if (NULL == buf || NULL == *buf)
+		return -1;
 	for (i = 0; i < count; i++, (*buf)++) {
-		const char digit = **buf;
-		if (digit == 0 || !isdigit(digit)) {
+		const unsigned char digit = (unsigned char)**buf;
+		if (digit == 0 || !isdigit((int)digit))
 			break;
-		}
-		result *= 10;
-		result += digit - '0';
+		result = result * 10 + (int)(digit - (unsigned char)'0');
 	}
 
-	return result;
+	return i == 0 ? -1 : result;
 }
 
 // TODO rename function when I understand what this function does.
-void somethingToDoWithSpaces(const char *const buf, char **const ptr)
+static void somethingToDoWithSpaces(const char *const buf, char **const ptr)
 {
-	if (*buf != 0 && isspace((int)*buf)) {
-		while (**ptr != 0 && !isspace((int)**ptr)) {
+	if (NULL == buf || NULL == ptr || NULL == *ptr)
+		return;
+	if (*buf != 0 && isspace((unsigned char)*buf)) {
+		while (**ptr != 0 && !isspace((unsigned char)**ptr))
 			(*ptr)++;
-		}
 	}
 }
 
@@ -123,17 +124,16 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 		int     i,
 				len;
 
+	if (NULL == buf || NULL == fmt || NULL == tm)
+		return NULL;
 	len = 0;
 		ptr = fmt;
 		while (*ptr != 0) {
-				if (*buf == 0)
-						break;
-
 				c = *ptr++;
 
 				if (c != '%') {
 						if (isspace((int)c))
-								while (*buf != 0 && isspace((int)*buf))
+								while (*buf != 0 && isspace((unsigned char)*buf))
 										buf++;
 						else if (c != *buf++)
 								return NULL;
@@ -199,7 +199,7 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'j':
-						if (*buf == 0 || isspace((int)*buf))
+						if (*buf == 0 || isspace((unsigned char)*buf))
 								break;
 
 						i = readndigits(&buf, 3);
@@ -210,7 +210,7 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'M':
-						if (*buf == 0 || isspace((int)*buf))
+						if (*buf == 0 || isspace((unsigned char)*buf))
 								break;
 
 						i = readndigits(&buf, 2);
@@ -223,7 +223,7 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'S':
-						if (*buf == 0 || isspace((int)*buf))
+						if (*buf == 0 || isspace((unsigned char)*buf))
 								break;
 
 						i = readndigits(&buf, 2);
@@ -237,7 +237,7 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 				case 'H':
 				case 'k':
-						if (!isdigit((int)*buf))
+						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
 						i = readndigits(&buf, 2);
@@ -251,7 +251,7 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 				case 'I':
 				case 'l':
-						if (!isdigit((int)*buf))
+						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
 						i = readndigits(&buf, 2);
@@ -265,7 +265,7 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 				case 'd':
 				case 'e':
-						if (!isdigit((int)*buf))
+						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
 						i = readndigits(&buf, 2);
@@ -278,7 +278,7 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'm':
-						if (!isdigit((int)*buf))
+						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
 						i = readndigits(&buf, 2);
@@ -291,10 +291,10 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'Y':
-						if (*buf == 0 || isspace((int)*buf))
+						if (*buf == 0 || isspace((unsigned char)*buf))
 								break;
 
-						if (!isdigit((int)*buf))
+						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
 						i = readndigits(&buf, 4);
@@ -307,10 +307,10 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'y':
-						if (*buf == 0 || isspace((int)*buf))
+						if (*buf == 0 || isspace((unsigned char)*buf))
 								break;
 
-						if (!isdigit((int)*buf))
+						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
 						i = readndigits(&buf, 2);

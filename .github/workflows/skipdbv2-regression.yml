@@ -724,6 +724,9 @@ jobs:
                   "ADD_EXECUTABLE(duration_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/duration_lifecycle.c",
                   "add_test(NAME duration_lifecycle_test COMMAND duration_lifecycle_test)",
+                  "ADD_EXECUTABLE(portable_strptime_bounds_test",
+                  "${PROJECT_SOURCE_DIR}/tests/portable_strptime_bounds.c",
+                  "add_test(NAME portable_strptime_bounds_test COMMAND portable_strptime_bounds_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -763,6 +766,22 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/PortableStrptime.c": [
+                  "static int readndigits(char **const buf, const size_t count)",
+                  "return i == 0 ? -1 : result;",
+                  "static void somethingToDoWithSpaces",
+                  "if (NULL == buf || NULL == fmt || NULL == tm)",
+                  "isdigit((unsigned char)*buf)",
+                  "isspace((unsigned char)*buf)",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c": [
+                  "io_strptime(NULL, format, &parsed)",
+                  "io_strptime(truncated, format, &invalid)",
+                  "io_strptime(empty, hour_format, &invalid)",
+                  "io_strptime(alpha, month_format, &invalid)",
+                  "io_strptime(high_byte, hour_format, &invalid)",
+                  "PortableStrptime boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Duration.c": [
                   "Duration *Duration_clone(const Duration *self)",
@@ -1312,6 +1331,31 @@ jobs:
                          "Duration lifecycle test passed"):
               if needle not in duration_test:
                   raise SystemExit("Duration lifecycle regression case missing: " + needle)
+
+          strptime_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableStrptime.c").read_text()
+          digit_helper_start = strptime_source.find("static int readndigits(")
+          digit_helper_end = strptime_source.find("static void somethingToDoWithSpaces", digit_helper_start)
+          digit_helper = strptime_source[digit_helper_start:digit_helper_end] if digit_helper_start >= 0 and digit_helper_end > digit_helper_start else ""
+          parser_start = strptime_source.find("char *io_strptime(")
+          parser = strptime_source[parser_start:] if parser_start >= 0 else ""
+          parser_loop = parser.find("while (*ptr != 0) {")
+          first_directive = parser.find("c = *ptr++;", parser_loop)
+          loop_prefix = parser[parser_loop:first_directive] if parser_loop >= 0 and first_directive > parser_loop else ""
+          if (not digit_helper or "NULL == buf || NULL == *buf" not in digit_helper or
+                  "return i == 0 ? -1 : result;" not in digit_helper or
+                  "isdigit((int)digit)" not in digit_helper or
+                  "if (NULL == buf || NULL == fmt || NULL == tm)" not in parser or
+                  "isdigit((unsigned char)*buf)" not in parser or
+                  "isspace((unsigned char)*buf)" not in parser or
+                  "*buf == 0" in loop_prefix):
+              raise SystemExit("PortableStrptime must validate arguments, ctype bytes, and missing required input")
+          strptime_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c").read_text()
+          for needle in ("io_strptime(truncated, format, &invalid)",
+                         "io_strptime(empty, hour_format, &invalid)",
+                         "io_strptime(alpha, month_format, &invalid)",
+                         "io_strptime(high_byte, hour_format, &invalid)"):
+              if needle not in strptime_test:
+                  raise SystemExit("PortableStrptime boundary regression case missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:
