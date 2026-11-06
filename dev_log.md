@@ -1,3 +1,14 @@
+## 2026-11-07 02:48 CST — Preserve SHash source storage when copying into a shallow alias
+
+- Baseline: main commit `fb2ebb56caec60e14ea85e618c4425bdcb87ecb5`; SkipDBv2 Regression run #420 passed the source contracts, configure, full build, and CTest suite.
+- Scope: `SHash_copy_()` in the cuckoo-hash module and the existing `shash_compact` regression.
+- A distinct `SHash` struct can be a shallow alias of another table. The copy routine correctly allocated and published an independent destination table, but unconditionally freed the destination's previous `records` pointer—which was still owned by the source alias. The source then retained a dangling pointer and could use freed storage or double-free it.
+- Match the established PHash ownership rule: release the old destination allocation only when it differs from the source's backing pointer. Add a regression that shallow-copies the struct, deep-copies into the alias, and verifies both source and destination can still look up the same key/value.
+- Extend the existing SHash source/test contracts. Reuse the registered `shash_compact_test` CMake target; no new files, public declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 02:45 CST — Make List append source-contract boundary unambiguous
 
 - Baseline: main commit `c4b25098b7157ca352af1bd85df0d452238f2976`; the List shared-storage implementation and regression are awaiting the first CI result.

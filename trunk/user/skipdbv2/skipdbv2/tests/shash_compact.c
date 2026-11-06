@@ -226,6 +226,39 @@ done:
 	return okay;
 }
 
+static int shashCopyPreservesSharedBacking(void)
+{
+	SHash *source = SHash_new();
+	SHash alias = {0};
+	int key = 707;
+	int value = 808;
+	int okay = 0;
+
+	if (NULL == source)
+		return 0;
+	SHash_setKeysEqualCallback(source, keys_equal);
+	SHash_setHashForKeyCallback(source, hash_key);
+	SHash_at_put_(source, &key, &value);
+	if (source->numKeys != 1 || SHash_at_(source, &key) != &value)
+		goto done;
+
+	/* Copying into a shallow struct alias must not free source->records. */
+	alias = *source;
+	SHash_copy_(&alias, source);
+	if (alias.records == source->records ||
+		SHash_at_(source, &key) != &value ||
+		SHash_at_(&alias, &key) != &value)
+		goto done;
+	okay = 1;
+
+done:
+	if (alias.records && alias.records != source->records)
+		io_free(alias.records);
+	SHash_free(source);
+	return okay;
+}
+
+
 int main(void)
 {
 	SHash *hash;
@@ -237,6 +270,9 @@ int main(void)
 
 	if (!check(shashCuckooFailurePreservesState(),
 		"SHash cuckoo failure altered the original table or input record"))
+		return EXIT_FAILURE;
+	if (!check(shashCopyPreservesSharedBacking(),
+		"SHash shallow aliases must not free the source backing allocation"))
 		return EXIT_FAILURE;
 	if (!check(shashGrowRejectsInvalidState(0),
 		"SHash_grow accepted inconsistent table geometry"))
