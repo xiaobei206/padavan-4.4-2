@@ -1477,6 +1477,12 @@ jobs:
                   "UArray unescape bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c": [
+                  "static float UArray_integerValueAsFloat_(const UArray *self, size_t index)",
+                  "static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)",
+                  "if (!isfinite(quotient))",
+                  "return quotient <= -1.0 || quotient >= ldexp(1.0, bits);",
+                  "UArray_integerValueAsFloat_(self, i)",
+                  "UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)",
                   "sum = hypot(sum, (double)d);",
                   "return sum;",
                   "void UArray_duplicateIndexes(UArray *self)",
@@ -1628,6 +1634,9 @@ jobs:
                   "UArray bit access test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_math_extrema.c": [
+                  "UArray integer division changed valid mixed float64 results",
+                  "UArray integer division committed a float quotient outside receiver range",
+                  "UArray integer division committed a non-finite float quotient",
                   "UArray negative-only extrema returned a finite sentinel",
                   "UArray extrema accepted missing backing storage",
                   "UArray extrema accepted mismatched item width",
@@ -3089,6 +3098,36 @@ jobs:
               any(f"== {minimum}" not in divide_helper_body for minimum in (
                   "INT8_MIN", "INT16_MIN", "INT32_MIN", "INT64_MIN"
               ))
+          floating_division_start = divide_helper_body.find(
+              "if (other->itemType == CTYPE_float32_t ||"
+          )
+          integer_float_cast = divide_helper_body.find("UArray_integerValueAsFloat_(self, i)", floating_division_start)
+          integer_float_range = divide_helper_body.find(
+              "UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)", floating_division_start
+          )
+          integer_float_continue = divide_helper_body.find("continue;", integer_float_range)
+          integer_divisor_fallback = divide_helper_body.find("if (divisor != -1.0)", floating_division_start)
+          if (floating_division_start < 0 or integer_float_cast < floating_division_start or
+                  integer_float_range < integer_float_cast or integer_float_continue < integer_float_range or
+                  integer_divisor_fallback < integer_float_continue):
+              raise SystemExit("UArray integer division must range-check floating quotients before the integer-only -1 overflow path")
+          float_range_helper_start = bit_math_source.find(
+              "static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)"
+          )
+          float_range_helper_end = bit_math_source.find(
+              "static int UArray_hasUnsafeIntegerDivision_", float_range_helper_start
+          )
+          float_range_helper = bit_math_source[float_range_helper_start:float_range_helper_end] if float_range_helper_start >= 0 and float_range_helper_end > float_range_helper_start else ""
+          if ("if (!isfinite(quotient))" not in float_range_helper or
+                  "ldexp(1.0, bits)" not in float_range_helper or
+                  "return quotient < -upperBound || quotient >= upperBound;" not in float_range_helper):
+              raise SystemExit("UArray integer quotient preflight must reject non-finite and out-of-range float results")
+          division_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_math_extrema.c").read_text()
+          for needle in ("UArray integer division changed valid mixed float64 results",
+                         "UArray integer division committed a float quotient outside receiver range",
+                         "UArray integer division committed a non-finite float quotient"):
+              if needle not in division_test:
+                  raise SystemExit("UArray floating-to-integer division regression missing: " + needle)
           ):
               raise SystemExit("UArray elementwise divide must preflight storage and integer UB, preserve float division, and invalidate hash on both dispatch paths")
 

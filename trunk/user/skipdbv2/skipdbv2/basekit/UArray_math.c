@@ -294,6 +294,52 @@ static int UArray_hasUnsafeNegation_(const UArray *self)
 
 
 /* Preflight every affected element before integer division can partially mutate the receiver. */
+static float UArray_integerValueAsFloat_(const UArray *self, size_t index)
+{
+    switch (self->itemType) {
+        case CTYPE_uint8_t: return (float)((const uint8_t *)self->data)[index];
+        case CTYPE_uint16_t: return (float)((const uint16_t *)self->data)[index];
+        case CTYPE_uint32_t: return (float)((const uint32_t *)self->data)[index];
+        case CTYPE_uint64_t: return (float)((const uint64_t *)self->data)[index];
+        case CTYPE_int8_t: return (float)((const int8_t *)self->data)[index];
+        case CTYPE_int16_t: return (float)((const int16_t *)self->data)[index];
+        case CTYPE_int32_t: return (float)((const int32_t *)self->data)[index];
+        case CTYPE_int64_t: return (float)((const int64_t *)self->data)[index];
+        default: return 0.0f;
+    }
+}
+
+static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)
+{
+    int bits;
+    int isSigned;
+
+    if (!isfinite(quotient))
+        return 1;
+
+    switch (itemType) {
+        case CTYPE_uint8_t: bits = 8; isSigned = 0; break;
+        case CTYPE_uint16_t: bits = 16; isSigned = 0; break;
+        case CTYPE_uint32_t: bits = 32; isSigned = 0; break;
+        case CTYPE_uint64_t: bits = 64; isSigned = 0; break;
+        case CTYPE_int8_t: bits = 8; isSigned = 1; break;
+        case CTYPE_int16_t: bits = 16; isSigned = 1; break;
+        case CTYPE_int32_t: bits = 32; isSigned = 1; break;
+        case CTYPE_int64_t: bits = 64; isSigned = 1; break;
+        default: return 1;
+    }
+
+    if (!isSigned)
+        return quotient <= -1.0 || quotient >= ldexp(1.0, bits);
+
+    {
+        double upperBound = ldexp(1.0, bits - 1);
+        if (bits == 64)
+            return quotient < -upperBound || quotient >= upperBound;
+        return quotient <= -upperBound - 1.0 || quotient >= upperBound;
+    }
+}
+
 static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count)
 {
 	size_t i;
@@ -303,6 +349,23 @@ static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *ot
 
 		if (divisor == 0.0)
 			return 1;
+
+		if (other->itemType == CTYPE_float32_t ||
+			other->itemType == CTYPE_float64_t) {
+			double quotient;
+
+			if (other->itemType == CTYPE_float32_t)
+				quotient = (double)(UArray_integerValueAsFloat_(self, i) /
+					((const float32_t *)other->data)[i]);
+			else
+				quotient = UArray_rawDoubleAt_(self, i) /
+					((const float64_t *)other->data)[i];
+
+			if (UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient))
+				return 1;
+			continue;
+		}
+
 		if (divisor != -1.0)
 			continue;
 

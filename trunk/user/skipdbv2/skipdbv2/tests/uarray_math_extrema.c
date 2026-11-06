@@ -589,6 +589,55 @@ static int test_elementwise_division(void)
         goto cleanup;
     }
 
+    {
+        const int32_t mixedNumerators[] = {12, -15};
+        const double mixedDivisors[] = {0.5, 3.0};
+        const int32_t mixedExpected[] = {24, -5};
+        UArray mixedLeft = UArray_stackAllocedWithData_type_size_(
+            (void *)mixedNumerators, CTYPE_int32_t, 2);
+        UArray mixedRight = UArray_stackAllocedWithData_type_size_(
+            (void *)mixedDivisors, CTYPE_float64_t, 2);
+
+        mixedLeft.hash = 0x7777;
+        UArray_divide_(&mixedLeft, &mixedRight);
+        if (memcmp(mixedLeft.data, mixedExpected, sizeof(mixedExpected)) != 0 ||
+            mixedLeft.hash != 0) {
+            fail("UArray integer division changed valid mixed float64 results");
+            goto cleanup;
+        }
+    }
+
+    {
+        const int32_t beforeOverflow[] = {12, INT32_MAX};
+        const float32_t overflowingDivisors[] = {3.0f, 0.5f};
+        const double nanDivisors[] = {NAN};
+        const int32_t nanNumerator[] = {1};
+        UArray overflowLeft = UArray_stackAllocedWithData_type_size_(
+            (void *)beforeOverflow, CTYPE_int32_t, 2);
+        UArray overflowRight = UArray_stackAllocedWithData_type_size_(
+            (void *)overflowingDivisors, CTYPE_float32_t, 2);
+        UArray nanLeft = UArray_stackAllocedWithData_type_size_(
+            (void *)nanNumerator, CTYPE_int32_t, 1);
+        UArray nanRight = UArray_stackAllocedWithData_type_size_(
+            (void *)nanDivisors, CTYPE_float64_t, 1);
+
+        overflowLeft.hash = 0x8888;
+        UArray_divide_(&overflowLeft, &overflowRight);
+        if (memcmp(overflowLeft.data, beforeOverflow, sizeof(beforeOverflow)) != 0 ||
+            overflowLeft.hash != 0x8888) {
+            fail("UArray integer division committed a float quotient outside receiver range");
+            goto cleanup;
+        }
+
+        nanLeft.hash = 0x9999;
+        UArray_divide_(&nanLeft, &nanRight);
+        if (memcmp(nanLeft.data, nanNumerator, sizeof(nanNumerator)) != 0 ||
+            nanLeft.hash != 0x9999) {
+            fail("UArray integer division committed a non-finite float quotient");
+            goto cleanup;
+        }
+    }
+
     atomicLeft->hash = 0x4444;
     UArray_divide_(atomicLeft, zeroRight);
     if (memcmp(atomicLeft->data, atomicNumerators, sizeof(atomicNumerators)) != 0 ||

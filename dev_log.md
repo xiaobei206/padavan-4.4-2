@@ -1,3 +1,14 @@
+## 2026-11-07 03:29 CST — Preflight floating quotients before integer UArray division
+
+- Baseline: main commit `147a8f9474f543b370fb842cb2140f2b5e6891fc`; SkipDBv2 Regression run #426 passed source contracts, configure, full build, and all CTest cases.
+- Scope: integer-receiver elementwise division in `UArray_math.c`.
+- The existing preflight rejected zero divisors and signed-minimum divided by `-1`, but it skipped range analysis whenever the divisor array used a floating CTYPE. A finite or non-finite floating quotient could therefore reach the generic compound assignment and be converted to an out-of-range integer, which is undefined behavior.
+- Evaluate float32/float64 divisors using the corresponding arithmetic precision, then reject non-finite or unrepresentable receiver results before any element is mutated. Keep valid mixed integer/floating division and existing integer divisor behavior.
+- Extend the registered `uarray_math_extrema` CTest with valid mixed float64, float32 overflow, and NaN atomicity cases; strengthen static and dynamic Actions source contracts. No new files, public declarations, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 03:24 CST — Validate UArray C-stream I/O against CTYPE widths
 
 - Baseline: main commit `7c915cb673f64a3b9bf1db73c05eaf8982f40440`; SkipDBv2 Regression run #425 passed source contracts, configure, full build, and all CTest cases.
