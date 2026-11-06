@@ -1,3 +1,22 @@
+## 2026-11-06 12:47 CST — Make MainArgs argument replacement transactional
+
+### Baseline and scope
+- Base commit: `3a1231c04acfda8b44fa13ffc5b3dd3ac0fc3d21`; SkipDBv2 Regression run #241 passed source contracts, full compilation, and CTest.
+- Scope is limited to MainArgs argument ownership/replacement, its API contract comment, one lifecycle regression, and the existing CMake/workflow registrations.
+
+### Changes
+- Make `MainArgs_free(NULL)` safe.
+- Validate receiver, argument count, vector, and individual argument pointers before dereferencing.
+- Allocate and deep-copy the replacement vector off to the side; publish it only after every allocation succeeds, then free the old snapshot.
+- Reject negative/overflowing counts and preserve the previous state on invalid input or allocation failure.
+- Remove the misleading comment that described copied strings as borrowed references.
+
+### Validation
+- Regression verifies deep-copy ownership, repeated replacement, invalid-input rollback, empty reset, and NULL free.
+- Workflow preflight enforces copy-before-publish-before-release ordering; CTest checks runtime behavior.
+
+---
+
 ## 2026-11-06 12:44 CST — Unify PortableGettimeofday status semantics
 
 ### Baseline and scope

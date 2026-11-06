@@ -1,56 +1,74 @@
-//metadoc MainArgs copyright Steve Dekorte 2002
-//metadoc MainArgs license BSD revised
-
 #include "Base.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "MainArgs.h"
-#include "PortableStrlcpy.h"
+
+static void MainArgs_freeArguments_(const char **argv, int argc)
+{
+    int i;
+    if (NULL == argv)
+        return;
+    for (i = 0; i < argc; ++i)
+        io_free((void *)argv[i]);
+    io_free((void *)argv);
+}
 
 MainArgs *MainArgs_new(void)
 {
-	MainArgs *self = (MainArgs *)io_calloc(1, sizeof(MainArgs));
-	return self;
+    return (MainArgs *)io_calloc(1, sizeof(MainArgs));
 }
 
 void MainArgs_free(MainArgs *self)
 {
-	if (self->argv)
-	{
-		int i;
-
-		for (i = 0; i < self->argc; i ++)
-		{
-			io_free((char *)(self->argv[i]));
-		}
-
-		io_free((void*)(self->argv));
-	}
-
-	io_free(self);
+    if (NULL == self)
+        return;
+    MainArgs_freeArguments_(self->argv, self->argc);
+    io_free(self);
 }
 
 void MainArgs_argc_argv_(MainArgs *self, int argc, const char **argv)
 {
-	int i;
+    const char **newArgv = NULL;
+    const char **oldArgv;
+    int oldArgc;
+    int i;
 
-	self->argc = argc;
-	// copy by reference since args should be retained on
-	// the C stack until the program exits
+    if (NULL == self || argc < 0 || (argc > 0 && NULL == argv) ||
+        (size_t)argc > (size_t)-1 / sizeof(*newArgv))
+        return;
 
-	self->argv = (const char **)io_calloc(1, sizeof(char *)*argc);
+    if (argc > 0) {
+        newArgv = (const char **)io_calloc((size_t)argc, sizeof(*newArgv));
+        if (NULL == newArgv)
+            return;
 
-	for (i = 0; i < argc; i ++)
-	{
-		const char *s = argv[i];
-		size_t len = strlen(s);
-		char *ptr = (char *)io_calloc(1, len + 1);
-		PortableStrlcpy(ptr, s, len + 1);
-		self->argv[i] = ptr;
+        for (i = 0; i < argc; ++i) {
+            const char *argument = argv[i];
+            size_t length;
+            char *copy;
+            if (NULL == argument) {
+                MainArgs_freeArguments_(newArgv, argc);
+                return;
+            }
+            length = strlen(argument);
+            if (length == (size_t)-1) {
+                MainArgs_freeArguments_(newArgv, argc);
+                return;
+            }
+            copy = (char *)io_malloc(length + 1);
+            if (NULL == copy) {
+                MainArgs_freeArguments_(newArgv, argc);
+                return;
+            }
+            memcpy(copy, argument, length + 1);
+            newArgv[i] = copy;
+        }
+    }
 
-		//self->argv[i] = strcpy((char *)io_calloc(1, strlen(s)+1), s);
-		/*printf("argv[%i] = '%s'\n", i, s);*/
-	}
+    /* Publish only a complete replacement; failed copies leave self unchanged. */
+    oldArgv = self->argv;
+    oldArgc = self->argc;
+    self->argv = newArgv;
+    self->argc = argc;
+    MainArgs_freeArguments_(oldArgv, oldArgc);
 }
-

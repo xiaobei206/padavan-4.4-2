@@ -730,6 +730,9 @@ jobs:
                   "ADD_EXECUTABLE(portable_gettimeofday_test",
                   "${PROJECT_SOURCE_DIR}/tests/portable_gettimeofday.c",
                   "add_test(NAME portable_gettimeofday_test COMMAND portable_gettimeofday_test)",
+                  "ADD_EXECUTABLE(main_args_lifecycle_test",
+                  "${PROJECT_SOURCE_DIR}/tests/main_args_lifecycle.c",
+                  "add_test(NAME main_args_lifecycle_test COMMAND main_args_lifecycle_test)",
 
                   "SET(UDB_SRC",
                   "UDBRead.c",
@@ -769,6 +772,25 @@ jobs:
                   "mgr/dbapi_result.c",
                   "mgr/ipc_protocol.c",
                   "mgr/ipc_transport.c",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/MainArgs.c": [
+                  "static void MainArgs_freeArguments_",
+                  "if (NULL == self || argc < 0 || (argc > 0 && NULL == argv)",
+                  "if (NULL == argument)",
+                  "if (NULL == copy)",
+                  "oldArgv = self->argv;",
+                  "self->argv = newArgv;",
+                  "MainArgs_freeArguments_(oldArgv, oldArgc);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/MainArgs.h": [
+                  "invalid input or allocation failure leaves self unchanged",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/main_args_lifecycle.c": [
+                  "MainArgs_argc_argv_(args, -1, replacement)",
+                  "MainArgs_argc_argv_(args, 1, NULL)",
+                  "MainArgs_argc_argv_(args, 1, null_argument)",
+                  "MainArgs retained borrowed argument storage",
+                  "MainArgs lifecycle test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
                   "int gettimeofday(struct timeval *tv, struct timezone *tz)",
@@ -1391,6 +1413,27 @@ jobs:
           gettimeofday_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_gettimeofday.c").read_text()
           if ("secondsSince1970()" not in gettimeofday_test or "time(NULL)" not in gettimeofday_test):
               raise SystemExit("PortableGettimeofday regression must validate the wall-clock result")
+
+          main_args_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/MainArgs.c").read_text()
+          setter_start = main_args_source.find("void MainArgs_argc_argv_(")
+          setter = main_args_source[setter_start:] if setter_start >= 0 else ""
+          allocate = setter.find("io_calloc((size_t)argc")
+          validate = setter.find("if (NULL == argument)")
+          copy = setter.find("memcpy(copy, argument, length + 1)")
+          publish = setter.find("self->argv = newArgv;")
+          release_old = setter.find("MainArgs_freeArguments_(oldArgv, oldArgc);")
+          if (not setter or allocate < 0 or validate < 0 or copy < 0 or publish < 0 or
+                  release_old < 0 or not (allocate < validate < copy < publish < release_old)):
+              raise SystemExit("MainArgs replacement must validate/copy completely before publishing and releasing old state")
+          if ("argc < 0" not in setter or "(size_t)argc > (size_t)-1 / sizeof(*newArgv)" not in setter):
+              raise SystemExit("MainArgs replacement must reject negative and overflowing argument counts")
+          main_args_test = Path("trunk/user/skipdbv2/skipdbv2/tests/main_args_lifecycle.c").read_text()
+          for needle in ("MainArgs_argc_argv_(args, -1, replacement)",
+                         "MainArgs_argc_argv_(args, 1, NULL)",
+                         "MainArgs_argc_argv_(args, 1, null_argument)",
+                         "MainArgs retained borrowed argument storage"):
+              if needle not in main_args_test:
+                  raise SystemExit("MainArgs lifecycle regression case missing: " + needle)
 
           user_makefile = Path("trunk/user/Makefile").read_text()
           if "dir_$(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS)\t+= skipdbv2" in user_makefile:

@@ -22,6 +22,7 @@ typedef struct
 BASEKIT_API MainArgs *MainArgs_new(void);
 BASEKIT_API void MainArgs_free(MainArgs *self);
 
+/* Deep-copies argv; invalid input or allocation failure leaves self unchanged. */
 BASEKIT_API void MainArgs_argc_argv_(MainArgs *self, int argc, const char **argv);
 #define MainArgs_argCount(self) self->argc
 #define MainArgs_argAt_(self, index) self->argv[index]

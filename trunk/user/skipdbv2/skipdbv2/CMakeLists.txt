@@ -267,4 +267,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(portable_gettimeofday_test skipdb m)
     add_test(NAME portable_gettimeofday_test COMMAND portable_gettimeofday_test)
 
+    ADD_EXECUTABLE(main_args_lifecycle_test
+        ${PROJECT_SOURCE_DIR}/tests/main_args_lifecycle.c)
+    TARGET_LINK_LIBRARIES(main_args_lifecycle_test skipdb m)
+    add_test(NAME main_args_lifecycle_test COMMAND main_args_lifecycle_test)
+
 endif()
