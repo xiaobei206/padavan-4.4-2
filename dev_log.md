@@ -1,3 +1,10 @@
+## 2026-11-06 23:42 CST — Fix List_mapInPlace_ workflow source loading
+
+- CI #367 passed checkout and dependency installation, then stopped in the source-contract script before configure/build. The new List mapping contract referenced `list_source` before the workflow's later List ownership checks initialized that variable.
+- Load the existing `List.c` source immediately before the new mapping contract. No C implementation, test behavior, CMake target, or source path changed.
+
+---
+
 ## 2026-11-06 23:35 CST — Make List_mapInPlace_ callback-reallocation safe
 
 - Baseline: main commit `9b0eda48f06ab95f85f13418b7501690f0d3259e`; SkipDBv2 Regression run #366 completed successfully.

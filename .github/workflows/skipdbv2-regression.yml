@@ -2466,6 +2466,9 @@ jobs:
           ):
               raise SystemExit("UArray negate must validate storage and signed integer boundaries before mutation, then invalidate hash")
 
+          list_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/basekit/List.c"
+          ).read_text()
           list_map_start = list_source.find(
               "void List_mapInPlace_(List *self, ListCollectCallback *callback)"
           )
