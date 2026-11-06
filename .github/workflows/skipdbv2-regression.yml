@@ -2360,7 +2360,8 @@ jobs:
           divide_float_changed = divide_body.find("UArray_changed(self);", divide_float_dispatch)
           divide_generic_changed = divide_body.rfind("UArray_changed(self);", 0, divide_generic_dispatch) if divide_generic_dispatch >= 0 else -1
           divide_helper_start = bit_math_source.find(
-              "static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count)\\n{"
+              "static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *other, size_t count)",
+              divide_start
           )
           divide_helper_end = bit_math_source.find("double UArray_dotProduct_", divide_helper_start)
           divide_helper_body = bit_math_source[divide_helper_start:divide_helper_end] if divide_helper_start >= 0 and divide_helper_end > divide_helper_start else ""

@@ -1,3 +1,11 @@
+## 2026-11-06 23:09 CST — Fix UArray division source-contract helper lookup
+
+- CI #359 stopped in the workflow source-contract stage before configure/build: the helper-definition search encoded a literal backslash-n instead of matching the C source newline.
+- Anchor the search after `UArray_divide_()` using the helper signature alone. This excludes the forward declaration and finds the implementation without relying on newline escaping.
+- No C implementation or regression behavior changed; the existing workflow and test target remain in place.
+
+---
+
 ## 2026-11-06 23:06 CST — Guard UArray elementwise division
 
 - Baseline: main commit `a16642520ed3b77c25ff4dc1c196cbeb9a63c4ef`; SkipDBv2 Regression run #358 completed successfully.
