@@ -24,6 +24,44 @@ static int test_timezone_conversion(void)
         return 0;
     }
 
+    {
+        Date precise = {0};
+        const long long exactSeconds = 9007199254740993LL;
+        const long long expectedSeconds = exactSeconds + 3600LL;
+
+        precise.tv.tv_sec = (time_t)exactSeconds;
+        if ((long long)precise.tv.tv_sec == exactSeconds &&
+            exactSeconds <= (long long)LONG_MAX - 3600LL) {
+            precise.tv.tv_usec = 654321;
+            precise.tz = utc;
+            Date_convertToTimeZone_(&precise, east);
+            if ((long long)precise.tv.tv_sec != expectedSeconds ||
+                precise.tv.tv_usec != 654321 ||
+                precise.tz.tz_minuteswest != east.tz_minuteswest) {
+                fprintf(stderr, "Date timezone conversion lost exact seconds above double precision\n");
+                return 0;
+            }
+        }
+    }
+
+    {
+        Date malformed = {0};
+        Date beforeMalformed;
+
+        malformed.tv.tv_sec = (time_t)1000000000;
+        malformed.tv.tv_usec = 1000000;
+        malformed.tz = utc;
+        beforeMalformed = malformed;
+        Date_convertToTimeZone_(&malformed, east);
+        if (malformed.tv.tv_sec != beforeMalformed.tv.tv_sec ||
+            malformed.tv.tv_usec != beforeMalformed.tv.tv_usec ||
+            malformed.tz.tz_minuteswest != beforeMalformed.tz.tz_minuteswest ||
+            malformed.tz.tz_dsttime != beforeMalformed.tz.tz_dsttime) {
+            fprintf(stderr, "Date timezone conversion accepted malformed microseconds\n");
+            return 0;
+        }
+    }
+
     date.tv.tv_sec = (time_t)LONG_MAX;
     date.tv.tv_usec = 0;
     date.tz = utc;

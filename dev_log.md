@@ -1,3 +1,14 @@
+## 2026-11-07 00:13 CST — Preserve exact Date timezone shifts
+
+- Baseline: main commit `31c2db01c222ecc73281149967cbb938557d90f7`; SkipDBv2 Regression run #377 passed the source contracts, full build, and all CTest cases.
+- Scope: `Date_convertToTimeZone_()` and the existing `date_time_init` regression.
+- The timezone shift passed the whole timestamp through `double`, which loses whole-second precision above 2^53. It also normalized malformed microsecond fields instead of rejecting an invalid Date state.
+- Compute the timezone delta and new seconds with checked integer arithmetic, retain the existing `long` timestamp range, verify the `time_t` conversion before commit, and preserve valid microseconds unchanged. Reject malformed microseconds without modifying the Date.
+- Extend the existing test with a timestamp above double's exact-integer range and malformed-microsecond atomicity. Reuse the existing CMake target; update the workflow source contracts. No new files or public declarations.
+- No local C compilation or CTest result is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 00:08 CST — Size Stack callback fixture for actual initial capacity
 
 - CI #376 passed source contracts, configuration, and all compilation, then failed before invoking callback traversal: the new test capped its fixture at 128 entries while the production Stack starts with 512 slots, so the test never reached the reallocation boundary.

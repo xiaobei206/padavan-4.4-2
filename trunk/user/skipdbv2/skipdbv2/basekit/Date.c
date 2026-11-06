@@ -146,23 +146,35 @@ void Date_setTimeZone_(Date *self, struct timezone tz)
 
 void Date_convertToTimeZone_(Date *self, struct timezone tz)
 {
-	double s;
-	long secs, usecs;
+	long long currentSeconds, offsetSeconds, newSeconds;
 	time_t timestamp;
-	if (NULL == self)
+
+	if (NULL == self || self->tv.tv_usec < 0 || self->tv.tv_usec >= 1000000)
 		return;
-	s = Date_asSeconds(self) +
-		(((double)self->tz.tz_minuteswest - (double)tz.tz_minuteswest) * 60.0);
-	if (!Date_splitSeconds_(s, &secs, &usecs))
+
+	/* Keep the whole-second shift exact; a double loses low bits above 2^53. */
+	currentSeconds = (long long)self->tv.tv_sec;
+	if ((time_t)currentSeconds != self->tv.tv_sec ||
+		currentSeconds < (long long)LONG_MIN ||
+		currentSeconds > (long long)LONG_MAX)
 		return;
-	timestamp = (time_t)secs;
-	if ((long double)timestamp != (long double)secs)
+
+	offsetSeconds = ((long long)self->tz.tz_minuteswest -
+		(long long)tz.tz_minuteswest) * 60LL;
+	if ((offsetSeconds > 0 &&
+		currentSeconds > (long long)LONG_MAX - offsetSeconds) ||
+		(offsetSeconds < 0 &&
+		currentSeconds < (long long)LONG_MIN - offsetSeconds))
 		return;
+
+	newSeconds = currentSeconds + offsetSeconds;
+	timestamp = (time_t)newSeconds;
+	if ((long long)timestamp != newSeconds)
+		return;
+
 	self->tv.tv_sec = timestamp;
-	self->tv.tv_usec = usecs;
 	self->tz = tz;
 }
-
 // time --------------------------------------------------------
 
 void Date_fromLocalTime_(Date *self, struct tm *t)
