@@ -1,3 +1,11 @@
+## 2026-11-06 19:37 CST — Preserve the existing byte-size regression contract
+
+- CI run #329 stopped in the integration-contract stage because the byte-access test combined the pre-existing byte-size overflow assertion with the new accessor assertion, removing the exact diagnostic text that the existing contract requires.
+- Split the checks so `UArray_sizeInBytes()` retains its established regression message and the new `UArray_byteAt_()` overflow guard has its own assertion. No implementation changes.
+- In-place contract repair; reuse the existing CTest target, with no new files or build-list edits.
+
+---
+
 ## 2026-11-06 19:36 CST — Bound UArray raw byte access to validated storage
 
 ### Baseline

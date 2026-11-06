@@ -49,7 +49,11 @@ int main(void)
         fprintf(stderr, "UArray byte accessor accepted missing backing storage\n");
         return EXIT_FAILURE;
     }
-    if (UArray_sizeInBytes(&overflow) != 0 || UArray_byteAt_(&overflow, 0) != 0) {
+    if (UArray_sizeInBytes(&overflow) != 0) {
+        fprintf(stderr, "overflowing UArray byte size did not return zero\n");
+        return EXIT_FAILURE;
+    }
+    if (UArray_byteAt_(&overflow, 0) != 0) {
         fprintf(stderr, "overflowing UArray byte geometry was accepted\n");
         return EXIT_FAILURE;
     }
