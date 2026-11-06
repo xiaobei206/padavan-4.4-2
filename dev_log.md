@@ -1,7 +1,20 @@
+## 2026-11-06 14:26 CST — Correct UArray character storage contract
+
+### CI repair
+- Run #266 failed at compile time: `UArray` has no `memSize` field; unlike List, its public structure exposes no allocation-capacity value.
+- Remove the invalid field reference and the impossible capacity test. Keep guards for NULL backing data, supported one-byte item types, exact byte item size, and size-to-byte multiplication overflow.
+- Retain regression coverage for NULL receivers, signed high-byte ctype inputs, Boolean predicate results, and refusing to reinterpret wider numeric arrays as byte strings.
+
+### Validation
+- Confirmed the build error points directly to the new `UArray_character.c` guard.
+- CMake target and source-contract checks remain registered; the next CI run must confirm the compile and test path.
+
+---
+
 ## 2026-11-06 14:24 CST — Harden UArray byte-character operations
 
 ### Scope and changes
-- Guard ctype helpers against NULL arrays, NULL backing storage, inconsistent size/capacity, and non-byte element types.
+- Guard ctype helpers against NULL arrays, NULL backing storage, unsupported item types.
 - Pass only `unsigned char` values into the C ctype API, avoiding undefined behavior from negative signed bytes or out-of-range numeric elements.
 - Normalize predicate outputs to explicit 0/1 bytes; preserve `tolower`/`toupper` mapping results and invalidate UArray cached state after mutation.
 - Keep wide numeric arrays untouched instead of accidentally treating UTF-16/32 code units as locale bytes.

@@ -1035,7 +1035,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_character.c": [
                   "static int UArray_characterByteArrayIsValid_(const UArray *self)",
-                  "self->size > self->memSize / sizeof(uint8_t)",
+                  "self->size > (size_t)-1 / self->itemSize",
                   "!!OP((unsigned char)v)",
                   "OP((unsigned char)v)",
                   "UArray_changed(self);",
@@ -1048,7 +1048,7 @@ jobs:
                   "ctype predicate results were not normalized to Boolean bytes",
                   "signed high-byte input changed unexpectedly",
                   "wide numeric array was modified or treated as a byte string",
-                  "undersized backing capacity was accessed",
+                  "invalid NULL-backed array was accepted",
                   "uarray character ctype test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c": [
@@ -1631,7 +1631,7 @@ jobs:
 
           character_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_character.c").read_text()
           for needle in ("static int UArray_characterByteArrayIsValid_(const UArray *self)",
-                         "self->size > self->memSize / sizeof(uint8_t)",
+                         "self->size > (size_t)-1 / self->itemSize",
                          "!!OP((unsigned char)v)", "OP((unsigned char)v)",
                          "UArray_changed(self);"):
               if needle not in character_source:

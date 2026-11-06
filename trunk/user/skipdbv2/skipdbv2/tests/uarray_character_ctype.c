@@ -19,7 +19,6 @@ int main(void)
 	UArray wide = UArray_stackAllocedWithData_type_size_(
 		wide_words, CTYPE_uint16_t, sizeof(wide_words) / sizeof(wide_words[0]));
 	UArray invalid;
-	UArray undersized;
 	int result = EXIT_FAILURE;
 
 	UArray_isalpha(NULL);
@@ -73,15 +72,6 @@ int main(void)
 	UArray_toupper(&invalid);
 	if (UArray_isLowercase(&invalid) != 0) {
 		fprintf(stderr, "invalid NULL-backed array was accepted\n");
-		goto done;
-	}
-
-	undersized = alpha;
-	undersized.memSize = 1;
-	UArray_toupper(&undersized);
-	if (alpha_bytes[0] != 1 || alpha_bytes[1] != 1 ||
-		alpha_bytes[2] != 0 || alpha_bytes[3] != 0) {
-		fprintf(stderr, "undersized backing capacity was accessed\n");
 		goto done;
 	}
 
