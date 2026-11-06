@@ -49,15 +49,15 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 		pos > (PID_TYPE)LONG_MAX || (pid == 0 && pos != 0))
 		return 0;
 
+	old_pos = UDBIndex_posForPid_(self, pid);
+	if (ferror(self->file->file))
+		return 0;
+	was_reserved = UDBIndex_hasReservation_(self, pid);
+	/* Never manufacture mappings or free PIDs from an arbitrary unmapped slot. */
+	if (pid != 0 && old_pos == 0 && !was_reserved)
+		return 0;
+
 	if (pos == 0) {
-		old_pos = UDBIndex_posForPid_(self, pid);
-		if (ferror(self->file->file))
-			return 0;
-		was_reserved = UDBIndex_hasReservation_(self, pid);
-		/* Never manufacture free PIDs from an arbitrary unmapped index slot. */
-		if (pid != 0 && old_pos == 0 && !was_reserved)
-			return 0;
-	}
 
 	previous_file_pos = self->file->pos;
 	previous_max_pos = self->file->maxPos;

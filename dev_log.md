@@ -1,3 +1,14 @@
+## 2026-11-07 05:15 CST — Reject UDB index mappings for unreserved PIDs
+
+- Baseline: main commit `08a2873b6a0c72db2f00b4bf19b7a60e586a4f4c`; SkipDBv2 Regression run #435 completed successfully.
+- Scope: PID mapping ownership in `udb/UDBIndexMap.c`.
+- `UDBIndex_setPos_forPid_()` checked that a PID already existed or was reserved only when clearing a mapping. A direct nonzero update could therefore manufacture a mapping for an unallocated PID, extend the index with sparse slots, and advance the next-PID calculation.
+- Apply the existing-mapping-or-active-reservation check before either mapping direction. Existing PID relocation/replacement remains valid, while an unreserved unmapped PID is rejected before the journal is touched.
+- Extend the existing `udb_index_layers` regression with sparse-slot rejection and replacement of a committed PID after its reservation has been cleared. Add an Actions source-contract ordering check proving the ownership guard precedes the index write. Reuse the existing CTest target; no new files, public API, or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile and runtime gate.
+
+---
+
 ## 2026-11-07 05:01 CST — Make first UDB commit-marker creation directory-durable
 
 - Baseline: main commit `bfd9e71c5bf7d11b73c798dac96becd5ddb94b77`; SkipDBv2 Regression run #434 completed successfully after the cache-age traversal correction.

@@ -43,6 +43,11 @@ int main(void)
         fprintf(stderr, "overflow PID offset was accepted\n");
         goto done;
     }
+    if (UDBIndex_setPos_forPid_(db->index, 1, 2) != 0 ||
+        UDBIndex_nextPid(db->index) != 1) {
+        fprintf(stderr, "unreserved PID mapping changed index state\n");
+        goto done;
+    }
 
     UDB_beginTransaction(db);
     first = UDB_allocPid(db);
@@ -61,6 +66,15 @@ int main(void)
         !has_value(db, first, "first") || !has_value(db, second, "second") ||
         UDBIndex_nextPid(db->index) != 3) {
         fprintf(stderr, "committed index retained reservations or lost mappings\n");
+        goto done;
+    }
+
+    UDB_beginTransaction(db);
+    UDB_at_put_(db, first, Datum_FromCString_("first-replaced"));
+    UDB_commitTransaction(db);
+    if (!UDB_isOpen(db) || !has_value(db, first, "first-replaced") ||
+        !has_value(db, second, "second")) {
+        fprintf(stderr, "existing PID mapping could not be updated after commit\n");
         goto done;
     }
 

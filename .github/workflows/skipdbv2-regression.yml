@@ -182,6 +182,7 @@ jobs:
                   "UDBIndex_offsetForPid_(pid, &offset)",
                   "PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)",
                   "int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)",
+                  "if (pid != 0 && old_pos == 0 && !was_reserved)",
                   "UDBIndex_releasePid_(self, pid)",
                   "UDBIndex_forgetPid_(self, pid)",
                   "file_size - offset < sizeof(UDBIndexEntry)",
@@ -190,6 +191,10 @@ jobs:
                   "UDBIndex_posForPid_(db->index, (PID_TYPE)-1)",
                   "UDBIndex_setPos_forPid_(db->index, 1, (PID_TYPE)-1)",
                   "overflow PID offset was accepted",
+                  "UDBIndex_setPos_forPid_(db->index, 1, 2)",
+                  "unreserved PID mapping changed index state",
+                  "UDB_at_put_(db, first, Datum_FromCString_(\"first-replaced\"))",
+                  "existing PID mapping could not be updated after commit",
                   "UDBIndex_isReservedPid_(db->index, first)",
                   "UDBIndex_isReservedPid_(db->index, abandoned)",
                   "unwritten reservation was not reclaimed at commit",
@@ -2462,6 +2467,14 @@ jobs:
           ).read_text()
           if index_map_source.count("UDBIndex_offsetForPid_(") != 3:
               raise SystemExit("UDB PID-to-offset overflow validation is not centralized")
+          mapping_owner_guard = index_map_source.find(
+              "if (pid != 0 && old_pos == 0 && !was_reserved)"
+          )
+          mapping_write = index_map_source.find(
+              "JFile_fwrite(self->file, (unsigned char *)&entry,"
+          )
+          if mapping_owner_guard < 0 or mapping_write < 0 or mapping_owner_guard > mapping_write:
+              raise SystemExit("UDB PID mappings must be owned by an existing mapping or active reservation before writes")
 
           query_source = Path(
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBQuery.c"
