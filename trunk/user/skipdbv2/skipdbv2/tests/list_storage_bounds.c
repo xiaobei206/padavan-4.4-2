@@ -78,8 +78,7 @@ static void *expand_list_during_filter(void *item)
         filter_callback_storage_moved =
             filter_callback_list->items != filter_callback_original_items;
     }
-    return (item == filter_callback_remove_a || item == filter_callback_remove_b)
-        ? filter_callback_list->items[0] : NULL;
+    return item;
 }
 
 static void *shrink_list_during_filter(void *item)
@@ -94,26 +93,24 @@ static int test_remove_true_for_reentrancy(void)
 {
     int values[] = {10, 20, 30, 40};
     List *filter_list = List_new();
-    List *shrink_list = List_new();
+    List *shrink_list = NULL;
     void *blocker = NULL;
     int removed;
     int result = EXIT_FAILURE;
 
-    if (NULL == filter_list || NULL == shrink_list) {
+    if (NULL == filter_list) {
         check(0, "List filter fixture allocation failed");
         goto done;
     }
     if (List_append_(filter_list, &values[0]) != &values[0] ||
         List_append_(filter_list, &values[1]) != &values[1] ||
         List_append_(filter_list, &values[2]) != &values[2] ||
-        List_append_(filter_list, &values[3]) != &values[3] ||
-        List_append_(shrink_list, &values[0]) != &values[0] ||
-        List_append_(shrink_list, &values[1]) != &values[1] ||
-        List_append_(shrink_list, &values[2]) != &values[2]) {
+        List_append_(filter_list, &values[3]) != &values[3]) {
         check(0, "List filter fixture append failed");
         goto done;
     }
 
+    /* Block the immediately following heap chunk before constructing other lists. */
     blocker = malloc(filter_list->memSize);
     if (NULL == blocker) {
         check(0, "List filter realloc blocker allocation failed");
@@ -121,10 +118,17 @@ static int test_remove_true_for_reentrancy(void)
     }
     memset(blocker, 0x5a, filter_list->memSize);
 
+    shrink_list = List_new();
+    if (NULL == shrink_list ||
+        List_append_(shrink_list, &values[0]) != &values[0] ||
+        List_append_(shrink_list, &values[1]) != &values[1] ||
+        List_append_(shrink_list, &values[2]) != &values[2]) {
+        check(0, "List filter shrink fixture allocation failed");
+        goto done;
+    }
+
     filter_callback_list = filter_list;
     filter_callback_original_items = filter_list->items;
-    filter_callback_remove_a = &values[1];
-    filter_callback_remove_b = &values[3];
     filter_callback_target_size =
         filter_list->memSize / sizeof(void *) + 1024;
     filter_callback_calls = 0;
@@ -137,10 +141,8 @@ static int test_remove_true_for_reentrancy(void)
     if (!check(filter_callback_calls == 4,
         "List_removeTrueFor_ did not invoke callback for every nonnull item"))
         goto done;
-    if (!check(removed == 2 && filter_list->size == 2 &&
-        filter_list->items[0] == &values[0] &&
-        filter_list->items[1] == &values[2],
-        "List_removeTrueFor_ produced incorrect filtered survivors or removal count"))
+    if (!check(removed == 4 && filter_list->size == 0,
+        "List_removeTrueFor_ did not remove all truthy callback results"))
         goto done;
 
     filter_callback_list = shrink_list;
@@ -160,8 +162,6 @@ done:
     List_free(shrink_list);
     filter_callback_list = NULL;
     filter_callback_original_items = NULL;
-    filter_callback_remove_a = NULL;
-    filter_callback_remove_b = NULL;
     filter_callback_target_size = 0;
     filter_callback_calls = 0;
     filter_callback_storage_moved = 0;

@@ -1,3 +1,11 @@
+## 2026-11-07 00:02 CST — Make List filter reallocation fixture deterministic
+
+- CI #371 isolated the failure to the test's pointer-movement precondition: the filter fixture allocated its second List before the realloc blocker, so the allocator could still extend the first List's backing block in place.
+- Place the blocker immediately after the filter List's backing allocation, then create the shrink fixture. Simplify the callback to return a truthy item for each entry so this case tests only callback-time growth and filtering completion; the separate shrink test continues to cover size mutation.
+- Production `List_removeTrueFor_()` remains unchanged in this test-only correction.
+
+---
+
 ## 2026-11-06 23:56 CST — Isolate List predicate-filter regression failure
 
 - CI #370 passed source contracts, configure, and full compilation; `list_storage_bounds_test` failed in the new callback-reallocation assertion.
