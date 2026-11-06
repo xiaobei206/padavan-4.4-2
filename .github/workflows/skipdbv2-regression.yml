@@ -745,6 +745,10 @@ jobs:
                   "TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})",
                   "add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test)",
 
+                  "ADD_EXECUTABLE(phash_compact_test",
+                  "${PROJECT_SOURCE_DIR}/tests/phash_compact.c",
+                  "TARGET_LINK_LIBRARIES(phash_compact_test skipdb m)",
+                  "add_test(NAME phash_compact_test COMMAND phash_compact_test)",
                   "SET(UDB_SRC",
                   "UDBRead.c",
                   "UDBRecordWrite.c",
@@ -851,6 +855,20 @@ jobs:
                   "SHash_compact lost a retained key/value mapping",
                   "SHash_compact did not return an empty table to its minimum size",
                   "SHash compact test passed",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/basekit/PHash.c": [
+                  "void PHash_compact(PHash *self)",
+                  "PHash_tableInit_(&candidate, log2tableSize)",
+                  "PHash_cuckoo_(&candidate, &thisRecord)",
+                  "if (!failed && candidate.numKeys == self->numKeys)",
+                  "*self = candidate;",
+                  "io_free(oldRecords);",
+              ],
+              "trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c": [
+                  "PHash_compact did not reduce the table while preserving count",
+                  "PHash_compact lost a retained key/value mapping",
+                  "PHash_compact did not return an empty table to its minimum size",
+                  "PHash compact test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
                   "int gettimeofday(struct timeval *tv, struct timezone *tz)",
@@ -1554,6 +1572,32 @@ jobs:
                          "add_test(NAME shash_compact_test COMMAND shash_compact_test)"):
               if needle not in shash_cmake:
                   raise SystemExit("SHash compaction CTest registration missing: " + needle)
+
+          phash_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PHash.c").read_text()
+          phash_test = Path("trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c").read_text()
+          phash_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          compact_start = phash_source.find("void PHash_compact(PHash *self)")
+          compact_end = phash_source.find("void PHash_copy_(", compact_start)
+          compact_body = phash_source[compact_start:compact_end] if compact_start >= 0 and compact_end > compact_start else ""
+          compact_tokens = ("PHash_tableInit_(&candidate, log2tableSize)",
+                            "PHash_cuckoo_(&candidate, &thisRecord)",
+                            "if (!failed && candidate.numKeys == self->numKeys)",
+                            "*self = candidate;", "io_free(oldRecords);")
+          compact_positions = [compact_body.find(token) for token in compact_tokens]
+          if not compact_body or min(compact_positions) < 0 or compact_positions != sorted(compact_positions):
+              raise SystemExit("PHash_compact must build a candidate table and publish it only after complete rehash")
+          if "need to implement PHash_compact" in compact_body:
+              raise SystemExit("PHash_compact remains an unimplemented stub")
+          for needle in ("PHash_compact did not reduce the table while preserving count",
+                         "PHash_compact lost a retained key/value mapping",
+                         "PHash compact test passed"):
+              if needle not in phash_test:
+                  raise SystemExit("PHash compaction regression case missing: " + needle)
+          for needle in ("ADD_EXECUTABLE(phash_compact_test",
+                         "${PROJECT_SOURCE_DIR}/tests/phash_compact.c",
+                         "add_test(NAME phash_compact_test COMMAND phash_compact_test)"):
+              if needle not in phash_cmake:
+                  raise SystemExit("PHash compaction CTest registration missing: " + needle)
 
           dynlib_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c").read_text()
           replace_start = dynlib_source.find("static int DynLib_replaceString_(")

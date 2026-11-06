@@ -287,4 +287,9 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(shash_compact_test skipdb m)
     add_test(NAME shash_compact_test COMMAND shash_compact_test)
 
+    ADD_EXECUTABLE(phash_compact_test
+        ${PROJECT_SOURCE_DIR}/tests/phash_compact.c)
+    TARGET_LINK_LIBRARIES(phash_compact_test skipdb m)
+    add_test(NAME phash_compact_test COMMAND phash_compact_test)
+
 endif()

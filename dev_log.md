@@ -1,3 +1,21 @@
+## 2026-11-06 13:15 CST — Implement transactional PHash compaction
+
+### Baseline and scope
+- Base commit: `65833c9286ef579db1c253e88442d8271256080e`; SkipDBv2 Regression run #248 validates SHash compaction before this follow-on is published.
+- Scope is limited to the existing PHash_compact API stub, one focused regression, and CMake/workflow registration.
+
+### Changes
+- Replace the console-printing stub with a best-effort rehash into a smaller power-of-two table.
+- Build replacement storage off to the side, retry larger candidate tables if cuckoo placement fails, and publish only after all records and the recorded key count agree.
+- Preserve the old table on allocation or placement failure.
+- Test capacity reduction, retained key/value mappings, post-compaction insertion, and compacting an empty table.
+
+### Validation
+- Add static and dynamic workflow contracts for transactional rehash ordering and CTest registration.
+- The post-push SkipDBv2 Regression run is authoritative for compilation and runtime behavior.
+
+---
+
 ## 2026-11-06 13:10 CST — Implement transactional SHash compaction
 
 ### Baseline and scope

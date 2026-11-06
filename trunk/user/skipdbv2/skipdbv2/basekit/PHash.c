@@ -118,7 +118,61 @@ size_t PHash_memorySize(PHash *self)
 
 void PHash_compact(PHash *self)
 {
-	printf("need to implement PHash_compact\n");
+	PHashRecord *oldRecords;
+	unsigned int oldTableSize, targetLog2;
+	int log2tableSize;
+
+	if (NULL == self || NULL == self->records ||
+		self->log2tableSize < 1 || self->log2tableSize > 20 ||
+		self->tableSize != (1u << self->log2tableSize) ||
+		self->mask != self->tableSize - 1 ||
+		self->numKeys > self->tableSize ||
+		self->log2tableSize <= 1 || self->numKeys >= self->tableSize)
+		return;
+
+	targetLog2 = 1;
+	while (targetLog2 < self->log2tableSize &&
+		(1u << targetLog2) < self->numKeys)
+		targetLog2++;
+	if (targetLog2 >= self->log2tableSize)
+		return;
+
+	oldRecords = self->records;
+	oldTableSize = self->tableSize;
+	for (log2tableSize = (int)targetLog2;
+		log2tableSize < (int)self->log2tableSize; ++log2tableSize) {
+		PHash candidate = *self;
+		size_t i, recordCount = (size_t)oldTableSize * 2;
+		int failed = 0;
+
+		candidate.records = NULL;
+		candidate.numKeys = 0;
+		candidate.balance = 0;
+		PHash_tableInit_(&candidate, log2tableSize);
+		if (NULL == candidate.records)
+			return;
+
+		for (i = 0; i < recordCount; ++i) {
+			PHashRecord thisRecord = oldRecords[i];
+			PHashRecord *record;
+			if (NULL == thisRecord.key)
+				continue;
+			record = PHash_cuckoo_(&candidate, &thisRecord);
+			if (NULL == record || record == &candidate.nullRecord) {
+				failed = 1;
+				break;
+			}
+			*record = thisRecord;
+			candidate.numKeys++;
+		}
+
+		if (!failed && candidate.numKeys == self->numKeys) {
+			*self = candidate;
+			io_free(oldRecords);
+			return;
+		}
+		io_free(candidate.records);
+	}
 }
 
 void PHash_copy_(PHash *self, PHash *other)
