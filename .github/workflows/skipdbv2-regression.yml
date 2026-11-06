@@ -1084,7 +1084,7 @@ jobs:
 
           uarray_size_source = (Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text())
           size_start = uarray_size_source.find("size_t UArray_sizeInBytes(const UArray *self)")
-          size_end = uarray_size_source.find("\\n}", size_start)
+          size_end = uarray_size_source.find("\n}", size_start)
           size_body = uarray_size_source[size_start:size_end] if size_start >= 0 and size_end > size_start else ""
           null_guard = size_body.find("NULL == self")
           zero_item_guard = size_body.find("self->itemSize == 0")

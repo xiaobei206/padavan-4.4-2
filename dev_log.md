@@ -1,3 +1,19 @@
+## 2026-11-06 12:14 CST — Correct UArray byte-size preflight newline matching
+
+### CI finding
+- Commit `3af474e575200beb183278a34e0a2df594f5b3d1` added the UArray byte-size regression and source contract, but the contract scanner used a double-escaped newline delimiter when isolating the function body.
+- This would make the preflight locate no closing brace and fail before compilation; it is a workflow-contract defect, not a C failure.
+
+### Repair
+- Correct the Python source-contract delimiter to match the actual newline before the function's closing brace.
+- No C implementation, test, CMake registration, or public declaration changed.
+
+### Validation
+- Static inspection confirms the Python string now contains the single escaped newline needed to search the source text.
+- The original run #228 was in progress at the time of repair; the next mainline regression run is authoritative.
+
+---
+
 ## 2026-11-06 12:12 CST — Guard UArray byte-size queries against invalid state and overflow
 
 ### Baseline and scope
