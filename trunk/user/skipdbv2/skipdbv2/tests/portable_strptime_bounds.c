@@ -10,6 +10,10 @@ int main(void)
     struct tm invalid;
     char valid[] = "2024-11-06";
     char truncated[] = "2024-11";
+    char malformed_after_year[] = "2024 x-11-06";
+    char malformed_after_month[] = "2024-11 x";
+    char separated[] = "2024 \t11  06";
+    char separated_format[] = "%Y %m %d";
     char empty[] = "";
     char alpha[] = "abc";
     char high_byte[] = { (char)0xff, '1', '2', '\0' };
@@ -43,6 +47,19 @@ int main(void)
     if (NULL == io_strptime(valid, format, &parsed) ||
         parsed.tm_year != 124 || parsed.tm_mon != 10 || parsed.tm_mday != 6) {
         fprintf(stderr, "valid date did not parse correctly\n");
+        return EXIT_FAILURE;
+    }
+
+    memset(&invalid, 0, sizeof(invalid));
+    if (io_strptime(malformed_after_year, format, &invalid) != NULL ||
+        io_strptime(malformed_after_month, format, &invalid) != NULL) {
+        fprintf(stderr, "unexpected whitespace skipped required format directives\n");
+        return EXIT_FAILURE;
+    }
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(separated, separated_format, &parsed) != separated + strlen(separated) ||
+        parsed.tm_year != 124 || parsed.tm_mon != 10 || parsed.tm_mday != 6) {
+        fprintf(stderr, "format whitespace did not consume separated date fields\n");
         return EXIT_FAILURE;
     }
 

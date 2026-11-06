@@ -1206,7 +1206,7 @@ jobs:
                   "static int readndigits(char **const buf, const size_t count)",
                   "return i == 0 ? -1 : result;",
                   "tm->tm_year = i <= 68 ? i + 100 : i;",
-                  "static void somethingToDoWithSpaces",
+                  "else if (c != *buf++)",
                   "if (NULL == buf || NULL == fmt || NULL == tm)",
                   "isdigit((unsigned char)*buf)",
                   "isspace((unsigned char)*buf)",
@@ -1225,6 +1225,9 @@ jobs:
                   "two-digit year 68 did not map to 2068",
                   "two-digit year 69 did not map to 1969",
                   "two-digit year 99 did not map to 1999",
+                  "io_strptime(malformed_after_year, format, &invalid)",
+                  "io_strptime(malformed_after_month, format, &invalid)",
+                  "io_strptime(separated, separated_format, &parsed)",
                   "io_strptime(truncated, format, &invalid)",
                   "io_strptime(empty, hour_format, &invalid)",
                   "io_strptime(alpha, month_format, &invalid)",
@@ -4135,7 +4138,7 @@ jobs:
 
           strptime_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PortableStrptime.c").read_text()
           digit_helper_start = strptime_source.find("static int readndigits(")
-          digit_helper_end = strptime_source.find("static void somethingToDoWithSpaces", digit_helper_start)
+          digit_helper_end = strptime_source.find("char *io_strptime(", digit_helper_start)
           digit_helper = strptime_source[digit_helper_start:digit_helper_end] if digit_helper_start >= 0 and digit_helper_end > digit_helper_start else ""
           parser_start = strptime_source.find("char *io_strptime(")
           parser = strptime_source[parser_start:] if parser_start >= 0 else ""
@@ -4148,6 +4151,8 @@ jobs:
                   "if (NULL == buf || NULL == fmt || NULL == tm)" not in parser or
                   "isdigit((unsigned char)*buf)" not in parser or
                   "isspace((unsigned char)*buf)" not in parser or
+                  "isspace((unsigned char)c)" not in parser or
+                  "somethingToDoWithSpaces" in strptime_source or
                   "*buf == 0" in loop_prefix):
               raise SystemExit("PortableStrptime must validate arguments, ctype bytes, and missing required input")
           day_directive_start = parser.find("case 'j':")
@@ -4158,7 +4163,10 @@ jobs:
                   "*buf == 0" in day_directive):
               raise SystemExit("PortableStrptime %j must reject missing/out-of-range ordinals and convert 1-based input to zero-based tm_yday")
           strptime_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c").read_text()
-          for needle in ("io_strptime(truncated, format, &invalid)",
+          for needle in ("io_strptime(malformed_after_year, format, &invalid)",
+                         "io_strptime(malformed_after_month, format, &invalid)",
+                         "io_strptime(separated, separated_format, &parsed)",
+                         "io_strptime(truncated, format, &invalid)",
                          "io_strptime(empty, hour_format, &invalid)",
                          "io_strptime(alpha, month_format, &invalid)",
                          "io_strptime(high_byte, hour_format, &invalid)",

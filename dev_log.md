@@ -1,3 +1,13 @@
+## 2026-11-07 02:09 CST — Preserve required directives across input whitespace in PortableStrptime
+
+- Baseline: main commit `8a32c7174ecbaac13ac36fd7fea51bef51dfee4a`; SkipDBv2 Regression run #407 passed.
+- Scope: the private whitespace shortcut in `basekit/PortableStrptime.c` and its existing parser-boundary regression.
+- The shortcut advanced the format cursor to the next whitespace whenever the next input byte was whitespace. For a format such as `%Y-%m-%d`, input like `2024-11 x` could therefore skip the required `-%d` tail and return success after parsing only the year and month.
+- Remove that shortcut and rely on the parser's existing format-whitespace handling. Add regressions for unexpected whitespace after the year/month and for valid whitespace-separated date fields. Update the existing static/dynamic Actions source contracts. Reuse the existing CMake target; no new files, declarations, or public API.
+- No local C build or CTest run is claimed; the pushed SkipDBv2 Regression workflow is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 02:04 CST — Preserve embedded NUL bytes in UArray UTF-8 conversion
 
 - Baseline: main commit `277b727ee584f02871f2ab42a7672a3dcbecf084`; latest mainline SkipDBv2 Regression run #406 passed.

@@ -89,17 +89,6 @@ static int readndigits(char **const buf, const size_t count)
 	return i == 0 ? -1 : result;
 }
 
-// TODO rename function when I understand what this function does.
-static void somethingToDoWithSpaces(const char *const buf, char **const ptr)
-{
-	if (NULL == buf || NULL == ptr || NULL == *ptr)
-		return;
-	if (*buf != 0 && isspace((unsigned char)*buf)) {
-		while (**ptr != 0 && !isspace((unsigned char)**ptr))
-			(*ptr)++;
-	}
-}
-
 char *io_strptime(char *buf, char *fmt, struct tm *tm)
 {
 		struct dtconv En_US = {
@@ -216,7 +205,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 						tm->tm_min = i;
 
-						somethingToDoWithSpaces(buf, &ptr);
 						break;
 
 				case 'S':
@@ -229,7 +217,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 						tm->tm_sec = i;
 
-						somethingToDoWithSpaces(buf, &ptr);
 						break;
 
 				case 'H':
@@ -243,7 +230,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 						tm->tm_hour = i;
 
-						somethingToDoWithSpaces(buf, &ptr);
 						break;
 
 				case 'I':
@@ -257,7 +243,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 						tm->tm_hour = i;
 
-						somethingToDoWithSpaces(buf, &ptr);
 						break;
 
 				case 'd':
@@ -271,7 +256,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 						tm->tm_mday = i;
 
-						somethingToDoWithSpaces(buf, &ptr);
 						break;
 
 				case 'm':
@@ -284,7 +268,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 						tm->tm_mon = i - 1;
 
-						somethingToDoWithSpaces(buf, &ptr);
 						break;
 
 				case 'Y':
@@ -300,7 +283,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 
 						tm->tm_year = i - 1900;
 
-						somethingToDoWithSpaces(buf, &ptr);
 						break;
 
 				case 'y':
@@ -317,7 +299,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						/* POSIX two-digit year window: 00-68 => 2000-2068. */
 						tm->tm_year = i <= 68 ? i + 100 : i;
 
-						somethingToDoWithSpaces(buf, &ptr);
 						break;
 
 				case 'P':
