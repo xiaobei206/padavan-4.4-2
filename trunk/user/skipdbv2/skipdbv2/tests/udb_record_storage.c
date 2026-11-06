@@ -84,6 +84,28 @@ int main(void)
         goto done;
     }
 
+    /* A record header writer must never overwrite the offset-zero metadata. */
+    {
+        UDBRecord metadata_probe;
+        size_t journal_before, journal_after;
+        int save_accepted;
+
+        memset(&metadata_probe, 0, sizeof(metadata_probe));
+        UDBRecord_setJFile_(&metadata_probe, db->records->file);
+        UDBRecord_setPos_(&metadata_probe, 0);
+        metadata_probe.header.tag = RECORD_TAG_NORMAL;
+        metadata_probe.header.pid = (PID_TYPE)77;
+        metadata_probe.header.size = (PID_TYPE)sizeof(payload);
+        journal_before = JFile_logSize(db->records->file);
+        save_accepted = UDBRecord_saveHeader(&metadata_probe);
+        journal_after = JFile_logSize(db->records->file);
+        if (save_accepted || journal_after != journal_before) {
+            (void)JFile_clipLog(db->records->file);
+            fprintf(stderr, "record header writer accepted reserved metadata offset\n");
+            goto done;
+        }
+    }
+
     /* Payload reads must not trust a stale cached size or PID. */
     record->header.pid = 0;
     record->header.size = 1;

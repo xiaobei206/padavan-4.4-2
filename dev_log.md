@@ -1,3 +1,13 @@
+## 2026-11-07 06:31 CST — Prevent UDB header writes from clobbering free-list metadata
+
+- Baseline: main commit `757ac6a408b739653089ac3943199e5b14f18e2e`; SkipDBv2 Regression run #450 passed source contracts, configure, full build, and all regression tests.
+- Scope: the standalone record-header writer in `udb/UDBRecordWrite.c`.
+- `UDBRecord_saveHeader()` was exported and callable with a record position of zero; it wrote a full `UDBRecordHeader` at byte zero even though that region stores the database's first-empty pointer. That could silently corrupt allocator/compactor metadata.
+- Reject reserved offsets below `sizeof(PID_TYPE)` and require an open data stream with a valid logical file bound before writing. Add a regression that calls the writer at offset zero and verifies it returns failure without appending any journal bytes. Update existing Actions contracts; no new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 06:27 CST — Validate persisted extents before relocating UDB records
 
 - Baseline: main commit `1f2ff69566d1e022ea41f502080aeaceced68ddd`; SkipDBv2 Regression run #449 passed source contracts, configure, full build, and all regression tests.

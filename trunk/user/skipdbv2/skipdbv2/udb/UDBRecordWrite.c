@@ -53,9 +53,14 @@ int UDBRecord_remove(UDBRecord *self)
 int UDBRecord_saveHeader(UDBRecord *self)
 {
     long old_pos, old_max;
-    if (NULL == self || NULL == self->file ||
+
+    /* Offset zero is reserved for the persisted first-empty pointer. */
+    if (NULL == self || NULL == self->file || NULL == self->file->file ||
+        self->file->maxPos < 0 ||
+        self->pos < (PID_TYPE)sizeof(PID_TYPE) ||
         self->pos > (PID_TYPE)LONG_MAX)
         return 0;
+
     old_pos = self->file->pos;
     old_max = self->file->maxPos;
     JFile_setPosition_(self->file, (long)self->pos);
