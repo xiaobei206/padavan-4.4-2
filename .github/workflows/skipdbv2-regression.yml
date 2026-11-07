@@ -1688,7 +1688,10 @@ jobs:
                   "if (converted == (time_t)-1 && conversionErrno != 0)",
                   "!Date_calendarToTime_(&tm, &timestamp)",
                   "Date_calendarToTime_(t, &timestamp)",
-                  "static struct tm *Date_localTime_(const Date *self, time_t *timestamp)",
+                  "static int Date_localTimeForTimestamp_(time_t timestamp, struct tm *calendar)",
+                  "localtime_s(calendar, &timestamp)",
+                  "localtime_r(&timestamp, calendar)",
+                  "static int Date_localTime_(const Date *self, time_t *timestamp, struct tm *calendar)",
                   "long long currentSeconds, offsetSeconds, newSeconds;",
                   "self->tv.tv_usec < 0 || self->tv.tv_usec >= 1000000",
                   "currentSeconds < (long long)LONG_MIN",
@@ -1709,7 +1712,7 @@ jobs:
                   "self->tv.tv_usec != other->tv.tv_usec",
                   "self->tv.tv_sec > other->tv.tv_sec ? 1 : -1",
                   "self->tv.tv_usec > other->tv.tv_usec ? 1 : -1",
-                  "Date_localTime_(self, &t)",
+                  "Date_localTime_(self, &t, &calendar)",
                   "if (NULL == self || NULL == s || NULL == format)",
                   "if (NULL == io_strptime((char *)s, (char *)format, &tm) ||",
                   "t.tm_isdst = -1;",
@@ -5280,20 +5283,53 @@ jobs:
           leap_start = date_source.find("int Date_isLeapYear(const Date *self)")
           leap_end = date_source.find("// format", leap_start)
           leap_body = date_source[leap_start:leap_end] if leap_start >= 0 and leap_end > leap_start else ""
-          if (not leap_body or "Date_localTime_(self, &timestamp)" not in leap_body or
-                  "year = (long long)tm->tm_year + 1900LL;" not in leap_body or
+          if (not leap_body or "Date_localTime_(self, &timestamp, &calendar)" not in leap_body or
+                  "year = (long long)calendar.tm_year + 1900LL;" not in leap_body or
                   "year % 400LL == 0LL" not in leap_body or
                   "(int)Date_year(self)" in leap_body):
               raise SystemExit("Date_isLeapYear must apply the Gregorian rule without narrowing tm_year's calendar year")
 
-          local_helper_start = date_source.find("static struct tm *Date_localTime_(const Date *self, time_t *timestamp)")
-          local_helper_end = date_source.find("\n}", local_helper_start)
-          local_helper = date_source[local_helper_start:local_helper_end] if local_helper_start >= 0 and local_helper_end > local_helper_start else ""
+          local_helper_start = date_source.find(
+              "static int Date_localTimeForTimestamp_(time_t timestamp, struct tm *calendar)"
+          )
+          local_helper_end = date_source.find(chr(10) + "static int Date_localTime_(", local_helper_start)
+          local_helper = (
+              date_source[local_helper_start:local_helper_end]
+              if local_helper_start >= 0 and local_helper_end > local_helper_start
+              else ""
+          )
           if (not local_helper or
-                  "if (NULL == self || NULL == timestamp)" not in local_helper or
-                  "*timestamp = self->tv.tv_sec;" not in local_helper or
-                  "return localtime(timestamp);" not in local_helper):
-              raise SystemExit("Date localtime helper must reject NULL and centralize timestamp conversion")
+                  "if (NULL == calendar)" not in local_helper or
+                  "localtime_s(calendar, &timestamp)" not in local_helper or
+                  "localtime_r(&timestamp, calendar)" not in local_helper or
+                  "#elif defined(__SYMBIAN32__)" not in local_helper or
+                  "struct tm *shared = localtime(&timestamp);" not in local_helper):
+              raise SystemExit("Date conversion must use caller-owned calendar storage on supported Windows/POSIX targets")
+          date_local_helper_start = date_source.find(
+              "static int Date_localTime_(const Date *self, time_t *timestamp, struct tm *calendar)"
+          )
+          date_local_helper_end = date_source.find(chr(10) + "/* Normalize a calendar value", date_local_helper_start)
+          date_local_helper = (
+              date_source[date_local_helper_start:date_local_helper_end]
+              if date_local_helper_start >= 0 and date_local_helper_end > date_local_helper_start
+              else ""
+          )
+          if (not date_local_helper or
+                  "if (NULL == self || NULL == timestamp || NULL == calendar)" not in date_local_helper or
+                  "*timestamp = self->tv.tv_sec;" not in date_local_helper or
+                  "Date_localTimeForTimestamp_(*timestamp, calendar)" not in date_local_helper):
+              raise SystemExit("Date receiver conversion must populate caller-owned tm storage after validating inputs")
+          for signature, next_signature in (
+                  ("static struct tm EmptyTM(void)", "void Date_fromString_format_("),
+                  ("UArray *Date_asString(const Date *self, const char *format)", None)):
+              start = date_source.find(signature)
+              end = date_source.find(next_signature, start) if next_signature else date_source.find(chr(10) + "}", start)
+              body = date_source[start:end] if start >= 0 and end > start else ""
+              if (not body or "Date_localTimeForTimestamp_(" not in body or
+                      "localtime(" in body):
+                  raise SystemExit("Date parsing and formatting must not retain shared localtime buffers")
+          if date_source.count("localtime(") != 1:
+              raise SystemExit("the only shared localtime fallback must remain isolated to Symbian compatibility")
           for signature, next_signature in (
                   ("long Date_year(const Date *self)", "void Date_setYear_("),
                   ("int Date_month(const Date *self)", "void Date_setMonth_("),
@@ -5305,10 +5341,10 @@ jobs:
               start = date_source.find(signature)
               end = date_source.find(next_signature, start)
               body = date_source[start:end] if start >= 0 and end > start else ""
-              helper_call = body.find("Date_localTime_(self, &t)")
+              helper_call = body.find("Date_localTime_(self, &t, &calendar)")
               neutral_result = body.find(": 0")
               if neutral_result < 0:
-                  neutral_result = body.find("if (NULL == tm)")
+                  neutral_result = body.find("if (!Date_localTime_(self, &t, &calendar))")
               if not body or helper_call < 0 or neutral_result < 0 or neutral_result < helper_call:
                   raise SystemExit("Date component accessor must handle invalid receivers/localtime results: " + signature)
           calendar_helper_start = date_source.find("static int Date_calendarToTime_(struct tm *calendar, time_t *timestamp)")
@@ -5373,16 +5409,14 @@ jobs:
               start = date_source.find(signature)
               end = date_source.find(next_signature, start)
               body = date_source[start:end] if start >= 0 and end > start else ""
-              helper_call = body.find("Date_localTime_(self, &t)")
-              null_guard = body.find("if (NULL == tm)")
-              calendar_copy = body.find("calendar = *tm;")
+              helper_call = body.find("Date_localTime_(self, &t, &calendar)")
               member_write = body.find("calendar.tm_")
               conversion = body.find("Date_calendarToTime_(&calendar, &timestamp)")
               commit = body.find("self->tv.tv_sec = timestamp;")
-              if (not body or helper_call < 0 or null_guard < helper_call or
-                      calendar_copy < null_guard or member_write < calendar_copy or
-                      conversion < member_write or commit < conversion):
-                  raise SystemExit("Date component setter must convert a private calendar copy and commit only after mktime succeeds: " + signature)
+              if (not body or helper_call < 0 or member_write < helper_call or
+                      conversion < member_write or commit < conversion or
+                      "calendar = *tm;" in body):
+                  raise SystemExit("Date component setter must populate private calendar storage and commit only after mktime succeeds: " + signature)
           seconds_helper_start = date_source.find(
               "static int Date_splitSeconds_(double seconds, long *wholeSeconds,"
           )
@@ -5483,8 +5517,9 @@ jobs:
           growth_guard = date_string_body.find("if (capacity > maximumCapacity / 2)")
           shrink_array = date_string_body.find("UArray_setSize_(u, written);")
           if (not date_string_body or "if (NULL == self || NULL == format)" not in date_string_body or
-                  "tm = localtime(&t);" not in date_string_body or
-                  "if (NULL == tm)" not in date_string_body or
+                  "Date_localTimeForTimestamp_(t, &calendar)" not in date_string_body or
+                  "written = strftime(buffer, capacity, format, &calendar);" not in date_string_body or
+                  "localtime(" in date_string_body or
                   "formatLength > (size_t)-1 - 1024" not in date_string_body or
                   "maximumCapacity = (size_t)-1;" not in date_string_body or
                   "for (;;)" not in date_string_body or

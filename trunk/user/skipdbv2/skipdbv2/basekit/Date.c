@@ -16,12 +16,33 @@
 #include "PortableStrptime.h"
 #include "UArray.h"
 
-static struct tm *Date_localTime_(const Date *self, time_t *timestamp)
+/* Convert into caller-owned storage; localtime() exposes shared static state. */
+static int Date_localTimeForTimestamp_(time_t timestamp, struct tm *calendar)
 {
-	if (NULL == self || NULL == timestamp)
-		return NULL;
+	if (NULL == calendar)
+		return 0;
+#if defined(_WIN32) || defined(WIN32) || defined(_MSC_VER) || defined(__MINGW32__)
+	return localtime_s(calendar, &timestamp) == 0;
+#elif defined(__SYMBIAN32__)
+	{
+		struct tm *shared = localtime(&timestamp);
+		if (NULL == shared)
+			return 0;
+		*calendar = *shared;
+		return 1;
+	}
+#else
+	return localtime_r(&timestamp, calendar) != NULL;
+#endif
+}
+
+
+static int Date_localTime_(const Date *self, time_t *timestamp, struct tm *calendar)
+{
+	if (NULL == self || NULL == timestamp || NULL == calendar)
+		return 0;
 	*timestamp = self->tv.tv_sec;
-	return localtime(timestamp);
+	return Date_localTimeForTimestamp_(*timestamp, calendar);
 }
 
 
@@ -328,23 +349,21 @@ static int Date_tmYearFromCalendarYear_(long calendarYear, int *tmYear)
 long Date_year(const Date *self)
 {
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
-	return tm ? (long)tm->tm_year + 1900L : 0L;
+	struct tm calendar;
+	return Date_localTime_(self, &t, &calendar)
+		? (long)calendar.tm_year + 1900L : 0L;
 }
 
 void Date_setYear_(Date *self, long v)
 {
 	time_t t, timestamp;
 	int tmYear;
-	struct tm *tm;
 	struct tm calendar;
 
 	if (NULL == self || !Date_tmYearFromCalendarYear_(v, &tmYear))
 		return;
-	tm = Date_localTime_(self, &t);
-	if (NULL == tm)
+	if (!Date_localTime_(self, &t, &calendar))
 		return;
-	calendar = *tm;
 	calendar.tm_year = tmYear;
 	if (!Date_calendarToTime_(&calendar, &timestamp))
 		return;
@@ -354,19 +373,17 @@ void Date_setYear_(Date *self, long v)
 int Date_month(const Date *self)
 {
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
-	return tm ? tm->tm_mon : 0;
+	struct tm calendar;
+	return Date_localTime_(self, &t, &calendar) ? calendar.tm_mon : 0;
 }
 
 void Date_setMonth_(Date *self, int v)
 {
 	time_t t, timestamp;
-	struct tm *tm = Date_localTime_(self, &t);
 	struct tm calendar;
 
-	if (NULL == tm)
+	if (!Date_localTime_(self, &t, &calendar))
 		return;
-	calendar = *tm;
 	calendar.tm_mon = v;
 	if (!Date_calendarToTime_(&calendar, &timestamp))
 		return;
@@ -376,19 +393,17 @@ void Date_setMonth_(Date *self, int v)
 int Date_day(const Date *self)
 {
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
-	return tm ? tm->tm_mday : 0;
+	struct tm calendar;
+	return Date_localTime_(self, &t, &calendar) ? calendar.tm_mday : 0;
 }
 
 void Date_setDay_(Date *self, int v)
 {
 	time_t t, timestamp;
-	struct tm *tm = Date_localTime_(self, &t);
 	struct tm calendar;
 
-	if (NULL == tm)
+	if (!Date_localTime_(self, &t, &calendar))
 		return;
-	calendar = *tm;
 	calendar.tm_mday = v;
 	if (!Date_calendarToTime_(&calendar, &timestamp))
 		return;
@@ -398,19 +413,17 @@ void Date_setDay_(Date *self, int v)
 int Date_hour(const Date *self)
 {
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
-	return tm ? tm->tm_hour : 0;
+	struct tm calendar;
+	return Date_localTime_(self, &t, &calendar) ? calendar.tm_hour : 0;
 }
 
 void Date_setHour_(Date *self, int v)
 {
 	time_t t, timestamp;
-	struct tm *tm = Date_localTime_(self, &t);
 	struct tm calendar;
 
-	if (NULL == tm)
+	if (!Date_localTime_(self, &t, &calendar))
 		return;
-	calendar = *tm;
 	calendar.tm_hour = v;
 	if (!Date_calendarToTime_(&calendar, &timestamp))
 		return;
@@ -420,19 +433,17 @@ void Date_setHour_(Date *self, int v)
 int Date_minute(const Date *self)
 {
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
-	return tm ? tm->tm_min : 0;
+	struct tm calendar;
+	return Date_localTime_(self, &t, &calendar) ? calendar.tm_min : 0;
 }
 
 void Date_setMinute_(Date *self, int v)
 {
 	time_t t, timestamp;
-	struct tm *tm = Date_localTime_(self, &t);
 	struct tm calendar;
 
-	if (NULL == tm)
+	if (!Date_localTime_(self, &t, &calendar))
 		return;
-	calendar = *tm;
 	calendar.tm_min = v;
 	if (!Date_calendarToTime_(&calendar, &timestamp))
 		return;
@@ -442,26 +453,23 @@ void Date_setMinute_(Date *self, int v)
 double Date_second(const Date *self)
 {
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
-	if (NULL == tm)
+	struct tm calendar;
+	if (!Date_localTime_(self, &t, &calendar))
 		return 0.0;
-	return ((double)tm->tm_sec) + ((double)self->tv.tv_usec)/1000000.0;
+	return ((double)calendar.tm_sec) + ((double)self->tv.tv_usec)/1000000.0;
 }
 
 void Date_setSecond_(Date *self, double v)
 {
 	long wholeSeconds, microseconds;
 	time_t t, timestamp;
-	struct tm *tm;
 	struct tm calendar;
 
 	if (NULL == self || !Date_splitSeconds_(v, &wholeSeconds, &microseconds) ||
 		wholeSeconds < INT_MIN || wholeSeconds > INT_MAX)
 		return;
-	tm = Date_localTime_(self, &t);
-	if (NULL == tm)
+	if (!Date_localTime_(self, &t, &calendar))
 		return;
-	calendar = *tm;
 	calendar.tm_sec = (int)wholeSeconds;
 	if (!Date_calendarToTime_(&calendar, &timestamp))
 		return;
@@ -472,22 +480,42 @@ void Date_setSecond_(Date *self, double v)
 unsigned char Date_isDaylightSavingsTime(const Date *self)
 {
 	time_t t;
-	struct tm *tm = Date_localTime_(self, &t);
-	return tm ? (unsigned char)tm->tm_isdst : 0;
+	struct tm calendar;
+	return Date_localTime_(self, &t, &calendar)
+		? (unsigned char)calendar.tm_isdst : 0;
 }
 
 int Date_isLeapYear(const Date *self)
 {
 	time_t timestamp;
-	struct tm *tm = Date_localTime_(self, &timestamp);
+	struct tm calendar;
 	long long year;
 
-	if (NULL == tm)
+	if (!Date_localTime_(self, &timestamp, &calendar))
 		return 0;
 	/* tm_year is an int; retain its full calendar-year range before modulo. */
-	year = (long long)tm->tm_year + 1900LL;
+	year = (long long)calendar.tm_year + 1900LL;
 	return ((year % 4LL == 0LL) && (year % 100LL != 0LL)) ||
 		(year % 400LL == 0LL);
+}
+
+static struct tm EmptyTM(void)
+{
+	struct tm t;
+
+	memset(&t, 0, sizeof(t));
+	(void)Date_localTimeForTimestamp_((time_t)0, &t);
+	t.tm_sec  = 0;
+	t.tm_min  = 0;
+	t.tm_hour = 0;
+	t.tm_mday = 0;
+	t.tm_mon  = 0;
+	t.tm_year = 0;
+	t.tm_wday = 0;
+	t.tm_yday = 0;
+	/* Let mktime resolve DST for the parsed date, not the epoch template. */
+	t.tm_isdst = -1;
+	return t;
 }
 
 // format --------------------------------------------------------
@@ -572,7 +600,7 @@ UArray *Date_asString(const Date *self, const char *format)
 {
 	UArray *u;
 	time_t t;
-	struct tm *tm;
+	struct tm calendar;
 	size_t formatLength, capacity, maximumCapacity, written;
 	char *buffer;
 
@@ -580,8 +608,7 @@ UArray *Date_asString(const Date *self, const char *format)
 		return NULL;
 
 	t = self->tv.tv_sec;
-	tm = localtime(&t);
-	if (NULL == tm)
+	if (!Date_localTimeForTimestamp_(t, &calendar))
 		return NULL;
 
 	formatLength = strlen(format);
@@ -607,7 +634,7 @@ UArray *Date_asString(const Date *self, const char *format)
 			return NULL;
 		}
 		buffer[0] = '\0';
-		written = strftime(buffer, capacity, format, tm);
+		written = strftime(buffer, capacity, format, &calendar);
 		if (written != 0 || capacity >= maximumCapacity)
 			break;
 		if (capacity > maximumCapacity / 2)

@@ -1,3 +1,14 @@
+## 2026-11-07 16:34 CST — Use caller-owned calendar storage for Date local-time conversion
+
+- Baseline: `8a97b71efe4b30de934e0b1f130ee6c1061ac2fb`; SkipDBv2 Regression run #590 passed source contracts, configure, full build, and all 57 CTests.
+- Scope: the shared calendar conversion boundary in `basekit/Date.c`, all Date component accessors/setters, parsing's `EmptyTM()` template, and the existing Date formatting path.
+- The shared `localtime()` result points to process-global static storage. Concurrent Date calls could overwrite that `struct tm` between conversion and use, making independent calendar reads race and setters normalize a different date/time than the one they started with.
+- Convert into caller-owned `struct tm` storage via `localtime_r()` on POSIX and `localtime_s()` on Windows. Keep the legacy Symbian fallback isolated behind its platform guard. Route component getters/setters, parsing's epoch template, and `Date_asString()` through the shared conversion helpers; no Date entry point on the supported Windows/POSIX paths reads shared `localtime()` storage.
+- Strengthen the existing Actions source/order contracts to require the reentrant platform calls, the three-argument receiver helper, caller-owned calendar fields, and the absence of direct shared-buffer use in formatting/parsing. The existing Date/Date-string CTest targets and CMake registration are reused; no new files, public declarations, or build-list changes.
+- No local compiler/CTest result is claimed; remote Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 16:24 CST — Refuse JFile journaling-mode changes while streams are live
 
 - Baseline: `92f20c2df9a7e8c62f4b835103d6f83647ffa20a`; mainline SkipDBv2 Regression run #589 passed the XY-C1 source contracts, CMake configure, complete build, and all 57 CTests.
