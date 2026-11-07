@@ -1,3 +1,17 @@
+## 2026-11-07 21:53 CST — Add repository-wide AI development governance and cross-chat handoff
+
+- Baseline main HEAD: 412eebb4d0c36f9cbaf43921b4ce1f2056665984.
+- Added AI_DEVELOPMENT_PROTOCOL.md as the durable repository-wide development contract.
+- Added AI_BOOTSTRAP_PROMPT.md as the short reusable prompt for new ChatGPT conversations.
+- Added REFACTOR_ROADMAP.md for whole-repository module inventory and risk-based governance.
+- Added SESSION_HANDOFF.md for resumable task state across conversations.
+- Preserved the existing dev_log.md history and prepended this entry.
+- Documentation-only change: no production C source, firmware build configuration, or tests were modified or executed in this commit.
+- Baseline CI reference: SkipDBv2 Regression run 42376349424 on 412eebb4d0c36f9cbaf43921b4ce1f2056665984, success. This is not MIPS firmware-build or hardware-validation evidence.
+- Next: inventory the complete source tree and verify historical audit pointers; prioritize a documented HTTPD/HTTPS/CGI/authentication review.
+
+---
+
 ## 2026-11-07 21:18 CST — Keep UArray source contracts below the workflow payload limit
 
 - Baseline: `2db6429c209f9de1e3075f08808f16a8f6654997`; runs #667 and #668 terminated before the connector exposed job records or logs.
