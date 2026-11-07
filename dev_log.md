@@ -1,3 +1,13 @@
+## 2026-11-07 20:14 CST — Complete UArray percent escaping and execute alias regression
+
+- Baseline: `f8ecb05f3a7d8163139e8db2ae39414439b25196`; SkipDBv2 Regression run #656 passed all XY-C1 contracts, CMake configuration, the full target build, and all CTests.
+- Scope: `UArray_fromVargs_()` in `basekit/UArray_format.c` and its existing `uarray_format_trailing_percent_test`.
+- The formatter already preserves a trailing lone `%`, but a conventional escaped `%%` was discarded instead of emitting one literal percent. Add the explicit escape case.
+- The existing format-alias regression had accidentally been placed inside the failure branch of the preceding ordinary-format assertion, so the successful path never executed it. Close that assertion before the alias case, then add a literal-percent regression.
+- Reuse the current CTest target; extend the Actions source contract. No new files, headers, exported symbols, or CMake target changes. Validation is delegated to the current remote Actions run.
+
+---
+
 ## 2026-11-07 20:07 CST — Align MainArgs replacement-order contract with sentinel cleanup
 
 - Failed head: `3d147dd2fe54162b5e02b01b3cd7bb84dbe633de`; run #655 passed the static source/path inventory but failed the dynamic MainArgs replacement-order check before CMake.
