@@ -175,6 +175,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndex.c": [
                   '#include "UDBIndexInternal.h"',
+                  "UDBIndex *UDBIndex_new(void)",
+                  "goto failed;",
+                  "failed:",
+                  "UDBIndex_free(self);",
                   "int UDBIndex_isValid_(UDBIndex *self)",
                   "if (!UDBIndex_isValid_(self))",
                   "int UDBIndex_hasFile_(UDBIndex *self)",
@@ -3394,6 +3398,15 @@ jobs:
           ).read_text()
           if index_lifecycle_source.count("UDBIndex_isValid_(self)") != 3:
               raise SystemExit("UDBIndex lifecycle callers bypass shared structural validation")
+
+          index_new_start = index_lifecycle_source.find("UDBIndex *UDBIndex_new(void)")
+          index_new_end = index_lifecycle_source.find(chr(10) + "void UDBIndex_free", index_new_start)
+          index_new_body = index_lifecycle_source[index_new_start:index_new_end] if index_new_start >= 0 and index_new_end > index_new_start else ""
+          if (not index_new_body or index_new_body.count("goto failed;") != 2 or
+                  index_new_body.count("UDBIndex_free(self);") != 1 or
+                  index_new_body.find("failed:") < 0 or
+                  index_new_body.find("UDBIndex_free(self);") < index_new_body.find("failed:")):
+              raise SystemExit("UDBIndex partial construction must converge on its NULL-safe destructor")
 
           search_source = Path(
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBSearch.c"

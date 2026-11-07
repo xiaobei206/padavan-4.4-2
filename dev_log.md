@@ -1,3 +1,14 @@
+## 2026-11-07 17:30 CST — Unify UDBIndex partial-construction cleanup
+
+- Baseline: `a76d9ad9138659d72a9dec052ea04d5f8a7dbe72`; mainline SkipDBv2 Regression run #608 passed source contracts, the complete build, and all 57 CTests.
+- Scope: `UDBIndex_new()` and its canonical `UDBIndex_free()` lifecycle path.
+- Allocation failure and default-path setup failure duplicated cleanup of the JFile and both PID lists. These error branches could drift from the destructor as the index acquires more owned state.
+- Route both failures through one rollback label and `UDBIndex_free(self)`. The destructor and `UDBIndex_close()` are NULL-safe for partially initialized fields; successful construction and ownership semantics remain unchanged.
+- Extend the existing Actions source map and dynamic constructor-order/count contract. No new files, symbols, CTest targets, or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 17:28 CST — Unify UDBRecords partial-construction cleanup
 
 - Baseline: `5fbf29156cbf1b0a4f1ce7cd94b9d6bc8f82cd39`; mainline SkipDBv2 Regression run #607 passed source contracts, the full build, and all 57 CTests.

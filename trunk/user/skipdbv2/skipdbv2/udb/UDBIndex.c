@@ -24,25 +24,22 @@ UDBIndex *UDBIndex_new(void)
 	UDBIndex *self = (UDBIndex *)calloc(1, sizeof(UDBIndex));
 	if (NULL == self)
 		return NULL;
+
 	self->file = JFile_new();
 	self->holes = List_new();
 	self->reserved = List_new();
-	if (NULL == self->file || NULL == self->holes || NULL == self->reserved) {
-		JFile_free(self->file);
-		List_free(self->holes);
-		List_free(self->reserved);
-		free(self);
-		return NULL;
-	}
+	if (NULL == self->file || NULL == self->holes || NULL == self->reserved)
+		goto failed;
+
 	UDBIndex_setPath_(self, "default");
-	if (NULL == self->file->path || NULL == self->file->logPath) {
-		JFile_free(self->file);
-		List_free(self->holes);
-		List_free(self->reserved);
-		free(self);
-		return NULL;
-	}
+	if (NULL == self->file->path || NULL == self->file->logPath)
+		goto failed;
 	return self;
+
+failed:
+	/* The normal destructor owns cleanup for every partial-construction state. */
+	UDBIndex_free(self);
+	return NULL;
 }
 
 
