@@ -59,6 +59,7 @@ int main(void)
     int original[] = {3, 1, 2};
     int large_reverse[LARGE_SORT_COUNT];
     int large_duplicates[LARGE_SORT_COUNT];
+    int median_three_killer[LARGE_SORT_COUNT];
     SortContext sort;
     SortContext guard;
     size_t oversized = (size_t)INT_MAX + 2u;
@@ -97,6 +98,10 @@ int main(void)
         for (i = 0; i < LARGE_SORT_COUNT; ++i) {
             large_reverse[i] = LARGE_SORT_COUNT - (int)i;
             large_duplicates[i] = 7;
+            if (i < LARGE_SORT_COUNT / 2)
+                median_three_killer[i] = (int)(i * 2);
+            else
+                median_three_killer[i] = (int)((i - LARGE_SORT_COUNT / 2) * 2 + 1);
         }
     }
     sort.values = large_reverse;
@@ -120,6 +125,16 @@ int main(void)
           "large duplicate input was not sorted");
     CHECK(sort.comparisons < LARGE_SORT_COUNT * 4u,
           "duplicate-heavy input triggered quadratic comparison growth");
+
+    sort.values = median_three_killer;
+    sort.comparisons = 0;
+    sort.swaps = 0;
+    Sorting_context_comp_swap_size_type_(&sort, compare_values, swap_values,
+                                         LARGE_SORT_COUNT, SDQuickSort);
+    CHECK(is_sorted(median_three_killer, LARGE_SORT_COUNT),
+          "median-of-three killer input was not sorted");
+    CHECK(sort.comparisons < LARGE_SORT_COUNT * 64u,
+          "adversarial pivot input bypassed the introspective worst-case bound");
 
     guard.values = guarded;
     guard.comparisons = 0;

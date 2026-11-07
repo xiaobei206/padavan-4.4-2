@@ -1117,10 +1117,17 @@ jobs:
                   "mgr/ipc_transport.c",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Sorting.c": [
+                  "static size_t Sorting_depthLimit_(",
                   "static int Sorting_isSorted_(",
                   "static void Sorting_quickSort_(",
+                  "static void Sorting_heapSort_(",
+                  "static void Sorting_siftDown_(",
                   "static void Sorting_quickSortRearrange_(",
                   "size - 1 > (size_t)INT_MAX",
+                  "Sorting_heapSort_(self, lb, ub);",
+                  "if (depthLimit == 0)",
+                  "--depthLimit;",
+                  "root < count / 2",
                   "while (lb < ub)",
                   "size_t leftSize, rightSize;",
                   "leftSize = equalStart - lb;",
@@ -1152,6 +1159,9 @@ jobs:
                   "large reverse-order input was not sorted",
                   "large reverse-order input triggered quadratic comparison growth",
                   "int large_duplicates[LARGE_SORT_COUNT];",
+                  "int median_three_killer[LARGE_SORT_COUNT];",
+                  "median-of-three killer input was not sorted",
+                  "adversarial pivot input bypassed the introspective worst-case bound",
                   "large duplicate input was not sorted",
                   "duplicate-heavy input triggered quadratic comparison growth",
                   "oversized = (size_t)INT_MAX + 2u;",
@@ -5495,7 +5505,9 @@ jobs:
           sorting_body = sorting_source[sorting_entry:sorting_end] if sorting_entry >= 0 and sorting_end > sorting_entry else ""
           argument_guard = sorting_body.find("if (type != SDQuickSort || size < 2 || NULL == comp || NULL == swap")
           index_limit = sorting_body.find("size - 1 > (size_t)INT_MAX")
-          sort_call = sorting_body.find("Sorting_quickSort_(&sort, 0, size - 1);")
+          sort_call = sorting_body.find(
+              "Sorting_quickSort_(&sort, 0, size - 1, Sorting_depthLimit_(size));"
+          )
           if (not sorting_body or argument_guard < 0 or index_limit < 0 or sort_call < 0 or
                   not (argument_guard < index_limit < sort_call)):
               raise SystemExit("Sorting must validate callbacks and int-index bounds before accessing the array")
@@ -5510,13 +5522,34 @@ jobs:
           if (not quick_sort_body or "while (lb < ub)" not in quick_sort_body or
                   left_partition < 0 or right_partition <= left_partition or
                   smaller_partition < right_partition or
-                  "Sorting_quickSort_(self, lb, equalStart - 1);" not in quick_sort_body or
-                  "Sorting_quickSort_(self, equalEnd + 1, ub);" not in quick_sort_body or
+                  "Sorting_quickSort_(self, lb, equalStart - 1, depthLimit);" not in quick_sort_body or
+                  "Sorting_quickSort_(self, equalEnd + 1, ub, depthLimit);" not in quick_sort_body or
                   "lb = equalEnd + 1;" not in quick_sort_body or
                   "ub = equalStart - 1;" not in quick_sort_body):
               raise SystemExit("Sorting must recurse only into the smaller strict partition and skip equal values")
           if quick_sort_body.count("Sorting_quickSort_(self,") != 2:
               raise SystemExit("Sorting must not restore unbounded two-sided recursive calls")
+          depth_guard = quick_sort_body.find("if (depthLimit == 0)")
+          heap_fallback = quick_sort_body.find("Sorting_heapSort_(self, lb, ub);")
+          depth_decrement = quick_sort_body.find("--depthLimit;")
+          first_partition = quick_sort_body.find("Sorting_quickSortRearrange_(self, lb, ub, &equalStart, &equalEnd);")
+          if (min(depth_guard, heap_fallback, depth_decrement, first_partition) < 0 or
+                  not (depth_guard < heap_fallback < depth_decrement < first_partition)):
+              raise SystemExit("Sorting must exhaust a logarithmic depth budget into heapsort before further partitioning")
+
+          heap_start = sorting_source.find("static void Sorting_heapSort_(", quick_sort_start)
+          heap_end = sorting_source.find("static void Sorting_quickSortRearrange_(", heap_start)
+          heap_body = sorting_source[heap_start:heap_end] if heap_start >= 0 and heap_end > heap_start else ""
+          sift_start = sorting_source.find("static void Sorting_siftDown_(", heap_start)
+          sift_body = sorting_source[sift_start:heap_end] if sift_start >= 0 and heap_end > sift_start else ""
+          if (not heap_body or "count = ub - lb + 1;" not in heap_body or
+                  "Sorting_siftDown_(self, lb, start, count);" not in heap_body or
+                  "Sorting_siftDown_(self, lb, 0, end);" not in heap_body or
+                  "self->swap(self->context, (int)lb, (int)(lb + end));" not in heap_body or
+                  not sift_body or "root < count / 2" not in sift_body or
+                  "size_t child = root * 2 + 1;" not in sift_body or
+                  "child + 1 < count" not in sift_body):
+              raise SystemExit("Sorting heapsort fallback must stay within the active int-indexed range")
 
           rearrange_start = sorting_source.find("static void Sorting_quickSortRearrange_(", quick_sort_end)
           rearrange_body = sorting_source[rearrange_start:] if rearrange_start >= 0 else ""
@@ -5556,6 +5589,9 @@ jobs:
                          "duplicate and negative values were not sorted",
                          "#define LARGE_SORT_COUNT 4096",
                          "large reverse-order input was not sorted",
+                         "int median_three_killer[LARGE_SORT_COUNT];",
+                         "median-of-three killer input was not sorted",
+                         "adversarial pivot input bypassed the introspective worst-case bound",
                          "oversized = (size_t)INT_MAX + 2u;",
                          "Sorting boundary test passed"):
               if needle not in sorting_test:

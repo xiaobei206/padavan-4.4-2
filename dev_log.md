@@ -1,3 +1,13 @@
+## 2026-11-07 11:08 CST — Bound Sorting against adversarial median-of-three partitions
+
+- Baseline: main commit `fb8d1667949043a99cb9d26922d8a483db9b8e84`; SkipDBv2 Regression run #508 passed.
+- Scope: `Sorting_context_comp_swap_size_type_()` and its existing `sorting_boundaries` regression.
+- The three-way median-of-three quicksort avoided duplicate-heavy degeneration and bounded recursive stack depth, but a deterministic even-then-odd permutation still drove repeated highly unbalanced partitions and quadratic comparisons.
+- Add an introspective depth budget of twice floor(log2(n)); when exhausted, heapsort the active range. Normal inputs retain the existing sorted fast path, median-of-three partitioning, and duplicate grouping. Add a 4096-element killer-permutation regression with a comparison ceiling; update Actions source/function-order contracts. Existing CMake target is reused; no new files.
+- No local C build or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 11:02 CST — Detach List removal targets from shared backing storage
 
 - Baseline: main commit `94974e71a66fdd59836c5088ee5b18de940d715e`; SkipDBv2 Regression run #42330825341 passed.
