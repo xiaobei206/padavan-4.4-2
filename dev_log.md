@@ -1,3 +1,11 @@
+## 2026-11-07 19:41 CST — Simplify PHash teardown workflow contract
+
+- Baseline: `00e572c6f47e5717ce71669ece8546a05e659394`; run #651 terminated with no jobs, logs, or check records after the indentation correction.
+- Keep the existing strict source-contract dictionary assertions for `PHash_free()` and the teardown regression, but remove the added dynamic body-order parser. This avoids extending the already-large Python contract script while preserving the explicit source and test needles; the production fix and regression remain unchanged.
+- Trigger a fresh main workflow and do not resume refactoring until it completes.
+
+---
+
 ## 2026-11-07 19:38 CST — Repair PHash teardown CI contract indentation
 
 - Baseline: `11f9262d847e577da81387376a632b5e8f5284f5`; run #650 failed immediately after adding the PHash teardown contract.
