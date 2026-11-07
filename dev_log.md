@@ -1,3 +1,13 @@
+## 2026-11-07 21:00 CST — Make UArray integer absolute value type-safe
+
+- Baseline: `dcde85885d0013b55f6a70b2448187255aa3a46a`; main SkipDBv2 Regression run #663 passed the source contracts, full target build, and all CTests.
+- Scope: `UArray_fabs()` and its `UArray_abs()` alias.
+- The generic unary-math macro converted every element to double, then converted the absolute result back to its original integer type. This overflows for signed minima and can round large unsigned values to (2^{64}) before an undefined cast.
+- Handle float arrays with `fabs`; handle signed integers with native typed negation after the existing signed-minimum preflight; leave unsigned arrays unchanged. Add signed, minimum, and UINT64 boundary regressions plus explicit Actions source contracts.
+- Existing C source, math test, workflow, and handoff log only; no new files or CMake targets. Remote Actions remains the build/test gate.
+
+---
+
 ## 2026-11-07 20:58 CST — Keep UArray_round restricted to floating-point storage
 
 - Baseline: `a53124fbe978c7c8b9e1753219dcc7ea057f185a`; main SkipDBv2 Regression run #662 passed the source contracts, full target build, and all CTests.

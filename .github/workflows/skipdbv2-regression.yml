@@ -2166,7 +2166,10 @@ jobs:
                   "UARRAY_DOP(sqrt);",
                   "UARRAY_DOP(ceil);",
                   "UARRAY_DOP(floor);",
-                  "UARRAY_DOP(fabs);",
+                  "void UArray_fabs(UArray *self)",
+                  "UArray_isSignedType(self)",
+                  "UArray_hasUnsafeNegation_(self)",
+                  "UARRAY_FOREACHASSIGN(self, i, v, (v < 0 ? -v : v));",
                   "void UArray_abs(UArray *self)",
                   "minimum = UArray_rawDoubleAt_(self, 0);",
                   "BASEKIT_API void UArray_Max(UArray *self, const UArray *other)",
@@ -4719,9 +4722,10 @@ jobs:
               guard = body.find(f"UArray_integerFloatValueIsOutOfRange_(self->itemType, {result_name})", read)
               if (not body or write < 0 or loop < 0 or read < loop or
                       guard < read or guard > write or
-                      body.find("self->itemType != CTYPE_float32_t") > loop or
+                      type_guard = body.find("self->itemType != CTYPE_float32_t")
+                      type_guard < 0 or type_guard > loop or
                       (label == "divide" and "value == 0.0" not in body)):
-                  raise SystemExit(f"UArray scalar {label} preflight order is invalid")
+                  raise SystemExit(f"UArray {label} preflight invalid")
 
 
           dot_size_start = bit_math_source.find("static size_t UArray_numericItemSize_(CTYPE itemType)")

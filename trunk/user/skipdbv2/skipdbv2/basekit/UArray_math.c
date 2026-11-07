@@ -829,7 +829,27 @@ UARRAY_DOP(log10);
 UARRAY_DOP(sqrt);
 UARRAY_DOP(ceil);
 UARRAY_DOP(floor);
-UARRAY_DOP(fabs);
+
+void UArray_fabs(UArray *self)
+{
+	if (!UArray_hasValidNumericStorage_(self) ||
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
+
+	if (self->itemType == CTYPE_float32_t ||
+		self->itemType == CTYPE_float64_t) {
+		UARRAY_FOREACHASSIGN(self, i, v, fabs((double)v));
+		UArray_changed(self);
+		return;
+	}
+
+	if (!UArray_isSignedType(self) || UArray_hasUnsafeNegation_(self))
+		return;
+
+	/* Avoid double rounding and reject signed minima before native negation. */
+	UARRAY_FOREACHASSIGN(self, i, v, (v < 0 ? -v : v));
+	UArray_changed(self);
+}
 
 void UArray_abs(UArray *self)
 {

@@ -1627,6 +1627,62 @@ static int test_unary_transforms(void)
         }
     }
 
+    {
+        const int32_t signedInput[] = {-12, 3};
+        const int32_t signedExpected[] = {12, 3};
+        const int64_t minimumInput[] = {INT64_MIN, -7};
+        const uint64_t unsignedInput[] = {UINT64_MAX, UINT64_MAX - 1};
+        UArray *signedArray = UArray_newWithData_type_size_copy_(
+            (void *)signedInput, CTYPE_int32_t, 2, 1);
+        UArray *minimumArray = UArray_newWithData_type_size_copy_(
+            (void *)minimumInput, CTYPE_int64_t, 2, 1);
+        UArray *unsignedArray = UArray_newWithData_type_size_copy_(
+            (void *)unsignedInput, CTYPE_uint64_t, 2, 1);
+        if (NULL == signedArray || NULL == minimumArray || NULL == unsignedArray) {
+            UArray_free(signedArray);
+            UArray_free(minimumArray);
+            UArray_free(unsignedArray);
+            fail("UArray integer absolute-value fixture allocation failed");
+            goto cleanup;
+        }
+
+        signedArray->hash = (uintptr_t)0x7171;
+        UArray_fabs(signedArray);
+        if (memcmp(signedArray->data, signedExpected, sizeof(signedExpected)) != 0 ||
+            signedArray->hash != 0) {
+            UArray_free(signedArray);
+            UArray_free(minimumArray);
+            UArray_free(unsignedArray);
+            fail("UArray fabs did not safely normalize signed integer values");
+            goto cleanup;
+        }
+
+        minimumArray->hash = (uintptr_t)0x8181;
+        UArray_abs(minimumArray);
+        if (memcmp(minimumArray->data, minimumInput, sizeof(minimumInput)) != 0 ||
+            minimumArray->hash != (uintptr_t)0x8181) {
+            UArray_free(signedArray);
+            UArray_free(minimumArray);
+            UArray_free(unsignedArray);
+            fail("UArray absolute value did not reject signed minimum values atomically");
+            goto cleanup;
+        }
+
+        unsignedArray->hash = (uintptr_t)0x9191;
+        UArray_fabs(unsignedArray);
+        if (memcmp(unsignedArray->data, unsignedInput, sizeof(unsignedInput)) != 0 ||
+            unsignedArray->hash != (uintptr_t)0x9191) {
+            UArray_free(signedArray);
+            UArray_free(minimumArray);
+            UArray_free(unsignedArray);
+            fail("UArray fabs changed unsigned integer storage");
+            goto cleanup;
+        }
+        UArray_free(signedArray);
+        UArray_free(minimumArray);
+        UArray_free(unsignedArray);
+    }
+
     empty->hash = 0x5151;
     pointerArray->hash = 0x6161;
     for (i = 0; i < sizeof(transforms) / sizeof(transforms[0]); ++i) {
