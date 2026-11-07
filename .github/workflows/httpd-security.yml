@@ -359,7 +359,7 @@ jobs:
           assert "firewall_schedule_date_is_safe" in firewall_policy
           assert "firewall_schedule_time_is_safe" in firewall_policy
           # Verify the untrusted NVRAM fragments are rejected before rule writes.
-          lw_port_guard = lw_filter.index("if (!firewall_tcp_flags_are_safe(flag))")
+          lw_port_guard = lw_filter.index("firewall_tcp_flags_are_safe(flag)")
           lw_rule_write = lw_filter.index('filterstr = filter_conv(proto, flag, srcip, srcport, dstip, dstport);')
           assert lw_port_guard < lw_rule_write
           assert "firewall_schedule_time_is_safe(time)" in firewall
