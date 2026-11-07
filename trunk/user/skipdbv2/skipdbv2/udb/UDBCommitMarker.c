@@ -79,6 +79,9 @@ int UDBCommitMarker_write(UDBCommitMarker *self, int flag)
         fseek(self->file,0,SEEK_SET)!=0 || fputc(flag,self->file)==EOF ||
         fflush(self->file)!=0) return -1;
     fd=fileno(self->file); if(fd<0)return -1;
+    /* The marker format is exactly one byte; never preserve stale tail data. */
+    if (ftruncate(fd, (off_t)1) != 0)
+        return -1;
     /* Share the EINTR-safe platform durability barrier used by JFile. */
     return JFile_hardSyncFileDescriptor_(NULL,fd);
 }

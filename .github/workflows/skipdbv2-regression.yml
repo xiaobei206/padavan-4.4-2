@@ -91,6 +91,7 @@ jobs:
                   "after.st_uid!=geteuid()",
                   "after.st_nlink!=1",
                   "fchmod(fd,0600)",
+                  "ftruncate(fd, (off_t)1)",
                   "JFile_verifyLog(&journal)",
                   "JFile_hardSyncFileDescriptor_(NULL,fd)",
                   "UDBCommitMarker_artifactsAreEmpty",
@@ -768,6 +769,8 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/commit_marker.c": [
                   "UDBCommitMarker_write(&marker,0)",
                   "UDBCommitMarker_write(&marker,1)",
+                  "trailing marker bytes rejected before rewrite",
+                  "marker rewrite retained trailing bytes",
                   "symlink followed",
                   "hard-linked marker accepted",
                   "hard-linked journal accepted",
@@ -3252,13 +3255,17 @@ jobs:
               if marker_write_start >= 0 and marker_write_end > marker_write_start
               else ""
           )
+          marker_truncate_order = marker_write_body.find("ftruncate(fd, (off_t)1)")
+          marker_sync_order = marker_write_body.find("return JFile_hardSyncFileDescriptor_(NULL,fd);")
           if (
               not marker_write_body or
+              marker_truncate_order < 0 or
+              marker_sync_order <= marker_truncate_order or
               "return JFile_hardSyncFileDescriptor_(NULL,fd);" not in marker_write_body or
               "return fcntl(fd,F_FULLFSYNC,0);" in marker_write_body or
               "return fsync(fd);" in marker_write_body
           ):
-              raise SystemExit("UDB commit marker writes must use the shared EINTR-safe durability barrier")
+              raise SystemExit("UDB commit marker writes must truncate to one byte before the shared EINTR-safe durability barrier")
 
           recovery_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecovery.c"

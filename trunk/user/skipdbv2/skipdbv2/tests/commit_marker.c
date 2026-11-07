@@ -19,7 +19,7 @@ static int journal(const char *p,int term){
 #define CHECK(x,m) do{if(!(x)){result=fail(m);goto done;}}while(0)
 int main(void){
  char dir[]="/tmp/udb-marker.XXXXXX",mp[256]="",dp[256]="",jp[256]="",tp[256]="",lp[256]="",hp[256]="";
- const char *paths[2];UDBCommitMarker marker={NULL,NULL};int result=0,fd=-1;char c='d';
+ const char *paths[2];UDBCommitMarker marker={NULL,NULL};int result=0,fd=-1;char c='d';struct stat marker_stat;
  CHECK(mkdtemp(dir)!=NULL,"mkdtemp");
  CHECK(join(mp,sizeof(mp),dir,"marker")&&join(dp,sizeof(dp),dir,"data")&&
  join(jp,sizeof(jp),dir,"journal")&&join(tp,sizeof(tp),dir,"target")&&
@@ -32,6 +32,10 @@ int main(void){
  CHECK(UDBCommitMarker_write(&marker,0)==0&&UDBCommitMarker_read(&marker)==0,"clean marker roundtrip");
  CHECK(UDBCommitMarker_write(&marker,1)==0&&UDBCommitMarker_read(&marker)==1,"commit marker roundtrip");
  CHECK(UDBCommitMarker_write(&marker,2)==-1&&UDBCommitMarker_read(&marker)==1,"invalid marker state");
+ fd=open(mp,O_WRONLY|O_APPEND);CHECK(fd>=0&&write(fd,"tail",4)==4&&close(fd)==0,"append marker tail");fd=-1;
+ CHECK(UDBCommitMarker_read(&marker)==-2,"trailing marker bytes rejected before rewrite");
+ CHECK(UDBCommitMarker_write(&marker,0)==0&&stat(mp,&marker_stat)==0&&marker_stat.st_size==1&&
+ UDBCommitMarker_read(&marker)==0,"marker rewrite retained trailing bytes");
  CHECK(UDBCommitMarker_setPath_(&marker,dp)==-1,"path mutation while open");
  CHECK(UDBCommitMarker_syncParentDirectory(mp)==0,"directory sync");
  UDBCommitMarker_close(&marker);

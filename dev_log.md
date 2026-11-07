@@ -1,3 +1,14 @@
+## 2026-11-07 16:19 CST — Keep UDB commit-marker files exactly one byte
+
+- Baseline: `db077c098b219810250a1cbf0b44f6c91191a6d2`; mainline SkipDBv2 Regression run #588 passed the source contracts, full build, and all 57 CTests.
+- Scope: the durable marker writer in `udb/UDBCommitMarker.c` and its existing `commit_marker_test`.
+- The marker reader rejects any trailing byte, but the writer only overwrote byte zero. A stale tail could therefore survive a successful write and durability sync, leaving a marker that the next startup would reject as corrupt.
+- After flushing the new flag, truncate the opened marker to exactly one byte before the shared EINTR-safe sync barrier. Truncation failure propagates as a failed write, preserving the caller's fail-closed behavior.
+- Extend the existing marker regression by appending trailing bytes, confirming the reader rejects the malformed representation, then rewriting and verifying the canonical one-byte file. Tighten the Actions source contract to require truncate-before-sync. Existing CMake target reused; no new files, APIs, or declarations.
+- No local compiler/CTest result is claimed; remote Actions is the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 16:02 CST — Align Date overflow source contracts with errno capture
 
 - Baseline: `e4c18fdc66a1e8aa65e6100b1d7ee247419dddda`; SkipDBv2 Regression run #587 failed in the early XY-C1 source-contract step before configure/build.
