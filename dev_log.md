@@ -1,3 +1,16 @@
+## 2026-11-07 13:43 CST — Repair PortableStrptime source-contract mapping
+
+- Baseline: main commit `7f7e090420e834d855d423d35e534053874e2c1e`; Actions run #549 failed immediately with zero allocated jobs, before checkout or build.
+- The preceding change accidentally inserted a second `PortableStrptime.c` key into the workflow's Python source-contract mapping and displaced the indentation of the following test key. The duplicate dictionary key also shadowed the existing source-contract list.
+- Merge the unsupported-directive assertions into the original C-source contract, remove the duplicate key, restore the test key's mapping indentation, and retain the new `%Q`/`%z` regression needles in the existing test contract.
+- No C implementation or test code changed in this CI-only repair. CMake registration remains unchanged.
+
+### Validation
+- Static preflight requires exactly one source key and one test key, verifies both are indented as sibling mapping entries, confirms the original source contract remains present alongside the new default-branch needles, and confirms all new regression needles remain in the test block.
+- Run #549 failed before a job was created; this push triggers the corrected workflow run and is the next build/CTest gate.
+
+---
+
 ## 2026-11-07 13:41 CST — Reject unsupported PortableStrptime directives
 
 - Baseline: main commit `5621c6f0e847c743ba6f5dee99341239b2234840`; SkipDBv2 Regression run #548 passed source contracts, configure, the complete build, and all CTest cases.

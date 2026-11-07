@@ -1516,13 +1516,11 @@ jobs:
                   "if (i < 0 || i > 60)",
                   "if (i < 0 || i > 9999)",
                   "if (i < 0 || i > 99)",
-              ],
-                            "trunk/user/skipdbv2/skipdbv2/basekit/PortableStrptime.c": [
                   "default:",
                   "Never report success for an unsupported directive.",
                   "return NULL;",
               ],
-"trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c": [
+              "trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c": [
                   "char space_day[] = \" 6\";",
                   "char space_hour24[] = \" 7\";",
                   "char space_hour12[] = \" 7\";",
