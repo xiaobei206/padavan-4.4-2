@@ -436,7 +436,7 @@ jobs:
                   "SkipDB_count(source)!=4",
                   "cached cross-database forward pointer was accepted",
                   "cached forward PID mismatch was accepted",
-                  "SkipDB_list_next(source,prefix,cursor)"
+                  "SkipDB_list_next(source,prefix,cursor)",
                   "SkipDBCursor_goto_(cursor,Datum_FromCString_(\"alpine\"))",
                   "cache eviction lost active cursor record",
                   "cache eviction cursor lazy reload failed",

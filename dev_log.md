@@ -1,3 +1,11 @@
+## 2026-11-07 15:29 CST — Repair adjacent SkipDB source-contract entries
+
+- Baseline: `5f3e2fa7d3a2e5de4381afe028e3e1c0a02e6dc3`; run #576 stopped in the XY-C1 source-contract phase before configure/build.
+- The new regression token was inserted into the existing `skipdb_core_layers.c` contract array without a trailing comma, concatenating it with the following cursor token and making the contract parser search for a nonexistent combined string.
+- Restore the array delimiter only. The SkipDB code and regression fixture are unchanged.
+- No local build is claimed; rerun source contracts, compile, and CTest on main.
+
+---
 ## 2026-11-07 15:27 CST — Validate cached SkipDB forward-link identity
 
 - Baseline: `d2771b90bb65ea3465d6934c79638503f9816cab`; SkipDBv2 Regression run #575 passed source contracts, configure, full build, and CTest.
