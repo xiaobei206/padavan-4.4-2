@@ -1,3 +1,12 @@
+## 2026-11-07 21:02 CST — Repair scalar-math Actions contract syntax
+
+- Baseline: `9099b75d6fa0c70ae07c4657d0fdac4194a2b737`; main run #663 passed, while run #664 stopped in the source-contract step before configure/build.
+- Cause: the scalar-operation contract's `type_guard` assignment was accidentally placed inside a Python boolean expression, producing a syntax error.
+- Move the assignment before the condition and retain the intended type-guard ordering assertion. Production C and regression-test content are unchanged.
+- Existing workflow and handoff log only; no new files or build-target changes.
+
+---
+
 ## 2026-11-07 21:00 CST — Make UArray integer absolute value type-safe
 
 - Baseline: `dcde85885d0013b55f6a70b2448187255aa3a46a`; main SkipDBv2 Regression run #663 passed the source contracts, full target build, and all CTests.

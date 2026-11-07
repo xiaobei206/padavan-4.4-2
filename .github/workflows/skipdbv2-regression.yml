@@ -4720,9 +4720,9 @@ jobs:
               loop = body.find("for (i = 0; i < self->size; ++i)")
               read = body.find(f"UArray_rawDoubleAt_(self, i) {operator} value", loop)
               guard = body.find(f"UArray_integerFloatValueIsOutOfRange_(self->itemType, {result_name})", read)
+              type_guard = body.find("self->itemType != CTYPE_float32_t")
               if (not body or write < 0 or loop < 0 or read < loop or
                       guard < read or guard > write or
-                      type_guard = body.find("self->itemType != CTYPE_float32_t")
                       type_guard < 0 or type_guard > loop or
                       (label == "divide" and "value == 0.0" not in body)):
                   raise SystemExit(f"UArray {label} preflight invalid")
