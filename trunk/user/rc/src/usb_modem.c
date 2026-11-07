@@ -154,7 +154,7 @@ find_modem_node(const char* pattern, int fetch_pref, int fetch_devnum, int fetch
 		node_pref = 0;
 		node_devnum = 0;
 		sprintf(node_fname, "%s/%s%d", MODEM_NODE_DIR, pattern, i);
-		fp = fopen(node_fname, "r+");
+		fp = fopen(node_fname, "r");
 		if (fp) {
 			char buf[32];
 			while (fgets(buf, sizeof(buf), fp)) {

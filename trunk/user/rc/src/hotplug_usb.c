@@ -31,6 +31,7 @@
 #include <usb_info.h>
 
 #include "rc.h"
+#include "modem_node_file.h"
 
 static char *
 _basename(char *name)
@@ -220,9 +221,8 @@ int mdev_sr_main(int argc, char **argv)
 
 int mdev_wdm_main(int argc, char **argv)
 {
-	FILE *fp;
-	int isLock, path_len;
-	char node_fname[64];
+	int isLock, data_len;
+	char node_data[64];
 	char *device_name, *action;
 
 	if (argc != 3){
@@ -235,11 +235,7 @@ int mdev_wdm_main(int argc, char **argv)
 
 	usb_dbg("(%s): action=%s.\n", device_name, action);
 
-	if (!isWDMNode(device_name))
-		return 1;
-
-	path_len = snprintf(node_fname, sizeof(node_fname), "%s/%s", MODEM_NODE_DIR, device_name);
-	if (path_len < 0 || path_len >= (int)sizeof(node_fname))
+	if (!isWDMNode(device_name) || !modem_node_name_is_safe(device_name))
 		return 1;
 
 	// Check Lock.
@@ -250,17 +246,16 @@ int mdev_wdm_main(int argc, char **argv)
 
 	// If remove the device?
 	if (!get_hotplug_action(action)){
-		unlink(node_fname);
+		modem_node_file_remove(MODEM_NODE_DIR, device_name);
 		goto out_unlock;
 	}
 
-	// Write node file.
-	mkdir_if_none(MODEM_NODE_DIR, "777");
-	fp = fopen(node_fname, "w+");
-	if (fp) {
-		fprintf(fp, "pref=%d\n", 1);
-		fprintf(fp, "devnum=%d\n", 0); // todo
-		fclose(fp);
+	// Publish root-managed metadata through a private staging file.
+	data_len = snprintf(node_data, sizeof(node_data), "pref=%d\ndevnum=%d\n", 1, 0);
+	if (data_len < 0 || data_len >= (int)sizeof(node_data) ||
+	    modem_node_file_write(MODEM_NODE_DIR, device_name, node_data) != 0) {
+		usb_dbg("(%s): Failed to publish modem node metadata.\n", device_name);
+		goto out_unlock;
 	}
 
 	usb_dbg("(%s): Success!\n", device_name);
@@ -273,9 +268,8 @@ out_unlock:
 
 int mdev_net_main(int argc, char **argv)
 {
-	FILE *fp;
-	int isLock, devnum, path_len;
-	char usb_port_id[64], node_fname[64];
+	int isLock, devnum, data_len;
+	char usb_port_id[64], node_data[128];
 	char *device_name, *action;
 
 	if (argc != 3){
@@ -288,11 +282,7 @@ int mdev_net_main(int argc, char **argv)
 
 	usb_dbg("(%s): action=%s.\n", device_name, action);
 
-	if (!is_usbnet_interface(device_name))
-		return 1;
-
-	path_len = snprintf(node_fname, sizeof(node_fname), "%s/%s", MODEM_NODE_DIR, device_name);
-	if (path_len < 0 || path_len >= (int)sizeof(node_fname))
+	if (!is_usbnet_interface(device_name) || !modem_node_name_is_safe(device_name))
 		return 1;
 
 	// Check Lock.
@@ -301,7 +291,7 @@ int mdev_net_main(int argc, char **argv)
 
 	// If remove the device?
 	if(!get_hotplug_action(action)){
-		unlink(node_fname);
+		modem_node_file_remove(MODEM_NODE_DIR, device_name);
 		
 		ifconfig(device_name, 0, "0.0.0.0", NULL);
 		
@@ -317,14 +307,14 @@ int mdev_net_main(int argc, char **argv)
 	if (get_usb_port_by_device(device_name, usb_port_id, sizeof(usb_port_id)))
 		devnum = get_usb_devnum(usb_port_id);
 
-	// Write node file.
-	mkdir_if_none(MODEM_NODE_DIR, "777");
-	fp = fopen(node_fname, "w+");
-	if (fp) {
-		fprintf(fp, "pref=%d\n", 1);
-		fprintf(fp, "devnum=%d\n", devnum);
-		fprintf(fp, "portid=%s\n", usb_port_id);
-		fclose(fp);
+	// Publish root-managed metadata through atomic replacement.
+	data_len = snprintf(node_data, sizeof(node_data),
+			    "pref=%d\ndevnum=%d\nportid=%s\n",
+			    1, devnum, usb_port_id);
+	if (data_len < 0 || data_len >= (int)sizeof(node_data) ||
+	    modem_node_file_write(MODEM_NODE_DIR, device_name, node_data) != 0) {
+		usb_dbg("(%s): Failed to publish modem node metadata.\n", device_name);
+		goto out_unlock;
 	}
 
 	if (nvram_invmatch("modem_prio", "0") && nvram_match("modem_rule", "1") && nvram_match("modem_type", "3"))
@@ -340,9 +330,8 @@ out_unlock:
 
 int mdev_tty_main(int argc, char **argv)
 {
-	FILE *fp;
-	int isLock, devnum, has_int_pipe, path_len;
-	char usb_port_id[64], usb_interface_id[64], node_fname[64];
+	int isLock, devnum, has_int_pipe, data_len;
+	char usb_port_id[64], usb_interface_id[64], node_data[128];
 	char *device_name, *action;
 
 	if (argc != 3){
@@ -354,11 +343,8 @@ int mdev_tty_main(int argc, char **argv)
 	action = argv[2];
 	usb_dbg("(%s): action=%s.\n", device_name, action);
 
-	if (!isSerialNode(device_name) && !isACMNode(device_name))
-		return 1;
-
-	path_len = snprintf(node_fname, sizeof(node_fname), "%s/%s", MODEM_NODE_DIR, device_name);
-	if (path_len < 0 || path_len >= (int)sizeof(node_fname))
+	if ((!isSerialNode(device_name) && !isACMNode(device_name)) ||
+	    !modem_node_name_is_safe(device_name))
 		return 1;
 
 	// Check Lock.
@@ -367,7 +353,7 @@ int mdev_tty_main(int argc, char **argv)
 
 	// If remove the device?
 	if(!get_hotplug_action(action)){
-		unlink(node_fname);
+		modem_node_file_remove(MODEM_NODE_DIR, device_name);
 		
 		if (get_usb_modem_wan(0))
 			notify_rc("on_unplug_usb_modem");
@@ -387,14 +373,14 @@ int mdev_tty_main(int argc, char **argv)
 			devnum = get_usb_devnum(usb_port_id);
 	}
 
-	// Write node file.
-	mkdir_if_none(MODEM_NODE_DIR, "777");
-	fp = fopen(node_fname, "w+");
-	if (fp) {
-		fprintf(fp, "pref=%d\n", (has_int_pipe) ? 1 : 0);
-		fprintf(fp, "devnum=%d\n", devnum);
-		fprintf(fp, "portid=%s\n", usb_port_id);
-		fclose(fp);
+	// Publish root-managed metadata through atomic replacement.
+	data_len = snprintf(node_data, sizeof(node_data),
+			    "pref=%d\ndevnum=%d\nportid=%s\n",
+			    (has_int_pipe) ? 1 : 0, devnum, usb_port_id);
+	if (data_len < 0 || data_len >= (int)sizeof(node_data) ||
+	    modem_node_file_write(MODEM_NODE_DIR, device_name, node_data) != 0) {
+		usb_dbg("(%s): Failed to publish modem node metadata.\n", device_name);
+		goto out_unlock;
 	}
 
 	if (nvram_invmatch("modem_prio", "0") && nvram_match("modem_rule", "1") && nvram_invmatch("modem_type", "3"))

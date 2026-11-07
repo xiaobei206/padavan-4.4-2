@@ -1,3 +1,20 @@
+## 2026-11-08 07:29 CST — Secure USB modem hotplug metadata staging against /tmp symlink races
+
+### Finding and change
+- **Base main SHA:** \`faf672ce13f4b759ce8b8bfefca2fa92c365b5c8\`. This rotates the governance audit from the completed Samba config checkpoint into USB hotplug/storage rather than returning to SkipDBv2-only work.
+- **P2 local trust-boundary finding:** \`mdev_wdm_main()\`, \`mdev_net_main()\` and \`mdev_tty_main()\` created predictable \`/tmp/modem/<device>\` metadata with \`mkdir_if_none(...,"777")\` and \`fopen(node_fname,"w+")\`. The directory was world-writable and not sticky. A local account able to place a symlink in that directory could make a later root hotplug event follow the link and truncate another root-writable file. This is a local filesystem race in the modem metadata path, not unauthenticated remote access.
+- **Fix:** new \`modem_node_file.h\` validates device basenames, creates/checks \`/tmp/modem\` as an effective-UID-owned real directory with mode 0755, writes through a unique \`mkstemp\` staging file, and atomically renames it into place. A pre-existing destination symlink is replaced as a directory entry rather than followed. Unplug cleanup uses the same validated directory/name helper. The only reader, \`usb_modem.c::find_modem_node()\`, now opens metadata read-only (\`"r"\`) instead of \`"r+"\`.
+- Added \`tests/modem_node_file.c\` for basename validation, ownership/mode, atomic publication, destination-symlink victim preservation, symlink-parent rejection and cleanup. The workflow compiles it with GNU89 \`-Wall -Wextra -Werror\`, runs it, and verifies all three production writer/remover call sites and both push/PR path filters.
+- **Scope boundary:** this does not audit the separate block-storage \`hotplug_stor.c\` → \`automount.sh\` mount/unmount path, disk enumeration, root-partition rejection, filesystem helpers, or every other /tmp producer. Those remain open. Production MIPS build, firmware/TRX and hardware are not run.
+
+### Verification
+- L1 source review of the three modem metadata producers and the shared reader: PASS.
+- L2 exact helper regression and source-contract Actions: PENDING until the current code commit's exact-head workflow completes. Do not infer success from the prior Samba run.
+- L3 production RC/MIPS build, L4 router/hardware test: NOT RUN.
+
+### Next
+- Confirm the exact-head Actions result. Then continue block-storage hotplug (\`hotplug_stor.c\`, \`automount.sh\`, mount/unmount and swapoff ordering), \`libdisk\` path ownership, and destructive-operation gates. Keep Samba's remaining FTP/NFS compatibility gaps, HTTPD/CGI/auth, firewall rollback/IPv6 parity and init/service lifecycle in the global ledger.
+
 ## 2026-11-08 07:24 CST — Use the shared ACL grant predicate for every guest decision
 
 - Final source review after the first Samba config commit found one remaining direct `guest_right >= 1` branch on the `guest ok` directive. It was logically equivalent for the validated libdisk range but bypassed the new explicit helper and weakened the source-contract guarantee. Replaced it with `samba_acl_right_can_read(guest_right)`; the workflow now rejects remaining raw guest/user right-threshold comparisons inside the config writer.

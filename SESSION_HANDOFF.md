@@ -1,4 +1,14 @@
-## Latest resumable checkpoint — Samba config generation and ACL policy fail-closed hardening
+## Latest resumable checkpoint — USB modem hotplug metadata symlink-race hardening
+
+- **Base main SHA:** \`faf672ce13f4b759ce8b8bfefca2fa92c365b5c8\`; current work rotates from the completed Samba ACL/config checkpoint into USB modem hotplug storage.
+- **Finding:** \`hotplug_usb.c\` used predictable \`/tmp/modem/<device>\` paths, \`mkdir_if_none(...,"777")\`, and \`fopen(...,"w+")\` in the WDM, USB-net and serial/ACM event handlers. A world-writable non-sticky metadata directory permits a local symlink race against root hotplug writes.
+- **Changes committed/pending CI:** new \`modem_node_file.h\` validates basenames and a real effective-UID-owned directory (0755), stages with \`mkstemp\`, then atomically renames; removal uses validated directory/name. Three metadata producers now use the helper; \`usb_modem.c::find_modem_node()\` switched its read-only consumer from \`"r+"\` to \`"r"\`. New \`tests/modem_node_file.c\` covers name validation, directory ownership/mode, atomic output, destination symlink victim preservation and symlink-parent rejection. The workflow now compiles/runs that test and asserts production source wiring for both push and pull-request paths.
+- **Changed paths:** \`trunk/user/rc/src/hotplug_usb.c\`; \`trunk/user/rc/src/usb_modem.c\`; new \`trunk/user/rc/src/modem_node_file.h\`; new \`trunk/user/rc/src/tests/modem_node_file.c\`; \`.github/workflows/httpd-security.yml\`; this handoff, roadmap and dev log.
+- **Validation status:** L1 scoped review PASS. Exact-head L2 workflow PENDING; code commit SHA and Actions run must be filled after creation and checked. Production MIPS object/image and physical-router tests NOT RUN.
+- **Still open:** this is not a full USB/storage audit. Block-disk \`hotplug_stor.c\`, \`automount.sh\`, mount/unmount/swapoff ordering, removable-media path provenance, filesystem and partition handling, and destructive gates remain unreviewed. Init/service ordering and other /tmp producers remain open.
+- **Next:** after exact-head CI, continue block-storage mount/unmount and disk path lifecycle; retain remaining FTP/NFS, HTTPD/CGI/auth, firewall rollback/IPv6, WAN/PPP and init/service items on the whole-userland ledger.
+
+## Previous resumable checkpoint — Samba config generation and ACL policy fail-closed hardening
 
 - **Base main SHA:** `0f44a88f2944c3795360a24370ef3dbd44460f0d`; task resumes the previously unfinished Samba ACL/configuration review. Current branch is `main`; **Verified code/test SHA:** `389f62001b607d70c0f4ba3906a830d4c0000ed0`; exact-head Actions [run 42425408455](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42425408455) SUCCESS, all 16 recorded steps succeeded.
 - **Reviewed paths/functions:** `services_ex.c::write_smb_conf_header()`; `services_stor.c::write_smb_conf()`, `run_samba()`, and `clean_smbd_trash()`; `samba_share_policy.h`; `tests/samba_share_policy.c`; `libdisk/src/disk_share.c::get_account_list()/get_permission()`; `rc.h::SAMBA_CONF`; workflow and `mtd_storage.sh`.

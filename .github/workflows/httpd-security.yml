@@ -37,6 +37,10 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
       - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/hotplug_usb.c"
+      - "trunk/user/rc/src/usb_modem.c"
+      - "trunk/user/rc/src/modem_node_file.h"
+      - "trunk/user/rc/src/tests/modem_node_file.c"
       - "trunk/user/rc/src/samba_passdb_policy.h"
       - "trunk/user/rc/src/tests/samba_passdb_policy.c"
       - "trunk/user/samba36/patches/111-owrt_smbpasswd.patch"
@@ -105,6 +109,10 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
       - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/hotplug_usb.c"
+      - "trunk/user/rc/src/usb_modem.c"
+      - "trunk/user/rc/src/modem_node_file.h"
+      - "trunk/user/rc/src/tests/modem_node_file.c"
       - "trunk/user/rc/src/samba_passdb_policy.h"
       - "trunk/user/rc/src/tests/samba_passdb_policy.c"
       - "trunk/user/samba36/patches/111-owrt_smbpasswd.patch"
@@ -387,6 +395,38 @@ jobs:
           assert "update_resolvconf(0, 0);" in man_down
           assert 'notify_rc("restart_firewall_wan");' in man_down
           print("DHCP lease normalization, route reconciliation, and resolver refresh contracts: OK")
+          PY
+
+      - name: Verify USB modem node metadata staging
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/modem_node_file.c \
+            -o /tmp/modem_node_file
+          /tmp/modem_node_file
+          python3 - <<'PY'
+          from pathlib import Path
+
+          hotplug = Path("trunk/user/rc/src/hotplug_usb.c").read_text()
+          reader = Path("trunk/user/rc/src/usb_modem.c").read_text()
+          helper = Path("trunk/user/rc/src/modem_node_file.h").read_text()
+          regression = Path("trunk/user/rc/src/tests/modem_node_file.c").read_text()
+          assert '#include "modem_node_file.h"' in hotplug
+          assert hotplug.count("modem_node_file_write(MODEM_NODE_DIR, device_name, node_data)") == 3
+          assert hotplug.count("modem_node_file_remove(MODEM_NODE_DIR, device_name)") == 3
+          assert 'fopen(node_fname, "w+")' not in hotplug
+          assert 'mkdir_if_none(MODEM_NODE_DIR, "777")' not in hotplug
+          assert hotplug.count("modem_node_name_is_safe(device_name)") == 3
+          assert "lstat(directory, &st)" in helper
+          assert "st.st_uid != geteuid()" in helper
+          assert "chmod(directory, 0755)" in helper
+          assert "mkstemp(staging)" in helper and "rename(staging, path)" in helper
+          assert "fchmod(fd, 0644)" in helper
+          assert 'fopen(node_fname, "r")' in reader
+          assert 'fopen(node_fname, "r+")' not in reader
+          assert "symlink(outside_file, link_path)" in regression
+          print("USB hotplug metadata path safety and atomic replacement: OK")
           PY
 
       - name: Verify Samba share configuration trust boundaries
