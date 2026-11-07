@@ -1,3 +1,13 @@
+## 2026-11-07 18:53 CST — Reject foreign records from dirty and PID caches
+
+- Baseline: `e5fbfd7d87efdf80b431b8dbd264d76a378b80b7`; SkipDBv2 Regression run #629 passed the integration contracts, full build, and all 57 CTests.
+- Scope: `SkipDB_noteDirtyRecord_()` and `SkipDB_noteAssignedPidToRecord_()` in `SkipDBCache.c`.
+- Both notification paths validated NULL/open state but not record ownership. A record from another database could be queued for saving in the wrong transaction or overwrite that database's PID-to-record cache entry.
+- Reject records unless `record->sdb == self` before queue insertion or PID-cache mutation. Extend the existing two-database core regression to assert the foreign record leaves dirty-queue length and PID-cache mapping unchanged, and strengthen static/dynamic Actions source contracts.
+- Reuse existing files, declarations, and CTest target; no new source files or CMake changes. No local compiler/CTest result is claimed; GitHub Actions remains the build/runtime gate.
+
+---
+
 ## 2026-11-07 18:51 CST — Validate cached forward-link PID accessors
 
 - Baseline: `40917e5041902c20bef3c038f14cb5386e78e2fe`; SkipDBv2 Regression run #628 passed the integration/source contracts, complete build, and all 57 CTests.

@@ -33,7 +33,7 @@ void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)
 
 void SkipDB_noteDirtyRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	if (NULL == self || NULL == r || !SkipDB_isOpen(self))
+	if (NULL == self || NULL == r || r->sdb != self || !SkipDB_isOpen(self))
 		return;
 	/* A dirty record omitted from this queue would be silently skipped at sync. */
 	if (NULL == self->dirtyRecords || NULL == self->udb ||
@@ -48,7 +48,7 @@ void SkipDB_noteAssignedPidToRecord_(SkipDB *self, SkipDBRecord *r)
 {
 	PID_TYPE pid;
 
-	if (NULL == self || NULL == r || !SkipDB_isOpen(self))
+	if (NULL == self || NULL == r || r->sdb != self || !SkipDB_isOpen(self))
 		return;
 	pid = SkipDBRecord_pid(r);
 	if (pid == 0)

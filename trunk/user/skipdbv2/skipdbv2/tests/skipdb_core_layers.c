@@ -191,6 +191,28 @@ int main(void)
      foreign_record->youngerRecord!=foreign_younger){
    fprintf(stderr,"foreign record corrupted cache age-list ownership\n");goto done;
   }
+  /* Foreign records must never enter this DB's dirty queue or PID index. */
+  {
+   size_t dirty_count;
+   PID_TYPE foreign_pid;
+   SkipDBRecord *mapped_before;
+   if(NULL==source->dirtyRecords||NULL==source->pidToRecord){
+    fprintf(stderr,"database-owned record registries are unavailable\n");goto done;
+   }
+   dirty_count=source->dirtyRecords->size;
+   foreign_pid=SkipDBRecord_pid(foreign_record);
+   if(foreign_pid==0){
+    fprintf(stderr,"foreign PID registry fixture has no persistent PID\n");goto done;
+   }
+   mapped_before=(SkipDBRecord *)PHash_at_(source->pidToRecord,(void *)foreign_pid);
+   SkipDB_noteDirtyRecord_(source,foreign_record);
+   SkipDB_noteAssignedPidToRecord_(source,foreign_record);
+   if(source->dirtyRecords->size!=dirty_count||
+      PHash_at_(source->pidToRecord,(void *)foreign_pid)!=mapped_before||
+      !SkipDB_isOpen(source)){
+    fprintf(stderr,"foreign record polluted another database's dirty queue or PID index\n");goto done;
+   }
+  }
  }
  /* Link writes must reject a record owned by another database before mutation. */
  {

@@ -454,6 +454,7 @@ jobs:
                   "SkipDB_repairCacheAgeListForCleanup_(self);",
                   "SkipDB: refusing cache eviction with an invalid age list",
                   "void SkipDB_noteDirtyRecord_(SkipDB *self, SkipDBRecord *r)",
+                  "void SkipDB_noteAssignedPidToRecord_(SkipDB *self, SkipDBRecord *r)",
                   "static void SkipDB_clearCacheMarks_(SkipDB *self)",
                   "static void SkipDB_markRecentCacheRecords_(SkipDB *self, size_t lowMark)",
                   "static void SkipDB_preserveMarkedCacheLinks_(SkipDB *self)",
@@ -3584,6 +3585,27 @@ jobs:
               raise SystemExit(
                   "SkipDB cache-age updates must validate record ownership before touching counts or age links"
               )
+
+          dirty_start = cache_source.find(
+              "void SkipDB_noteDirtyRecord_(SkipDB *self, SkipDBRecord *r)"
+          )
+          assigned_start = cache_source.find(
+              "void SkipDB_noteAssignedPidToRecord_(SkipDB *self, SkipDBRecord *r)"
+          )
+          dirty_end = cache_source.find(chr(10) + "void SkipDB_noteAssignedPidToRecord_", dirty_start)
+          assigned_end = cache_source.find(chr(10) + "void SkipDB_noteWillFreeRecord_", assigned_start)
+          dirty_body = cache_source[dirty_start:dirty_end] if dirty_start >= 0 and dirty_end > dirty_start else ""
+          assigned_body = cache_source[assigned_start:assigned_end] if assigned_start >= 0 and assigned_end > assigned_start else ""
+          if (
+              not dirty_body or not assigned_body or
+              "r->sdb != self" not in dirty_body or
+              dirty_body.find("r->sdb != self") > dirty_body.find("List_append_") or
+              "r->sdb != self" not in assigned_body or
+              assigned_body.find("r->sdb != self") > assigned_body.find("PHash_at_put_")
+          ):
+              raise SystemExit(
+                  "SkipDB dirty-record and PID-cache notifications must reject foreign records before mutation"
+              )
           age_validator_start = cache_source.find("static int SkipDB_cacheAgeListIsValid_(SkipDB *self)")
           age_validator_end = cache_source.find("\n}", age_validator_start)
           age_validator = cache_source[age_validator_start:age_validator_end] if age_validator_start >= 0 and age_validator_end > age_validator_start else ""
@@ -3930,7 +3952,10 @@ jobs:
                          "if (!test_record_level_rejects_invalid_receiver_metadata())",
                          "SkipDB_setCacheHighWaterMark_(source, 1);",
                          "SkipDB_setCacheLowWaterMark_(source, 0);",
-                         "cache eviction followed a stale age-list pointer after reentrant cleanup"):
+                         "cache eviction followed a stale age-list pointer after reentrant cleanup",
+                         "SkipDB_noteDirtyRecord_(source,foreign_record);",
+                         "SkipDB_noteAssignedPidToRecord_(source,foreign_record);",
+                         "foreign record polluted another database's dirty queue or PID index"):
               if needle not in core_test:
                   raise SystemExit("SkipDB record-level metadata regression missing: " + needle)
 
