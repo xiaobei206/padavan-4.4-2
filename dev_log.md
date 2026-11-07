@@ -1,3 +1,12 @@
+## 2026-11-07 15:03 CST — Fix path alignment contract function-boundary anchors
+
+- Baseline: `0b29e3d0061ce8d6ee2ce66c688439b868af375a`; run #570 passed the file-content contracts but failed the newly added ordering assertion before CMake configure.
+- Failure cause: the assertion located `UArray_hasValidPathStorage_` and `UArray_pathComponentBounds_` by signatures that also matched their forward declarations. With static prototypes present, the extracted range was empty.
+- Tightened both anchors to include the function-opening brace and the complete component-bounds definition signature, so the assertion examines the validator definition rather than declarations.
+- No C implementation, test behavior, build registration, or public interfaces changed. Remote Actions remains the compile/CTest gate.
+
+---
+
 ## 2026-11-07 15:00 CST — Repair UArray path alignment CI source contract
 
 - Baseline: `244450e4c451a94b2fed96a0643775504f561b73`; SkipDBv2 Regression run #569 stopped in the XY-C1 source-contract step before configure/build.

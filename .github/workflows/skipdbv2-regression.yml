@@ -4566,8 +4566,11 @@ jobs:
           if not path_extension_body or min(path_extension_order) < 0 or path_extension_order != sorted(path_extension_order):
               raise SystemExit("UArray_findPathExtension must trim trailing separators and search only the basename")
 
-          path_storage_start = uarray_path_source.find("static int UArray_hasValidPathStorage_(const UArray *self)")
-          path_storage_end = uarray_path_source.find("static int UArray_pathComponentBounds_(", path_storage_start)
+          path_storage_start = uarray_path_source.find("static int UArray_hasValidPathStorage_(const UArray *self)\\n{")
+          path_storage_end = uarray_path_source.find(
+              "static int UArray_pathComponentBounds_(const UArray *self, size_t *componentStart, size_t *componentEnd)\\n{",
+              path_storage_start
+          )
           path_storage_body = (
               uarray_path_source[path_storage_start:path_storage_end]
               if path_storage_start >= 0 and path_storage_end > path_storage_start
