@@ -1,3 +1,12 @@
+## 2026-11-07 19:02 CST — Restore Actions workflow startup
+
+- Failed head: `6a20f802d6008c11dadadab8ca8d5b208087c165`; run #634 failed immediately and GitHub reported zero jobs/check runs, so no step-level log was available.
+- Root cause addressed in-place: the workflow had grown to 512783 characters and contained seven duplicate keys in the Python `checks` dictionary. Python keeps only each key's last value, so the earlier blocks were shadowed and added no effective validation.
+- Remove only those seven overwritten blocks, retaining every effective source-contract block, including the new PID-map extent and regression assertions. The workflow falls to 505807 characters; no C sources, tests, build targets, or workflow triggers are changed.
+- CI #634 remains the failure being repaired; the new main run is the validation gate.
+
+---
+
 ## 2026-11-07 19:01 CST — Reject PID-map writes on invalid index extents
 
 - Baseline: `83f9a595ed8841cb9e43f93293330f723622e42e`; SkipDBv2 Regression run #632 passed the integration contracts, full build, and all 57 CTests.
