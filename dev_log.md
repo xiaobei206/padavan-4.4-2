@@ -1,3 +1,18 @@
+## 2026-11-07 13:47 CST — Reject misaligned List backing storage
+
+- Baseline: main commit `8ffeb9ce6e50096f55e9918b0c968c57ce994d02`; SkipDBv2 Regression run #550 passed the source contracts, configure, full build, and all CTest regressions.
+- Scope: the shared storage invariant in `basekit/List_inline.h` and the existing `list_storage_bounds_test`.
+- `List_hasValidStorage_()` checked logical size against allocated byte capacity and null storage, but accepted a non-NULL `items` pointer that was not aligned for `void *`. The inline readers and mutators could then dereference misaligned pointer elements, which is undefined behavior and can fault on strict-alignment targets.
+- Add a `uintptr_t` alignment check before any element access. This brings List's backing-storage validation in line with the established Stack invariant without changing valid List allocation or growth behavior.
+- Extend the existing storage-boundary test with a deliberately misaligned shallow view. Verify reads reject it, mutations leave all metadata untouched, and `List_asStackAllocatedUArray()` does not expose it.
+- No new files, exported symbols, or CMake changes. The existing `list_storage_bounds_test` remains registered; workflow source contracts now require the alignment guard and its regression coverage.
+
+### Validation
+- Static preflight: checked the guard executes inside the central validator before callers access elements, `stdint.h` supplies `uintptr_t`, all misaligned-view operations are expected to fail closed, and cleanup retains ownership of the original allocation only.
+- No local compiler/CTest run is claimed. Mainline Actions is the verification gate.
+
+---
+
 ## 2026-11-07 13:43 CST — Repair PortableStrptime source-contract mapping
 
 - Baseline: main commit `7f7e090420e834d855d423d35e534053874e2c1e`; Actions run #549 failed immediately with zero allocated jobs, before checkout or build.

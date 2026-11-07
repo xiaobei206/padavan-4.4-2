@@ -631,8 +631,62 @@ done:
 }
 
 
+static int test_misaligned_backing_storage(void)
+{
+	int value = 42;
+	List *source = List_new();
+	List malformed;
+	UArray view;
+	void **misalignedItems;
+	int result = EXIT_FAILURE;
+
+	if (NULL == source) {
+		fprintf(stderr, "misaligned List fixture allocation failed\\n");
+		return EXIT_FAILURE;
+	}
+	if (List_append_(source, &value) != &value) {
+		fprintf(stderr, "misaligned List fixture append failed\\n");
+		goto done;
+	}
+
+	malformed = *source;
+	misalignedItems = (void **)((uintptr_t)source->items + 1u);
+	malformed.items = misalignedItems;
+	if (List_hasValidStorage_(&malformed) ||
+		List_at_(&malformed, 0) != NULL ||
+		List_rawAt_(&malformed, 0) != NULL ||
+		List_top(&malformed) != NULL ||
+		List_last(&malformed) != NULL ||
+		List_append_(&malformed, &value) != NULL) {
+		fprintf(stderr, "List accepted or dereferenced misaligned pointer storage\\n");
+		goto done;
+	}
+
+	List_setSize_(&malformed, 0);
+	List_preallocateToSize_(&malformed, 8);
+	List_compact(&malformed);
+	List_removeAll(&malformed);
+	List_sliceInPlace(&malformed, 0, 0);
+	view = List_asStackAllocatedUArray(&malformed);
+	if (malformed.items != misalignedItems || malformed.size != source->size ||
+		malformed.memSize != source->memSize ||
+		view.size != 0 || view.data != NULL ||
+		source->items[0] != &value || source->size != 1) {
+		fprintf(stderr, "List mutation or UArray view changed misaligned backing metadata\\n");
+		goto done;
+	}
+
+	result = EXIT_SUCCESS;
+done:
+	List_free(source);
+	return result;
+}
+
+
 int main(void)
 {
+	if (test_misaligned_backing_storage() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 	if (test_copy_shared_storage() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (test_remove_items_shared_storage() != EXIT_SUCCESS)

@@ -2723,6 +2723,9 @@ jobs:
                   "foreachList && List_hasValidStorage_(foreachList) && index < List_size(foreachList)",
                   "while (foreachList && List_hasValidStorage_(foreachList) && index > 0)",
                   "if (index > foreachList->size) break;",
+                  "#include <stdint.h>",
+                  "if (self->items &&",
+                  "((uintptr_t)self->items % sizeof(void *)) != 0",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_storage_bounds.c": [
                   "malformed_source.memSize = sizeof(void *)",
@@ -2787,6 +2790,12 @@ jobs:
                   "List_copy_ did not detach a destination sharing source storage",
                   "List_copy_ left source and destination sharing mutable elements",
                   "test_copy_shared_storage() != EXIT_SUCCESS",
+                  "#include <stdint.h>",
+                  "static int test_misaligned_backing_storage(void)",
+                  "misalignedItems = (void **)((uintptr_t)source->items + 1u);",
+                  "List accepted or dereferenced misaligned pointer storage",
+                  "List mutation or UArray view changed misaligned backing metadata",
+                  "List_hasValidStorage_(&malformed)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_slice.c": [
                   "List_sliceInPlace(NULL, 0, 0);",

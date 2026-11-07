@@ -12,6 +12,7 @@ The List is not responsible for io_freeing it's elements.
 #endif
 #include "Common_inline.h"
 #include <limits.h>
+#include <stdint.h>
 #ifdef IO_DECLARE_INLINES
 
 /* Keep every inline List operation on the same storage invariant as List.c. */
@@ -22,6 +23,10 @@ static inline int List_hasValidStorage_(const List *self)
 		self->size > self->memSize / sizeof(void *) ||
 		(self->memSize > 0 && NULL == self->items) ||
 		(self->size > 0 && NULL == self->items))
+		return 0;
+	/* Every List element access requires naturally aligned pointer storage. */
+	if (self->items &&
+		((uintptr_t)self->items % sizeof(void *)) != 0)
 		return 0;
 	return 1;
 }
