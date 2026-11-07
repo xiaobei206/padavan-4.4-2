@@ -19,6 +19,14 @@ int main(void)
     char high_byte[] = { (char)0xff, '1', '2', '\0' };
     char high_byte_format[] = { (char)0xff, '\0' };
     char hour[] = "12";
+    char meridiem_only[] = "PM";
+    char meridiem_only_format[] = "%p";
+    char twelve_am[] = "12 AM";
+    char twelve_pm[] = "12 PM";
+    char one_pm[] = "01 PM";
+    char hour12_format[] = "%I %p";
+    char meridiem_first[] = "PM 01";
+    char meridiem_first_format[] = "%p %I";
     char format[] = "%Y-%m-%d";
     char month_format[] = "%M";
     char second_format[] = "%S";
@@ -105,6 +113,43 @@ int main(void)
     memset(&parsed, 0, sizeof(parsed));
     if (NULL == io_strptime(hour, hour_format, &parsed) || parsed.tm_hour != 12) {
         fprintf(stderr, "valid hour did not parse correctly\n");
+        return EXIT_FAILURE;
+    }
+
+    {
+        unsigned char before[sizeof(invalid)];
+        memset(&invalid, 0xa5, sizeof(invalid));
+        memcpy(before, &invalid, sizeof(invalid));
+        if (io_strptime(meridiem_only, meridiem_only_format, &invalid) !=
+                meridiem_only + strlen(meridiem_only) ||
+            memcmp(before, &invalid, sizeof(invalid)) != 0) {
+            fprintf(stderr, "standalone meridiem parsing read or modified tm_hour\n");
+            return EXIT_FAILURE;
+        }
+    }
+
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(twelve_am, hour12_format, &parsed) != twelve_am + strlen(twelve_am) ||
+        parsed.tm_hour != 0) {
+        fprintf(stderr, "12 AM did not convert to hour 0\n");
+        return EXIT_FAILURE;
+    }
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(twelve_pm, hour12_format, &parsed) != twelve_pm + strlen(twelve_pm) ||
+        parsed.tm_hour != 12) {
+        fprintf(stderr, "12 PM did not remain hour 12\n");
+        return EXIT_FAILURE;
+    }
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(one_pm, hour12_format, &parsed) != one_pm + strlen(one_pm) ||
+        parsed.tm_hour != 13) {
+        fprintf(stderr, "1 PM did not convert to hour 13\n");
+        return EXIT_FAILURE;
+    }
+    memset(&parsed, 0, sizeof(parsed));
+    if (io_strptime(meridiem_first, meridiem_first_format, &parsed) !=
+            meridiem_first + strlen(meridiem_first) || parsed.tm_hour != 13) {
+        fprintf(stderr, "meridiem parsed before the 12-hour field was not applied\n");
         return EXIT_FAILURE;
     }
 

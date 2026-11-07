@@ -1,3 +1,13 @@
+## 2026-11-07 15:42 CST — Avoid reading tm_hour for standalone PortableStrptime %p
+
+- Baseline: `17736e0ffdf6ed591947587e8f4a51d93b784c72`; mainline run #581 passed source contracts, configure, full build, and CTest.
+- Scope: `%I`/`%l` and `%p` handling in `basekit/PortableStrptime.c`, plus the existing `portable_strptime_bounds_test`.
+- `%p` read `tm->tm_hour` even when no 12-hour field had initialized it. Callers can parse a meridiem token into a partially initialized `struct tm`; inspecting that indeterminate field is undefined behavior. Format order also meant `%p %I` lost the meridiem adjustment.
+- Track whether `%I`/`%l` has supplied an hour and retain the AM/PM marker independently. Apply the marker only after the 12-hour value exists, so `%p` alone consumes its input without reading or modifying unrelated `struct tm` fields, and `%p` before `%I` still yields the correct 24-hour result.
+- Extend the existing regression for standalone `%p` against byte-patterned `struct tm`, 12 AM/12 PM/1 PM conversions, and meridiem-before-hour ordering. Extend Actions source and semantic contracts. Existing CMake target is reused; no new files, exports, or build-list changes.
+- No local build is claimed; remote Actions remains the compiler/runtime gate.
+
+---
 ## 2026-11-07 15:39 CST — Correct BStream numeric-read contract delimiters
 
 - Baseline: `9be024ebbea4798a96f3f2aba5297f6beef5f394`; run #580 failed in the Python source-contract phase before configure/build.

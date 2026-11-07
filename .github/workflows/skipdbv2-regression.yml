@@ -1551,6 +1551,14 @@ jobs:
                   "static int readndigits(char **const buf, const size_t count)",
                   "return i == 0 ? -1 : result;",
                   "tm->tm_year = i <= 68 ? i + 100 : i;",
+                  "int have12Hour = 0;",
+                  "int meridiem = -1;",
+                  "have12Hour = 1;",
+                  "meridiem = 0;",
+                  "meridiem = 1;",
+                  "if (have12Hour && tm->tm_hour == 12)",
+                  "if (have12Hour && tm->tm_hour != 12)",
+                  "else if (meridiem == 1 && tm->tm_hour != 12)",
                   "else if (c != *buf++)",
                   "if (NULL == buf || NULL == fmt || NULL == tm)",
                   "isdigit((unsigned char)*buf)",
@@ -1579,6 +1587,13 @@ jobs:
                   "io_strptime(space_hour24, space_hour24_format, &parsed)",
                   "io_strptime(space_hour12, space_hour12_format, &parsed)",
                   "io_strptime(composite_space_date, composite_date_format, &parsed)",
+                  "io_strptime(meridiem_only, meridiem_only_format, &invalid)",
+                  "io_strptime(twelve_am, hour12_format, &parsed)",
+                  "io_strptime(twelve_pm, hour12_format, &parsed)",
+                  "io_strptime(one_pm, hour12_format, &parsed)",
+                  "io_strptime(meridiem_first, meridiem_first_format, &parsed)",
+                  "standalone meridiem parsing read or modified tm_hour",
+                  "meridiem parsed before the 12-hour field was not applied",
                   "space-padded day-of-month directive did not parse correctly",
                   "space-padded 24-hour directive did not parse correctly",
                   "space-padded 12-hour directive did not parse correctly",
@@ -5505,6 +5520,22 @@ jobs:
                   "somethingToDoWithSpaces" in strptime_source or
                   "*buf == 0" in loop_prefix):
               raise SystemExit("PortableStrptime must validate arguments, ctype bytes, and missing required input")
+          hour12_start = parser.find("case 'I':")
+          hour12_end = parser.find("case 'd':", hour12_start)
+          hour12_body = parser[hour12_start:hour12_end] if hour12_start >= 0 and hour12_end > hour12_start else ""
+          meridiem_start = parser.find("case 'P':")
+          meridiem_end = parser.find("case 'A':", meridiem_start)
+          meridiem_body = parser[meridiem_start:meridiem_end] if meridiem_start >= 0 and meridiem_end > meridiem_start else ""
+          if (not hour12_body or not meridiem_body or
+                  "have12Hour = 1;" not in hour12_body or
+                  "if (meridiem == 0 && tm->tm_hour == 12)" not in hour12_body or
+                  "else if (meridiem == 1 && tm->tm_hour != 12)" not in hour12_body or
+                  "meridiem = 0;" not in meridiem_body or
+                  "meridiem = 1;" not in meridiem_body or
+                  "if (have12Hour && tm->tm_hour == 12)" not in meridiem_body or
+                  "if (have12Hour && tm->tm_hour != 12)" not in meridiem_body or
+                  "tm->tm_hour > 12" in meridiem_body):
+              raise SystemExit("PortableStrptime %p must not read tm_hour until a %I/%l field has initialized it")
           day_directive_start = parser.find("case 'j':")
           day_directive_end = parser.find("case 'M':", day_directive_start)
           day_directive = parser[day_directive_start:day_directive_end] if day_directive_start >= 0 and day_directive_end > day_directive_start else ""
@@ -5535,6 +5566,10 @@ jobs:
           strptime_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_strptime_bounds.c").read_text()
           for needle in ("io_strptime(malformed_after_year, format, &invalid)",
                          "io_strptime(malformed_after_month, format, &invalid)",
+                         "io_strptime(meridiem_only, meridiem_only_format, &invalid)",
+                         "io_strptime(twelve_am, hour12_format, &parsed)",
+                         "io_strptime(meridiem_first, meridiem_first_format, &parsed)",
+                         "standalone meridiem parsing read or modified tm_hour",
                          "io_strptime(separated, separated_format, &parsed)",
                          "io_strptime(truncated, format, &invalid)",
                          "io_strptime(empty, hour_format, &invalid)",

@@ -112,6 +112,8 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 				*ptr;
 		int     i,
 				len;
+		int have12Hour = 0;
+		int meridiem = -1;
 
 	if (NULL == buf || NULL == fmt || NULL == tm)
 		return NULL;
@@ -240,6 +242,11 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 								return NULL;
 
 						tm->tm_hour = i;
+						have12Hour = 1;
+						if (meridiem == 0 && tm->tm_hour == 12)
+							tm->tm_hour = 0;
+						else if (meridiem == 1 && tm->tm_hour != 12)
+							tm->tm_hour += 12;
 
 						break;
 
@@ -299,20 +306,18 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 				case 'p':
 						len = strlen(En_US.am_string);
 						if (strncasecmp(buf, En_US.am_string, len) == 0) {
-								if (tm->tm_hour > 12)
-										return NULL;
-								if (tm->tm_hour == 12)
-										tm->tm_hour = 0;
+								meridiem = 0;
+								if (have12Hour && tm->tm_hour == 12)
+									tm->tm_hour = 0;
 								buf += len;
 								break;
 						}
 
 						len = strlen(En_US.pm_string);
 						if (strncasecmp(buf, En_US.pm_string, len) == 0) {
-								if (tm->tm_hour > 12)
-										return NULL;
-								if (tm->tm_hour != 12)
-										tm->tm_hour += 12;
+								meridiem = 1;
+								if (have12Hour && tm->tm_hour != 12)
+									tm->tm_hour += 12;
 								buf += len;
 								break;
 						}
