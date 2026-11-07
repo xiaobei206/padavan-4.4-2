@@ -1,3 +1,13 @@
+## 2026-11-07 20:34 CST — Keep Date timezone refresh atomic on clock errors
+
+- Baseline: `3a517037eb67ff816d75f7c7ac202f6936486e72`; main SkipDBv2 Regression run #660 passed the source contracts, full target build, and all CTests.
+- Scope: `Date_setToLocalTimeZone()`.
+- The helper passed `&self->tz` directly to `gettimeofday()` and ignored its return value. A failed system query could therefore leave the receiver with partially updated timezone metadata.
+- Read into a local `struct timezone`, reject a failed query, and publish the complete zone only after success. Extend the existing Actions source contract to require the checked call and the final assignment.
+- Existing C source and workflow only; no new headers, symbols, tests, or CMake targets. No local build is claimed; remote Actions is the validation gate.
+
+---
+
 ## 2026-11-07 20:33 CST — Defer DynLib unload until init callbacks return
 
 - Baseline: `b7f2ea43c11738302e5ae91e4a567f56e2ef6b98`; main SkipDBv2 Regression run #659 passed.

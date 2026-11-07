@@ -6089,7 +6089,8 @@ jobs:
           if ("gettimeofday(&timeval, &timezone) != 0" not in clock_body or
                   not date_now_body or date_now_guard < 0 or date_state_write < 0 or
                   date_now_guard > date_state_write or
-                  "if (NULL == self)" not in timezone_body):
+                  "if (NULL == self || gettimeofday(&timeval, &timezone) != 0)" not in timezone_body or
+                  "self->tz = timezone;" not in timezone_body):
               raise SystemExit("Date clock initialization must reject NULL receivers and failed system time reads")
           date_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
           for needle in ("Date_now(NULL)", "Date_setToLocalTimeZone(NULL)",
