@@ -4,7 +4,7 @@
 **Primary branch:** main  
 **Initial baseline before this governance bootstrap:** 412eebb4d0c36f9cbaf43921b4ce1f2056665984
 **Governance bootstrap commit:** 84e2fb77973393dd2804b9feb2d94b2ce74933c4 (verified on main)  
-**Roadmap status:** INVENTORY IN PROGRESS / HTTPD MIME, AUTH, SESSION, UPLOAD, ARCHIVE PATH, CGI SERVICE-ID, SYSTEMCMD, GENERIC /tmp DISPATCH, EXECUTABLE SCRIPT-WRITE AND FIXED-NAME SCRIPT DISPATCH BOUNDARIES HAVE BOUNDED HOST-VERIFIED FIXES; FIREWALL URL/ICMP/PORT/PROTOCOL/TCP-FLAG GUARDS AND FAIL-CLOSED SCHEDULE DISPATCH HAVE EXACT-HEAD HOST CI PASSES; HTTPD UPLOAD STAGING AND AP/ALIDDNS ROOT-MANAGED TEMP EXECUTABLES ARE ISOLATED FROM SHARED /tmp (AP/ALIDDNS exact-head run 42400922809 on bd89f748a4c86c0f8267f4fa31d40c99dd4a448f); LEGACY AP STORAGE COPIES MIGRATE ONLY ON EXACT SHA-256 MATCH (exact-head run 42402389122 on 150e7869077bf7b4a275d61b57648a319c1849b8); WHOLE-REPOSITORY, HTTPD AND FIREWALL AUDITS INCOMPLETE; all 10 built-in IPv4/IPv6 restore rule files now use unique 0600 staging with checked flush/close (exact-head Actions run 42404900208 on 18993430b0cea13d94c706dc5d2157ed8849127c PASS); exhaustive HTTPD MIME route matrix added and exact-head host Actions PASS (run 42403799683 on 1e305137d9b2e2f0add305a323038f2d722dd162); strict IPv4 restore-token/LAN fallback and VPN PPP lease-state protections are host-verified by exact-head Actions run 42406069140 on 53186f1753a5c8ef55a8f144980b62af742f4722
+**Roadmap status:** INVENTORY IN PROGRESS / HTTPD MIME, AUTH, SESSION, UPLOAD, ARCHIVE PATH, CGI SERVICE-ID, SYSTEMCMD, GENERIC /tmp DISPATCH, EXECUTABLE SCRIPT-WRITE AND FIXED-NAME SCRIPT DISPATCH BOUNDARIES HAVE BOUNDED HOST-VERIFIED FIXES; ADD-ON FIREWALL RESTORE INPUTS NOW USE PRIVATE ROOT-ONLY STAGING (EXACT-HEAD ACTIONS RUNNING); FIREWALL URL/ICMP/PORT/PROTOCOL/TCP-FLAG GUARDS AND FAIL-CLOSED SCHEDULE DISPATCH HAVE EXACT-HEAD HOST CI PASSES; HTTPD UPLOAD STAGING AND AP/ALIDDNS ROOT-MANAGED TEMP EXECUTABLES ARE ISOLATED FROM SHARED /tmp (AP/ALIDDNS exact-head run 42400922809 on bd89f748a4c86c0f8267f4fa31d40c99dd4a448f); LEGACY AP STORAGE COPIES MIGRATE ONLY ON EXACT SHA-256 MATCH (exact-head run 42402389122 on 150e7869077bf7b4a275d61b57648a319c1849b8); WHOLE-REPOSITORY, HTTPD AND FIREWALL AUDITS INCOMPLETE; all 10 built-in IPv4/IPv6 restore rule files now use unique 0600 staging with checked flush/close (exact-head Actions run 42404900208 on 18993430b0cea13d94c706dc5d2157ed8849127c PASS); exhaustive HTTPD MIME route matrix added and exact-head host Actions PASS (run 42403799683 on 1e305137d9b2e2f0add305a323038f2d722dd162); strict IPv4 restore-token/LAN fallback and VPN PPP lease-state protections are host-verified by exact-head Actions run 42406069140 on 53186f1753a5c8ef55a8f144980b62af742f4722
 
 ## Purpose and status semantics
 
@@ -26,6 +26,14 @@ Priorities:
 - P1: remote/LAN attack surface, authentication/authorization, privileged operations, untrusted input.
 - P2: critical service reliability, persistence, lifecycle, concurrency, error propagation.
 - P3: non-critical cleanup, deduplication, performance/style.
+
+## Latest audit checkpoint — 2026-11-08 04:20 CST
+
+- Source/test/workflow commit: `699639f7e94eba48ea2f54cbad3c52d227ca1eec`; exact-head Actions run `42410593918` is running against that SHA.
+- Audited the optional restore paths carried by SESSION_HANDOFF. The tracked Shadowsocks script tree contained no producer for `/tmp/shadowsocks_iptables.save`; the privileged consumer executed any existing shared-`/tmp` file as a shell script. The tracked Adbyby producer generated `/tmp/adbyby.save` through root shell redirection, and `start_firewall_ex()` consumed it with `iptables-restore -n`.
+- Fix: Shadowsocks execution now requires a root-owned, non-group/other-writable, regular single-link file opened without following symlinks and bounded to 1 MiB. It copies from that descriptor into a unique 0600 snapshot under root-only `/home/root`, executes only that private copy and removes it. Adbyby now uses restrictive-umask temporary snapshots plus atomic rename in `/home/root`; the final file is 0600 and the firewall consumer reads that path. Failed saves retain the previous snapshot.
+- Added host C and shell regressions plus workflow path/source contracts. Exact-head Actions pending. No MIPS target build, firmware image, live router, iptables restore or hardware test was run.
+- Scope remains bounded: persistent `/etc/storage/post_iptables_script.sh` and external `/opt/bin/update_iptables.sh` are not yet fully audited; continue deployment/writer provenance, then restore exit codes, rollback and IPv6 parity. DNS/DHCP, WAN/PPP and other services remain open. Whole-userland inventory stays IN PROGRESS.
 
 ## Latest audit checkpoint — 2026-11-08 03:25 CST
 
