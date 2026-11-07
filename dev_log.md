@@ -1,3 +1,13 @@
+## 2026-11-07 21:13 CST — Preflight integer results in UArray unary math transforms
+
+- Baseline: `15b0e36837eb067af3c28dcc06bc7e81cbe60fbb`; main run #666 passed source contracts, configure, full target build, and all CTests.
+- Scope: the `UARRAY_DOP(OP)` family in `UArray_math.c`.
+- Unary functions such as `sqrt`, `log`, and `exp` can produce NaN, infinity, or values outside an integer receiver's range. The prior macro cast each result directly into the receiver while iterating, allowing undefined conversion and partial mutation. `floor`/`ceil` could also round INT64/UINT64 boundary inputs through an unrepresentable double.
+- For integer arrays, preflight every double result with the existing range predicate before the first write. Preserve the existing floating-array path and valid integer truncation behavior. Add regressions for valid integer sqrt, NaN sqrt, overflowing exp, and signed/unsigned 64-bit floor/ceil boundaries; extend the existing Actions source contract.
+- Existing C source, existing math test, workflow, and handoff log only; no new files, API declarations, or CMake targets. Remote Actions is the build/test gate.
+
+---
+
 ## 2026-11-07 21:04 CST — Test integer absolute value through the public UArray_abs API
 
 - Baseline: `ef57cfc46091a08549157134a384ecb9e90f3096`; run #665 passed the source-contract and configure steps but failed compiling the math regression because `UArray_fabs` is not declared in the public `UArray_math.h`.

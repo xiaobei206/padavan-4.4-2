@@ -806,9 +806,18 @@ void UArray_logicalAnd_(UArray *self, const UArray *other)
 #define UARRAY_DOP(OP) \
 void UArray_ ## OP (UArray *self) \
 { \
+	size_t i; \
 	if (!UArray_hasValidNumericStorage_(self) || \
 		self->itemType == CTYPE_uintptr_t || self->size == 0) \
 		return; \
+	if (self->itemType != CTYPE_float32_t && \
+		self->itemType != CTYPE_float64_t) { \
+		for (i = 0; i < self->size; ++i) { \
+			double result = OP(UArray_rawDoubleAt_(self, i)); \
+			if (UArray_integerFloatValueIsOutOfRange_(self->itemType, result)) \
+				return; \
+		} \
+	} \
 	UARRAY_FOREACHASSIGN(self, i, v, OP((double)v)); \
 	UArray_changed(self); \
 }

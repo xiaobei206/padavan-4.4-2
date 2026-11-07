@@ -1578,6 +1578,29 @@ typedef struct {
     UArrayUnaryMathFunction_ expected;
 } UArrayUnaryTransformCase_;
 
+static int expect_rejected_integer_unary_transform_(
+    const void *initial, CTYPE itemType, size_t size,
+    UArrayUnaryTransform_ transform, const char *message)
+{
+    UArray *values = UArray_newWithData_type_size_copy_(
+        (void *)initial, itemType, size, 1);
+    const uintptr_t originalHash = (uintptr_t)0xa5a5;
+
+    if (NULL == values)
+        return fail("UArray integer unary preflight fixture allocation failed");
+
+    values->hash = originalHash;
+    transform(values);
+    if (memcmp(values->data, initial, size * values->itemSize) != 0 ||
+        values->hash != originalHash) {
+        UArray_free(values);
+        return fail(message);
+    }
+
+    UArray_free(values);
+    return EXIT_SUCCESS;
+}
+
 static int test_unary_transforms(void)
 {
     static const double initial[] = {0.25, 0.5};
@@ -1681,6 +1704,45 @@ static int test_unary_transforms(void)
         UArray_free(signedArray);
         UArray_free(minimumArray);
         UArray_free(unsignedArray);
+    }
+
+    {
+        const int8_t safeInput[] = {4, 9};
+        const int8_t safeExpected[] = {2, 3};
+        const int8_t negativeInput[] = {-1, 4};
+        const int8_t expOverflow[] = {0, 6};
+        const int64_t signedMaximum[] = {INT64_MAX};
+        const uint64_t unsignedMaximum[] = {UINT64_MAX};
+        UArray *safe = UArray_newWithData_type_size_copy_(
+            (void *)safeInput, CTYPE_int8_t, 2, 1);
+
+        if (NULL == safe) {
+            fail("UArray integer unary valid-result fixture allocation failed");
+            goto cleanup;
+        }
+        safe->hash = (uintptr_t)0x9292;
+        UArray_sqrt(safe);
+        if (memcmp(safe->data, safeExpected, sizeof(safeExpected)) != 0 ||
+            safe->hash != 0) {
+            UArray_free(safe);
+            fail("UArray integer unary transform changed valid results or retained the cached hash");
+            goto cleanup;
+        }
+        UArray_free(safe);
+
+        if (expect_rejected_integer_unary_transform_(
+                negativeInput, CTYPE_int8_t, 2, UArray_sqrt,
+                "UArray integer sqrt committed a NaN result") != EXIT_SUCCESS ||
+            expect_rejected_integer_unary_transform_(
+                expOverflow, CTYPE_int8_t, 2, UArray_exp,
+                "UArray integer exp committed an out-of-range result") != EXIT_SUCCESS ||
+            expect_rejected_integer_unary_transform_(
+                signedMaximum, CTYPE_int64_t, 1, UArray_floor,
+                "UArray integer floor changed INT64_MAX through double rounding") != EXIT_SUCCESS ||
+            expect_rejected_integer_unary_transform_(
+                unsignedMaximum, CTYPE_uint64_t, 1, UArray_ceil,
+                "UArray integer ceil changed UINT64_MAX through double rounding") != EXIT_SUCCESS)
+            goto cleanup;
     }
 
     empty->hash = 0x5151;

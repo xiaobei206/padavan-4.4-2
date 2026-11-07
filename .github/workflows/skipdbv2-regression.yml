@@ -4285,6 +4285,31 @@ jobs:
               raise SystemExit("BStream attachment guard must cover empty interior and partial borrowed views")
 
           bit_math_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c").read_text()
+          unary_math_start = bit_math_source.find("#define UARRAY_DOP(OP)")
+          unary_math_end = bit_math_source.find("\\nUARRAY_DOP(sin);", unary_math_start)
+          unary_math_body = (bit_math_source[unary_math_start:unary_math_end]
+                             if unary_math_start >= 0 and unary_math_end > unary_math_start else "")
+          unary_range_loop = unary_math_body.find("for (i = 0; i < self->size; ++i)")
+          unary_result = unary_math_body.find("double result = OP(UArray_rawDoubleAt_(self, i));")
+          unary_range_guard = unary_math_body.find(
+              "UArray_integerFloatValueIsOutOfRange_(self->itemType, result)"
+          )
+          unary_write = unary_math_body.find("UARRAY_FOREACHASSIGN(self, i, v, OP((double)v));")
+          unary_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_math_extrema.c").read_text()
+          if (
+              not unary_math_body or
+              "self->itemType != CTYPE_float32_t" not in unary_math_body or
+              "self->itemType != CTYPE_float64_t" not in unary_math_body or
+              min(unary_range_loop, unary_result, unary_range_guard, unary_write) < 0 or
+              not unary_range_loop < unary_result < unary_range_guard < unary_write or
+              any(message not in unary_test for message in (
+                  "UArray integer sqrt committed a NaN result",
+                  "UArray integer exp committed an out-of-range result",
+                  "UArray integer floor changed INT64_MAX through double rounding",
+                  "UArray integer ceil changed UINT64_MAX through double rounding"
+              ))
+          ):
+              raise SystemExit("UArray unary integer transforms must preflight all results before writing")
           bitwise_prototype = bit_math_source.find(
               "static int UArray_hasValidBitStorage_(const UArray *self, size_t *byteCount);"
           )
