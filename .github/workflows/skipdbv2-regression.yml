@@ -1590,6 +1590,11 @@ jobs:
                   "#include <unistd.h>",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.c": [
+                  "#include <limits.h>",
+                  "timeb.time > (time_t)LONG_MAX",
+                  "timeb.time < (time_t)LONG_MIN",
+                  "errno = EOVERFLOW;",
+
                   "int gettimeofday(struct timeval *tv, struct timezone *tz)",
                   "if (NULL == tv)",
                   "status = (int)_ftime_s(&timeb);",
@@ -5894,6 +5899,15 @@ jobs:
                   "tz->tz_minuteswest = (int)bias;" not in windows_impl or
                   "if (gettimeofday(&tv, &tz) != 0)" not in gettimeofday_source):
               raise SystemExit("PortableGettimeofday must expose a status-returning Windows adapter and propagate clock-read failures")
+          seconds_range_guard = windows_impl.find("timeb.time > (time_t)LONG_MAX")
+          seconds_lower_guard = windows_impl.find("timeb.time < (time_t)LONG_MIN")
+          overflow_error = windows_impl.find("errno = EOVERFLOW;")
+          seconds_assignment = windows_impl.find("tv->tv_sec = (long)timeb.time;")
+          clock_failure = windows_impl.find("if (status != 0)")
+          if (min(seconds_range_guard, seconds_lower_guard, overflow_error, seconds_assignment, clock_failure) < 0 or
+                  not (clock_failure < seconds_range_guard < overflow_error < seconds_assignment) or
+                  seconds_range_guard > seconds_lower_guard):
+              raise SystemExit("Windows gettimeofday must reject seconds outside timeval.tv_sec's long range before publishing the timestamp")
           gettimeofday_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_gettimeofday.c").read_text()
           if ("secondsSince1970()" not in gettimeofday_test or "time(NULL)" not in gettimeofday_test):
               raise SystemExit("PortableGettimeofday regression must validate the wall-clock result")

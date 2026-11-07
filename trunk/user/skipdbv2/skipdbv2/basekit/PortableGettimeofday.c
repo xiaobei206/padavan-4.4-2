@@ -1,5 +1,6 @@
 #include <time.h>
 #include <errno.h>
+#include <limits.h>
 #include <stddef.h>
 #include <sys/types.h>
 #include <sys/timeb.h>
@@ -31,6 +32,12 @@
 					return -1;
 				}
 
+				/* timeval.tv_sec is long on Windows; reject 64-bit time_t overflow. */
+				if (timeb.time > (time_t)LONG_MAX || timeb.time < (time_t)LONG_MIN)
+				{
+					errno = EOVERFLOW;
+					return -1;
+				}
 				tv->tv_sec = (long)timeb.time;
 				tv->tv_usec = (long)(timeb.millitm * 1000);
 

@@ -1,3 +1,14 @@
+## 2026-11-07 17:25 CST — Reject Windows wall-clock seconds outside timeval range
+
+- Baseline: `bcc82f840626a8594a190d24b888cdbf166ee748`; mainline SkipDBv2 Regression run #606 passed the XY-C1 source contracts, complete build, and all 57 CTests.
+- Scope: the Windows `gettimeofday()` adapter in `basekit/PortableGettimeofday.c`.
+- On 64-bit Windows, CRT `time_t` can represent dates beyond the signed 32-bit range of `long`, while the adapter's `timeval.tv_sec` field remains a `long`. Directly casting `_timeb.time` can therefore wrap/lose the real timestamp after the 2038 boundary.
+- Check both `LONG_MIN` and `LONG_MAX` immediately after the successful clock read. Return `-1` with `EOVERFLOW` before writing either timeval field when the timestamp cannot be represented; normal in-range timestamps retain the existing behavior.
+- Extend the existing Actions contract and order assertion to require the range check before assignment. Reuse the existing `portable_gettimeofday_test`; no new files, declarations, or CMake changes. The Linux CI build does not execute the Windows-only branch, so the new Windows behavior is statically contract-checked rather than claimed as runtime-tested here.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 17:21 CST — Check JFile path sizing additions before arithmetic
 
 - Baseline: `ede6b8582d2f87c2046cc03a73605b6dbd907731`; mainline SkipDBv2 Regression run #605 completed successfully.
