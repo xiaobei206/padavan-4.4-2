@@ -1,3 +1,13 @@
+## 2026-11-07 12:48 CST — Detect standard Windows macros for JFile path separators
+
+- Baseline: main commit `6ac2b52e2ff75b60f1b513f5f0409b3a7b713837`; SkipDBv2 Regression run #529 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `JFile_fileName()` in `jfile/JFile.c` and its existing Actions source contract.
+- The path helper selected backslashes only when `__WIN32__` was defined. MSVC and MinGW commonly define `_WIN32`, `WIN32`, or their compiler-specific macros instead, so `JFile_setLogPath_()` could treat an entire Windows path as the basename and generate a malformed journal path.
+- Match the repository's Windows macro family while retaining the POSIX slash branch. Extend the existing source contract to require both separator branches and the platform guard.
+- Existing `jfile_journal_test` and CMake target are reused; no new files or exported declarations. No local C build/CTest is claimed; mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 12:46 CST — Route commit-marker writes through EINTR-safe sync
 
 - Baseline: main commit `a6ff958cf1fc9b94f709370dea98552a458b5261`; SkipDBv2 Regression run #528 passed source contracts, configure, full build, and all CTest regressions.

@@ -83,7 +83,7 @@ void JFile_setPath_(JFile *self, const char *path)
 
 char *JFile_fileName(JFile *self)
 {
-#ifdef __WIN32__
+#if defined(__WIN32__) || defined(WIN32) || defined(_WIN32) || defined(_MSC_VER) || defined(__MINGW32__) || defined(__WINS__)
 	char *fileName = strrchr(self->path, '\\');
 #else
 	char *fileName = strrchr(self->path, '/');
