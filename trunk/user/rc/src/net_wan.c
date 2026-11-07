@@ -32,6 +32,7 @@
 
 #include "rc.h"
 #include "dnsmasq_file.h"
+#include "dhcp_lease_policy.h"
 #include "switch.h"
 #include <gpioutils.h>
 
@@ -1252,6 +1253,9 @@ man_down(char *man_ifname, int unit)
 {
 	logmessage(LOGNAME, "%s %s (%s)", "MAN", "down", man_ifname);
 
+	/* Retire classless routes from the expired physical WAN lease. */
+	del_dhcp_routes_by_prefix("wanx_", man_ifname, 0);
+
 	/* for update dnsmasq.servers */
 	nvram_set_temp("wanx_domain", "");
 
@@ -1401,6 +1405,14 @@ wan_down(char *wan_ifname, int unit, int is_static)
 
 	wan_proto = get_wan_proto(unit);
 	modem_unit_id = is_ifunit_modem(wan_ifname, unit);
+
+	/* Remove only the lease-derived routes that this WAN path installed. */
+	if (modem_unit_id == 2 ||
+	    (!modem_unit_id && wan_proto == IPV4_WAN_PROTO_IPOE_DHCP)) {
+		char prefix[16];
+		snprintf(prefix, sizeof(prefix), "wan%d_", unit);
+		del_dhcp_routes_by_prefix(prefix, wan_ifname, 0);
+	}
 
 	/* Stop multicast router (for NDIS or IPoE) */
 	if (ppp_ifindex(wan_ifname) < 0)
@@ -1834,8 +1846,9 @@ update_hosts_router(const char *lan_ipaddr)
 	return 0;
 }
 
-void
-add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
+static void
+control_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms,
+                    char *ifname, int metric, int is_add)
 {
 	char *routes, *tmp;
 	struct in_addr mask;
@@ -1844,7 +1857,8 @@ add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
 	int bits;
 	char netmask[] = "255.255.255.255";
 
-	if (!nvram_match("dr_enable_x", "1"))
+	/* Keep cleanup working even after the dynamic-route option is disabled. */
+	if (is_add && !nvram_match("dr_enable_x", "1"))
 		return;
 
 	if (!ifname || !*ifname)
@@ -1856,26 +1870,28 @@ add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
 	if (!rt_ms)
 		rt_ms = "";
 
-	/* routes */
+	/* Legacy destination/gateway pairs. */
 	routes = strdup(rt);
-	for (tmp = routes; tmp && *tmp; )
-	{
+	for (tmp = routes; tmp && *tmp; ) {
 		ipaddr = strsep(&tmp, "/");
 		gateway = strsep(&tmp, " ");
 		if (gateway && *gateway &&
-		    is_valid_ipv4(ipaddr) && is_valid_ipv4(gateway)) {
-			route_add(ifname, metric, ipaddr, gateway, netmask);
+		    dhcp_lease_ipv4_is_valid(ipaddr) &&
+		    dhcp_lease_ipv4_is_valid(gateway)) {
+			if (is_add)
+				route_add(ifname, metric, ipaddr, gateway, netmask);
+			else
+				route_del(ifname, metric, ipaddr, gateway, netmask);
 		}
 	}
 	free(routes);
 
-	/* rfc3442 or ms classless static routes */
+	/* RFC3442 or Microsoft classless static routes. */
 	routes = rt_rfc;
 	if (!*routes)
 		routes = rt_ms;
 	routes = strdup(routes);
-	for (tmp = routes; tmp && *tmp; )
-	{
+	for (tmp = routes; tmp && *tmp; ) {
 		ipaddr = strsep(&tmp, "/");
 		if (!ipaddr || !tmp || !*tmp)
 			break;
@@ -1888,16 +1904,26 @@ add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
 		gateway = strsep(&tmp, " ");
 		if (bits_end == bits_str || *bits_end != '\0' ||
 		    parsed_bits < 0 || parsed_bits > 32 ||
-		    !gateway || !*gateway || !is_valid_ipv4(ipaddr) ||
-		    !is_valid_ipv4(gateway))
+		    !gateway || !*gateway ||
+		    !dhcp_lease_ipv4_is_valid(ipaddr) ||
+		    !dhcp_lease_ipv4_is_valid(gateway))
 			continue;
 
 		bits = (int)parsed_bits;
 		mask.s_addr = (bits == 0) ? 0 : htonl(0xffffffffU << (32 - bits));
 		strcpy(netmask, inet_ntoa(mask));
-		route_add(ifname, metric, ipaddr, gateway, netmask);
+		if (is_add)
+			route_add(ifname, metric, ipaddr, gateway, netmask);
+		else
+			route_del(ifname, metric, ipaddr, gateway, netmask);
 	}
 	free(routes);
+}
+
+void
+add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric)
+{
+	control_dhcp_routes(rt, rt_rfc, rt_ms, ifname, metric, 1);
 }
 
 void
@@ -1911,6 +1937,19 @@ add_dhcp_routes_by_prefix(char *prefix, char *ifname, int metric)
 	rt_ms  = nvram_safe_get(strcat_r(prefix, "routes_ms", buf));
 
 	add_dhcp_routes(rt, rt_rfc, rt_ms, ifname, metric);
+}
+
+void
+del_dhcp_routes_by_prefix(char *prefix, char *ifname, int metric)
+{
+	char buf[32];
+	char *rt, *rt_rfc, *rt_ms;
+
+	rt     = nvram_safe_get(strcat_r(prefix, "routes", buf));
+	rt_rfc = nvram_safe_get(strcat_r(prefix, "routes_rfc", buf));
+	rt_ms  = nvram_safe_get(strcat_r(prefix, "routes_ms", buf));
+
+	control_dhcp_routes(rt, rt_rfc, rt_ms, ifname, metric, 0);
 }
 
 int
@@ -2147,9 +2186,15 @@ udhcpc_deconfig(char *wan_ifname, int is_zcip)
 static int
 udhcpc_bound(char *wan_ifname, int is_renew_mode)
 {
-	char *param, *value, *lan_ip, *lan_nm, *wan_ip, *wan_nm, *wan_gw;
+	char *value, *lan_ip, *lan_nm, *wan_ip, *wan_nm, *wan_gw;
 	char tmp[100], prefix[16], route[32], log_prefix[32], *udhcpc_state;
+	char gateway_buf[INET_ADDRSTRLEN], old_gateway[INET_ADDRSTRLEN];
+	char old_ip[INET_ADDRSTRLEN], old_mask[INET_ADDRSTRLEN];
+	char *lease_ip, *lease_netmask, *lease_dns, *lease_wins, *lease_domain;
+	char *route_value;
+	unsigned int parsed_value;
 	int unit, is_man, is_changed, i_err, has_gateway, lease_dur, dhcp_mtu;
+	int wan_proto, modem_unit_id, route_result, route_metric;
 
 	unit = get_wan_unit(wan_ifname);
 	is_man = is_ifunit_man(wan_ifname, unit);
@@ -2165,45 +2210,139 @@ udhcpc_bound(char *wan_ifname, int is_renew_mode)
 	snprintf(log_prefix, sizeof(log_prefix), "%s %s Client", "DHCP", (is_man) ? "MAN" : "WAN");
 	udhcpc_state = (is_renew_mode) ? "renew" : "bound";
 
+	/* Reject a malformed lease before it can reach NVRAM or ifconfig. */
+	value = getenv("ip");
+	lease_ip = value ? trim_r(value) : "";
+	value = getenv("subnet");
+	if (value)
+		lease_netmask = trim_r(value);
+	else
+		lease_netmask = nvram_safe_get(strcat_r(prefix, "netmask", tmp));
+	if (!dhcp_lease_ipv4_is_valid(lease_ip) ||
+	    !dhcp_lease_netmask_is_valid(lease_netmask)) {
+		logmessage(log_prefix, "%s (%s) rejected invalid DHCP address/netmask",
+			udhcpc_state, wan_ifname);
+		return EINVAL;
+	}
+
+	/* Snapshot old values before replacing the lease. */
+	snprintf(old_gateway, sizeof(old_gateway), "%s",
+		nvram_safe_get(strcat_r(prefix, "gateway", tmp)));
+	snprintf(old_ip, sizeof(old_ip), "%s",
+		nvram_safe_get(strcat_r(prefix, "ipaddr", tmp)));
+	snprintf(old_mask, sizeof(old_mask), "%s",
+		nvram_safe_get(strcat_r(prefix, "netmask", tmp)));
+	wan_proto = get_wan_proto(unit);
+	modem_unit_id = is_ifunit_modem(wan_ifname, unit);
+	route_metric = is_man ? 2 : 1;
+
+	/* Remove the previous lease's default/host gateway routes before adding
+	 * the refreshed lease. Route operations use ioctl, not a shell. */
+	if (dhcp_lease_ipv4_is_valid(old_gateway)) {
+		if (dhcp_lease_ipv4_is_valid(old_ip) &&
+		    dhcp_lease_netmask_is_valid(old_mask) &&
+		    !is_same_subnet(old_gateway, old_ip, old_mask))
+			route_del(wan_ifname, route_metric, old_gateway, NULL, "255.255.255.255");
+		route_del(wan_ifname, route_metric, "0.0.0.0", old_gateway, "0.0.0.0");
+	}
+	if (is_man ||
+	    modem_unit_id == 2 ||
+	    (!modem_unit_id && wan_proto == IPV4_WAN_PROTO_IPOE_DHCP))
+		del_dhcp_routes_by_prefix(prefix, wan_ifname, 0);
+
 	i_err = 0;
 	lease_dur = 0;
-	is_changed = 0;
+	is_changed = nvram_invmatch(strcat_r(prefix, "ipaddr", tmp), lease_ip);
 	has_gateway = 0;
 	dhcp_mtu = 0;
+	gateway_buf[0] = '\0';
 
-	if ((value = getenv("ip"))) {
-		param = strcat_r(prefix, "ipaddr", tmp);
-		is_changed = nvram_invmatch(param, trim_r(value));
-		nvram_set_temp(param, trim_r(value));
+	nvram_set_temp(strcat_r(prefix, "ipaddr", tmp), lease_ip);
+	nvram_set_temp(strcat_r(prefix, "netmask", tmp), lease_netmask);
+
+	value = getenv("router");
+	if (value) {
+		route_result = dhcp_lease_ipv4_list_first(trim_r(value),
+			gateway_buf, sizeof(gateway_buf));
+		if (route_result > 0)
+			has_gateway = 1;
+		else if (route_result < 0)
+			logmessage(log_prefix, "ignoring invalid DHCP router list on %s", wan_ifname);
 	}
-	if ((value = getenv("subnet")))
-		nvram_set_temp(strcat_r(prefix, "netmask", tmp), trim_r(value));
-	if ((value = getenv("router"))) {
-		has_gateway = 1;
-		nvram_set_temp(strcat_r(prefix, "gateway", tmp), trim_r(value));
+	nvram_set_temp(strcat_r(prefix, "gateway", tmp), gateway_buf);
+
+	value = getenv("dns");
+	lease_dns = value ? trim_r(value) : "";
+	if (!dhcp_lease_ipv4_list_is_valid(lease_dns, 255, 16, 1)) {
+		logmessage(log_prefix, "ignoring invalid DHCP DNS list on %s", wan_ifname);
+		lease_dns = "";
 	}
-	if ((value = getenv("dns")))
-		nvram_set_temp(strcat_r(prefix, "dns", tmp), trim_r(value));
-	if ((value = getenv("wins")))
-		nvram_set_temp(strcat_r(prefix, "wins", tmp), trim_r(value));
-	if ((value = getenv("mtu"))) {
-		dhcp_mtu = atoi(trim_r(value));
+	nvram_set_temp(strcat_r(prefix, "dns", tmp), lease_dns);
+
+	value = getenv("wins");
+	lease_wins = value ? trim_r(value) : "";
+	if (!dhcp_lease_ipv4_list_is_valid(lease_wins, 255, 16, 1)) {
+		logmessage(log_prefix, "ignoring invalid DHCP WINS list on %s", wan_ifname);
+		lease_wins = "";
+	}
+	nvram_set_temp(strcat_r(prefix, "wins", tmp), lease_wins);
+
+	value = getenv("mtu");
+	if (value) {
+		value = trim_r(value);
+		if (!dhcp_lease_decimal_is_valid(value, 576U, 1500U, &parsed_value)) {
+			dhcp_mtu = 0;
+			logmessage(log_prefix, "ignoring invalid DHCP MTU on %s", wan_ifname);
+		} else {
+			dhcp_mtu = (int)parsed_value;
+		}
 		nvram_set_int_temp(strcat_r(prefix, "mtu", tmp), dhcp_mtu);
 	}
 
-	nvram_set_temp(strcat_r(prefix, "routes", tmp), safe_getenv("routes"));
-	nvram_set_temp(strcat_r(prefix, "routes_ms", tmp), safe_getenv("msstaticroutes"));
-	nvram_set_temp(strcat_r(prefix, "routes_rfc", tmp), safe_getenv("staticroutes"));
+	route_value = safe_getenv("routes");
+	if (!dhcp_lease_route_text_is_safe(route_value)) {
+		logmessage(log_prefix, "ignoring invalid DHCP route option on %s", wan_ifname);
+		route_value = "";
+	}
+	nvram_set_temp(strcat_r(prefix, "routes", tmp), route_value);
 
-	if ((value = getenv("domain")))
-		nvram_set_temp(strcat_r(prefix, "domain", tmp), trim_r(value));
-	if ((value = getenv("lease"))) {
-		lease_dur = atoi(trim_r(value));
+	route_value = safe_getenv("msstaticroutes");
+	if (!dhcp_lease_route_text_is_safe(route_value)) {
+		logmessage(log_prefix, "ignoring invalid DHCP Microsoft route option on %s", wan_ifname);
+		route_value = "";
+	}
+	nvram_set_temp(strcat_r(prefix, "routes_ms", tmp), route_value);
+
+	route_value = safe_getenv("staticroutes");
+	if (!dhcp_lease_route_text_is_safe(route_value)) {
+		logmessage(log_prefix, "ignoring invalid DHCP classless route option on %s", wan_ifname);
+		route_value = "";
+	}
+	nvram_set_temp(strcat_r(prefix, "routes_rfc", tmp), route_value);
+
+	value = getenv("domain");
+	lease_domain = value ? trim_r(value) : "";
+	if (*lease_domain && !dnsmasq_valid_server_domain(lease_domain)) {
+		logmessage(log_prefix, "ignoring invalid DHCP domain on %s", wan_ifname);
+		lease_domain = "";
+	}
+	nvram_set_temp(strcat_r(prefix, "domain", tmp), lease_domain);
+
+	value = getenv("lease");
+	if (value) {
+		value = trim_r(value);
+		if (!dhcp_lease_decimal_is_valid(value, 0U, 2147483647U, &parsed_value)) {
+			lease_dur = 0;
+			logmessage(log_prefix, "ignoring invalid DHCP lease duration on %s", wan_ifname);
+		} else {
+			lease_dur = (int)parsed_value;
+		}
 		nvram_set_int_temp(strcat_r(prefix, "lease", tmp), lease_dur);
 	}
 
 #if defined (USE_IPV6)
-	if ((value = getenv("ip6rd")))
+	value = getenv("ip6rd");
+	if (value)
 		store_ip6rd_from_dhcp(value, prefix);
 #endif
 
@@ -2225,26 +2364,26 @@ udhcpc_bound(char *wan_ifname, int is_renew_mode)
 	if (is_same_subnet2(wan_ip, lan_ip, wan_nm, lan_nm)) {
 		if (!is_renew_mode)
 			ifconfig(wan_ifname, IFUP, "0.0.0.0", NULL);
-		
+
 		i_err = 1;
-		
+
 		logmessage(log_prefix,
 			"%s (%s). ERROR! Obtained IP [%s/%s] in LAN subnet [%s/%s]. Need change LAN subnet!",
 			udhcpc_state, wan_ifname, wan_ip, wan_nm, lan_ip, lan_nm);
 	} else {
 		if (is_changed)
 			ifconfig(wan_ifname, IFUP, "0.0.0.0", NULL);
-		
+
 		if (!is_renew_mode && (dhcp_mtu >= 1300 && dhcp_mtu < 1500))
 			set_interface_mtu(wan_ifname, dhcp_mtu);
-		
+
 		ifconfig(wan_ifname, IFUP, wan_ip, wan_nm);
-		
+
 		wan_gw = nvram_safe_get(strcat_r(prefix, "gateway", tmp));
 		logmessage(log_prefix,
 			"%s (%s), IP: %s, GW: %s, lease time: %d",
 			udhcpc_state, wan_ifname, wan_ip, wan_gw, lease_dur);
-		
+
 		if (is_man)
 			man_up(wan_ifname, unit, 0);
 		else
@@ -2260,100 +2399,127 @@ static int
 udhcpc_viptv_bound(char *man_ifname, int is_renew_mode)
 {
 	char *value, *lan_ip, *lan_nm, *ip, *nm, *gw, *rt, *rt_ms, *rt_rfc;
-	char tmp[100], prefix[16], log_prefix[32], *udhcpc_state;
-	int lease_dur, is_changed, i_err, dhcp_mtu;
+	char log_prefix[32], *udhcpc_state;
+	char gateway_buf[INET_ADDRSTRLEN], old_gateway[INET_ADDRSTRLEN];
+	unsigned int parsed_value;
+	int lease_dur, is_changed, i_err, dhcp_mtu, route_result;
 
-	strcpy(prefix, "manv_");
 	snprintf(log_prefix, sizeof(log_prefix), "%s %s Client", "DHCP", "IPTV");
 	udhcpc_state = (is_renew_mode) ? "renew" : "bound";
 
-	i_err = 0;
-	lease_dur = 0;
-	is_changed = 0;
-	dhcp_mtu = 0;
-
-	ip = "0.0.0.0";
-	nm = "255.255.0.0";
-	gw = "";
-	rt = "";
-	rt_ms = "";
-	rt_rfc = "";
-
-	if ((value = getenv("ip")))
-		ip = trim_r(value);
-
-	is_changed = nvram_invmatch(strcat_r(prefix, "ipaddr", tmp), ip);
-	nvram_set_temp(strcat_r(prefix, "ipaddr", tmp), ip);
-
-	if ((value = getenv("subnet")))
-		nm = trim_r(value);
-
-	nvram_set_temp(strcat_r(prefix, "netmask", tmp), nm);
-
-	if ((value = getenv("router")))
-		gw = trim_r(value);
-
-	nvram_set_temp(strcat_r(prefix, "gateway", tmp), gw);
-
-	if ((value = getenv("mtu"))) {
-		dhcp_mtu = atoi(trim_r(value));
-		nvram_set_int_temp(strcat_r(prefix, "mtu", tmp), dhcp_mtu);
+	value = getenv("ip");
+	ip = value ? trim_r(value) : "";
+	value = getenv("subnet");
+	nm = value ? trim_r(value) : "255.255.0.0";
+	if (!dhcp_lease_ipv4_is_valid(ip) || !dhcp_lease_netmask_is_valid(nm)) {
+		logmessage(log_prefix, "%s (%s) rejected invalid DHCP address/netmask",
+			udhcpc_state, man_ifname);
+		return EINVAL;
 	}
 
-	if ((value = getenv("routes")))
-		rt = trim_r(value);
+	gateway_buf[0] = '\0';
+	value = getenv("router");
+	if (value) {
+		route_result = dhcp_lease_ipv4_list_first(trim_r(value),
+			gateway_buf, sizeof(gateway_buf));
+		if (route_result < 0)
+			logmessage(log_prefix, "ignoring invalid DHCP router list on %s", man_ifname);
+	}
+	gw = gateway_buf;
 
-	if ((value = getenv("msstaticroutes")))
-		rt_ms = trim_r(value);
+	value = getenv("routes");
+	rt = value ? trim_r(value) : "";
+	if (!dhcp_lease_route_text_is_safe(rt)) {
+		logmessage(log_prefix, "ignoring invalid DHCP IPTV route option on %s", man_ifname);
+		rt = "";
+	}
+	value = getenv("msstaticroutes");
+	rt_ms = value ? trim_r(value) : "";
+	if (!dhcp_lease_route_text_is_safe(rt_ms)) {
+		logmessage(log_prefix, "ignoring invalid DHCP IPTV Microsoft route option on %s", man_ifname);
+		rt_ms = "";
+	}
+	value = getenv("staticroutes");
+	rt_rfc = value ? trim_r(value) : "";
+	if (!dhcp_lease_route_text_is_safe(rt_rfc)) {
+		logmessage(log_prefix, "ignoring invalid DHCP IPTV classless route option on %s", man_ifname);
+		rt_rfc = "";
+	}
 
-	if ((value = getenv("staticroutes")))
-		rt_rfc = trim_r(value);
+	lease_dur = 0;
+	dhcp_mtu = 0;
+	value = getenv("lease");
+	if (value) {
+		value = trim_r(value);
+		if (!dhcp_lease_decimal_is_valid(value, 0U, 2147483647U, &parsed_value))
+			logmessage(log_prefix, "ignoring invalid DHCP lease duration on %s", man_ifname);
+		else
+			lease_dur = (int)parsed_value;
+	}
+	value = getenv("mtu");
+	if (value) {
+		value = trim_r(value);
+		if (!dhcp_lease_decimal_is_valid(value, 576U, 1500U, &parsed_value)) {
+			dhcp_mtu = 0;
+			nvram_set_int_temp("manv_mtu", 0);
+			logmessage(log_prefix, "ignoring invalid DHCP MTU on %s", man_ifname);
+		} else {
+			dhcp_mtu = (int)parsed_value;
+			nvram_set_int_temp("manv_mtu", dhcp_mtu);
+		}
+	}
 
-	nvram_set_temp(strcat_r(prefix, "routes", tmp), rt);
-	nvram_set_temp(strcat_r(prefix, "routes_ms", tmp), rt_ms);
-	nvram_set_temp(strcat_r(prefix, "routes_rfc", tmp), rt_rfc);
+	/* Remove old lease-derived routes before overwriting their only record. */
+	snprintf(old_gateway, sizeof(old_gateway), "%s", nvram_safe_get("manv_gateway"));
+	if (dhcp_lease_ipv4_is_valid(old_gateway))
+		route_del(man_ifname, 10, "0.0.0.0", old_gateway, "0.0.0.0");
+	del_dhcp_routes_by_prefix("manv_", man_ifname, 0);
 
-	if ((value = getenv("lease")))
-		lease_dur = atoi(value);
+	is_changed = nvram_invmatch("manv_ipaddr", ip);
+	nvram_set_temp("manv_ipaddr", ip);
+	nvram_set_temp("manv_netmask", nm);
+	nvram_set_temp("manv_gateway", gw);
+	nvram_set_temp("manv_routes", rt);
+	nvram_set_temp("manv_routes_ms", rt_ms);
+	nvram_set_temp("manv_routes_rfc", rt_rfc);
 
 	lan_ip = nvram_safe_get("lan_ipaddr");
 	lan_nm = nvram_safe_get("lan_netmask");
 
+	i_err = 0;
 	if (is_same_subnet2(ip, lan_ip, nm, lan_nm)) {
 		if (!is_renew_mode)
 			ifconfig(man_ifname, IFUP, "0.0.0.0", NULL);
-		
+
 		i_err = 1;
-		
+
 		logmessage(log_prefix,
-			"%s (%s). ERROR! Obtained IP [%s/%s] in LAN subnet [%s/%s]. Need change LAN subnet!", 
+			"%s (%s). ERROR! Obtained IP [%s/%s] in LAN subnet [%s/%s]. Need change LAN subnet!",
 			udhcpc_state, man_ifname, ip, nm, lan_ip, lan_nm);
 	} else {
 		if (is_changed)
 			ifconfig(man_ifname, IFUP, "0.0.0.0", NULL);
-		
-		if (!is_renew_mode && (dhcp_mtu >= 1300 && dhcp_mtu < 1500))
+
+		if (!is_renew_mode && dhcp_mtu >= 1300 && dhcp_mtu < 1500)
 			set_interface_mtu(man_ifname, dhcp_mtu);
-		
+
 		ifconfig(man_ifname, IFUP, ip, nm);
-		
+
 		logmessage(log_prefix,
-			"%s (%s), IP: %s, GW: %s, lease time: %d", 
+			"%s (%s), IP: %s, GW: %s, lease time: %d",
 			udhcpc_state, man_ifname, ip, gw, lease_dur);
-		
-		/* and routes supplied via DHCP */
+
 		if (*rt || *rt_rfc || *rt_ms)
 			add_dhcp_routes(rt, rt_rfc, rt_ms, man_ifname, 0);
-		
-		/* default route via default gateway (metric 10) */
-		if (is_valid_ipv4(gw))
+
+		/* default route via IPTV gateway (metric 10) */
+		if (dhcp_lease_ipv4_is_valid(gw))
 			route_add(man_ifname, 10, "0.0.0.0", gw, "0.0.0.0");
-		
+
 		start_igmpproxy(man_ifname);
 	}
 
-	nvram_set_int_temp(strcat_r(prefix, "err", tmp), i_err);
-
+	nvram_set_int_temp("manv_err", i_err);
 	return 0;
 }
 
@@ -2377,6 +2543,10 @@ zcip_bound(char *man_ifname)
 
 	if ((value = getenv("ip"))) {
 		ip = trim_r(value);
+		if (!dhcp_lease_ipv4_is_valid(ip)) {
+			logmessage(LOGNAME, "ZeroConf rejected invalid address on %s", man_ifname);
+			return EINVAL;
+		}
 		nvram_set_temp(strcat_r(prefix, "ipaddr", tmp), ip);
 		ifconfig(man_ifname, IFUP, ip, zeroconf_mask);
 		
@@ -2402,6 +2572,10 @@ zcip_viptv_bound(char *man_ifname)
 
 	if ((value = getenv("ip"))) {
 		ip = trim_r(value);
+		if (!dhcp_lease_ipv4_is_valid(ip)) {
+			logmessage(LOGNAME, "ZeroConf IPTV rejected invalid address on %s", man_ifname);
+			return EINVAL;
+		}
 		nvram_set_temp(strcat_r(prefix, "ipaddr", tmp), ip);
 		ifconfig(man_ifname, IFUP, ip, zeroconf_mask);
 		
@@ -2414,9 +2588,10 @@ zcip_viptv_bound(char *man_ifname)
 static int
 udhcpc_renew(char *wan_ifname)
 {
-	char *param, *value;
-	char tmp[100], prefix[16], log_prefix[32], *udhcpc_state;
-	int unit, is_man, is_changed;
+	char *param, *value, *router_value, *lease_dns, *lease_wins, *lease_domain;
+	char tmp[100], prefix[16], log_prefix[32], gateway_buf[INET_ADDRSTRLEN];
+	unsigned int parsed_value;
+	int unit, is_man, is_changed, route_result;
 
 	unit = get_wan_unit(wan_ifname);
 	is_man = is_ifunit_man(wan_ifname, unit);
@@ -2430,37 +2605,99 @@ udhcpc_renew(char *wan_ifname)
 	}
 
 	snprintf(log_prefix, sizeof(log_prefix), "%s %s Client", "DHCP", (is_man) ? "MAN" : "WAN");
-	udhcpc_state = "renew";
 
-	is_changed = 0;
-
-	if (!(value = getenv("subnet")) || nvram_invmatch(strcat_r(prefix, "netmask", tmp), trim_r(value)))
-		return udhcpc_bound(wan_ifname, 1);
-	if ((value = getenv("router")) && nvram_invmatch(strcat_r(prefix, "gateway", tmp), trim_r(value)))
-		return udhcpc_bound(wan_ifname, 1);
-	if ((value = getenv("ip")) && nvram_invmatch(strcat_r(prefix, "ipaddr", tmp), trim_r(value)))
+	value = getenv("subnet");
+	if (!value || nvram_invmatch(strcat_r(prefix, "netmask", tmp), trim_r(value)))
 		return udhcpc_bound(wan_ifname, 1);
 
-	if ((value = getenv("dns"))) {
-		param = strcat_r(prefix, "dns", tmp);
-		if (nvram_invmatch(param, trim_r(value))) {
-			nvram_set_temp(param, trim_r(value));
-			is_changed = 1;
-		}
+	value = getenv("router");
+	if (value) {
+		route_result = dhcp_lease_ipv4_list_first(trim_r(value),
+			gateway_buf, sizeof(gateway_buf));
+		router_value = (route_result > 0) ? gateway_buf : "";
+		if (route_result < 0)
+			logmessage(log_prefix, "invalid DHCP router option on %s; refreshing lease state", wan_ifname);
+		if (nvram_invmatch(strcat_r(prefix, "gateway", tmp), router_value))
+			return udhcpc_bound(wan_ifname, 1);
 	}
 
-	if ((value = getenv("domain")))
-		nvram_set_temp(strcat_r(prefix, "domain", tmp), trim_r(value));
-	if ((value = getenv("wins")))
-		nvram_set_temp(strcat_r(prefix, "wins", tmp), trim_r(value));
-	if ((value = getenv("lease")))
-		nvram_set_temp(strcat_r(prefix, "lease", tmp), trim_r(value));
+	value = getenv("ip");
+	if (!value || nvram_invmatch(strcat_r(prefix, "ipaddr", tmp), trim_r(value)))
+		return udhcpc_bound(wan_ifname, 1);
+
+	/* Changed route options must re-run WAN setup after removing the old routes. */
+	value = safe_getenv("routes");
+	if (!dhcp_lease_route_text_is_safe(value))
+		value = "";
+	if (nvram_invmatch(strcat_r(prefix, "routes", tmp), value))
+		return udhcpc_bound(wan_ifname, 1);
+
+	value = safe_getenv("msstaticroutes");
+	if (!dhcp_lease_route_text_is_safe(value))
+		value = "";
+	if (nvram_invmatch(strcat_r(prefix, "routes_ms", tmp), value))
+		return udhcpc_bound(wan_ifname, 1);
+
+	value = safe_getenv("staticroutes");
+	if (!dhcp_lease_route_text_is_safe(value))
+		value = "";
+	if (nvram_invmatch(strcat_r(prefix, "routes_rfc", tmp), value))
+		return udhcpc_bound(wan_ifname, 1);
+
+	value = getenv("mtu");
+	if (value) {
+		value = trim_r(value);
+		if (!dhcp_lease_decimal_is_valid(value, 576U, 1500U, &parsed_value))
+			parsed_value = 0;
+		if (nvram_get_int(strcat_r(prefix, "mtu", tmp)) != (int)parsed_value)
+			return udhcpc_bound(wan_ifname, 1);
+	}
+
+	is_changed = 0;
+	value = getenv("dns");
+	lease_dns = value ? trim_r(value) : "";
+	if (!dhcp_lease_ipv4_list_is_valid(lease_dns, 255, 16, 1)) {
+		logmessage(log_prefix, "ignoring invalid DHCP DNS list on %s", wan_ifname);
+		lease_dns = "";
+	}
+	param = strcat_r(prefix, "dns", tmp);
+	if (nvram_invmatch(param, lease_dns)) {
+		nvram_set_temp(param, lease_dns);
+		is_changed = 1;
+	}
+
+	value = getenv("domain");
+	lease_domain = value ? trim_r(value) : "";
+	if (*lease_domain && !dnsmasq_valid_server_domain(lease_domain)) {
+		logmessage(log_prefix, "ignoring invalid DHCP domain on %s", wan_ifname);
+		lease_domain = "";
+	}
+	param = strcat_r(prefix, "domain", tmp);
+	if (nvram_invmatch(param, lease_domain)) {
+		nvram_set_temp(param, lease_domain);
+		/* Refresh dnsmasq domain-specific server routing too. */
+		is_changed = 1;
+	}
+
+	value = getenv("wins");
+	lease_wins = value ? trim_r(value) : "";
+	if (!dhcp_lease_ipv4_list_is_valid(lease_wins, 255, 16, 1)) {
+		logmessage(log_prefix, "ignoring invalid DHCP WINS list on %s", wan_ifname);
+		lease_wins = "";
+	}
+	nvram_set_temp(strcat_r(prefix, "wins", tmp), lease_wins);
+
+	value = getenv("lease");
+	if (value) {
+		value = trim_r(value);
+		if (dhcp_lease_decimal_is_valid(value, 0U, 2147483647U, &parsed_value))
+			nvram_set_int_temp(strcat_r(prefix, "lease", tmp), (int)parsed_value);
+		else
+			logmessage(log_prefix, "ignoring invalid DHCP lease duration on %s", wan_ifname);
+	}
 
 	if (is_changed) {
-		logmessage(log_prefix, "%s (%s), new DNS: %s", 
-			udhcpc_state, wan_ifname,
-			nvram_safe_get(strcat_r(prefix, "dns", tmp)) );
-		
+		logmessage(log_prefix, "renew (%s), DNS/domain configuration changed", wan_ifname);
 		update_resolvconf(0, 0);
 	}
 
@@ -2470,17 +2707,56 @@ udhcpc_renew(char *wan_ifname)
 static int
 udhcpc_viptv_renew(char *man_ifname)
 {
-	char *value;
-	char tmp[100], prefix[16];
+	char *value, *gateway_value;
+	char tmp[100], prefix[16], gateway_buf[INET_ADDRSTRLEN];
+	unsigned int parsed_value;
+	int route_result;
 
 	strcpy(prefix, "manv_");
 
-	if ((value = getenv("subnet")) && nvram_invmatch(strcat_r(prefix, "netmask", tmp), trim_r(value)))
+	value = getenv("subnet");
+	if (value && nvram_invmatch(strcat_r(prefix, "netmask", tmp), trim_r(value)))
 		return udhcpc_viptv_bound(man_ifname, 1);
-	if ((value = getenv("router")) && nvram_invmatch(strcat_r(prefix, "gateway", tmp), trim_r(value)))
+
+	value = getenv("router");
+	if (value) {
+		route_result = dhcp_lease_ipv4_list_first(trim_r(value),
+			gateway_buf, sizeof(gateway_buf));
+		gateway_value = (route_result > 0) ? gateway_buf : "";
+		if (nvram_invmatch("manv_gateway", gateway_value))
+			return udhcpc_viptv_bound(man_ifname, 1);
+	}
+
+	value = getenv("ip");
+	if (value && nvram_invmatch("manv_ipaddr", trim_r(value)))
 		return udhcpc_viptv_bound(man_ifname, 1);
-	if ((value = getenv("ip")) && nvram_invmatch(strcat_r(prefix, "ipaddr", tmp), trim_r(value)))
+
+	value = safe_getenv("routes");
+	if (!dhcp_lease_route_text_is_safe(value))
+		value = "";
+	if (nvram_invmatch("manv_routes", value))
 		return udhcpc_viptv_bound(man_ifname, 1);
+
+	value = safe_getenv("msstaticroutes");
+	if (!dhcp_lease_route_text_is_safe(value))
+		value = "";
+	if (nvram_invmatch("manv_routes_ms", value))
+		return udhcpc_viptv_bound(man_ifname, 1);
+
+	value = safe_getenv("staticroutes");
+	if (!dhcp_lease_route_text_is_safe(value))
+		value = "";
+	if (nvram_invmatch("manv_routes_rfc", value))
+		return udhcpc_viptv_bound(man_ifname, 1);
+
+	value = getenv("mtu");
+	if (value) {
+		value = trim_r(value);
+		if (!dhcp_lease_decimal_is_valid(value, 576U, 1500U, &parsed_value))
+			parsed_value = 0;
+		if (nvram_get_int("manv_mtu") != (int)parsed_value)
+			return udhcpc_viptv_bound(man_ifname, 1);
+	}
 
 	return 0;
 }
@@ -2559,9 +2835,17 @@ udhcpc_viptv_main(int argc, char **argv)
 
 	umask(0000);
 
-	if (!strcmp(argv[1], "deconfig"))
+	if (!strcmp(argv[1], "deconfig")) {
+		char *old_gateway = nvram_safe_get("manv_gateway");
+		del_dhcp_routes_by_prefix("manv_", man_ifname, 0);
+		if (dhcp_lease_ipv4_is_valid(old_gateway))
+			route_del(man_ifname, 10, "0.0.0.0", old_gateway, "0.0.0.0");
+		nvram_set_temp("manv_gateway", "");
+		nvram_set_temp("manv_routes", "");
+		nvram_set_temp("manv_routes_ms", "");
+		nvram_set_temp("manv_routes_rfc", "");
 		ret = 0;
-	else if (!strcmp(argv[1], "bound"))
+	} else if (!strcmp(argv[1], "bound"))
 		ret = udhcpc_viptv_bound(man_ifname, 0);
 	else if (!strcmp(argv[1], "renew"))
 		ret = udhcpc_viptv_renew(man_ifname);

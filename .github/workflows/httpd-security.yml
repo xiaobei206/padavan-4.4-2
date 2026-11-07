@@ -34,6 +34,9 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
       - "trunk/user/rc/src/net_wan.c"
+      - "trunk/user/rc/src/rc.h"
+      - "trunk/user/rc/src/dhcp_lease_policy.h"
+      - "trunk/user/rc/src/tests/dhcp_lease_policy.c"
       - "trunk/user/rc/src/net_ppp.c"
       - "trunk/user/rc/src/ppp_options_file.h"
       - "trunk/user/rc/src/tests/ppp_options_file.c"
@@ -266,6 +269,69 @@ jobs:
           assert 'assert(ppp_options_file_open(hardlink_path) == NULL)' in test
           assert 'assert(ppp_options_file_open(fifo_path) == NULL)' in test
           print("PPP credential-file mode, directory, symlink, hardlink, FIFO and finalization regressions: OK")
+          PY
+
+      - name: Verify DHCP lease input and renewal reconciliation
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/dhcp_lease_policy.c \
+            -o /tmp/dhcp_lease_policy
+          /tmp/dhcp_lease_policy
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("trunk/user/rc/src")
+          wan = (root / "net_wan.c").read_text()
+          policy = (root / "dhcp_lease_policy.h").read_text()
+          test = (root / "tests/dhcp_lease_policy.c").read_text()
+          header = (root / "rc.h").read_text()
+
+          assert '#include "dhcp_lease_policy.h"' in wan
+          assert "dhcp_lease_ipv4_is_valid" in policy
+          assert "dhcp_lease_netmask_is_valid" in policy
+          assert "dhcp_lease_ipv4_list_first" in policy
+          assert "dhcp_lease_decimal_is_valid" in policy
+          assert "dhcp_lease_route_text_is_safe" in policy
+          for payload in ("192.0.2.1;reboot", "255.0.255.0", "192.0.2.0/24\\nCOMMIT"):
+              assert payload in test
+
+          bound_start = wan.index("udhcpc_bound(char *wan_ifname, int is_renew_mode)")
+          bound_end = wan.index("udhcpc_viptv_bound(", bound_start)
+          bound = wan[bound_start:bound_end]
+          assert bound.index("dhcp_lease_ipv4_is_valid(lease_ip)") < bound.index('nvram_set_temp(strcat_r(prefix, "ipaddr"')
+          assert "dhcp_lease_netmask_is_valid(lease_netmask)" in bound
+          assert "dhcp_lease_ipv4_list_first" in bound
+          assert "dhcp_lease_route_text_is_safe" in bound
+          assert "dnsmasq_valid_server_domain(lease_domain)" in bound
+          assert "dhcp_lease_decimal_is_valid(value, 576U, 1500U" in bound
+          assert "del_dhcp_routes_by_prefix(prefix, wan_ifname, 0)" in bound
+
+          tv_start = wan.index("udhcpc_viptv_bound(char *man_ifname, int is_renew_mode)")
+          tv_end = wan.index("zcip_bound(", tv_start)
+          tv_bound = wan[tv_start:tv_end]
+          assert "dhcp_lease_ipv4_is_valid(ip)" in tv_bound
+          assert "dhcp_lease_netmask_is_valid(nm)" in tv_bound
+          assert "del_dhcp_routes_by_prefix(\"manv_\"" in tv_bound
+
+          renew_start = wan.index("udhcpc_renew(char *wan_ifname)")
+          renew_end = wan.index("udhcpc_leasefail(", renew_start)
+          renew = wan[renew_start:renew_end]
+          assert renew.count("dhcp_lease_route_text_is_safe(value)") >= 6
+          assert "dnsmasq domain-specific server routing too" in renew
+          assert "update_resolvconf(0, 0);" in renew
+          assert "void\ndel_dhcp_routes_by_prefix" in wan
+          assert "void del_dhcp_routes_by_prefix(char *prefix, char *ifname, int metric);" in header
+
+          route_start = wan.index("control_dhcp_routes(")
+          route_end = wan.index("int\nadd_static_wan_routes(", route_start)
+          route_body = wan[route_start:route_end]
+          assert "if (is_add)" in route_body and "route_del(ifname, metric" in route_body
+          assert "if (is_add && !nvram_match(\"dr_enable_x\", \"1\"))" in route_body
+          assert 'del_dhcp_routes_by_prefix("manv_", man_ifname, 0);' in wan
+          assert 'del_dhcp_routes_by_prefix("manv_", man_ifname, 0);' in wan[wan.index("udhcpc_viptv_main("):]
+          print("DHCP lease normalization, route reconciliation, and resolver refresh contracts: OK")
           PY
 
       - name: Verify add-on firewall hook staging

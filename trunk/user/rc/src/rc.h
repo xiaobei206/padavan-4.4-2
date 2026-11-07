@@ -290,6 +290,7 @@ void notify_on_wan_ether_link_restored(void);
 void notify_on_internet_state_changed(int has_internet, long elapsed);
 void add_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms, char *ifname, int metric);
 void add_dhcp_routes_by_prefix(char *prefix, char *ifname, int metric);
+void del_dhcp_routes_by_prefix(char *prefix, char *ifname, int metric);
 int  add_static_wan_routes(char *wan_ifname);
 int  del_static_wan_routes(char *wan_ifname);
 int  add_static_man_routes(char *man_ifname);
