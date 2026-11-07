@@ -1,3 +1,14 @@
+## 2026-11-07 18:16 CST — Make SkipDB record deserialization atomic
+
+- Baseline: `2740ec2ecf0c63a808f54b21cdb171ced29f29d0`; SkipDBv2 Regression run #619 passed the integration/source contracts, full build, and all 57 CTests.
+- Scope: `SkipDBRecord_fromStream_()` and its existing record-storage regression target.
+- The decoder previously wrote key/value arrays and pointer metadata directly into the caller's record before proving that the tagged stream was complete. A later truncation, invalid PID/link, or trailing byte could return failure after leaving the reused record partially overwritten.
+- Decode into a detached record, and swap payload/link fields into the caller only after the full stream validates. Preserve caller identity, database/cache metadata, PID, and old key-ownership semantics; release the old payload through the temporary record's destructor.
+- Extend the existing test to verify truncated and trailing-data failures preserve key, value, level, link PID, and suffix metadata. Update the workflow's static contract and add a source-order assertion. No new files, exported symbols, or CMake target changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 18:14 CST — Align time-sliced compaction count with split-hole merges
 
 - Baseline: `23f854636f1bfe1bd073375c46990665ba91b83d`; SkipDBv2 Regression run #618 passed the integration contracts and full build, but CTest failed only in `udb_reserved_pid_test`.

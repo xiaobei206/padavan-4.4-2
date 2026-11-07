@@ -44,7 +44,7 @@ int SkipDBRecord_toStream_(SkipDBRecord *self, BStream *s)
 	return UArray_size(s->errorBa) == 0;
 }
 
-int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
+static int SkipDBRecord_readFromStream_(SkipDBRecord *self, BStream *s)
 {
 	int level, max;
 	size_t stream_size;
@@ -83,6 +83,48 @@ int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
 	}
 	if (UArray_size(s->errorBa) != 0 || s->index != stream_size)
 		return 0;
+	return 1;
+}
+
+int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)
+{
+	SkipDBRecord *parsed;
+	UArray *old_key;
+	UArray *old_value;
+	SkipDBPointer *old_pointers;
+	int old_level;
+	int old_owns_key;
+
+	if (!SkipDBRecord_streamIsReady_(self, s))
+		return 0;
+	parsed = SkipDBRecord_new();
+	if (NULL == parsed)
+		return 0;
+	if (!SkipDBRecord_readFromStream_(parsed, s)) {
+		SkipDBRecord_dealloc(parsed);
+		return 0;
+	}
+
+	/* Publish the decoded fields only after the entire stream is valid. */
+	old_key = self->key;
+	old_value = self->value;
+	old_pointers = self->pointers;
+	old_level = self->level;
+	old_owns_key = self->ownsKey;
+
+	self->key = parsed->key;
+	parsed->key = old_key;
+	self->value = parsed->value;
+	parsed->value = old_value;
+	self->pointers = parsed->pointers;
+	parsed->pointers = old_pointers;
+	self->level = parsed->level;
+	parsed->level = old_level;
+	self->ownsKey = 1;
+	parsed->ownsKey = old_owns_key;
+
+	/* The temporary now owns and safely releases the old decoded fields. */
+	SkipDBRecord_dealloc(parsed);
 	return 1;
 }
 

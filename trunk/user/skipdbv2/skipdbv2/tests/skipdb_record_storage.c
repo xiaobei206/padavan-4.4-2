@@ -10,6 +10,21 @@ static int datum_matches(Datum datum, const unsigned char *bytes, size_t length)
         (datum.data != NULL && memcmp(datum.data, bytes, length) == 0));
 }
 
+static int record_has_preserved_state(SkipDBRecord *record)
+{
+    static const unsigned char key[] = "preserved-key";
+    static const unsigned char value[] = "preserved-value";
+
+    return record != NULL &&
+        datum_matches(SkipDBRecord_keyDatum(record), key, sizeof(key)) &&
+        datum_matches(SkipDBRecord_valueDatum(record), value, sizeof(value)) &&
+        SkipDBRecord_level(record) == 1 &&
+        record->pointers != NULL &&
+        SkipDBRecord_pidAtLevel_(record, 0) == 41 &&
+        record->pointers[0].matchingPrefixSize == 7 &&
+        record->pointers[0].record == NULL;
+}
+
 static int test_reads_stop_after_error(void)
 {
     static const unsigned char bytes[] = { 0x11, 0x22, 0x33 };
@@ -153,6 +168,33 @@ int main(void)
     with_tail[0] = 0xff;
     if (!rejects_stream(with_tail, encoded_length)) {
         fprintf(stderr, "invalid record tag accepted\n");
+        goto done;
+    }
+
+    /* Prepare a populated target and verify failed reads do not partially replace it. */
+    memcpy(with_tail, encoded_bytes, encoded_length);
+    with_tail[encoded_length] = 0xa5;
+    SkipDBRecord_keyDatum_(restored, Datum_FromCString_("preserved-key"));
+    SkipDBRecord_valueDatum_(restored, Datum_FromCString_("preserved-value"));
+    SkipDBRecord_level_(restored, 1);
+    SkipDBRecord_atLevel_setPid_(restored, 0, 41);
+    restored->pointers[0].matchingPrefixSize = 7;
+    if (!record_has_preserved_state(restored)) {
+        fprintf(stderr, "unable to initialize preserved record state\n");
+        goto done;
+    }
+
+    BStream_setData_length_(reader, (unsigned char *)encoded_bytes, encoded_length - 1);
+    if (SkipDBRecord_fromStream_(restored, reader) ||
+        !record_has_preserved_state(restored)) {
+        fprintf(stderr, "failed decode mutated target after truncated input\n");
+        goto done;
+    }
+
+    BStream_setData_length_(reader, with_tail, encoded_length + 1);
+    if (SkipDBRecord_fromStream_(restored, reader) ||
+        !record_has_preserved_state(restored)) {
+        fprintf(stderr, "failed decode mutated target after trailing data\n");
         goto done;
     }
 

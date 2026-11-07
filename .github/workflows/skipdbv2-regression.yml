@@ -383,6 +383,11 @@ jobs:
                   "SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)",
                   "SkipDBRecord_save(SkipDBRecord *self)",
                   "s->index != stream_size",
+                  "static int SkipDBRecord_readFromStream_(SkipDBRecord *self, BStream *s)",
+                  "SkipDBRecord_readFromStream_(parsed, s)",
+                  "self->key = parsed->key;",
+                  "self->pointers = parsed->pointers;",
+                  "parsed->ownsKey = old_owns_key;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/skipdb_record_storage.c": [
                   "SkipDBRecord_toStream_(source, writer)",
@@ -392,6 +397,9 @@ jobs:
                   "negative level was accepted by record link lookup",
                   "truncated record stream accepted",
                   "stream trailing data accepted",
+                  "static int record_has_preserved_state(SkipDBRecord *record)",
+                  "failed decode mutated target after truncated input",
+                  "failed decode mutated target after trailing data",
                   "static int test_reads_stop_after_error(void)",
                   "BStream_readUint32(reader)",
                   "BStream_readUint8(reader) != 0",
@@ -3577,6 +3585,40 @@ jobs:
           ).read_text()
           if record_source.count("SkipDBRecord_datumIsValid_(") != 3:
               raise SystemExit("SkipDB record key/value datum validation is not centralized")
+
+          storage_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordStorage.c"
+          ).read_text()
+          decode_start = storage_source.find(
+              "int SkipDBRecord_fromStream_(SkipDBRecord *self, BStream *s)"
+          )
+          decode_end = storage_source.find(
+              chr(10) + "void SkipDBRecord_save(SkipDBRecord *self)", decode_start
+          )
+          decode_body = (
+              storage_source[decode_start:decode_end]
+              if decode_start >= 0 and decode_end > decode_start else ""
+          )
+          parse_call = decode_body.find("if (!SkipDBRecord_readFromStream_(parsed, s))")
+          parse_failure = decode_body.find("return 0;", parse_call)
+          old_key_snapshot = decode_body.find("old_key = self->key;", parse_call)
+          key_publish = decode_body.find("self->key = parsed->key;", parse_call)
+          value_publish = decode_body.find("self->value = parsed->value;", parse_call)
+          pointer_publish = decode_body.find("self->pointers = parsed->pointers;", parse_call)
+          level_publish = decode_body.find("self->level = parsed->level;", parse_call)
+          ownership_publish = decode_body.find("self->ownsKey = 1;", parse_call)
+          if (
+              not decode_body or min(
+                  parse_call, parse_failure, old_key_snapshot, key_publish,
+                  value_publish, pointer_publish, level_publish, ownership_publish
+              ) < 0 or not (
+                  parse_call < parse_failure < old_key_snapshot < key_publish <
+                  value_publish < pointer_publish < level_publish < ownership_publish
+              )
+          ):
+              raise SystemExit(
+                  "SkipDB record decoding must validate the complete stream before publishing staged fields"
+              )
 
           level_start = record_source.find("void SkipDBRecord_level_(SkipDBRecord *self, int level)")
           level_end = record_source.find(chr(10) + "void SkipDBRecord_object_", level_start)
