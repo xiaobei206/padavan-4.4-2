@@ -151,7 +151,8 @@ dnsmasq_lease_file_ensure(const char *path)
 		return -1;
 	}
 
-	fd = open(path, O_RDWR | O_CREAT | O_NOFOLLOW | O_NONBLOCK, lease_mode);
+	fd = open(path, O_RDWR | O_CREAT | O_NOFOLLOW | O_NONBLOCK,
+		   S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 	if (fd < 0)
 		return -1;
 
