@@ -438,7 +438,7 @@ jobs:
           guest_end = source.index("} else if (i_smb_mode == 4)", guest_start)
           guest_mode = source[guest_start:guest_end]
           assert '#define SAMBA_GUEST_ACCOUNT "nobody"' in samba_policy
-          assert 'fprintf(fp, "guest account = %s\\\\n", SAMBA_GUEST_ACCOUNT);' in guest_mode
+          assert 'fprintf(fp, "guest account = %s\\n", SAMBA_GUEST_ACCOUNT);' in guest_mode
           assert "http_username" not in guest_mode
           assert 'SYS_USER_NOBODY, 99, 99, "/media", "/bin/false"' in accounts
           assert 'SYS_USER_NOBODY, "*", 16000' in accounts
