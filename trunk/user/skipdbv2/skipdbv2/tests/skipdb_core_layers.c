@@ -276,7 +276,49 @@ int main(void)
 			goto done;
 		}
 	}
- /* A failed sync must abort, not commit the still-open UDB transaction. */
+ /*
+ * Eviction finalizers can recursively clear the cache. The outer LRU walk
+ * must not follow the next pointer after nested teardown has freed it.
+ */
+{
+    int eviction_object_token = 0;
+    SkipDBRecord *older_record = SkipDB_recordAt_(
+        source, Datum_FromCString_("gamma"));
+    SkipDBRecord *callback_record = SkipDB_recordAt_(
+        source, Datum_FromCString_("alpha"));
+
+    if (NULL == older_record || NULL == callback_record ||
+        callback_record == source->header) {
+        fprintf(stderr, "eviction callback record fixture failed\\n");
+        goto done;
+    }
+    SkipDB_noteAccessedRecord_(source, older_record);
+    SkipDB_noteAccessedRecord_(source, callback_record);
+    if (callback_record->olderRecord != older_record) {
+        fprintf(stderr, "eviction callback fixture did not establish adjacent age-list records\\n");
+        goto done;
+    }
+
+    SkipDBRecord_object_(callback_record, &eviction_object_token);
+    reentrant_callback_db = source;
+    reentrant_callback_calls = 0;
+    SkipDB_freeObjectCallback_(source, reentrant_object_free);
+    SkipDB_setCacheHighWaterMark_(source, 1);
+    SkipDB_setCacheLowWaterMark_(source, 0);
+    SkipDB_beginTransaction(source);
+    SkipDB_commitTransaction(source);
+    SkipDB_freeObjectCallback_(source, NULL);
+    reentrant_callback_db = NULL;
+
+    if (reentrant_callback_calls != 1 || !SkipDB_isOpen(source) ||
+        SkipDB_count(source) != 3 ||
+        !value_is(source, "alpha", "updated") ||
+        !value_is(source, "gamma", "4")) {
+        fprintf(stderr, "cache eviction followed a stale age-list pointer after reentrant cleanup\\n");
+        goto done;
+    }
+}
+/* A failed sync must abort, not commit the still-open UDB transaction. */
  {
   SkipDBRecord *saved_header=source->header;
   SkipDB_beginTransaction(source);

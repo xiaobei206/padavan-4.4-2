@@ -283,6 +283,14 @@ jobs:
                   "SkipDBRecord_atLevel_setPid_setSuffix_(SkipDBRecord *self, int level, PID_TYPE pid, uint8_t sMatch)",
                   "SkipDBRecord_allocedPidAtLevel_(SkipDBRecord *self, int level)",
               ],
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c": [
+                  '#include <stdint.h>',
+                  "PID_TYPE next_pid = next ? SkipDBRecord_pid(next) : 0;",
+                  "uintptr_t next_address = (uintptr_t)next;",
+                  "int callback_may_reenter = record->sdb == self &&",
+                  "PHash_at_(",
+                  "(uintptr_t)live_next != next_address",
+              ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecord.c": [
                   '#include "SkipDBRecordInternal.h"',
                   "static int SkipDBRecord_datumIsValid_(Datum value)",
@@ -460,6 +468,10 @@ jobs:
                   "static void reentrant_object_free(void *object)",
                   "SkipDB_clearCache(reentrant_callback_db);",
                   "cache teardown reentered object finalization or damaged the database",
+                  "SkipDB_setCacheHighWaterMark_(source, 1);",
+                  "SkipDB_setCacheLowWaterMark_(source, 0);",
+                  "eviction callback fixture did not establish adjacent age-list records",
+                  "cache eviction followed a stale age-list pointer after reentrant cleanup",
                   "source->header=NULL;",
                   "commit proceeded with missing root record",
                   "transaction abort fixture write failed",
@@ -3371,11 +3383,28 @@ jobs:
                   not old_level_read < invalid_level_guard < resize_call):
               raise SystemExit("SkipDBRecord_level_ must reject malformed existing levels before pointer arithmetic or realloc")
 
+          cache_source = Path("trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c").read_text()
+          evict_start = cache_source.find("static void SkipDB_evictUnmarkedCacheRecords_(SkipDB *self)")
+          evict_end = cache_source.find(chr(10) + "void SkipDB_freeExcessCachedRecords", evict_start)
+          evict_body = cache_source[evict_start:evict_end] if evict_start >= 0 and evict_end > evict_start else ""
+          callback_guard = evict_body.find("int callback_may_reenter =")
+          next_snapshot = evict_body.find("uintptr_t next_address = (uintptr_t)next;")
+          dealloc_call = evict_body.find("SkipDBRecord_dealloc(record);")
+          pid_lookup = evict_body.find("PHash_at_(", dealloc_call)
+          live_pointer_check = evict_body.find("(uintptr_t)live_next != next_address", pid_lookup)
+          if (not evict_body or min(callback_guard, next_snapshot, dealloc_call, pid_lookup, live_pointer_check) < 0 or
+                  not (next_snapshot < callback_guard < dealloc_call < pid_lookup < live_pointer_check) or
+                  "SkipDBRecord *next = record->olderRecord;" not in evict_body):
+              raise SystemExit("SkipDB cache eviction must validate the saved next record after arbitrary finalizer callbacks")
+
           core_test = Path("trunk/user/skipdbv2/skipdbv2/tests/skipdb_core_layers.c").read_text()
           for needle in ("static int test_record_level_rejects_invalid_receiver_metadata(void)",
                          "negative existing record level was used for pointer growth",
                          "out-of-range existing record level was modified",
-                         "if (!test_record_level_rejects_invalid_receiver_metadata())"):
+                         "if (!test_record_level_rejects_invalid_receiver_metadata())",
+                         "SkipDB_setCacheHighWaterMark_(source, 1);",
+                         "SkipDB_setCacheLowWaterMark_(source, 0);",
+                         "cache eviction followed a stale age-list pointer after reentrant cleanup"):
               if needle not in core_test:
                   raise SystemExit("SkipDB record-level metadata regression missing: " + needle)
 

@@ -1,3 +1,14 @@
+## 2026-11-07 17:19 CST — Revalidate the SkipDB eviction cursor after object callbacks
+
+- Baseline: `d94121ab3c7116ab5e1244b73ce7d37beecc2fcf`; mainline SkipDBv2 Regression run #604 passed the XY-C1 source contracts, full build, and all 57 CTests.
+- Scope: `SkipDB_evictUnmarkedCacheRecords_()` and the existing `skipdb_core_layers_test`.
+- The LRU walk cached `record->olderRecord` before deallocation. `SkipDBRecord_dealloc()` detaches the current row, then may invoke an arbitrary object-free callback; a callback that calls `SkipDB_clearCache()` can free the saved next row before the outer walk resumes, causing a use-after-free/double-free.
+- Snapshot the next row's PID and integer address before deallocation. After a callback, resume only when the PID cache still maps that PID to the exact same address; otherwise stop the stale walk. Clear all surviving cache marks even when the callback interrupted traversal.
+- Extend the existing core-layers test to make the finalizer reenter cache clearing during actual high-water eviction, with adjacent LRU rows and persistence/reopen assertions. Extend static and function-order Actions contracts. No new files, public symbols, or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 17:14 CST — Fix SkipDBRecord level contract newline boundary
 
 - Baseline: `6322614f6db948772625987c879a17e60623234f`; run #603 failed in the XY-C1 source-contract step before CMake configuration.

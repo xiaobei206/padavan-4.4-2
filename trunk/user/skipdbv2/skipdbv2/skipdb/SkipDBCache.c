@@ -5,6 +5,7 @@
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
+#include <stdint.h>
 
 void SkipDB_noteNewRecord_(SkipDB *self, SkipDBRecord *r)
 {
@@ -259,12 +260,39 @@ static void SkipDB_evictUnmarkedCacheRecords_(SkipDB *self)
 
 	while (record) {
 		SkipDBRecord *next = record->olderRecord;
-		if (record->mark)
+		PID_TYPE next_pid = next ? SkipDBRecord_pid(next) : 0;
+		uintptr_t next_address = (uintptr_t)next;
+		int callback_may_reenter = record->sdb == self &&
+			self->objectFreeFunc != NULL && record->object != NULL;
+
+		if (record->mark) {
 			record->mark = 0;
-		else
+		} else {
+			/*
+			 * The object finalizer may clear/rebuild the cache. Never resume
+			 * through a saved age-list pointer until its PID mapping confirms
+			 * that the same record still belongs to the live cache.
+			 */
 			SkipDBRecord_dealloc(record);
+			if (callback_may_reenter && next_address != (uintptr_t)0) {
+				SkipDBRecord *live_next = NULL;
+
+				if (next_pid != 0 && self->pidToRecord != NULL)
+					live_next = (SkipDBRecord *)PHash_at_(
+						self->pidToRecord, (void *)next_pid);
+				if (NULL == live_next ||
+					(uintptr_t)live_next != next_address)
+					break;
+				next = live_next;
+			}
+		}
 		record = next;
 	}
+
+	/* A callback may interrupt the walk; no mark survives the eviction pass. */
+	for (record = self->youngestRecord; record != NULL;
+		record = record->olderRecord)
+		record->mark = 0;
 }
 
 void SkipDB_freeExcessCachedRecords(SkipDB *self)
