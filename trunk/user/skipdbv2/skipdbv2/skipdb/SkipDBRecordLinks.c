@@ -268,8 +268,10 @@ SkipDBRecord *SkipDBRecord_findLastRecord(SkipDBRecord *self)
 	while (current)
 	{
 		if (++steps > (size_t)max_steps ||
-			!SkipDBRecord_hasValidLevel_(current)) {
+			!SkipDBRecord_hasValidLevel_(current) ||
+			(current != db->header && current->level == 0)) {
 			fprintf(stderr, "SkipDB: invalid linkage while finding last record\n");
+			SkipDB_clearUpdate(db);
 			UDB_close(db->udb);
 			return NULL;
 		}

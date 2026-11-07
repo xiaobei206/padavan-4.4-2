@@ -1,3 +1,13 @@
+## 2026-11-07 17:48 CST — Reject cached zero-level rows during tail traversal
+
+- Baseline: `4015dc39d12fc59e9e75559f35115587a84737f0`; mainline SkipDBv2 Regression run #611 passed the strict source contracts, full build, and all 57 CTests.
+- Scope: `SkipDBRecord_findLastRecord()` and the existing cursor/link regression.
+- Disk-loaded non-root records with level zero are rejected, and key search rejects zero-level forward targets. But tail traversal allowed a malformed cached row through `SkipDBRecord_hasValidLevel_()` because level zero is within the generic range; its empty level loop made it appear to be a valid last record.
+- Reject a level-zero current record unless it is the database header, clear the cached update vector, and close the UDB on corruption. Extend the existing test to persist a zero-level final row, query the last record while it remains cached, and then reopen to verify on-disk corruption still fails closed.
+- Update the workflow's static and dynamic source contracts to enforce the guard before the link walk. Existing test/CMake paths are reused; no new source files or exported declarations.
+- No local compiler/CTest result is claimed; GitHub Actions remains the build/runtime gate.
+
+---
 ## 2026-11-07 17:45 CST — Validate length-delimited IPC keys before framing
 
 - Baseline: `ff01036bacfde1078e3287806bdbba23cbbc8152`; SkipDBv2 Regression run #610 passed the strict source contracts, full build, and all 57 CTests.

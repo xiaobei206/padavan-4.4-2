@@ -326,6 +326,9 @@ jobs:
                   "SkipDBCursor_current(cursor) != NULL",
                   "cursor retained a record after database close",
                   "cursor did not recover after database reopen",
+                  "SkipDB_lastRecord(db) != NULL || !SkipDB_isOpen(db)",
+                  "last-record traversal accepted a cached level-zero row",
+                  "database failed to reopen after cached level-zero rejection",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c": [
                   "SkipDBCursor *SkipDBCursor_newWithDB_(SkipDB *sdb)",
@@ -364,8 +367,11 @@ jobs:
                   "SkipDBRecord_willRemove_",
                   "SkipDBRecord_previousRecord(SkipDBRecord *self)",
                   "if (!SkipDBRecord_hasValidLevel_(current))",
+                  "current != db->header && current->level == 0",
+                  "SkipDB_clearUpdate(db);",
                   "if (!SkipDBRecord_hasValidLevel_(r) || r->level == 0)",
                   "invalid record level during key traversal",
+                  "invalid linkage while finding last record",
                   "invalid forward record level during key traversal",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordStorage.c": [
@@ -3191,6 +3197,32 @@ jobs:
               raise SystemExit("SkipDB search and link paths must validate levels through the shared helper")
           if record_links_source.count("SkipDBRecord_pidCountForTraversal_(") != 3:
               raise SystemExit("SkipDB link traversals do not share one PID-count bound helper")
+
+          last_record_start = record_links_source.find(
+              "SkipDBRecord *SkipDBRecord_findLastRecord(SkipDBRecord *self)"
+          )
+          last_record_end = record_links_source.find(
+              chr(10) + "void SkipDBRecord_copyLevel_from_", last_record_start
+          )
+          last_record_body = (
+              record_links_source[last_record_start:last_record_end]
+              if last_record_start >= 0 and last_record_end > last_record_start
+              else ""
+          )
+          last_level_guard = last_record_body.find(
+              "(current != db->header && current->level == 0)"
+          )
+          last_level_loop = last_record_body.find(
+              "for (level = current->level - 1; level >= 0; --level)"
+          )
+          last_level_fail_closed = last_record_body.find("UDB_close(db->udb);")
+          if (
+              not last_record_body or last_level_guard < 0 or
+              last_level_loop < 0 or last_level_fail_closed < 0 or
+              not (last_level_guard < last_level_loop and
+                   last_level_guard < last_level_fail_closed)
+          ):
+              raise SystemExit("last-record traversal must reject cached non-root zero-level rows before scanning their links")
 
           cursor_source = Path(
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c"

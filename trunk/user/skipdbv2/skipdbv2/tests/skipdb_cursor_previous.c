@@ -150,9 +150,9 @@ int main(void)
 
     /* A non-root row with level zero has no forward-link slot and is
      * malformed. Persist one deliberately and ensure traversal fails closed. */
-    record = SkipDB_recordAt_(db, Datum_FromCString_("beta"));
+    record = SkipDB_recordAt_(db, Datum_FromCString_("gamma"));
     if (NULL == record) {
-        fprintf(stderr, "failed to load beta for corruption regression test\n");
+        fprintf(stderr, "failed to load gamma for corruption regression test\n");
         goto done;
     }
     SkipDB_beginTransaction(db);
@@ -163,9 +163,15 @@ int main(void)
         fprintf(stderr, "failed to persist malformed-row regression fixture\n");
         goto done;
     }
+    /* The zero-level row is still cached here. Last-record traversal must
+     * reject it instead of treating the empty level loop as a valid tail. */
+    if (SkipDB_lastRecord(db) != NULL || !SkipDB_isOpen(db)) {
+        fprintf(stderr, "last-record traversal accepted a cached level-zero row\n");
+        goto done;
+    }
     SkipDB_close(db);
     if (SkipDB_isOpen(db) || !SkipDB_open(db) || !SkipDB_isOpen(db)) {
-        fprintf(stderr, "database failed to reopen for malformed-row test\n");
+        fprintf(stderr, "database failed to reopen after cached level-zero rejection\n");
         goto done;
     }
     if (SkipDB_count(db) != -1 || SkipDB_isOpen(db)) {
