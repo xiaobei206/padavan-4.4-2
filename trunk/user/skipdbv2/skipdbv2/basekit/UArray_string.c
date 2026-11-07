@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <limits.h>
+#include <stdint.h>
 
 static int UArray_hasValidStringItemLayout_(const UArray *self);
 
@@ -534,15 +535,55 @@ static size_t UArray_stringExpectedItemSize_(CTYPE itemType)
 	}
 }
 
+
+#define UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(name, type) \
+	typedef struct { char leadingByte; type value; } name
+
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringUInt8AlignmentProbe, uint8_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringInt8AlignmentProbe, int8_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringUInt16AlignmentProbe, uint16_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringInt16AlignmentProbe, int16_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringUInt32AlignmentProbe, uint32_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringInt32AlignmentProbe, int32_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringUInt64AlignmentProbe, uint64_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringInt64AlignmentProbe, int64_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringFloat32AlignmentProbe, float32_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringFloat64AlignmentProbe, float64_t);
+UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_(UArrayStringUintptrAlignmentProbe, uintptr_t);
+
+#undef UARRAY_STRING_DECLARE_ALIGNMENT_PROBE_
+
+static size_t UArray_stringExpectedItemAlignment_(CTYPE itemType)
+{
+	switch (itemType) {
+		case CTYPE_uint8_t: return offsetof(UArrayStringUInt8AlignmentProbe, value);
+		case CTYPE_int8_t: return offsetof(UArrayStringInt8AlignmentProbe, value);
+		case CTYPE_uint16_t: return offsetof(UArrayStringUInt16AlignmentProbe, value);
+		case CTYPE_int16_t: return offsetof(UArrayStringInt16AlignmentProbe, value);
+		case CTYPE_uint32_t: return offsetof(UArrayStringUInt32AlignmentProbe, value);
+		case CTYPE_int32_t: return offsetof(UArrayStringInt32AlignmentProbe, value);
+		case CTYPE_uint64_t: return offsetof(UArrayStringUInt64AlignmentProbe, value);
+		case CTYPE_int64_t: return offsetof(UArrayStringInt64AlignmentProbe, value);
+		case CTYPE_float32_t: return offsetof(UArrayStringFloat32AlignmentProbe, value);
+		case CTYPE_float64_t: return offsetof(UArrayStringFloat64AlignmentProbe, value);
+		case CTYPE_uintptr_t: return offsetof(UArrayStringUintptrAlignmentProbe, value);
+		default: return 0;
+	}
+}
+
 static int UArray_hasValidStringItemLayout_(const UArray *self)
 {
-	size_t expectedItemSize;
+	size_t expectedItemSize, expectedItemAlignment;
 	if (NULL == self)
 		return 0;
 	expectedItemSize = UArray_stringExpectedItemSize_(self->itemType);
-	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+	expectedItemAlignment = UArray_stringExpectedItemAlignment_(self->itemType);
+	if (expectedItemSize == 0 || expectedItemAlignment == 0 ||
+		self->itemSize != expectedItemSize ||
 		self->size > (size_t)-1 / expectedItemSize ||
-		(self->size > 0 && NULL == self->data))
+		(self->size > 0 && NULL == self->data) ||
+		(self->data &&
+			((uintptr_t)self->data % expectedItemAlignment) != 0))
 		return 0;
 	return 1;
 }

@@ -1767,6 +1767,9 @@ jobs:
                   "UArray trailing format marker and hex-byte test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_string.c": [
+                  "static size_t UArray_stringExpectedItemAlignment_(CTYPE itemType)",
+                  "expectedItemAlignment == 0",
+                  "((uintptr_t)self->data % expectedItemAlignment) != 0",
                   "if (!UArray_hasValidStringItemLayout_(self) ||",
                   "void UArray_reverse(UArray *self)",
                   "self->itemSize > sizeof(b)",
@@ -1798,6 +1801,8 @@ jobs:
                   "if (fromChars->size != toChars->size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_unescape_bounds.c": [
+                  "misaligned_numeric_layout_is_preserved",
+                  "UArray string operations accepted misaligned numeric storage",
                   "malformed_numeric_layout_is_preserved",
                   "UArray_unescape accepted mismatched item metadata",
                   "malformed_layout_is_rejected_by_string_iteration",

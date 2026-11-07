@@ -1,3 +1,14 @@
+## 2026-11-07 14:00 CST — Reject misaligned typed UArray string storage
+
+- Baseline: `c7771fb5b3cba1afb8ea2ff38d36b37362392784`; preceding Unicode alignment commit passed SkipDBv2 Regression run #553, including configure, all targets, and CTest.
+- Scope: typed-item layout validation in `basekit/UArray_string.c`.
+- The existing string-item validator checked CTYPE width and allocation bounds but not per-type alignment. String operations such as unescape and trim can read elements through typed UArray accessors, making borrowed or stack-backed misaligned numeric storage undefined on strict-alignment architectures.
+- Added exact per-CTYPE alignment probes and reject misaligned backing pointers before typed iteration or mutation. Extended the existing unescape regression test with misaligned uint64-backed inputs that must remain byte-for-byte unchanged.
+- Updated the existing Actions source contracts for the invariant and regression. CMake registration and source lists remain unchanged; no new files or exported symbols.
+- Validation: source-level review verified alignment is checked before every operation using the shared validator, and test fixtures deliberately offset byte storage while keeping accesses byte-oriented. Remote CI is the build/test gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 13:55 CST — Reject misaligned UTF-16/UTF-32 UArray storage
 
 - Baseline: `30e3da52588ef464c7ab7f687e1b97a3edd70d4f`; SkipDBv2 Regression run #552 passed XY-C1 integration contracts, configure, all targets, and CTest.

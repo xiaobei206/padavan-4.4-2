@@ -1,6 +1,7 @@
 #include "UArray.h"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -81,6 +82,43 @@ done:
 }
 
 
+
+static int misaligned_numeric_layout_is_preserved(void)
+{
+	union {
+		uint64_t alignment;
+		unsigned char bytes[sizeof(uint64_t) * 2 + 1];
+	} unescapeStorage;
+	union {
+		uint64_t alignment;
+		unsigned char bytes[sizeof(uint64_t) + 1];
+	} trimStorage;
+	uint64_t escapedValues[2] = { (uint64_t)'\\', (uint64_t)'n' };
+	uint64_t trimValue = (uint64_t)' ';
+	UArray malformedUnescape;
+	UArray malformedTrim;
+	UArray trim = UArray_stackAllocedWithCString_(" ");
+
+	memset(unescapeStorage.bytes, 0, sizeof(unescapeStorage.bytes));
+	memset(trimStorage.bytes, 0, sizeof(trimStorage.bytes));
+	memcpy(unescapeStorage.bytes + 1, escapedValues, sizeof(escapedValues));
+	memcpy(trimStorage.bytes + 1, &trimValue, sizeof(trimValue));
+	malformedUnescape = UArray_stackAllocedWithData_type_size_(
+		unescapeStorage.bytes + 1, CTYPE_uint64_t, 2);
+	malformedTrim = UArray_stackAllocedWithData_type_size_(
+		trimStorage.bytes + 1, CTYPE_uint64_t, 1);
+
+	UArray_unescape(&malformedUnescape);
+	if (malformedUnescape.size != 2 ||
+		memcmp(malformedUnescape.data, escapedValues, sizeof(escapedValues)) != 0)
+		return 0;
+
+	UArray_lstrip_(&malformedTrim, &trim);
+	return malformedTrim.size == 1 &&
+		memcmp(malformedTrim.data, &trimValue, sizeof(trimValue)) == 0;
+}
+
+
 int main(void)
 {
     UArray *single_backslash = UArray_newWithCString_("\\");
@@ -129,6 +167,11 @@ int main(void)
 
     if (!malformed_layout_is_rejected_by_string_iteration())
         goto done;
+
+    if (!misaligned_numeric_layout_is_preserved()) {
+        fprintf(stderr, "UArray string operations accepted misaligned numeric storage\\n");
+        goto done;
+    }
 
     result = EXIT_SUCCESS;
     puts("UArray unescape bounds test passed");
