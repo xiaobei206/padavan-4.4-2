@@ -1,3 +1,14 @@
+## 2026-11-07 17:04 CST — Reject UArray trailing-terminator ownership aliases
+
+- Baseline: `4d221738e60d90f07ccd2e05223fe37531520896`; `SkipDBv2 Regression` run #600 passed the XY-C1 integration contracts, complete build, and all 57 CTests.
+- Scope: `UArray_setData_type_size_copy_()` in `basekit/UArray.c` and its existing `uarray_stack_resize_test`.
+- Both source-alias checks excluded the exact end of the logical byte range. For owned UArrays, that address is the allocation's trailing terminator: `copy=0` could free the allocation and then publish an interior pointer as the new owner, causing an invalid free later; `copy=1` could realloc before reading the aliased terminator, invalidating the source if realloc moved the block.
+- Treat the logical end as an alias boundary. The copying path snapshots exactly the single trailing terminator byte before realloc; other reads extending beyond the logical payload are rejected. The no-copy path rejects pointers at or inside the current logical extent before freeing or publishing any storage.
+- Add focused regressions for both no-copy ownership rejection and copy-before-realloc semantics. Reuse the existing CTest target; no new files, public declarations, or CMake source-list changes. Extend the Actions test and source-order contracts.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 17:03 CST — Match ConvertUTF overlap regression diagnostics to source contracts
 
 - Baseline: `fec862cb3ed9c5af8fc356d9d67264e25d9b6ae5`; SkipDBv2 Regression run #599 stopped in the static source-contract stage before CMake configuration.

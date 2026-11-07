@@ -295,6 +295,55 @@ static int testRejectsUnrepresentableTypedByteExtent(void)
 }
 
 
+
+static int testSetDataRejectsTrailingTerminatorAlias(void)
+{
+    UArray *owner = UArray_newWithCString_("A");
+    UArray *copyOwner = NULL;
+    uint8_t *terminator;
+    uint8_t *copyTerminator;
+    uintptr_t originalAddress;
+    int okay = 0;
+
+    if (NULL == owner) {
+        fprintf(stderr, "UArray_setData trailing-terminator fixture allocation failed\n");
+        return 0;
+    }
+
+    originalAddress = (uintptr_t)owner->data;
+    terminator = owner->data + owner->size;
+    UArray_setData_type_size_copy_(owner, terminator, CTYPE_uint8_t, 1, 0);
+    if ((uintptr_t)owner->data != originalAddress || owner->size != 1 ||
+        owner->itemType != CTYPE_uint8_t || owner->itemSize != sizeof(uint8_t) ||
+        owner->data[0] != 'A' || owner->data[1] != 0) {
+        fprintf(stderr, "UArray_setData accepted its trailing terminator as a new owned buffer\n");
+        goto done;
+    }
+
+    copyOwner = UArray_newWithCString_("A");
+    if (NULL == copyOwner) {
+        fprintf(stderr, "UArray_setData copy fixture allocation failed\n");
+        goto done;
+    }
+    copyTerminator = copyOwner->data + copyOwner->size;
+    UArray_setData_type_size_copy_(copyOwner, copyTerminator, CTYPE_uint8_t, 1, 1);
+    if (copyOwner->size != 1 || copyOwner->itemType != CTYPE_uint8_t ||
+        copyOwner->itemSize != sizeof(uint8_t) || NULL == copyOwner->data ||
+        copyOwner->data[0] != 0 || copyOwner->data[1] != 0) {
+        fprintf(stderr, "UArray_setData failed to snapshot its trailing terminator before reallocating\n");
+        goto done;
+    }
+
+    okay = 1;
+done:
+    /* The old implementation frees owner->data before publishing an interior alias. */
+    if ((uintptr_t)owner->data != originalAddress)
+        owner->data = NULL;
+    UArray_free(copyOwner);
+    UArray_free(owner);
+    return okay;
+}
+
 static int testIndexCompaction(void)
 {
     const uint16_t source[] = {0x1111, 0x2222, 0x3333, 0x4444, 0x5555};
@@ -463,6 +512,10 @@ int main(void)
         goto done;
     }
 
+    if (!testSetDataRejectsTrailingTerminatorAlias()) {
+        fprintf(stderr, "UArray_setData trailing-terminator ownership regression failed\n");
+        goto done;
+    }
     if (!testRejectsMalformedInsertItemLayouts()) {
         fprintf(stderr, "UArray insertion did not reject malformed item layouts atomically\n");
         goto done;

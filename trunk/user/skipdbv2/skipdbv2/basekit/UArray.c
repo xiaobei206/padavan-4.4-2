@@ -506,11 +506,18 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 			size_t oldSizeInBytes = self->size * self->itemSize;
 			uintptr_t base = (uintptr_t)self->data;
 			uintptr_t src = (uintptr_t)data;
-			int startsInside = src >= base && src - base < oldSizeInBytes;
+			size_t sourceOffset;
+			int startsInside = src >= base && src - base <= oldSizeInBytes;
 			int overlaps = startsInside || (src < base &&
 				base - src < sizeInBytes);
-			if (startsInside && sizeInBytes > oldSizeInBytes - (size_t)(src - base))
-				return;
+			if (startsInside) {
+				sourceOffset = (size_t)(src - base);
+				/* The single byte at oldSizeInBytes is the trailing terminator. */
+				if ((sourceOffset == oldSizeInBytes && sizeInBytes != 1) ||
+					(sourceOffset < oldSizeInBytes &&
+					 sizeInBytes > oldSizeInBytes - sourceOffset))
+					return;
+			}
 			if (overlaps)
 			{
 				sourceCopy = io_malloc(sizeInBytes);
@@ -553,9 +560,8 @@ void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t
 					self->size * self->itemSize : 0;
 				uintptr_t base = (uintptr_t)self->data;
 				uintptr_t src = (uintptr_t)data;
-				if (oldSizeInBytes > 0 &&
-					(src >= base ? src - base < oldSizeInBytes :
-					base - src < sizeInBytes))
+				if (src >= base ? src - base <= oldSizeInBytes :
+					base - src < sizeInBytes)
 					return;
 			}
 			if (self->data && !self->stackAllocated)

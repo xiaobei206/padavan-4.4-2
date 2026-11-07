@@ -2819,6 +2819,11 @@ jobs:
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c": [
+                  "static int testSetDataRejectsTrailingTerminatorAlias(void)",
+                  "UArray_setData_type_size_copy_(owner, terminator, CTYPE_uint8_t, 1, 0)",
+                  "UArray_setData_type_size_copy_(copyOwner, copyTerminator, CTYPE_uint8_t, 1, 1)",
+                  "UArray_setData accepted its trailing terminator as a new owned buffer",
+                  "UArray_setData failed to snapshot its trailing terminator before reallocating",
                   "static int testRejectsUnrepresentableTypedByteExtent(void)",
                   "UArray stack range exposed an unrepresentable SIZE_MAX byte extent",
                   "UArray typed operations accepted an unrepresentable SIZE_MAX byte extent",
@@ -4456,6 +4461,23 @@ jobs:
                   "memcmp(grow_source, grown_expected" not in resize_test or
                   "shrink_source[3] != 0xd4" not in resize_test):
               raise SystemExit("UArray stack-resize regression must cover detach, growth, shrink, and source preservation")
+
+          uarray_set_data_start = uarray_source.find("void UArray_setData_type_size_copy_(UArray *self, void *data, CTYPE type, size_t size, int copy)")
+          uarray_set_data_end = uarray_source.find("\n}", uarray_set_data_start)
+          uarray_set_data_body = (uarray_source[uarray_set_data_start:uarray_set_data_end]
+                                  if uarray_set_data_start >= 0 and uarray_set_data_end > uarray_set_data_start else "")
+          copy_alias_guard = uarray_set_data_body.find("src >= base && src - base <= oldSizeInBytes")
+          copy_snapshot = uarray_set_data_body.find("sourceCopy = io_malloc(sizeInBytes);")
+          copy_realloc = uarray_set_data_body.find("io_realloc(self->data, sizeInBytes + 1);")
+          terminator_extent = uarray_set_data_body.find("sourceOffset == oldSizeInBytes && sizeInBytes != 1")
+          no_copy_alias_guard = uarray_set_data_body.find("src >= base ? src - base <= oldSizeInBytes")
+          no_copy_owner_free = uarray_set_data_body.find("if (self->data && !self->stackAllocated)")
+          if (not uarray_set_data_body or copy_alias_guard < 0 or
+                  terminator_extent < copy_alias_guard or copy_snapshot < 0 or
+                  copy_realloc < 0 or copy_snapshot > copy_realloc or
+                  no_copy_alias_guard < 0 or
+                  no_copy_owner_free < no_copy_alias_guard):
+              raise SystemExit("UArray_setData must snapshot one-byte terminator aliases before realloc and reject no-copy ownership of aliases")
 
           uarray_size_source = (Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray.c").read_text())
           size_start = uarray_size_source.find("size_t UArray_sizeInBytes(const UArray *self)")
