@@ -88,5 +88,14 @@ main(void)
 	assert(!firewall_schedule_time_is_safe("08001760"));
 	assert(!firewall_schedule_time_is_safe("0800\n-A INPUT"));
 
+	assert(firewall_schedule_is_active("1111111", "00002359"));
+	assert(firewall_schedule_is_active("0101010", "08001730"));
+	assert(!firewall_schedule_is_active("0000000", "00002359"));
+	assert(!firewall_schedule_is_active("0000000", "08001730"));
+	assert(!firewall_schedule_is_active("111111x", "00002359"));
+	assert(!firewall_schedule_is_active("1111111", "0800173x"));
+	assert(!firewall_schedule_is_active(NULL, "00002359"));
+	assert(!firewall_schedule_is_active("1111111", NULL));
+
 	return 0;
 }
