@@ -1,12 +1,12 @@
-## 2026-11-07 23:46 CST — Record firewall URL filter guard checkpoint
+## 2026-11-07 23:46 CST — Firewall URL filter guard checkpoint
 
-- Implementation `259288902383060425b2288f0c1c4bd8f60012e3` is on main. It adds `firewall_url_filter_value_is_safe()` and calls it in `include_webstr_filter()` before length calculation, buffer aggregation or rule output.
-- Regression tests ordinary URL/path/query values and attempts to inject via quote/newline, backslash/newline, raw LF, CR, tab and DEL. The CI workflow now compiles/runs the new test with GNU89 `-Wall -Wextra -Werror` and asserts guard ordering against the production source.
-- Matching Actions run `42387739482` was QUEUED at the last check against the exact implementation SHA. Result and job steps are pending; this log does not claim the new test passed. No target build, firewall runtime test, firmware artifact or hardware validation is claimed.
-- Next: verify that run, then audit other firewall rule generation sites.
+- Implementation commit: `259288902383060425b2288f0c1c4bd8f60012e3` (`fix(firewall): reject unsafe URL filter config bytes`).
+- Matching HTTPD security workflow run `42387739482` has exact head SHA `259288902383060425b2288f0c1c4bd8f60012e3` and status `completed` / conclusion `failure`: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42387739482.
+- Validation state: **FAIL**. No target build, runtime firewall integration test, firmware artifact or hardware validation is claimed.
+- Job `HTTPD authentication and disclosure policy`: `failure`; steps: Set up job=success, Check out source=success, Compile and run policy regression=failure, Verify HTTPD auth and route-access wiring=skipped, Post Check out source=success, Complete job=success.
+- Next: inspect the failed CI step and repair the regression contract or implementation as warranted.
 
 ---
-
 ## 2026-11-07 23:40 CST — Verify BusyBox hardlink-source path guard
 
 - Code commit `14c6658c06ed030f84dbdf7afb53c4d66b436540` passed HTTPD Authentication and Security Regression run `42387366333` on exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42387366333.
