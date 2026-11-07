@@ -1,3 +1,12 @@
+## 2026-11-07 13:21 CST — Align UArray layout-validator source contract
+
+- Baseline: main commit `cbaef56b38fe0c66ae5aae3f6eea72b813359190`; SkipDBv2 Regression run #541 stopped in the XY-C1 source-contract preflight before CMake configure/build/CTest.
+- The scalar-write hardening added receiver-layout validation to both `UArray_at_putLong_()` and `UArray_at_putDouble_()`. The workflow still asserted the prior total of one definition plus eight call sites, so its exact occurrence count rejected the intended additional guards.
+- Update the existing contract to require one definition plus ten guarded call sites. The validator implementation and all call sites remain unchanged; no source, test, or CMake behavior is altered.
+- Static preflight confirms the source has exactly 11 occurrences and 10 call sites, matching the updated contract. The next Actions run is the verification gate.
+
+---
+
 ## 2026-11-07 13:16 CST — Guard UArray scalar floating-point writes
 
 - Baseline: main commit `8deffc85c39ccb53aad535984c7568e1bfa5fd41`; SkipDBv2 Regression run #540 passed source contracts, configure, the full SkipDBv2 build, and all CTest regressions.
