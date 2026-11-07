@@ -46,6 +46,7 @@
 #include "httpd.h"
 #include "common.h"
 #include "httpd_access_policy.h"
+#include "httpd_basic_auth.h"
 
 #define LOGIN_TIMEOUT		30
 #define SERVER_NAME		"httpd"
@@ -693,26 +694,16 @@ send_authenticate(FILE *conn_fp)
 static int
 auth_check( const char *authorization )
 {
-	char authinfo[256];
-	int auth_len;
+	char authinfo[MAX_AUTH_LEN];
 
-	/* Basic authorization info? Fail closed if configured credentials do not fit. */
-	if (!auth_basic_valid || !authorization ||
-	    strncmp(authorization, "Basic ", 6) != 0)
+	/* Fail closed if configured credentials do not fit or the field is malformed. */
+	if (!auth_basic_valid ||
+	    httpd_decode_basic_authorization(authorization, authinfo,
+					     (int)sizeof(authinfo)) < 0)
 		return 0;
-
-	/* Decode it. */
-	auth_len = b64_decode(authorization + 6, (unsigned char *)authinfo,
-			     (int)sizeof(authinfo) - 1);
-	if (auth_len < 0 || (size_t)auth_len >= sizeof(authinfo))
-		return 0;
-	authinfo[auth_len] = '\0';
 
 	/* Is this the right user and password? */
-	if (strcmp(authinfo, auth_basic_data) == 0)
-		return 1;
-
-	return 0;
+	return (strcmp(authinfo, auth_basic_data) == 0);
 }
 
 static int

@@ -5,6 +5,9 @@ on:
     paths:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/base64.c"
+      - "trunk/user/httpd/src/httpd_basic_auth.h"
+      - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
@@ -13,6 +16,9 @@ on:
     paths:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/base64.c"
+      - "trunk/user/httpd/src/httpd_basic_auth.h"
+      - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
@@ -39,6 +45,12 @@ jobs:
             trunk/user/httpd/src/tests/httpd_private_key_policy.c \
             -o /tmp/httpd_private_key_policy
           /tmp/httpd_private_key_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \\
+            -I trunk/user/httpd/src \\
+            trunk/user/httpd/src/base64.c \\
+            trunk/user/httpd/src/tests/httpd_basic_auth.c \\
+            -o /tmp/httpd_basic_auth
+          /tmp/httpd_basic_auth
 
       - name: Verify HTTPD auth and route-access wiring
         run: |
@@ -81,5 +93,23 @@ jobs:
           # Preserve the existing HTTPS allowance for unrelated remote-admin
           # operations; the private-key policy is intentionally narrower.
           assert "if (http_is_ssl)\n\t\treturn 1;" in httpd
+          # Basic credentials must use a strict, bounded and unambiguous decoder.
+          basic = (root / "httpd_basic_auth.h").read_text()
+          base64 = (root / "base64.c").read_text()
+          makefile = (root / "Makefile").read_text()
+          auth_start = httpd.index("auth_check( const char *authorization )")
+          auth_end = httpd.index("\nstatic int\nmatch_one", auth_start)
+          auth = httpd[auth_start:auth_end]
+          assert '#include "httpd_basic_auth.h"' in httpd
+          assert "httpd_decode_basic_authorization" in auth
+          assert "b64_decode(" not in auth
+          assert 'strncasecmp(authorization, "Basic", 5)' in basic
+          assert "authorization[5] != ' '" in basic
+          assert "b64_decode_strict" in basic and "b64_decode_strict" in base64
+          assert "memchr(decoded," in basic
+          assert "static const signed char b64_decode_table[256]" in base64
+          assert "base64.o" in makefile
+          print("HTTPD strict Basic authentication and decoder wiring: OK")
+
           print("HTTPD private-key access policy and call-site wiring: OK")
           PY
