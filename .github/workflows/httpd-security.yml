@@ -508,6 +508,31 @@ jobs:
           assert "firewall_port_range_is_safe(port, 0)" in firewall[vts_nat_start:]
           print("Firewall rule-token validation: OK")
           print("Firewall ICMP type rule-token validation: OK")
+          # All addresses that become raw iptables-restore tokens must be
+          # strict dotted-decimal IPv4. In particular, LAN IP comes from
+          # persistent NVRAM and is sanitized before any rule table is built.
+          assert "firewall_ipv4_address_is_safe" in firewall_policy
+          assert 'firewall_ipv4_address_is_safe("192.168.1.1\\n-A INPUT -j ACCEPT")' in firewall_test
+          assert 'firewall_ipv4_address_is_safe("192.168.1.1\\rCOMMIT")' in firewall_test
+          assert firewall.count("firewall_ipv4_address_is_safe(") == 9
+          assert "is_valid_ipv4(" not in firewall
+          firewall_main_start = firewall.index("start_firewall_ex(void)")
+          firewall_main_end = firewall.index(chr(10) + "}", firewall_main_start)
+          firewall_main = firewall[firewall_main_start:firewall_main_end]
+          lan_copy = firewall_main.index('snprintf(lan_ip, sizeof(lan_ip), "%s", nvram_safe_get("lan_ipaddr"));')
+          lan_guard = firewall_main.index("if (!firewall_ipv4_address_is_safe(lan_ip))")
+          lan_fallback = firewall_main.index('strcpy(lan_ip, "0.0.0.0");')
+          lan_network = firewall_main.index("ip2class(lan_ip,")
+          firewall_build = firewall_main.index("ipt_nat_rules(")
+          assert lan_copy < lan_guard < lan_fallback < lan_network < firewall_build
+          vts_filter_start = firewall.index("include_vts_filter(FILE *fp")
+          vts_nat_start = firewall.index("include_vts_nat(FILE *fp")
+          assert "if (!firewall_ipv4_address_is_safe(dstip))" in firewall[vts_filter_start:vts_nat_start]
+          assert "if (!firewall_ipv4_address_is_safe(dstip))" in firewall[vts_nat_start:]
+          assert "if (!firewall_ipv4_address_is_safe(wan_ip))" in firewall
+          assert "if (!firewall_ipv4_address_is_safe(man_ip))" in firewall
+          assert "if (!firewall_ipv4_address_is_safe(dmz_ip))" in firewall
+          print("Firewall strict IPv4 restore-token validation and LAN fallback: OK")
           assert "mkstemp(path)" in firewall_rule_file
           assert 'fdopen(fd, "w")' in firewall_rule_file
           assert "fchmod(fd, S_IRUSR | S_IWUSR)" in firewall_rule_file
