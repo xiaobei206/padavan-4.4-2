@@ -1,10 +1,19 @@
+## 2026-11-07 23:22 CST — Verify stale upload-artifact cleanup regression
+
+- Production code commit `5877544ea347ab728bd185012187ec09e2aeb76c` passed HTTPD Authentication and Security Regression run `42385963510` on exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385963510.
+- The job compiled/ran the existing strict Basic-auth, private-key policy and idle-timeout tests with GNU89 `-Wall -Wextra -Werror`, then passed source contract checks for the MIME auth matrix and the new upload cleanup ordering. The shared uploader's destination clearing precedes multipart parsing; the storage restore path clears its target before boundary rejection.
+- L1 source review and L2 focused host CI checks PASS for this bounded fix. The test does not claim full multipart fuzzing, tar extraction validation, MIPS build, firmware artifact inspection or hardware testing; L3/L4 remain NOT VERIFIED.
+- Next P1 task: inspect image/NVRAM length arithmetic and the storage restore command/extraction implementation. Then continue privileged CGI/configuration dispatch review.
+
+---
+
 ## 2026-11-07 23:20 CST — Clear stale upload artifacts before parsing restore requests
 
 - Baseline main HEAD: 87ce7c634721c2be7a7b3f52b970ad4f6f991892. Bounded P1 audit of `trunk/user/httpd/src/upload.c` and restore callbacks.
 - Finding: `handle_request()` invokes a route's output callback even when its POST input callback fails. `do_upload_file()` used to unlink its destination only after finding the expected multipart file part and skipping its part headers. If a previous request or interrupted operation left an upload artifact, malformed input that failed before that unlink could leave it present for `do_restore_nv_cgi()` or `do_restore_st_cgi()` to pass to privileged restore code. `do_restore_st_post()` also returned on invalid/missing/oversized boundary without clearing an old storage archive.
 - Fix: `do_upload_file()` now clears the fixed destination before argument/multipart validation; `do_restore_st_post()` clears its destination before any early boundary rejection. Failure cleanup and existing image/header checks are preserved.
 - Regression contract: workflow now checks the shared uploader clears its destination before multipart parsing and the storage path clears the archive before boundary validation. This is source-wiring coverage, not runtime multipart fuzzing or proof of archive extraction safety.
-- Validation: PENDING; matching Actions run will be recorded after checking its exact head SHA. Full MIPS build, firmware artifact and hardware validation NOT VERIFIED.
+- Validation: HTTPD Authentication and Security Regression run `42385963510` passed on exact head SHA `5877544ea347ab728bd185012187ec09e2aeb76c`; compilation and all source-wiring assertions, including stale-artifact cleanup ordering, passed. L3 full MIPS/firmware artifact and L4 hardware validation remain NOT VERIFIED.
 - Next: inspect the matching workflow result, then audit size arithmetic and `/sbin/mtd_storage.sh` restore/extraction behavior.
 
 ---
