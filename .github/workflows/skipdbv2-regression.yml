@@ -2691,6 +2691,11 @@ jobs:
                   'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")',
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray.c": [
+                  "static int UArray_hasValidItemLayout_(const UArray *self);",
+                  "void UArray_stackFree(UArray *self)",
+                  "void UArray_free(UArray *self)",
+                  "UArray_hasValidItemLayout_(self)",
+                  "A corrupted typed-data pointer must not be passed to the allocator.",
                   "self->size * expectedItemSize == (size_t)-1",
                   "UArrayPointerAlignmentProbe",
                   "(uintptr_t)self->data % alignment) != 0",
@@ -2887,6 +2892,10 @@ jobs:
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c": [
+                  "static int testFreeSkipsMisalignedOwnedStorage(void)",
+                  "UArray_stackFree changed the owner while rejecting malformed storage",
+                  "UArray teardown did not reject misaligned typed storage",
+                  "testFreeSkipsMisalignedOwnedStorage()",
                   "static int testSetDataRejectsTrailingTerminatorAlias(void)",
                   "UArray_setData_type_size_copy_(owner, terminator, CTYPE_uint8_t, 1, 0)",
                   "UArray_setData_type_size_copy_(copyOwner, copyTerminator, CTYPE_uint8_t, 1, 1)",

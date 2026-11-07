@@ -530,8 +530,74 @@ done:
     return okay;
 }
 
+
+static int testFreeSkipsMisalignedOwnedStorage(void)
+{
+	const uint64_t value = UINT64_C(0x123456789abcdef0);
+	UArray *owner = UArray_newWithData_type_size_copy_(
+		(void *)&value, CTYPE_uint64_t, 1, 1);
+	UArray view;
+	uint8_t *originalData = NULL;
+	int okay = 0;
+
+	if (NULL == owner) {
+		fprintf(stderr, "UArray malformed-free fixture allocation failed\n");
+		return 0;
+	}
+	originalData = owner->data;
+	if (NULL == originalData ||
+		offsetof(TestUArrayUInt64AlignmentProbe, value) <= 1) {
+		fprintf(stderr, "UArray malformed-free fixture alignment unavailable\n");
+		goto done;
+	}
+
+	/* stackFree must not release an invalid shallow-view pointer or its owner. */
+	view = *owner;
+	view.data = (uint8_t *)((uintptr_t)originalData + 1u);
+	UArray_stackFree(&view);
+	if (view.data != NULL || view.size != 0 || owner->data != originalData ||
+		memcmp(owner->data, &value, sizeof(value)) != 0) {
+		fprintf(stderr, "UArray_stackFree changed the owner while rejecting malformed storage\n");
+		goto done;
+	}
+	UArray_free(owner);
+	owner = NULL;
+	originalData = NULL;
+
+	/* UArray_free must also avoid freeing a corrupted typed-data pointer. */
+	owner = UArray_newWithData_type_size_copy_(
+		(void *)&value, CTYPE_uint64_t, 1, 1);
+	if (NULL == owner) {
+		fprintf(stderr, "UArray_free malformed-storage fixture allocation failed\n");
+		goto done;
+	}
+	originalData = owner->data;
+	if (NULL == originalData) {
+		fprintf(stderr, "UArray_free malformed-storage buffer missing\n");
+		goto done;
+	}
+	owner->data = (uint8_t *)((uintptr_t)originalData + 1u);
+	UArray_free(owner);
+	owner = NULL;
+	io_free(originalData);
+	originalData = NULL;
+
+	okay = 1;
+done:
+	if (owner) {
+		owner->data = originalData;
+		UArray_free(owner);
+	}
+	return okay;
+}
+
 int main(void)
 {
+    if (!testFreeSkipsMisalignedOwnedStorage()) {
+        fprintf(stderr, "UArray teardown did not reject misaligned typed storage\n");
+        return EXIT_FAILURE;
+    }
+
     unsigned char grow_source[] = { 0x11, 0x22, 0x33 };
     unsigned char shrink_source[] = { 0xa1, 0xb2, 0xc3, 0xd4 };
     static const unsigned char grown_expected[] = {

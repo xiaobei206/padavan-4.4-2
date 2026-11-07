@@ -1,3 +1,13 @@
+## 2026-11-07 19:09 CST — Validate UArray backing ownership before teardown
+
+- Baseline: `c596819019796a5b32f4383b8551b214345cbc57`; SkipDBv2 Regression run #637 passed integration/source contracts, full build, and all 57 CTests.
+- Scope: `UArray_stackFree()` and `UArray_free()` typed backing-storage release.
+- UArray already uses `UArray_hasValidItemLayout_()` to validate type width, size arithmetic, and data alignment before typed access, but both destructors bypassed it and unconditionally released any non-stack-allocated data pointer. A corrupted or misaligned typed pointer could therefore reach the allocator.
+- Reuse the existing layout guard in both teardown paths. Extend the existing UArray lifecycle test to exercise malformed shallow-view cleanup and heap-object destruction while preserving and explicitly freeing the real owned allocation.
+- Update the existing workflow source contracts; no new files, exported declarations, or build targets. No local build/CTest result is claimed.
+
+---
+
 ## 2026-11-07 19:07 CST — Initialize the journal fixture cleanup path
 
 - Baseline: `a6b424eca9ad97f4584a06ef14f559685ae0b4f4`; SkipDBv2 Regression run #636 passed the source contracts, full build, and all 57 CTests.

@@ -19,6 +19,8 @@ license: See _BSDLicense.txt.
 #include <stddef.h>
 #include <stdint.h>
 
+static int UArray_hasValidItemLayout_(const UArray *self);
+
 size_t CTYPE_size(CTYPE type)
 {
 	switch (type)
@@ -610,7 +612,9 @@ void UArray_stackFree(UArray *self)
 {
 	if (NULL == self)
 		return;
-	if (self->data && !self->stackAllocated)
+	/* A corrupted typed-data pointer must not be passed to the allocator. */
+	if (self->data && !self->stackAllocated &&
+		UArray_hasValidItemLayout_(self))
 		io_free(self->data);
 	self->data = NULL;
 	self->size = 0;
@@ -622,7 +626,8 @@ void UArray_free(UArray *self)
 {
 	if (NULL == self)
 		return;
-	if (self->data && !self->stackAllocated)
+	if (self->data && !self->stackAllocated &&
+		UArray_hasValidItemLayout_(self))
 		io_free(self->data);
 	io_free(self);
 }
