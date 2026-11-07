@@ -1,3 +1,11 @@
+## 2026-11-08 05:09 CST — Confirm exact-head firewall staging regression PASS
+
+- **Source/test/workflow SHA:** `af4cb4a10fdcf8989321a7c41df2f261df1544a0`; source/test implementation was already committed, so this is a verification/governance checkpoint only.
+- **Exact Actions result:** run [`42414162783`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42414162783), exact head SHA `af4cb4a10fdcf8989321a7c41df2f261df1544a0), completed **SUCCESS**. Job `128528514637` succeeded on every step, including `Compile and run policy regression`, add-on firewall hook staging, firewall command status reporting, root-managed executable staging, HTTPD auth/route-access wiring, checkout cleanup and job completion.
+- This confirms host-side CI for the bounded changes from the preceding entry; it does **not** constitute a MIPS/firmware build, image validation or router test. Cross-table rollback remains intentionally unresolved pending a coordination design.
+- The three project records are refreshed to replace the earlier accurate-at-the-time PENDING state with the completed exact-head result.
+- **Next module:** DNS/DHCP/service startup lifecycle. SkipDBv2 checkpoint branches remain unmerged.
+
 ## 2026-11-08 05:07 CST — Log firewall rule-file staging failures and preserve errno
 
 ### Baseline and Actions
