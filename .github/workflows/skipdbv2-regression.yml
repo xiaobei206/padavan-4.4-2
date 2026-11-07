@@ -326,7 +326,7 @@ jobs:
                   "SkipDBCursor_current(cursor) != NULL",
                   "cursor retained a record after database close",
                   "cursor did not recover after database reopen",
-                  "SkipDB_lastRecord(db) != NULL || !SkipDB_isOpen(db)",
+                  "SkipDB_lastRecord(db) != NULL || SkipDB_isOpen(db),
                   "last-record traversal accepted a cached level-zero row",
                   "database failed to reopen after cached level-zero rejection",
               ],

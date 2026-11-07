@@ -1,3 +1,10 @@
+## 2026-11-07 17:49 CST — Correct fail-closed regression expectation
+
+- CI run #612 compiled all targets and passed the source/build gates; `skipdb_cursor_previous_test` reached the new corruption case and showed the implementation closed UDB as intended.
+- The new test assertion inverted the expected closed-state check (`!SkipDB_isOpen` was mistakenly treated as a failure). Correct it to fail only if last-record traversal returns a row or the database remains open, and align the source contract with that assertion.
+- No production-code change; this is the minimal in-place correction for the red mainline test.
+
+---
 ## 2026-11-07 17:48 CST — Reject cached zero-level rows during tail traversal
 
 - Baseline: `4015dc39d12fc59e9e75559f35115587a84737f0`; mainline SkipDBv2 Regression run #611 passed the strict source contracts, full build, and all 57 CTests.

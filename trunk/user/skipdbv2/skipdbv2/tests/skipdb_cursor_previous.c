@@ -165,7 +165,7 @@ int main(void)
     }
     /* The zero-level row is still cached here. Last-record traversal must
      * reject it instead of treating the empty level loop as a valid tail. */
-    if (SkipDB_lastRecord(db) != NULL || !SkipDB_isOpen(db)) {
+    if (SkipDB_lastRecord(db) != NULL || SkipDB_isOpen(db)) {
         fprintf(stderr, "last-record traversal accepted a cached level-zero row\n");
         goto done;
     }
