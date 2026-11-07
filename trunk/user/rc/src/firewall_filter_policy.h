@@ -1,7 +1,17 @@
 #ifndef PADAVAN_FIREWALL_FILTER_POLICY_H
 #define PADAVAN_FIREWALL_FILTER_POLICY_H
 
+#include <arpa/inet.h>
 #include <string.h>
+
+/* IPv4 values are emitted as unquoted tokens in iptables-restore input. */
+static int
+firewall_ipv4_address_is_safe(const char *value)
+{
+	struct in_addr address;
+
+	return value && inet_pton(AF_INET, value, &address) == 1;
+}
 
 /* URL patterns are embedded in a quoted iptables-restore rule. */
 static int
