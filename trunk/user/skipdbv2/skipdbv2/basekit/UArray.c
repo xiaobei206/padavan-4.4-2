@@ -126,7 +126,7 @@ CTYPE UArray_itemType(const UArray *self)
 
 size_t UArray_itemSize(const UArray *self)
 {
-	return self->itemSize;
+	return self ? self->itemSize : 0;
 }
 
 //inline 
@@ -665,7 +665,7 @@ void UArray_setSize_(UArray *self, size_t size)
 
 size_t UArray_size(const UArray *self)
 {
-	return self->size;
+	return self ? self->size : 0;
 }
 
 size_t UArray_sizeInBytes(const UArray *self)

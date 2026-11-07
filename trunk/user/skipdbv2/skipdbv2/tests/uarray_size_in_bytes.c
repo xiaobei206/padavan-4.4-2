@@ -26,6 +26,10 @@ int main(void)
     huge_bytes.itemSize = 1;
     huge_bytes.size = (size_t)-1;
 
+    if (UArray_size(NULL) != 0 || UArray_itemSize(NULL) != 0) {
+        fprintf(stderr, "NULL UArray metadata query did not return zero\\n");
+        return EXIT_FAILURE;
+    }
     if (UArray_sizeInBytes(NULL) != 0) {
         fprintf(stderr, "NULL UArray size query did not return zero\n");
         return EXIT_FAILURE;

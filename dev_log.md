@@ -1,3 +1,13 @@
+## 2026-11-07 12:57 CST — Make UArray size getters NULL-safe
+
+- Baseline: main commit `4c96969dbb2796c2c22b36a73fbafef036f6fe37`; SkipDBv2 Regression run #533 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `UArray_size()` and `UArray_itemSize()` in `basekit/UArray.c`, their existing metadata regression, and the source contracts.
+- These public read-only getters unconditionally dereferenced their receiver, unlike the adjacent `UArray_sizeInBytes()` query that already treats a NULL array as zero bytes.
+- Return zero for a NULL receiver while retaining the existing values for valid arrays; add regression coverage for both getters and source-contract checks.
+- Reuse the existing `uarray_size_in_bytes_test` CMake target; no new files or public declarations. No local C build/CTest is claimed; mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 12:55 CST — Keep empty path append as a no-op
 
 - Baseline: main commit `019b6b855c715814ba8bb6bc0c04f08081943ad5`; SkipDBv2 Regression run #532 passed source contracts, configure, full build, and all CTest regressions.
