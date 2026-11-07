@@ -6798,7 +6798,7 @@ jobs:
           free_release = free_body.find("io_free(self->records);")
           if not free_body or free_guard < 0 or free_release < 0 or free_guard > free_release:
               raise SystemExit("PHash_free must validate backing storage before releasing it")
-                    copy_start = phash_source.find("void PHash_copy_(")
+          copy_start = phash_source.find("void PHash_copy_(")
           copy_end = phash_source.find("/*\tthis is where", copy_start)
           copy_body = phash_source[copy_start:copy_end] if copy_start >= 0 and copy_end > copy_start else ""
           if (not copy_body or

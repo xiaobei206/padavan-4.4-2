@@ -1,3 +1,11 @@
+## 2026-11-07 19:38 CST — Repair PHash teardown CI contract indentation
+
+- Baseline: `11f9262d847e577da81387376a632b5e8f5284f5`; run #650 failed immediately after adding the PHash teardown contract.
+- The dynamic workflow source-contract block inherited eight extra spaces on the following `copy_start` assignment, producing another Python `IndentationError`. Align that one statement with the surrounding block; no production C or regression behavior changed.
+- Re-run Actions before resuming the next core-module pass.
+
+---
+
 ## 2026-11-07 19:38 CST — Validate PHash backing storage before teardown
 
 - Baseline: `aa6094a63f407a3202e93fbe4e741b5cd82df1d4`; main CI run #649 passed after the SHash teardown-contract repair.
