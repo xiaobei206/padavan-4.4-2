@@ -23,7 +23,7 @@
 
 static int UArray_hasValidNumericStorage_(const UArray *self);
 static int UArray_hasUnsafeNegation_(const UArray *self);
-static int UArray_integerFloatValueIsOutOfRange_(CTYPE itemType, double value);
+static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient);
 
 #define LLVEC_DUALARG_OP(VNAME, COP, TYPE) \
 void v ## TYPE ## _ ## VNAME(TYPE ##_t *aa, TYPE ##_t *bb, size_t size)\
@@ -47,9 +47,7 @@ LLVEC_DUALARG_OP(div,  /=, float32);
 void UArray_round(UArray *self)
 {
 	if (!UArray_hasValidNumericStorage_(self) ||
-		self->itemType == CTYPE_uintptr_t || self->size == 0 ||
-		(self->itemType != CTYPE_float32_t &&
-		 self->itemType != CTYPE_float64_t))
+		self->itemType == CTYPE_uintptr_t || self->size == 0)
 		return;
 	UARRAY_FOREACHASSIGN(self, i, v, floor((double)(v+.5)));
 	UArray_changed(self);
@@ -81,7 +79,7 @@ void UArray_setItemsToDouble_(UArray *self, double x)
 	/* Out-of-range float-to-integer conversion is undefined; reject before mutating. */
 	if (self->itemType != CTYPE_float32_t &&
 		self->itemType != CTYPE_float64_t &&
-		UArray_integerFloatValueIsOutOfRange_(self->itemType, x))
+		UArray_integerFloatQuotientIsOutOfRange_(self->itemType, x))
 		return;
 	UARRAY_FOREACHASSIGN(self, i, v, x);
 	UArray_changed(self);
@@ -359,12 +357,12 @@ static float UArray_integerValueAsFloat_(const UArray *self, size_t index)
     }
 }
 
-static int UArray_integerFloatValueIsOutOfRange_(CTYPE itemType, double value)
+static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)
 {
     int bits;
     int isSigned;
 
-    if (!isfinite(value))
+    if (!isfinite(quotient))
         return 1;
 
     switch (itemType) {
@@ -380,13 +378,13 @@ static int UArray_integerFloatValueIsOutOfRange_(CTYPE itemType, double value)
     }
 
     if (!isSigned)
-        return value <= -1.0 || value >= ldexp(1.0, bits);
+        return quotient <= -1.0 || quotient >= ldexp(1.0, bits);
 
     {
         double upperBound = ldexp(1.0, bits - 1);
         if (bits == 64)
-            return value < -upperBound || value >= upperBound;
-        return value <= -upperBound - 1.0 || value >= upperBound;
+            return quotient < -upperBound || quotient >= upperBound;
+        return quotient <= -upperBound - 1.0 || quotient >= upperBound;
     }
 }
 
@@ -411,7 +409,7 @@ static int UArray_hasUnsafeIntegerDivision_(const UArray *self, const UArray *ot
 				quotient = UArray_rawDoubleAt_(self, i) /
 					((const float64_t *)other->data)[i];
 
-			if (UArray_integerFloatValueIsOutOfRange_(self->itemType, quotient))
+			if (UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient))
 				return 1;
 			continue;
 		}
@@ -453,54 +451,30 @@ double UArray_dotProduct_(const UArray *self, const UArray *other)
 
 void UArray_addScalarDouble_(UArray *self, double value)
 {
-	size_t i;
 	if (!UArray_hasValidNumericStorage_(self) ||
 		self->itemType == CTYPE_uintptr_t || self->size == 0)
 		return;
-	if (self->itemType != CTYPE_float32_t &&
-		self->itemType != CTYPE_float64_t) {
-		for (i = 0; i < self->size; ++i) {
-			double result = UArray_rawDoubleAt_(self, i) + value;
-			if (UArray_integerFloatValueIsOutOfRange_(self->itemType, result))
-				return;
-		}
-	}
+
 	UARRAY_FOREACHASSIGN(self, i, v, v + value);
 	UArray_changed(self);
 }
 
 void UArray_subtractScalarDouble_(UArray *self, double value)
 {
-	size_t i;
 	if (!UArray_hasValidNumericStorage_(self) ||
 		self->itemType == CTYPE_uintptr_t || self->size == 0)
 		return;
-	if (self->itemType != CTYPE_float32_t &&
-		self->itemType != CTYPE_float64_t) {
-		for (i = 0; i < self->size; ++i) {
-			double result = UArray_rawDoubleAt_(self, i) - value;
-			if (UArray_integerFloatValueIsOutOfRange_(self->itemType, result))
-				return;
-		}
-	}
+
 	UARRAY_FOREACHASSIGN(self, i, v, v - value);
 	UArray_changed(self);
 }
 
 void UArray_multiplyScalarDouble_(UArray *self, double value)
 {
-	size_t i;
 	if (!UArray_hasValidNumericStorage_(self) ||
 		self->itemType == CTYPE_uintptr_t || self->size == 0)
 		return;
-	if (self->itemType != CTYPE_float32_t &&
-		self->itemType != CTYPE_float64_t) {
-		for (i = 0; i < self->size; ++i) {
-			double result = UArray_rawDoubleAt_(self, i) * value;
-			if (UArray_integerFloatValueIsOutOfRange_(self->itemType, result))
-				return;
-		}
-	}
+
 	UARRAY_FOREACHASSIGN(self, i, v, v * value);
 	UArray_changed(self);
 }
@@ -519,7 +493,7 @@ void UArray_divideScalarDouble_(UArray *self, double value)
 		self->itemType != CTYPE_float64_t) {
 		for (i = 0; i < self->size; ++i) {
 			double quotient = UArray_rawDoubleAt_(self, i) / value;
-			if (UArray_integerFloatValueIsOutOfRange_(self->itemType, quotient))
+			if (UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient))
 				return;
 		}
 	}
@@ -806,18 +780,9 @@ void UArray_logicalAnd_(UArray *self, const UArray *other)
 #define UARRAY_DOP(OP) \
 void UArray_ ## OP (UArray *self) \
 { \
-	size_t i; \
 	if (!UArray_hasValidNumericStorage_(self) || \
 		self->itemType == CTYPE_uintptr_t || self->size == 0) \
 		return; \
-	if (self->itemType != CTYPE_float32_t && \
-		self->itemType != CTYPE_float64_t) { \
-		for (i = 0; i < self->size; ++i) { \
-			double result = OP(UArray_rawDoubleAt_(self, i)); \
-			if (UArray_integerFloatValueIsOutOfRange_(self->itemType, result)) \
-				return; \
-		} \
-	} \
 	UARRAY_FOREACHASSIGN(self, i, v, OP((double)v)); \
 	UArray_changed(self); \
 }
@@ -838,27 +803,7 @@ UARRAY_DOP(log10);
 UARRAY_DOP(sqrt);
 UARRAY_DOP(ceil);
 UARRAY_DOP(floor);
-
-void UArray_fabs(UArray *self)
-{
-	if (!UArray_hasValidNumericStorage_(self) ||
-		self->itemType == CTYPE_uintptr_t || self->size == 0)
-		return;
-
-	if (self->itemType == CTYPE_float32_t ||
-		self->itemType == CTYPE_float64_t) {
-		UARRAY_FOREACHASSIGN(self, i, v, fabs((double)v));
-		UArray_changed(self);
-		return;
-	}
-
-	if (!UArray_isSignedType(self) || UArray_hasUnsafeNegation_(self))
-		return;
-
-	/* Avoid double rounding and reject signed minima before native negation. */
-	UARRAY_FOREACHASSIGN(self, i, v, (v < 0 ? -v : v));
-	UArray_changed(self);
-}
+UARRAY_DOP(fabs);
 
 void UArray_abs(UArray *self)
 {

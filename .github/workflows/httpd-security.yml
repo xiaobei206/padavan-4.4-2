@@ -1,4 +1,4 @@
-name: HTTPD Security Regression
+name: HTTPD Authentication and Security Regression
 
 on:
   push:
@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   httpd-security:
-    name: Private-key disclosure policy
+    name: HTTPD authentication and disclosure policy
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,10 +40,11 @@ jobs:
             -o /tmp/httpd_private_key_policy
           /tmp/httpd_private_key_policy
 
-      - name: Verify HTTPD access-control wiring
+      - name: Verify HTTPD auth and route-access wiring
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           root = Path("trunk/user/httpd/src")
           httpd = (root / "httpd.c").read_text()
@@ -60,6 +61,23 @@ jobs:
           dump = web[dump_start:dump_end]
           assert 'get_login_private_key_access()' in dump
           assert 'strcmp(extensions, ".key") == 0' in dump
+
+          # The Shadowsocks dbconf API returns persisted proxy-node objects.
+          # It must pass through the same HTTP authentication gate as its page.
+          dbconf_routes = [
+              line for line in web.splitlines()
+              if '"dbconf"' in line and 'do_dbconf' in line
+          ]
+          assert len(dbconf_routes) == 1
+          assert re.search(r'\\bdo_dbconf\\s*,\\s*1\\s*\\}', dbconf_routes[0]), dbconf_routes
+
+          request_start = httpd.index("static void\\nhandle_request(")
+          request_end = httpd.index("\\nstatic void\\nreset_lang_dict", request_start)
+          request = httpd[request_start:request_end]
+          auth_gate = request.index("if (handler->need_auth && login_state > 1")
+          output_call = request.index("handler->output(file, conn_fp)")
+          assert auth_gate < output_call
+          assert "auth_check(authorization)" in request[auth_gate:output_call]
 
           # Preserve the existing HTTPS allowance for unrelated remote-admin
           # operations; the private-key policy is intentionally narrower.

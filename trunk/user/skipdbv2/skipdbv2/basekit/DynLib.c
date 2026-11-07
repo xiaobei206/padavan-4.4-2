@@ -245,22 +245,10 @@ void DynLib_open(DynLib *self)
                 DynLib_setError_(self, "library could not be closed after init lookup failure");
             return;
         }
-        /*
-         * Defer close requests until the initializer returns. The callback
-         * may receive this DynLib through initArg; unloading its image while
-         * its code is still running would return into unmapped instructions.
-         */
-        self->initCallbackActive = 1;
         if (self->initArg)
             (*(DynLibOneArgFunction *)function)(self->initArg);
         else
             (*(DynLibNoArgFunction *)function)();
-        self->initCallbackActive = 0;
-
-        if (self->closeAfterInit) {
-            self->closeAfterInit = 0;
-            DynLib_close(self);
-        }
     }
 }
 
@@ -277,10 +265,6 @@ void DynLib_close(DynLib *self)
 
     if (NULL == self || NULL == self->handle)
         return;
-    if (self->initCallbackActive) {
-        self->closeAfterInit = 1;
-        return;
-    }
     handle = self->handle;
     if (self->freeFuncName && self->freeFuncName[0]) {
         function = DynLib_pointerForSymbolName_(self, self->freeFuncName);

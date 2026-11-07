@@ -4758,7 +4758,7 @@ struct mime_handler mime_handlers[] = {
 #endif
 #if defined(APP_SHADOWSOCKS)
 	{ "applydb.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_applydb_cgi, 1 },
-	{ "dbconf", "text/javascript", no_cache_IE, do_html_apply_post, do_dbconf, 0 },
+	{ "dbconf", "text/javascript", no_cache_IE, do_html_apply_post, do_dbconf, 1 },
 #endif
 	/* no-cached POST objects */
 	{ "update.cgi*", "text/javascript", no_cache_IE, do_html_apply_post, do_update_cgi, 1 },

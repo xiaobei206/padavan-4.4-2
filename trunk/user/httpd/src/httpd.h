@@ -166,7 +166,6 @@ extern long uptime(void);
 extern void fill_login_ip(char *p_out_ip, size_t out_ip_len);
 extern const char *get_login_mac(void);
 extern int get_login_safe(void);
-extern int get_login_private_key_access(void);
 
 // initial_web_hook.c
 extern char *initial_disk_pool_mapping_info(void);

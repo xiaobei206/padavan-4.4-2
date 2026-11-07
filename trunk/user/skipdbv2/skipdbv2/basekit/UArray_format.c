@@ -87,11 +87,7 @@ void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 				goto done;
 			}
 
-			if (*format == '%')
-			{
-				UArray_appendCString_(self, "%");
-			}
-			else if (*format == 's')
+			if (*format == 's')
 			{
 				char *s = va_arg(ap, char *);
 				if (!s) { printf("UArray_fromVargs_ missing param"); goto done; }

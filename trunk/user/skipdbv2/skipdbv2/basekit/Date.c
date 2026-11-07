@@ -169,12 +169,9 @@ double Date_Clock(void)
 void Date_setToLocalTimeZone(Date *self)
 {
 	struct timeval timeval;
-	struct timezone timezone;
-
-	/* Publish the zone only after the system query has succeeded. */
-	if (NULL == self || gettimeofday(&timeval, &timezone) != 0)
+	if (NULL == self)
 		return;
-	self->tz = timezone;
+	gettimeofday(&timeval, &(self->tz));
 }
 
 struct timezone Date_timeZone(const Date *self)

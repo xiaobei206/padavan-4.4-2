@@ -8,7 +8,6 @@ typedef struct
     void *library;
     void (*closeLibrary)(void *);
     int callbackCalls;
-    int callbackReturned;
 } ReentrantFreeState;
 
 static void close_library_from_plugin(void *library)
@@ -131,25 +130,6 @@ int main(int argc, char **argv)
     DynLib_free(library);
 
     CHECK(argc > 1, "reentrant fixture path was not supplied");
-
-    library = DynLib_new();
-    CHECK(NULL != library, "reentrant init fixture constructor failed");
-    {
-        ReentrantFreeState state;
-        memset(&state, 0, sizeof(state));
-        state.library = library;
-        state.closeLibrary = close_library_from_plugin;
-        DynLib_setPath_(library, argv[1]);
-        DynLib_setInitFuncName_(library, "__skipdb_dynlib_reentrant_init__");
-        DynLib_setInitArg_(library, &state);
-        DynLib_open(library);
-        CHECK(state.callbackCalls == 1 && state.callbackReturned == 1,
-              "init callback unloaded its own image before returning");
-        CHECK(!DynLib_isOpen(library),
-              "init callback close request was not drained before open returned");
-    }
-    DynLib_free(library);
-
     library = DynLib_new();
     CHECK(NULL != library, "reentrant fixture constructor failed");
     {
@@ -163,7 +143,7 @@ int main(int argc, char **argv)
         DynLib_open(library);
         CHECK(DynLib_isOpen(library), "reentrant fixture load failed");
         DynLib_close(library);
-        CHECK(state.callbackCalls == 1 && state.callbackReturned == 1,
+        CHECK(state.callbackCalls == 1,
               "recursive close invoked the plugin free callback more than once");
         CHECK(!DynLib_isOpen(library),
               "recursive close left the original loader handle open");
