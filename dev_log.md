@@ -1,3 +1,22 @@
+## 2026-11-08 06:41 CST — Keep Samba guest shares off the root identity
+
+### Finding and implementation
+- **Source/test/workflow SHA:** `966efa0380ffaa2ce18c702f0d2131e9e10b492d`; implementation commit `92bc47073d64f90c097ff7e8f2ce762eb878292b`, followed by the workflow source-contract correction at `966efa0380ffaa2ce18c702f0d2131e9e10b492d`.
+- In `trunk/user/shared/src/shutils.c::recreate_passwd_unix(0)`, the configured NVRAM `http_username` is emitted as UID/GID 0. The Samba public modes in `trunk/user/rc/src/services_stor.c::write_smb_conf()` set `guest ok = yes` and `guest only = yes`, and had assigned `guest account` to this management username. Unauthenticated SMB guest requests could consequently be mapped to the root account. This is a generated-configuration privilege boundary finding; no live exploit was attempted.
+- Added `SAMBA_GUEST_ACCOUNT "nobody"` to `samba_share_policy.h` and replaced the management-username mapping in the generated guest configuration with that fixed account. The tracked account generator creates `nobody` as UID/GID 99, `/bin/false`, and a locked shadow user. A focused test now asserts the fixed account identity, and the workflow checks the generated guest branch does not reference `http_username`.
+- Changed paths: `trunk/user/rc/src/services_stor.c`, `trunk/user/rc/src/samba_share_policy.h`, `trunk/user/rc/src/tests/samba_share_policy.c`, `.github/workflows/httpd-security.yml`. Existing push/pull-request path filters already covered all four paths.
+
+### Verification and limits
+- Exact-head GitHub Actions run [42421747255](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42421747255) completed **SUCCESS** on `966efa0380ffaa2ce18c702f0d2131e9e10b492d`; all 15 steps passed. Samba and FTP standalone policy tests compiled with `cc -std=gnu89 -Wall -Wextra -Werror` and both printed PASS; source-contract checks and the existing HTTPD/DNS/DHCP/PPP/firewall workflow checks also passed.
+- Debug trail: prior exact-head run [42421698737](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42421698737) failed because the newly added Python assertion over-escaped the expected backslash spelling. The C regression binaries had already passed. The workflow assertion was corrected in `966efa0380ffaa2ce18c702f0d2131e9e10b492d`, and the exact-head run above passed.
+- **L1 static/source review: PASS. L2 focused host policy regression and source-contract workflow: PASS.** The workflow does not compile the complete production `services_stor.c` for MIPS. Production RC/MIPS compile, firmware/TRX build/inspection, live Samba login/share/write-permission checks and physical-router testing were **NOT RUN**.
+- **Compatibility/residuals:** using UID 99 rather than UID 0 intentionally removes anonymous guest root privileges; read/write behavior on media with ownership/modes that relied on root access may differ and requires target testing. FTP dedicated identity, writable chroot/anonymous-upload and umask semantics, Samba ACL/password lifecycle, custom `/etc/storage/smb.conf`, and NFS export semantics remain open. Whole FTP/Samba and storage lifecycle are not closed by this bounded change.
+- Remote checkpoint comparison against tested SHA `966efa0380ffaa2ce18c702f0d2131e9e10b492d`: BStreamTag 1/573 ahead/behind; DBAPI 8/654; dynlib 0/577; sorting 0/573; UArray 2/571. Ahead-only deltas remain SkipDBv2-only and none was merged.
+
+### Next bounded task
+- Continue FTP/Samba account/password provisioning, ACL semantics, custom configuration loading and FTP chroot/anonymous-write compatibility; then rotate to USB/storage/hotplug and init/service lifecycle. Keep firewall cross-table rollback and IPv6 policy parity as separate open tasks; routine SkipDBv2-only work stays paused.
+
+
 ## 2026-11-08 06:26 CST — Fail closed on invalid FTP share modes and stop root workers
 
 ### Finding and implementation
