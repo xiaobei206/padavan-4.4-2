@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <limits.h>
 
 int UArray_MachineIsLittleEndian(void)
@@ -17,8 +18,22 @@ int UArray_MachineIsLittleEndian(void)
 	return ((unsigned char *)(&i))[0] == 1;
 }
 
+typedef struct
+{
+	char leadingByte;
+	UTF16 value;
+} UArrayUTF16AlignmentProbe;
+
+typedef struct
+{
+	char leadingByte;
+	UTF32 value;
+} UArrayUTF32AlignmentProbe;
+
 static int UArray_hasValidEncodingLayout_(const UArray *self)
 {
+	size_t alignment = 1;
+
 	if (NULL == self || self->itemSize == 0 ||
 		self->size > (size_t)-1 / self->itemSize ||
 		(self->size > 0 && NULL == self->data))
@@ -26,16 +41,27 @@ static int UArray_hasValidEncodingLayout_(const UArray *self)
 	switch (self->encoding) {
 		case CENCODING_ASCII:
 		case CENCODING_UTF8:
-			return self->itemSize == 1;
+			if (self->itemSize != 1)
+				return 0;
+			break;
 		case CENCODING_UTF16:
-			return self->itemSize == sizeof(UTF16);
+			if (self->itemSize != sizeof(UTF16))
+				return 0;
+			alignment = offsetof(UArrayUTF16AlignmentProbe, value);
+			break;
 		case CENCODING_UTF32:
-			return self->itemSize == sizeof(UTF32);
+			if (self->itemSize != sizeof(UTF32))
+				return 0;
+			alignment = offsetof(UArrayUTF32AlignmentProbe, value);
+			break;
 		case CENCODING_NUMBER:
 			return 1;
 		default:
 			return 0;
 	}
+	/* Typed ConvertUTF reads require correctly aligned source code units. */
+	return NULL == self->data ||
+		((uintptr_t)self->data % alignment) == 0;
 }
 
 static int UArray_SizeOfUTFChar(const uint8_t *s, const uint8_t *end)

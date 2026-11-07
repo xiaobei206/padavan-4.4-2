@@ -1,3 +1,14 @@
+## 2026-11-07 13:55 CST — Reject misaligned UTF-16/UTF-32 UArray storage
+
+- Baseline: `30e3da52588ef464c7ab7f687e1b97a3edd70d4f`; SkipDBv2 Regression run #552 passed XY-C1 integration contracts, configure, all targets, and CTest.
+- Scope: Unicode encoding layout validation in `basekit/UArray_utf.c` and its existing `uarray_encoding_conversion_test`.
+- The encoding validator checked element width and byte capacity but not the alignment required when ConvertUTF reads UTF-16/UTF-32 code units through typed pointers. A caller-provided stack-backed or borrowed UArray could therefore pass validation and trigger undefined behavior on strict-alignment targets.
+- Added alignment checks using `offsetof` probes for the actual UTF code-unit types; included `<stdint.h>` directly for `uintptr_t`. The existing conversion test now exercises misaligned UTF-16 and UTF-32 inputs across the conversion entry points and requires rejection.
+- Updated the existing GitHub Actions source contracts to bind the invariant and regression coverage. CMake registration and source lists are unchanged; no new files or exported symbols.
+- Validation: static review confirmed validation precedes all conversion dispatch and the test's deliberately offset byte buffers are never dereferenced as UTF code units. Remote CI remains the build/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 13:52 CST — Repair List alignment regression test dependency
 
 - Baseline: main commit `181bc9b8f98fdc07dbf961b9bf391249fa24498b`; SkipDBv2 Regression run #551 failed in the XY-C1 source-contract stage before CMake configure/build/CTest.

@@ -2183,6 +2183,9 @@ jobs:
                   "UArray translate validation test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_utf.c": [
+                  "UArrayUTF16AlignmentProbe",
+                  "UArrayUTF32AlignmentProbe",
+                  "((uintptr_t)self->data % alignment) == 0",
                   "static size_t UArray_expectedNumberItemSize_(CTYPE itemType)",
                   "static int UArray_hasValidNumberArrayLayout_(const UArray *self)",
                   "self->itemSize != expectedItemSize",
@@ -2214,6 +2217,8 @@ jobs:
                   "typedef uint8_t  UTF8;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_encoding_conversion.c": [
+                  "rejects_misaligned_unicode_storage",
+                  "UArray accepted misaligned UTF-16/UTF-32 source storage",
                   "numeric conversion accepted mismatched item metadata",
                   "UArray_newWithData_type_encoding_size_copy_(",
                   "UArray_convertToFixedSizeType(NULL)",

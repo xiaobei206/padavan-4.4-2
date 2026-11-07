@@ -89,6 +89,82 @@ static int preserves_embedded_nul_as_utf16_utf32(void *bytes, CTYPE type,
     return result;
 }
 
+
+typedef struct
+{
+    char leadingByte;
+    uint16_t value;
+} TestUTF16AlignmentProbe;
+
+typedef struct
+{
+    char leadingByte;
+    uint32_t value;
+} TestUTF32AlignmentProbe;
+
+static int rejects_misaligned_unicode_storage(void)
+{
+    union {
+        uint16_t alignment;
+        unsigned char bytes[sizeof(uint16_t) + 1];
+    } storage16;
+    union {
+        uint32_t alignment;
+        unsigned char bytes[sizeof(uint32_t) + 1];
+    } storage32;
+    UArray malformed16;
+    UArray malformed32;
+    UArray *converted;
+
+    memset(storage16.bytes, 0, sizeof(storage16.bytes));
+    memset(storage32.bytes, 0, sizeof(storage32.bytes));
+    malformed16 = UArray_stackAllocedWithData_type_size_(
+        storage16.bytes + 1, CTYPE_uint16_t, 1);
+    malformed16.encoding = CENCODING_UTF16;
+    malformed32 = UArray_stackAllocedWithData_type_size_(
+        storage32.bytes + 1, CTYPE_uint32_t, 1);
+    malformed32.encoding = CENCODING_UTF32;
+
+    if (((uintptr_t)malformed16.data %
+            offsetof(TestUTF16AlignmentProbe, value)) == 0 ||
+        ((uintptr_t)malformed32.data %
+            offsetof(TestUTF32AlignmentProbe, value)) == 0)
+        return 0;
+
+    converted = UArray_asUTF8(&malformed16);
+    if (converted) {
+        UArray_free(converted);
+        return 0;
+    }
+    converted = UArray_asUTF16(&malformed16);
+    if (converted) {
+        UArray_free(converted);
+        return 0;
+    }
+    converted = UArray_asUTF32(&malformed16);
+    if (converted) {
+        UArray_free(converted);
+        return 0;
+    }
+
+    converted = UArray_asUTF8(&malformed32);
+    if (converted) {
+        UArray_free(converted);
+        return 0;
+    }
+    converted = UArray_asUTF16(&malformed32);
+    if (converted) {
+        UArray_free(converted);
+        return 0;
+    }
+    converted = UArray_asUTF32(&malformed32);
+    if (converted) {
+        UArray_free(converted);
+        return 0;
+    }
+    return 1;
+}
+
 int main(void)
 {
 	static const unsigned char ascii_bytes[] = {0x41, 0x42};
@@ -242,6 +318,10 @@ int main(void)
 			fprintf(stderr, "UArray multibyte detection accepted a wide item type over byte storage\n");
 			goto done;
 		}
+	}
+	if (!rejects_misaligned_unicode_storage()) {
+		fprintf(stderr, "UArray accepted misaligned UTF-16/UTF-32 source storage\\n");
+		goto done;
 	}
 	result = EXIT_SUCCESS;
 	puts("UArray encoding conversion test passed");
