@@ -36,6 +36,7 @@ int main(void)
 	UArray *root_component = NULL;
 	UArray *malformed = NULL;
 	UArray *safe_path = NULL;
+	UArray *empty_path = NULL;
 	size_t malformed_size;
 
 	UArray_appendPath_(NULL, NULL);
@@ -154,8 +155,14 @@ int main(void)
 
 	malformed = UArray_newWithCString_("/tmp/unsafe");
 	safe_path = UArray_newWithCString_("/safe");
-	if (!check(malformed != NULL && safe_path != NULL,
+	empty_path = UArray_newWithCString_("");
+	if (!check(malformed != NULL && safe_path != NULL && empty_path != NULL,
 		"malformed path fixture allocation failed"))
+		goto failure;
+	UArray_appendPath_(safe_path, empty_path);
+	if (!check(UArray_size(safe_path) == 5 &&
+		memcmp(safe_path->data, "/safe", 5) == 0,
+		"appending an empty path added an unintended trailing separator"))
 		goto failure;
 	malformed_size = malformed->size;
 
@@ -237,6 +244,7 @@ int main(void)
 	UArray_free(root_component);
 	UArray_free(malformed);
 	UArray_free(safe_path);
+	UArray_free(empty_path);
 	puts("UArray path null-safety test passed");
 	return EXIT_SUCCESS;
 
@@ -262,5 +270,6 @@ failure:
 	UArray_free(root_component);
 	UArray_free(malformed);
 	UArray_free(safe_path);
+	UArray_free(empty_path);
 	return EXIT_FAILURE;
 }

@@ -79,6 +79,9 @@ void UArray_appendPath_(UArray *self, const UArray *path)
 	if (!UArray_hasValidPathStorage_(self) ||
 		!UArray_hasValidPathStorage_(path))
 		return;
+	/* An empty component must not turn a plain path into a trailing-slash path. */
+	if (path->size == 0)
+		return;
 	selfEndsWithSep = IS_PATH_SEPERATOR(UArray_lastLong(self));
 	pathStartsWithSep = IS_PATH_SEPERATOR(UArray_firstLong(path));
 

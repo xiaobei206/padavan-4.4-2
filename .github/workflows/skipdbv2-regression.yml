@@ -2447,6 +2447,8 @@ jobs:
                   "componentStart == 1",
                   "UArray_setSize_(self, componentEnd);",
                   "UArray_hasValidPathStorage_(path)",
+                  "if (path->size == 0)",
+                  "An empty component must not turn a plain path into a trailing-slash path.",
                   "self->size > (size_t)LONG_MAX",
                   "self->size > (size_t)-1 / expectedItemSize",
                   "if (NULL == self)",
@@ -2476,6 +2478,9 @@ jobs:
                   "UArray path operations accepted zero-width item geometry",
                   "UArray path operations accepted unrepresentable size",
                   "UArray path operations accepted missing backing storage",
+                  'UArray_newWithCString_("")',
+                  "UArray_appendPath_(safe_path, empty_path)",
+                  "appending an empty path added an unintended trailing separator",
                   "UArray path null-safety test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_search_bounds.c": [

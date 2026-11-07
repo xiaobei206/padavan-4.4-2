@@ -1,3 +1,13 @@
+## 2026-11-07 12:55 CST — Keep empty path append as a no-op
+
+- Baseline: main commit `019b6b855c715814ba8bb6bc0c04f08081943ad5`; SkipDBv2 Regression run #532 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `UArray_appendPath_()` in `basekit/UArray_path.c`, its existing path regression, and the corresponding Actions source contracts.
+- Joining a non-empty path with an empty component previously inserted a separator before appending zero bytes, silently changing `/safe` into `/safe/`.
+- Return early for a valid empty path component and add a regression asserting that appending `""` preserves the destination byte-for-byte. Reuse the current `uarray_path_null_test` target; no new files or exported declarations.
+- No local C build/CTest is claimed; mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 12:53 CST — Prevent UArray item-count ceiling overflow
 
 - Baseline: main commit `0845cf06b9200a2de592ffcb3fd4da1cbdaa7425`; SkipDBv2 Regression run #531 passed source contracts, configure, full build, and all CTest regressions.
