@@ -24,6 +24,10 @@ int main(void)
  if(sl<0||(size_t)sl>=sizeof(sp)||tl<0||(size_t)tl>=sizeof(tp)){fprintf(stderr,"test path overflow\n");goto done;}
  SkipDB_setPath_(source,sp);SkipDB_setPath_(target,tp);SkipDB_delete(source);SkipDB_delete(target);
  if(!SkipDB_open(source)||!SkipDB_isOpen(source)||!SkipDB_open(target)||!SkipDB_isOpen(target)){fprintf(stderr,"lifecycle open failed\n");goto done;}
+ cursor=SkipDBCursor_newWithDB_(source);
+ if(!cursor||cursor->sdb!=source||!List_contains_(source->cursors,cursor)){
+  fprintf(stderr,"direct cursor constructor left the cursor unregistered\n");goto done;}
+ SkipDBCursor_release(cursor);cursor=NULL;
  SkipDB_beginTransaction(source);
  if(!SkipDB_isOpen(source)||
   !SkipDB_at_put_(source,Datum_FromCString_("alpha"),Datum_FromCString_("1"))||

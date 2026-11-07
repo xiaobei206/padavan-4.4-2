@@ -25,8 +25,14 @@ SkipDBCursor *SkipDBCursor_newWithDB_(SkipDB *sdb)
 	if (NULL == sdb)
 		return NULL;
 	self = SkipDBCursor_new();
-	if (self)
-		self->sdb = sdb;
+	if (NULL == self)
+		return NULL;
+	/* A cursor bound to a database must be visible to eviction and teardown. */
+	SkipDBCursor_sdb_(self, sdb);
+	if (self->sdb != sdb) {
+		SkipDBCursor_release(self);
+		return NULL;
+	}
 	return self;
 }
 

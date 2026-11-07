@@ -86,18 +86,10 @@ SkipDBRecord *SkipDB_goto_(SkipDB *self, Datum key)
 
 SkipDBCursor *SkipDB_createCursor(SkipDB *self)
 {
-	SkipDBCursor *cursor;
 	if (NULL == self || NULL == self->cursors || !SkipDB_isOpen(self))
 		return NULL;
-	cursor = SkipDBCursor_newWithDB_(self);
-	if (NULL == cursor)
-		return NULL;
-	if (NULL == List_append_(self->cursors, cursor)) {
-		/* An untracked cursor cannot protect its record from cache eviction. */
-		SkipDBCursor_release(cursor);
-		return NULL;
-	}
-	return cursor;
+	/* The constructor registers the cursor before exposing it to the caller. */
+	return SkipDBCursor_newWithDB_(self);
 }
 
 void SkipDB_removeCursor_(SkipDB *self, SkipDBCursor *cursor)

@@ -1,3 +1,13 @@
+## 2026-11-07 09:50 CST — Register database cursors at construction
+
+- Baseline: main commit `f75050a27a81195edda38caf37d537d61201f0b5`; SkipDBv2 Regression run #493 passed.
+- Scope: SkipDB cursor ownership and registration lifecycle.
+- The exported `SkipDBCursor_newWithDB_` assigned an owning database pointer without registering the cursor in the owner's cursor list. Direct constructor callers could therefore be missed by cache protection and database teardown.
+- Route binding through `SkipDBCursor_sdb_`, reject construction when owner registration fails, and remove the factory's duplicate list append. Extend the existing core-layer regression and CI source contracts; its CMake/CTest target already exists. No new files.
+- No local compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:49 CST — Return the durability barrier result
 
 - Baseline: main commit `b250e2433620df062a002b5a1be6cdf24e11215b`; SkipDBv2 Regression run #492 passed.

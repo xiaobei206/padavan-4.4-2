@@ -294,6 +294,9 @@ jobs:
                   "cursor did not recover after database reopen",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c": [
+                  "SkipDBCursor *SkipDBCursor_newWithDB_(SkipDB *sdb)",
+                  "SkipDBCursor_sdb_(self, sdb)",
+                  "self->sdb != sdb",
                   "static void SkipDBCursor_resetPosition_(SkipDBCursor *self)",
                   "SkipDBCursor_resetPosition_(self)",
                   "*step_count >= max_steps",
@@ -392,6 +395,8 @@ jobs:
                   "void SkipDB_removeAt_(SkipDB *self, Datum k)",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBQuery.c": [
+                  "SkipDBCursor *SkipDB_createCursor(SkipDB *self)",
+                  "return SkipDBCursor_newWithDB_(self)",
                   "int SkipDB_count(SkipDB *self)",
                   "int SkipDB_mergeInto_(SkipDB *self, SkipDB *other)",
                   "int SkipDB_maxPos(SkipDB *self)",
@@ -406,6 +411,8 @@ jobs:
                   "void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/skipdb_core_layers.c": [
+                  "cursor=SkipDBCursor_newWithDB_(source);",
+                  "direct cursor constructor left the cursor unregistered",
                   "SkipDB_count(source)!=4",
                   "SkipDB_list_next(source,prefix,cursor)",
                   "SkipDBCursor_goto_(cursor,Datum_FromCString_(\"alpine\"))",
@@ -2897,6 +2904,16 @@ jobs:
               raise SystemExit("JFile hard-sync helper must return the fsync/F_FULLFSYNC result after EINTR retries")
 
           line_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c").read_text()
+          cursor_source = Path("trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c").read_text()
+          ctor_start = cursor_source.find("SkipDBCursor *SkipDBCursor_newWithDB_(SkipDB *sdb)")
+          ctor_end = cursor_source.find(chr(10) + "void SkipDBCursor_sdb_", ctor_start)
+          ctor_body = cursor_source[ctor_start:ctor_end] if ctor_start >= 0 and ctor_end > ctor_start else ""
+          if "SkipDBCursor_sdb_(self, sdb)" not in ctor_body or "self->sdb = sdb;" in ctor_body:
+              raise SystemExit("database-bound cursor constructor must register through the owner setter")
+          cursor_query = Path("trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBQuery.c").read_text()
+          if "List_append_(self->cursors, cursor)" in cursor_query:
+              raise SystemExit("cursor factory must not duplicate constructor-owned registration")
+
           line_start = line_source.find("int UArray_readLineFromCStream_(UArray *self, FILE *stream)")
           line_end = line_source.find("/* write", line_start)
           line_body = line_source[line_start:line_end] if line_start >= 0 and line_end > line_start else ""
