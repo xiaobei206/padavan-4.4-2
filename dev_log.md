@@ -6,7 +6,8 @@
 - Change: introduced an exact fixed-name allowlist and dispatch policy helper in `httpd_script_policy.h`; `sys_script()` evaluates the policy before branching. Unlisted scripts still require `get_login_safe()`; the existing generic fallback input validation and `_eval()` argv dispatch remain in place. Existing fixed-handler behavior is deliberately unchanged.
 - Regression: extended `tests/httpd_script_policy.c` to cover every fixed handler name, unknown names for trusted/untrusted sessions, and NULL. Workflow source contract asserts all allowlisted names and that the gate precedes the first dispatch branch. Added `variables.c` to the pull-request path filter, where it was missing.
 - Prior checkpoint CI recovery: firewall schedule exact-head Actions run `42396303871` is SUCCESS on SHA `166274833a1df1ca8a8312fa1d250df72934b738`; its job's compile/run and source-wiring steps both passed.
-- Current change exact-head Actions run `42397188114`, head SHA `3859fc59fa3b890a6ce08a2956719c6640a88337`: QUEUED at the time of this entry. L3 MIPS/firmware and L4 router/hardware validation: NOT RUN. This bounded fixed-name audit does not complete HTTPD/CGI or the wider userland audit.
+- Current change exact-head Actions run `42397188114`, head SHA `3859fc59fa3b890a6ce08a2956719c6640a88337`: SUCCESS; job `128476978918` passed the GNU89 policy test compile/run and source-wiring assertions. This confirms L2 host regression only. L3 MIPS/firmware and L4 router/hardware validation: NOT RUN. This bounded fixed-name audit does not complete HTTPD/CGI or the wider userland audit.
+- Exact-head result retrieved and verified: Actions `42397188114` SUCCESS on the exact code SHA; both job steps passed.
 - Next: trace every `scripts.*` shell file from the HTTPD write path/variable to its RC/init/service consumer and enumerate alternate writers plus root `eval`/`_eval`/`doSystem` inputs.
 
 ## 2026-11-08 01:27 CST — Fail closed firewall schedule dispatch
