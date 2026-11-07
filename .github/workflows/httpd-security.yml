@@ -92,11 +92,14 @@ jobs:
           from pathlib import Path
 
           source = Path("trunk/user/scripts/files/usr/bin/autostart.sh").read_text()
+          helper = Path("trunk/user/scripts/files/usr/bin/ap_script_migrate.sh").read_text()
           migrate = source.index("/usr/bin/ap_script_migrate.sh")
           launch = source.index("/etc/storage/ap_script.sh >/dev/null 2>&1 &")
           assert migrate < launch
           assert "if [ -x /etc/storage/ap_script.sh ]; then" in source
-          print("AP stock-only migration autostart wiring: OK")
+          assert "sha256sum" in helper and 'mkdir "$candidate_dir"' in helper
+          assert "$(mktemp" not in helper
+          print("AP stock-only migration autostart and target-BusyBox integration: OK")
           PY
 
       - name: Compile and run policy regression

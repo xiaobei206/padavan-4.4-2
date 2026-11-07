@@ -34,17 +34,31 @@ fi
 
 storage_dir=$(dirname "$stored_script") || exit 0
 
-# Stage beside the destination so the final rename is atomic on this filesystem.
+# BusyBox target lacks a secure temporary-file helper. Claim a private
+# directory with atomic mkdir, then stage beside the destination for rename.
 old_umask=$(umask)
 umask 077
-tmp_script=$(mktemp "$storage_dir/.ap_script.sh.XXXXXX") || {
-	umask "$old_umask"
-	logger -t "AP script migration" "cannot create same-directory staging file" 2>/dev/null || :
+attempt=0
+tmp_dir=
+while [ "$attempt" -lt 32 ]; do
+	candidate_dir="$storage_dir/.ap_script_migrate.$.$attempt"
+	if mkdir "$candidate_dir" 2>/dev/null; then
+		tmp_dir=$candidate_dir
+		break
+	fi
+	attempt=$((attempt + 1))
+done
+umask "$old_umask"
+if [ -z "$tmp_dir" ]; then
+	logger -t "AP script migration" "cannot claim private staging directory" 2>/dev/null || :
 	exit 0
-}
+fi
+
+tmp_script="$tmp_dir/ap_script.sh"
 cleanup()
 {
 	[ -n "$tmp_script" ] && rm -f "$tmp_script"
+	[ -n "$tmp_dir" ] && rmdir "$tmp_dir" 2>/dev/null
 }
 trap cleanup 0
 trap 'exit 0' HUP INT TERM
@@ -60,6 +74,8 @@ if ! mv -f "$tmp_script" "$stored_script"; then
 fi
 
 tmp_script=
+rmdir "$tmp_dir" 2>/dev/null || :
+tmp_dir=
 trap - 0 HUP INT TERM
 umask "$old_umask"
 logger -t "AP script migration" "replaced byte-identical legacy stock script with current ROM default" 2>/dev/null || :
