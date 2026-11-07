@@ -240,7 +240,7 @@ filter_conv(char *proto, char *flag, char *srcip, char *srcport, char *dstip, ch
 	return (g_buf_alloc(g_buf));
 }
 
-static void
+static int
 timematch_conv(char *mstr, const char *nv_date, const char *nv_time)
 {
 	const char *datestr[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
@@ -257,13 +257,9 @@ timematch_conv(char *mstr, const char *nv_date, const char *nv_time)
 
 	mstr[0] = 0;
 
-	/* Both fields reach iptables-restore text; never interpolate malformed bytes. */
-	if (!firewall_schedule_date_is_safe(date) ||
-	    !firewall_schedule_time_is_safe(time))
-		return;
-
-	if (!strcmp(date, "0000000"))
-		return;
+/* Invalid or disabled schedules must never become unqualified all-time rules. */
+if (!firewall_schedule_is_active(date, time))
+	return 0;
 
 	strncpy(time_s, time+0, 4);
 	strncpy(time_e, time+4, 4);
@@ -278,7 +274,7 @@ timematch_conv(char *mstr, const char *nv_date, const char *nv_time)
 
 	/* check anytime */
 	if (!strcmp(date, "1111111") && i_full_time)
-		return;
+		return 1;
 
 	/* check whole day */
 	if (i_full_time) {
@@ -309,6 +305,8 @@ timematch_conv(char *mstr, const char *nv_date, const char *nv_time)
 			}
 		}
 	}
+
+	return 1;
 }
 
 static char *
@@ -516,7 +514,8 @@ include_mac_filter(FILE *fp, int mac_filter_mode, char *logdrop)
 				mac_num++;
 				sprintf(nv_date, "macfilter_date_x%d", i);
 				sprintf(nv_time, "macfilter_time_x%d", i);
-				timematch_conv(mac_timematch, nv_date, nv_time);
+				if (!timematch_conv(mac_timematch, nv_date, nv_time))
+					continue;
 				fprintf(fp, "-A %s -m mac --mac-source %s%s -j %s\n", dtype, filter_mac, mac_timematch, ftype);
 			}
 		}
@@ -1162,17 +1161,18 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 	if (is_url_enabled && include_webstr_filter(fp) > 0) {
 		char mac_buf[24] = {0};
 		timematch[0] = 0;
-		timematch_conv(timematch, "url_date_x", "url_time_x");
-		mac_conv("url_mac_x", -1, mac_buf);
-		if (strlen(mac_buf) == 17) {
-			strcat(timematch, " -m mac");
-			if (nvram_match("url_inv_x", "1"))
-				strcat(timematch, " !");
-			strcat(timematch, " --mac-source ");
-			strcat(timematch, mac_buf);
+		if (timematch_conv(timematch, "url_date_x", "url_time_x")) {
+			mac_conv("url_mac_x", -1, mac_buf);
+			if (strlen(mac_buf) == 17) {
+				strcat(timematch, " -m mac");
+				if (nvram_match("url_inv_x", "1"))
+					strcat(timematch, " !");
+				strcat(timematch, " --mac-source ");
+				strcat(timematch, mac_buf);
+			}
+			fprintf(fp, "-A %s -i %s%s -j %s\n", dtype, lan_if, timematch, IPT_CHAIN_NAME_URL_LIST);
+			ret |= MODULE_WEBSTR_MASK;
 		}
-		fprintf(fp, "-A %s -i %s%s -j %s\n", dtype, lan_if, timematch, IPT_CHAIN_NAME_URL_LIST);
-		ret |= MODULE_WEBSTR_MASK;
 	}
 
 	/* Clamp TCP MSS to PMTU of WAN interface before accepting RELATED packets */
@@ -1214,9 +1214,9 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 		fprintf(fp, "-A %s -i %s -m %s %s -j %s\n", dtype, wan_if, CT_STATE, "NEW", IPT_CHAIN_NAME_DOS_LIMIT);
 
 	/* FILTER from LAN to WAN */
-	if (is_lwf_enabled && include_lw_filter(fp, wan_if, logaccept, logdrop) > 0) {
-		timematch[0] = 0;
-		timematch_conv(timematch, "filter_lw_date_x", "filter_lw_time_x");
+	if (is_lwf_enabled &&
+	    timematch_conv(timematch, "filter_lw_date_x", "filter_lw_time_x") &&
+	    include_lw_filter(fp, wan_if, logaccept, logdrop) > 0) {
 		fprintf(fp, "-A %s -i %s%s -j %s\n", dtype, lan_if, timematch, IPT_CHAIN_NAME_LWF_LIST);
 	}
 
@@ -1666,19 +1666,19 @@ ip6t_filter_rules(char *man_if, char *wan_if, char *lan_if,
 	/* use url filter before accepting ESTABLISHED packets */
 	if (is_url_enabled && include_webstr_filter(fp) > 0) {
 		char mac_buf[24] = {0};
-		
 		timematch[0] = 0;
-		timematch_conv(timematch, "url_date_x", "url_time_x");
-		mac_conv("url_mac_x", -1, mac_buf);
-		if (strlen(mac_buf) == 17) {
-			strcat(timematch, " -m mac");
-			if (nvram_match("url_inv_x", "1"))
-				strcat(timematch, " !");
-			strcat(timematch, " --mac-source ");
-			strcat(timematch, mac_buf);
+		if (timematch_conv(timematch, "url_date_x", "url_time_x")) {
+			mac_conv("url_mac_x", -1, mac_buf);
+			if (strlen(mac_buf) == 17) {
+				strcat(timematch, " -m mac");
+				if (nvram_match("url_inv_x", "1"))
+					strcat(timematch, " !");
+				strcat(timematch, " --mac-source ");
+				strcat(timematch, mac_buf);
+			}
+			fprintf(fp, "-A %s -i %s%s -j %s\n", dtype, lan_if, timematch, IPT_CHAIN_NAME_URL_LIST);
+			ret |= MODULE_WEBSTR_MASK;
 		}
-		fprintf(fp, "-A %s -i %s%s -j %s\n", dtype, lan_if, timematch, IPT_CHAIN_NAME_URL_LIST);
-		ret |= MODULE_WEBSTR_MASK;
 	}
 
 	/* Clamp TCP MSS to PMTU of WAN interface before accepting RELATED packets */
