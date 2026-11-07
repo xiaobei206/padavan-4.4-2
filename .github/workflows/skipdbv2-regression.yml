@@ -535,6 +535,8 @@ jobs:
                   "defined(__WIN32__) || defined(WIN32) || defined(_WIN32) || defined(_MSC_VER) || defined(__MINGW32__) || defined(__WINS__)",
                   "strrchr(self->path, '\\\\')",
                   "strrchr(self->path, '/')",
+                  "void JFile_setJournalingOn_(JFile *self, int aBool)",
+                  "NULL == self->file && NULL == self->log",
               ],
               "trunk/user/skipdbv2/skipdbv2/jfile/JFileJournal.c": [
                   "static int JFile_applyLogToFile_(JFile *self, int clear_log)",
@@ -578,6 +580,8 @@ jobs:
                   "errno != EBADF",
                   "JFile_hardSyncFileDescriptor_(file, fileno(file->file)) != 0",
                   "valid sync descriptor did not report success",
+                  "test_journaling_mode_transition",
+                  "mid-open journaling-mode change corrupted journal replay",
                   "symlink(path, link_path)",
                   "link(path, link_path)",
                   "link(file->logPath, link_path)",
@@ -6572,6 +6576,19 @@ jobs:
               raise SystemExit("managed JFile descriptor validation must have one owner and one call")
           if jfile_source_text.find("static int JFile_verifyManagedFile_(") > jfile_source_text.find("FILE *JFile_openManagedFile_("):
               raise SystemExit("managed JFile validator must be declared before its caller")
+          mode_setter_start = jfile_source_text.find(
+              "void JFile_setJournalingOn_(JFile *self, int aBool)"
+          )
+          mode_setter_end = jfile_source_text.find(chr(10) + "void JFile_free(JFile *self)", mode_setter_start)
+          mode_setter_body = (
+              jfile_source_text[mode_setter_start:mode_setter_end]
+              if mode_setter_start >= 0 and mode_setter_end > mode_setter_start
+              else ""
+          )
+          mode_guard = mode_setter_body.find("NULL == self->file && NULL == self->log")
+          mode_assignment = mode_setter_body.find("self->journalingOn = aBool;")
+          if not mode_setter_body or mode_guard < 0 or mode_assignment <= mode_guard:
+              raise SystemExit("JFile journaling mode may change only while both streams are closed")
           for module in ("skipd_command.c", "skipd_client.c", "skipd_database.c",
                          "skipd_scheduler.c", "skipd_socket.c", "skipd_script.c"):
               if f"mgr/{module}" not in cmake_text:

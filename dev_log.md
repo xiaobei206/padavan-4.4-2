@@ -1,3 +1,14 @@
+## 2026-11-07 16:24 CST — Refuse JFile journaling-mode changes while streams are live
+
+- Baseline: `92f20c2df9a7e8c62f4b835103d6f83647ffa20a`; mainline SkipDBv2 Regression run #589 passed the XY-C1 source contracts, CMake configure, complete build, and all 57 CTests.
+- Scope: the mode transition boundary in `jfile/JFile.c` and the existing `jfile_journal_test`.
+- The public setter could disable journaling while the data and journal streams were open. If a previously committed journal had not yet been replayed, subsequent writes went directly to the data file while the old committed journal remained pending; the next commit/replay could overwrite those newer bytes with stale journal content.
+- Permit mode changes only when both managed streams are closed. This preserves the existing pre-open configuration use while making an unsafe live transition a no-op.
+- Extend the existing journal regression to reproduce a committed-but-unapplied record, attempt the live mode change, and prove the newer journaled value wins. Also verify that changing modes after close still enables the direct-write path and survives reopen. Extend Actions source, ordering, and runtime contracts. Existing CMake target reused; no new files, public declarations, or build-list changes.
+- No local compiler/CTest result is claimed; remote Actions is the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 16:19 CST — Keep UDB commit-marker files exactly one byte
 
 - Baseline: `db077c098b219810250a1cbf0b44f6c91191a6d2`; mainline SkipDBv2 Regression run #588 passed the source contracts, full build, and all 57 CTests.

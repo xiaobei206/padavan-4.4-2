@@ -44,6 +44,79 @@ static int append_crash_tail(const char *path)
 	return result;
 }
 
+
+static int test_journaling_mode_transition(void)
+{
+	JFile *mode_file = NULL;
+	const char committed[] = "old-value";
+	const char replacement[] = "new-value";
+	const char direct_write[] = "off-value";
+	char path[128];
+	int path_len;
+	int passed = 0;
+
+	mode_file = JFile_new();
+	if (NULL == mode_file)
+		return 0;
+	path_len = snprintf(path, sizeof(path), "jfile_mode_test_%ld", (long)getpid());
+	if (path_len < 0 || (size_t)path_len >= sizeof(path))
+		goto done;
+	JFile_setPath_(mode_file, path);
+	JFile_remove(mode_file);
+	JFile_open(mode_file);
+	if (NULL == mode_file->file || NULL == mode_file->log ||
+		!mode_file->journalingOn)
+		goto done;
+
+	if (JFile_fwrite(mode_file, (void *)committed, sizeof(committed), 1) != 1)
+		goto done;
+	JFile_commitToLog(mode_file);
+	if (!JFile_verifyLog(mode_file))
+		goto done;
+
+	/* A mode change must not bypass an already committed, unapplied journal. */
+	JFile_setJournalingOn_(mode_file, 0);
+	if (!mode_file->journalingOn)
+		goto done;
+	JFile_setPosition_(mode_file, 0);
+	if (JFile_fwrite(mode_file, (void *)replacement, sizeof(replacement), 1) != 1)
+		goto done;
+	JFile_commitToFile(mode_file);
+	if (NULL == mode_file->file || NULL == mode_file->log ||
+		JFile_logSize(mode_file) != 0 ||
+		!file_contains(mode_file, 0, replacement))
+		goto done;
+
+	/* Once closed, changing the mode is safe and remains supported. */
+	JFile_close(mode_file);
+	JFile_setJournalingOn_(mode_file, 0);
+	if (mode_file->journalingOn)
+		goto done;
+	JFile_open(mode_file);
+	if (NULL == mode_file->file || NULL == mode_file->log)
+		goto done;
+	JFile_setPosition_(mode_file, 0);
+	if (JFile_fwrite(mode_file, (void *)direct_write, sizeof(direct_write), 1) != 1)
+		goto done;
+	JFile_commitToFile(mode_file);
+	if (NULL == mode_file->file || NULL == mode_file->log ||
+		JFile_logSize(mode_file) != 0 ||
+		!file_contains(mode_file, 0, direct_write))
+		goto done;
+
+	JFile_close(mode_file);
+	JFile_open(mode_file);
+	if (NULL == mode_file->file || NULL == mode_file->log ||
+		!file_contains(mode_file, 0, direct_write))
+		goto done;
+	passed = 1;
+
+done:
+	JFile_remove(mode_file);
+	JFile_free(mode_file);
+	return passed;
+}
+
 int main(void)
 {
 	JFile *file = NULL;
@@ -58,6 +131,11 @@ int main(void)
 	long committed_log_end;
 	int path_len;
 	int result = EXIT_FAILURE;
+
+	if (!test_journaling_mode_transition()) {
+		fprintf(stderr, "mid-open journaling-mode change corrupted journal replay\n");
+		goto done;
+	}
 
 	file = JFile_new();
 	if (NULL == file) {

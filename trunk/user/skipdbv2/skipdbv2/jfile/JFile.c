@@ -38,7 +38,8 @@ JFile *JFile_new(void)
 
 void JFile_setJournalingOn_(JFile *self, int aBool)
 {
-	if (NULL != self)
+	/* Changing modes with live streams can strand committed journal records. */
+	if (NULL != self && NULL == self->file && NULL == self->log)
 		self->journalingOn = aBool;
 }
 
