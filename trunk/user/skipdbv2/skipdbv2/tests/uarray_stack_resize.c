@@ -260,6 +260,41 @@ done:
 }
 
 
+
+static int testRejectsUnrepresentableTypedByteExtent(void)
+{
+    uint8_t bytes[] = { 'a', 'b' };
+    const uint8_t expected[] = { 'a', 'b' };
+    UArray malformed = UArray_stackAllocedWithData_type_size_(
+        bytes, CTYPE_uint8_t, sizeof(bytes));
+    UArray range;
+    const uintptr_t sentinelHash = (uintptr_t)0x6b28;
+
+    malformed.size = (size_t)-1;
+    malformed.hash = sentinelHash;
+
+    /* The previous overflow guard admitted SIZE_MAX for one-byte items. */
+    UArray_at_putLong_(&malformed, 0, 'z');
+    UArray_at_putDouble_(&malformed, 1, 1.0);
+    range = UArray_stackRange(&malformed, 0, 1);
+    if (range.data != NULL || range.size != 0 ||
+        range.itemType != CTYPE_uint8_t || range.itemSize != sizeof(uint8_t)) {
+        fprintf(stderr, "UArray stack range exposed an unrepresentable SIZE_MAX byte extent\\n");
+        UArray_stackFree(&range);
+        return 0;
+    }
+    UArray_stackFree(&range);
+
+    if (malformed.size != (size_t)-1 ||
+        malformed.hash != sentinelHash ||
+        memcmp(bytes, expected, sizeof(expected)) != 0) {
+        fprintf(stderr, "UArray typed operations accepted an unrepresentable SIZE_MAX byte extent\\n");
+        return 0;
+    }
+    return 1;
+}
+
+
 static int testIndexCompaction(void)
 {
     const uint16_t source[] = {0x1111, 0x2222, 0x3333, 0x4444, 0x5555};
@@ -450,6 +485,10 @@ int main(void)
     }
     if (!testRejectsMisalignedTypedItemLayouts()) {
         fprintf(stderr, "UArray typed operations accepted misaligned backing storage\\n");
+        goto done;
+    }
+    if (!testRejectsUnrepresentableTypedByteExtent()) {
+        fprintf(stderr, "UArray core accepted an unrepresentable SIZE_MAX byte extent\\n");
         goto done;
     }
     if (testIndexCompaction() != EXIT_SUCCESS) {

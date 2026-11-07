@@ -2481,6 +2481,7 @@ jobs:
                   'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")',
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray.c": [
+                  "self->size * expectedItemSize == (size_t)-1",
                   "UArrayPointerAlignmentProbe",
                   "(uintptr_t)self->data % alignment) != 0",
                   "static size_t UArray_itemAlignment_(CTYPE itemType)",
@@ -2699,6 +2700,9 @@ jobs:
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c": [
+                  "static int testRejectsUnrepresentableTypedByteExtent(void)",
+                  "UArray stack range exposed an unrepresentable SIZE_MAX byte extent",
+                  "UArray typed operations accepted an unrepresentable SIZE_MAX byte extent",
                   "testRejectsMisalignedTypedItemLayouts",
                   "UArray typed copy read misaligned source storage",
                   "UArray typed copy wrote misaligned destination storage",

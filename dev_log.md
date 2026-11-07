@@ -1,3 +1,14 @@
+## 2026-11-07 14:44 CST — Close the core UArray SIZE_MAX typed-layout gap
+
+- Baseline: `5bfc80f78043e1ff7a91150b340e01c49cb6108f`; character-array SIZE_MAX regression passed SkipDBv2 Regression run #565.
+- Scope: shared `UArray_hasValidItemLayout_` preflight in `basekit/UArray.c`.
+- The central CTYPE validator rejected multiplication overflow and misaligned storage, but like the specialized stream/character validators it still admitted an exact `SIZE_MAX` byte extent for one-byte arrays. This left core scalar writes and stack-range construction able to trust metadata that cannot reserve UArray's mandatory trailing NUL byte.
+- Added the exact byte-extent sentinel rejection after the division-based overflow guard. Extended the existing stack/resize regression to require scalar writes to preserve the backing bytes and hash, and require stack-range creation to return an empty safe view for a forged SIZE_MAX byte extent.
+- Updated the existing Actions source contracts. The test is already registered in CMake; no build-file changes, new files, or exported symbols.
+- Validation: every multiplication is evaluated only after the overflow bound; the test uses a two-byte borrowed buffer and exercises only guarded entry points. Remote CI remains the compile/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:40 CST — Reject impossible SIZE_MAX character-array extents
 
 - Baseline: `6d50d548c067278d1796ba892a41eed6145ad316`; UArray stream extent regression passed SkipDBv2 Regression run #564.
