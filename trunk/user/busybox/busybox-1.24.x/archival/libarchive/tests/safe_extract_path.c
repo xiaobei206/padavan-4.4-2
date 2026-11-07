@@ -23,16 +23,20 @@ main(void)
 	assert(close(fd) == 0);
 	assert(symlink("/etc", "escape") == 0);
 
-	assert(!bb_archive_has_unsafe_parent("safe/file"));
-	assert(!bb_archive_has_unsafe_parent("safe/missing/file"));
-	assert(!bb_archive_has_unsafe_parent("escape"));
-	assert(bb_archive_has_unsafe_parent("escape/passwd"));
-	assert(bb_archive_has_unsafe_parent("plain/child"));
-	assert(bb_archive_has_unsafe_parent("../etc/passwd"));
-	assert(bb_archive_has_unsafe_parent("safe/../etc/passwd"));
-	assert(bb_archive_has_unsafe_parent("/etc/passwd"));
-	assert(bb_archive_has_unsafe_parent(NULL));
-	assert(bb_archive_has_unsafe_parent(""));
+	assert(!bb_archive_path_has_unsafe_component("safe/file", 0));
+	assert(!bb_archive_path_has_unsafe_component("safe/missing/file", 0));
+	assert(!bb_archive_path_has_unsafe_component("escape", 0));
+	assert(bb_archive_path_has_unsafe_component("escape/passwd", 0));
+	assert(bb_archive_path_has_unsafe_component("escape", 1));
+	assert(bb_archive_path_has_unsafe_component("plain", 1));
+	assert(!bb_archive_path_has_unsafe_component("safe", 1));
+	assert(!bb_archive_path_has_unsafe_component("safe/missing", 1));
+	assert(bb_archive_path_has_unsafe_component("plain/child", 0));
+	assert(bb_archive_path_has_unsafe_component("../etc/passwd", 0));
+	assert(bb_archive_path_has_unsafe_component("safe/../etc/passwd", 0));
+	assert(bb_archive_path_has_unsafe_component("/etc/passwd", 0));
+	assert(bb_archive_path_has_unsafe_component(NULL, 0));
+	assert(bb_archive_path_has_unsafe_component("", 0));
 
 	assert(unlink("escape") == 0);
 	assert(unlink("plain") == 0);

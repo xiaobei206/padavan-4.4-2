@@ -8,15 +8,16 @@
 
 /*
  * Archive member names are relative to the extraction directory. Reject an
- * absolute path, a parent component, or a path whose existing ancestor is not
- * a directory. In particular, lstat() detects symlink ancestors before the
- * extractor can unlink/open a child through them.
+ * absolute path, a parent component, or any existing unsafe parent component.
+ * lstat() detects symlink parents before the extractor can unlink/open a child
+ * through them. For directory entries, check the final component too: tar's
+ * metadata updates must not follow an existing symlink at the entry itself.
  *
- * Missing ancestors are allowed because tar can create them as archive
+ * Missing components are allowed because tar can create them as archive
  * members arrive. Each later member is checked again before filesystem writes.
  */
 static int
-bb_archive_has_unsafe_parent(const char *path)
+bb_archive_path_has_unsafe_component(const char *path, int check_leaf)
 {
 	char *copy;
 	char *component;
@@ -46,8 +47,7 @@ bb_archive_has_unsafe_parent(const char *path)
 			return 1;
 		}
 
-		/* Check ancestors only; the entry itself may legitimately be a link. */
-		if (delimiter == '/' && component[0] != '\0') {
+		if ((delimiter == '/' || check_leaf) && component[0] != '\0') {
 			if (lstat(copy, &st) == 0) {
 				if (!S_ISDIR(st.st_mode)) {
 					free(copy);

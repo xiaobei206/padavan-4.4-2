@@ -1,18 +1,18 @@
 # Session Handoff — Padavan 4.4
 
-## Latest resumable checkpoint — Prevent symlink-parent traversal in storage restore archives
+## Latest resumable checkpoint — Reject symlink parents and unsafe directory targets during archive restore
 
-- Baseline main HEAD before this bounded code task: `a6f284111241c28ba1577d12264d3288338e53eb`. Previous stale-upload cleanup commit `5877544ea347ab728bd185012187ec09e2aeb76c` has matching successful Actions run `42385963510`.
-- P1 finding: `mtd_storage.sh::func_restore()` executes root BusyBox `tar xjf ... -C /tmp/storage`, checks only for `start_script.sh`, then copies the extracted tree into `/etc`. BusyBox tar normalizes archive member names but does not normalize symlink targets. `data_extract_all()` may create a symlink member (for example `escape -> /etc`), then process `escape/passwd`; with `ARCHIVE_UNLINK_OLD`, unlink/open on the child resolves through the prior symlink and can modify a path outside the extraction root. This is an archive path-traversal issue in authenticated restore, not a claim of unauthenticated access.
-- Fix in this checkpoint: add a small shared `safe_extract_path.h` policy and call it at the start of BusyBox `data_extract_all()`, before leading-directory creation, unlink or file open. Reject absolute names, any `..` component, and any existing parent component that `lstat()` finds to be a symlink or non-directory. Missing parent components remain valid so normal tar directory creation works. A host regression tests safe paths, missing parents, regular-file/symlink parents, absolute/parent paths and NULL/empty input.
-- The HTTPD Actions workflow now compiles/runs that regression and statically verifies the safety guard precedes archive extraction side effects and that `mtd_storage.sh` checks tar failure before accepting the marker/copying extracted data. Validation is PENDING for the new code SHA until its matching Actions run finishes. Full BusyBox/firmware target build, archive fuzzing and hardware validation remain NOT VERIFIED.
+- Baseline main HEAD before this bounded follow-up: `71bfeb3093cd3cdfc6c60352bd011814661dcdf8`. The first archive-parent guard is commit `71bfeb3093cd3cdfc6c60352bd011814661dcdf8`, validated by Actions run `42386491809` on that exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42386491809.
+- Review of the passing implementation identified an adjacent extraction case: a tar directory entry whose own name already refers to a symlink could bypass the parent-only check, because `ARCHIVE_UNLINK_OLD` skips directory entries and later `chown`/`chmod` may follow the existing symlink. This is now handled by an explicit `check_leaf` policy for directory entries. Non-directory entries can still replace their own leaf after the existing unlink policy, but no entry can traverse symlink/non-directory parents.
+- The host regression now separately covers a symlink leaf when treated as a directory entry, a regular-file leaf as a directory entry, an existing real directory, missing directory path, symlink parents, `..`, absolute paths and invalid input. The shared BusyBox check remains before leading-directory creation, unlink or open.
+- This follow-up's matching CI run is PENDING. The previous run on the parent-only version passed, but it does not validate this expanded leaf policy. Full BusyBox MIPS build, firmware artifact, archive fuzzing and hardware validation remain NOT VERIFIED.
 
 ### Next exact actions
 
-1. Verify the new HTTPD Actions run against its exact code SHA. If the policy regression passes, retain the targeted finding/fix and don't overstate it as complete archive fuzzing.
-2. Audit NVRAM/image header arithmetic, archive link semantics and restore rollback; consider BusyBox extraction compatibility for valid symlink-based storage entries.
-3. Review `do_apply_cgi` and `do_update_cgi` for user-controlled EJ handler names and argument/command/config dataflow; then TLS I/O and connection lifecycle.
-4. Continue across firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file-sharing, storage/hotplug and init/service lifecycle. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` and inspect full firmware only when actually executed; L3/L4 remain NOT VERIFIED.
+1. Verify the new Actions run against the follow-up code SHA and inspect both C regression and source-contract steps.
+2. Audit tar hardlink/symlink semantics and `mtd_storage.sh` restore rollback/limits; test compatibility against archives created by Padavan itself.
+3. Continue the `do_apply_cgi`/`do_update_cgi` EJ handler and configuration/command dataflow audit, then HTTPS connection lifecycle. Broaden the same process across firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file-sharing and init/service lifecycle.
+4. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` and inspect the full firmware artifact after source rounds; until executed, L3/L4 remain NOT VERIFIED.
 ---
 
 **Purpose:** resume work across ChatGPT conversations. GitHub is the source of truth; re-check all values below against live repository state before acting.

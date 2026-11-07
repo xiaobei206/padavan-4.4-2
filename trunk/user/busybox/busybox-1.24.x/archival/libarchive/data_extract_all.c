@@ -25,8 +25,9 @@ void FAST_FUNC data_extract_all(archive_handle_t *archive_handle)
 #endif
 
 	/* Refuse symlink/non-directory parents before mkdir, unlink or open. */
-	if (bb_archive_has_unsafe_parent(file_header->name))
-		bb_error_msg_and_die("refusing to extract through unsafe parent path: %s",
+	if (bb_archive_path_has_unsafe_component(file_header->name,
+						S_ISDIR(file_header->mode)))
+		bb_error_msg_and_die("refusing to extract through unsafe path component: %s",
 				     file_header->name);
 
 	if (archive_handle->ah_flags & ARCHIVE_CREATE_LEADING_DIRS) {

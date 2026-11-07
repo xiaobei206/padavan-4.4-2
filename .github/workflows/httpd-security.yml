@@ -247,13 +247,15 @@ jobs:
           # destinations, and fail the restore before it copies scratch data.
           extract_start = data_extract.index("void FAST_FUNC data_extract_all")
           extract = data_extract[extract_start:]
-          safety_check = extract.index("bb_archive_has_unsafe_parent(file_header->name)")
+          safety_check = extract.index("bb_archive_path_has_unsafe_component(file_header->name,")
           leading_dirs = extract.index("if (archive_handle->ah_flags & ARCHIVE_CREATE_LEADING_DIRS)")
           unlink_old = extract.index("if (archive_handle->ah_flags & ARCHIVE_UNLINK_OLD)")
           assert safety_check < leading_dirs < unlink_old
           assert 'if (!path || !path[0] || path[0] == \'/\')' in safe_extract
           assert 'strcmp(component, "..") == 0' in safe_extract
           assert "lstat(copy, &st)" in safe_extract
+          assert "check_leaf" in safe_extract
+          assert "S_ISDIR(file_header->mode)" in extract
           assert "!S_ISDIR(st.st_mode)" in safe_extract
           restore_start = storage_script.index("func_restore()")
           restore_end = storage_script.index(chr(10) + "func_erase()", restore_start)
