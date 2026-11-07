@@ -1368,7 +1368,7 @@ jobs:
                   "if (NULL == copy)",
                   "oldArgv = self->argv;",
                   "self->argv = newArgv;",
-                  "while (NULL != argv[i])",
+                  "NULL != argv[i]",
                   "MainArgs_freeArguments_(oldArgv);",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/MainArgs.h": [

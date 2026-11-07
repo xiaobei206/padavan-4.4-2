@@ -1,3 +1,11 @@
+## 2026-11-07 20:06 CST — Retarget MainArgs sentinel source contract
+
+- Failed head: `8fd452a201548b0ca1bae935225a39b8b9aa7ab9`; SkipDBv2 Regression run #654 stopped in the XY-C1 source-contract stage before CMake configuration or compilation.
+- The new contract expected a `while` loop, but the implementation uses a `for` loop with the same NULL-sentinel termination condition. The C source and regression logic were not at fault.
+- Retarget the contract to the actual invariant token `NULL != argv[i]`. This is a workflow-only CI repair; no production code, tests, or build targets change.
+
+---
+
 ## 2026-11-07 20:05 CST — Bound MainArgs teardown by its owned argv sentinel
 
 - Baseline: `b329b69d538c28e579cfce18ceba9a9b6831b1ca`; latest mainline SkipDBv2 Regression run #653 passed.
