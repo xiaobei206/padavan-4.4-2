@@ -6,6 +6,7 @@
 
 #include <math.h>
 #include <limits.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -215,6 +216,50 @@ static int test_calendar_year_bounds(void)
     return 1;
 }
 
+static int test_calendar_mktime_failure_is_atomic(void)
+{
+#if defined(EOVERFLOW)
+    struct tm probe = {0};
+    struct tm impossible = {0};
+    struct tm beforeImpossible;
+    Date value = {0};
+    Date before;
+    time_t converted;
+
+    probe.tm_year = INT_MAX - 1900;
+    probe.tm_mon = 0;
+    probe.tm_mday = 1;
+    probe.tm_isdst = -1;
+    errno = 0;
+    converted = mktime(&probe);
+    if (converted != (time_t)-1 || errno == 0)
+        return 1; /* This platform's time_t can represent the probe year. */
+
+    Date_fromSeconds_(&value, 1700000000.25);
+    before = value;
+    impossible.tm_year = INT_MAX - 1900;
+    impossible.tm_mon = 0;
+    impossible.tm_mday = 1;
+    impossible.tm_isdst = -1;
+    beforeImpossible = impossible;
+    Date_fromLocalTime_(&value, &impossible);
+    if (value.tv.tv_sec != before.tv.tv_sec ||
+        value.tv.tv_usec != before.tv.tv_usec ||
+        memcmp(&impossible, &beforeImpossible, sizeof(impossible)) != 0) {
+        fprintf(stderr, "Date_fromLocalTime committed an unrepresentable calendar value\n");
+        return 0;
+    }
+
+    Date_setYear_(&value, (long)INT_MAX);
+    if (value.tv.tv_sec != before.tv.tv_sec ||
+        value.tv.tv_usec != before.tv.tv_usec) {
+        fprintf(stderr, "Date_setYear committed mktime's overflow sentinel\n");
+        return 0;
+    }
+#endif
+    return 1;
+}
+
 static int test_date_compare_precision(void)
 {
 #if LONG_MAX > 9007199254740992LL
@@ -256,6 +301,7 @@ int main(void)
     double after;
 
     if (!test_timezone_conversion() || !test_calendar_year_bounds() ||
+        !test_calendar_mktime_failure_is_atomic() ||
         !test_date_compare_precision() || !test_parse_resolves_daylight_saving())
         return EXIT_FAILURE;
 

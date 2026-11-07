@@ -4845,10 +4845,42 @@ jobs:
                   neutral_result = body.find("if (NULL == tm)")
               if not body or helper_call < 0 or neutral_result < 0 or neutral_result < helper_call:
                   raise SystemExit("Date component accessor must handle invalid receivers/localtime results: " + signature)
+          calendar_helper_start = date_source.find("static int Date_calendarToTime_(struct tm *calendar, time_t *timestamp)")
+          calendar_helper_end = date_source.find("\\nDate *Date_new(", calendar_helper_start)
+          calendar_helper = (
+              date_source[calendar_helper_start:calendar_helper_end]
+              if calendar_helper_start >= 0 and calendar_helper_end > calendar_helper_start
+              else ""
+          )
+          helper_order = [calendar_helper.find(x) for x in (
+              "if (NULL == calendar || NULL == timestamp)",
+              "normalized = *calendar;",
+              "savedErrno = errno;",
+              "errno = 0;",
+              "converted = mktime(&normalized);",
+              "if (converted == (time_t)-1 && errno != 0)",
+              "errno = savedErrno;",
+              "*calendar = normalized;",
+              "*timestamp = converted;")]
+          if (not calendar_helper or min(helper_order) < 0 or
+                  helper_order != sorted(helper_order) or
+                  date_source.count("mktime(") != 1 or
+                  "#include <errno.h>" not in date_source):
+              raise SystemExit("Date calendar conversion must centralize mktime overflow checks and publish normalized state only on success")
+          for signature, next_signature in (
+                  ("void Date_fromLocalTime_(Date *self, struct tm *t)", "void Date_fromTime_("),
+                  ("void Date_fromString_format_(Date *self, const char *s, const char *format)", "// durations")):
+              start = date_source.find(signature)
+              end = date_source.find(next_signature, start)
+              body = date_source[start:end] if start >= 0 and end > start else ""
+              if (not body or "Date_calendarToTime_(" not in body or
+                      "self->tv.tv_sec = timestamp;" not in body or
+                      "self->tv.tv_usec = 0;" not in body):
+                  raise SystemExit("Date calendar conversion entry point must commit a checked timestamp atomically: " + signature)
           for signature, next_signature, guard, operation in (
                   ("void Date_copy_(Date *self, const Date *other)", "void Date_free(", "if (NULL == self || NULL == other || self == other)", "memcpy("),
                   ("int Date_compare(const Date *self, const Date *other)", "double Date_SecondsFrom1970ToNow(", "if (NULL == self || NULL == other)", "self->tv.tv_sec != other->tv.tv_sec"),
-                  ("void Date_fromLocalTime_(Date *self, struct tm *t)", "void Date_fromTime_(", "if (NULL == self || NULL == t)", "mktime(t)"),
+                  ("void Date_fromLocalTime_(Date *self, struct tm *t)", "void Date_fromTime_(", "if (NULL == self || NULL == t)", "Date_calendarToTime_(t, &timestamp)"),
                   ("void Date_fromString_format_(Date *self, const char *s, const char *format)", "// durations", "if (NULL == self || NULL == s || NULL == format)", "io_strptime("),
                   ("Duration *Date_newDurationBySubtractingDate_(const Date *self, const Date *other)", "void Date_addDuration_(", "if (NULL == self || NULL == other)", "Date_secondsSince_(self, other)")):
               start = date_source.find(signature)
@@ -4868,9 +4900,14 @@ jobs:
               body = date_source[start:end] if start >= 0 and end > start else ""
               helper_call = body.find("Date_localTime_(self, &t)")
               null_guard = body.find("if (NULL == tm)")
-              member_write = body.find("tm->")
-              if not body or helper_call < 0 or null_guard < helper_call or member_write < null_guard:
-                  raise SystemExit("Date component setter must guard localtime before mutating its result: " + signature)
+              calendar_copy = body.find("calendar = *tm;")
+              member_write = body.find("calendar.tm_")
+              conversion = body.find("Date_calendarToTime_(&calendar, &timestamp)")
+              commit = body.find("self->tv.tv_sec = timestamp;")
+              if (not body or helper_call < 0 or null_guard < helper_call or
+                      calendar_copy < null_guard or member_write < calendar_copy or
+                      conversion < member_write or commit < conversion):
+                  raise SystemExit("Date component setter must convert a private calendar copy and commit only after mktime succeeds: " + signature)
           seconds_helper_start = date_source.find(
               "static int Date_splitSeconds_(double seconds, long *wholeSeconds,"
           )
@@ -4949,6 +4986,9 @@ jobs:
                          "Date_fromSeconds_(&value, -0.5)",
                          "Date_addSeconds_(&value, 0.5)",
                          "Date_setSecond_(&value, -0.5)",
+                         "test_calendar_mktime_failure_is_atomic",
+                         "Date_fromLocalTime committed an unrepresentable calendar value",
+                         "Date_setYear committed mktime's overflow sentinel",
                          "non-finite Date seconds input changed the stored time",
                          "Date seconds addition overflowed the whole-second field",
                          "test_timezone_conversion",

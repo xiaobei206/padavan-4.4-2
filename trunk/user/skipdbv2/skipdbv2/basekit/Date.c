@@ -7,6 +7,7 @@
 #undef DATE_C
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
 #include <time.h>
 #include <math.h>
@@ -20,6 +21,29 @@ static struct tm *Date_localTime_(const Date *self, time_t *timestamp)
 		return NULL;
 	*timestamp = self->tv.tv_sec;
 	return localtime(timestamp);
+}
+
+
+/* Normalize a calendar value off to the side and publish it only on success.
+ * A -1 timestamp is valid when mktime leaves errno clear. */
+static int Date_calendarToTime_(struct tm *calendar, time_t *timestamp)
+{
+	struct tm normalized;
+	time_t converted;
+	int savedErrno;
+
+	if (NULL == calendar || NULL == timestamp)
+		return 0;
+	normalized = *calendar;
+	savedErrno = errno;
+	errno = 0;
+	converted = mktime(&normalized);
+	if (converted == (time_t)-1 && errno != 0)
+		return 0;
+	errno = savedErrno;
+	*calendar = normalized;
+	*timestamp = converted;
+	return 1;
 }
 
 /* Split seconds into a whole-second part and normalized positive microseconds.
@@ -174,9 +198,13 @@ void Date_convertToTimeZone_(Date *self, struct timezone tz)
 
 void Date_fromLocalTime_(Date *self, struct tm *t)
 {
-	if (NULL == self || NULL == t)
+	time_t timestamp;
+
+	if (NULL == self || NULL == t ||
+		!Date_calendarToTime_(t, &timestamp))
 		return;
-	Date_fromTime_(self, mktime(t));
+	self->tv.tv_sec = timestamp;
+	self->tv.tv_usec = 0;
 }
 
 void Date_fromTime_(Date *self, time_t t)
@@ -283,16 +311,21 @@ long Date_year(const Date *self)
 
 void Date_setYear_(Date *self, long v)
 {
-	time_t t;
+	time_t t, timestamp;
 	int tmYear;
 	struct tm *tm;
+	struct tm calendar;
+
 	if (NULL == self || !Date_tmYearFromCalendarYear_(v, &tmYear))
 		return;
 	tm = Date_localTime_(self, &t);
 	if (NULL == tm)
 		return;
-	tm->tm_year = tmYear;
-	self->tv.tv_sec = mktime(tm);
+	calendar = *tm;
+	calendar.tm_year = tmYear;
+	if (!Date_calendarToTime_(&calendar, &timestamp))
+		return;
+	self->tv.tv_sec = timestamp;
 }
 
 int Date_month(const Date *self)
@@ -304,12 +337,17 @@ int Date_month(const Date *self)
 
 void Date_setMonth_(Date *self, int v)
 {
-	time_t t;
+	time_t t, timestamp;
 	struct tm *tm = Date_localTime_(self, &t);
+	struct tm calendar;
+
 	if (NULL == tm)
 		return;
-	tm->tm_mon = v;
-	self->tv.tv_sec = mktime(tm);
+	calendar = *tm;
+	calendar.tm_mon = v;
+	if (!Date_calendarToTime_(&calendar, &timestamp))
+		return;
+	self->tv.tv_sec = timestamp;
 }
 
 int Date_day(const Date *self)
@@ -321,12 +359,17 @@ int Date_day(const Date *self)
 
 void Date_setDay_(Date *self, int v)
 {
-	time_t t;
+	time_t t, timestamp;
 	struct tm *tm = Date_localTime_(self, &t);
+	struct tm calendar;
+
 	if (NULL == tm)
 		return;
-	tm->tm_mday = v;
-	self->tv.tv_sec = mktime(tm);
+	calendar = *tm;
+	calendar.tm_mday = v;
+	if (!Date_calendarToTime_(&calendar, &timestamp))
+		return;
+	self->tv.tv_sec = timestamp;
 }
 
 int Date_hour(const Date *self)
@@ -338,12 +381,17 @@ int Date_hour(const Date *self)
 
 void Date_setHour_(Date *self, int v)
 {
-	time_t t;
+	time_t t, timestamp;
 	struct tm *tm = Date_localTime_(self, &t);
+	struct tm calendar;
+
 	if (NULL == tm)
 		return;
-	tm->tm_hour = v;
-	self->tv.tv_sec = mktime(tm);
+	calendar = *tm;
+	calendar.tm_hour = v;
+	if (!Date_calendarToTime_(&calendar, &timestamp))
+		return;
+	self->tv.tv_sec = timestamp;
 }
 
 int Date_minute(const Date *self)
@@ -355,12 +403,17 @@ int Date_minute(const Date *self)
 
 void Date_setMinute_(Date *self, int v)
 {
-	time_t t;
+	time_t t, timestamp;
 	struct tm *tm = Date_localTime_(self, &t);
+	struct tm calendar;
+
 	if (NULL == tm)
 		return;
-	tm->tm_min = v;
-	self->tv.tv_sec = mktime(tm);
+	calendar = *tm;
+	calendar.tm_min = v;
+	if (!Date_calendarToTime_(&calendar, &timestamp))
+		return;
+	self->tv.tv_sec = timestamp;
 }
 
 double Date_second(const Date *self)
@@ -375,8 +428,9 @@ double Date_second(const Date *self)
 void Date_setSecond_(Date *self, double v)
 {
 	long wholeSeconds, microseconds;
-	time_t t;
+	time_t t, timestamp;
 	struct tm *tm;
+	struct tm calendar;
 
 	if (NULL == self || !Date_splitSeconds_(v, &wholeSeconds, &microseconds) ||
 		wholeSeconds < INT_MIN || wholeSeconds > INT_MAX)
@@ -384,8 +438,11 @@ void Date_setSecond_(Date *self, double v)
 	tm = Date_localTime_(self, &t);
 	if (NULL == tm)
 		return;
-	tm->tm_sec = (int)wholeSeconds;
-	self->tv.tv_sec = mktime(tm);
+	calendar = *tm;
+	calendar.tm_sec = (int)wholeSeconds;
+	if (!Date_calendarToTime_(&calendar, &timestamp))
+		return;
+	self->tv.tv_sec = timestamp;
 	self->tv.tv_usec = microseconds;
 }
 
@@ -437,20 +494,16 @@ static struct tm EmptyTM(void)
 void Date_fromString_format_(Date *self, const char *s, const char *format)
 {
 	struct tm tm;
+	time_t timestamp;
+
 	if (NULL == self || NULL == s || NULL == format)
 		return;
 	tm = EmptyTM();
-	if (NULL == io_strptime((char *)s, (char *)format, &tm))
+	if (NULL == io_strptime((char *)s, (char *)format, &tm) ||
+		!Date_calendarToTime_(&tm, &timestamp))
 		return;
-	/*
-	printf("year  = %i\n", t.tm_year);
-	printf("month = %i\n", t.tm_mon);
-	printf("day   = %i\n", t.tm_mday);
-	printf("hour  = %i\n", t.tm_hour);
-	printf("min   = %i\n", t.tm_min);
-	printf("sec   = %i\n", t.tm_sec);
-	*/
-	Date_fromSeconds_(self, mktime(&tm));
+	self->tv.tv_sec = timestamp;
+	self->tv.tv_usec = 0;
 }
 
 // durations --------------------------------------------------------

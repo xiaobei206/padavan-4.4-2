@@ -1,3 +1,13 @@
+## 2026-11-07 11:30 CST — Commit calendar conversions only after successful mktime
+
+- Baseline: main commit `e9d58845d1eb6a323a59e7c805abd4cb40bb8e3f`; SkipDBv2 Regression run #509 passed.
+- Scope: `Date_fromLocalTime_()`, `Date_fromString_format_()`, and all calendar component setters in `basekit/Date.c`, plus the existing `date_time_init` regression.
+- These entry points published `mktime()`'s `-1` failure sentinel into the Date even when errno identified an unrepresentable calendar value; component setters could replace a valid prior timestamp with an overflow sentinel.
+- Centralize conversion through a checked, copy-first helper that preserves input state on failure, accepts the valid `time_t(-1)` case when errno remains clear, and commits normalized calendar fields and Date timestamps only on success. Add an architecture-aware overflow regression and Actions source contracts. Existing CMake test target is reused; no new files.
+- No local C build or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 11:08 CST — Bound Sorting against adversarial median-of-three partitions
 
 - Baseline: main commit `fb8d1667949043a99cb9d26922d8a483db9b8e84`; SkipDBv2 Regression run #508 passed.
