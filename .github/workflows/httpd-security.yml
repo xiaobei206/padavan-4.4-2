@@ -12,6 +12,10 @@ on:
       - "trunk/user/scripts/files/sbin/mtd_storage.sh"
       - "trunk/user/scripts/files/sbin/dev_init.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script.sh"
+      - "trunk/user/scripts/files/usr/bin/autostart.sh"
+      - "trunk/user/scripts/files/usr/bin/ap_script_migrate.sh"
+      - "trunk/user/scripts/tests/ap_script_migration.sh"
+      - "trunk/user/scripts/tests/fixtures/ap_script_legacy_stock.sh"
       - "trunk/user/aliddns/aliddns.sh"
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
@@ -41,6 +45,10 @@ on:
       - "trunk/user/scripts/files/sbin/mtd_storage.sh"
       - "trunk/user/scripts/files/sbin/dev_init.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script.sh"
+      - "trunk/user/scripts/files/usr/bin/autostart.sh"
+      - "trunk/user/scripts/files/usr/bin/ap_script_migrate.sh"
+      - "trunk/user/scripts/tests/ap_script_migration.sh"
+      - "trunk/user/scripts/tests/fixtures/ap_script_legacy_stock.sh"
       - "trunk/user/aliddns/aliddns.sh"
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
@@ -72,6 +80,24 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify stock AP script migration
+        run: |
+          set -eu
+          sh -n trunk/user/scripts/files/usr/bin/autostart.sh
+          sh -n trunk/user/scripts/files/usr/bin/ap_script_migrate.sh
+          sh -n trunk/user/scripts/tests/ap_script_migration.sh
+          sh trunk/user/scripts/tests/ap_script_migration.sh
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("trunk/user/scripts/files/usr/bin/autostart.sh").read_text()
+          migrate = source.index("/usr/bin/ap_script_migrate.sh")
+          launch = source.index("/etc/storage/ap_script.sh >/dev/null 2>&1 &")
+          assert migrate < launch
+          assert "if [ -x /etc/storage/ap_script.sh ]; then" in source
+          print("AP stock-only migration autostart wiring: OK")
+          PY
 
       - name: Compile and run policy regression
         run: |

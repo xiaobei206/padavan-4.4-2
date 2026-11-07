@@ -12,6 +12,11 @@ if [ ! -x /etc/storage/sh_ezscript.sh ]; then
 	cp /usr/bin/sh_ezscript.sh /etc/storage/sh_ezscript.sh
 fi
 if [ -x /etc/storage/ap_script.sh ]; then
+	# Replace only the byte-identical pre-hardening stock copy; never clobber
+	# a user-customized persistent script.
+	if [ -x /usr/bin/ap_script_migrate.sh ]; then
+		/usr/bin/ap_script_migrate.sh /etc/storage/ap_script.sh /usr/bin/ap_script.sh
+	fi
 	/etc/storage/ap_script.sh >/dev/null 2>&1 &
 else
 	cp /usr/bin/ap_script.sh /etc/storage/ap_script.sh
