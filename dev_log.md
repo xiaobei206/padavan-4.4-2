@@ -1,3 +1,13 @@
+## 2026-11-07 15:53 CST — Snapshot UArray format strings that alias the destination
+
+- Baseline: `47751ce1ef0306ec1613215a5da4214380afc7ba`; mainline run #582 passed source contracts, configure, full build, and CTest.
+- Scope: `UArray_fromVargs_()` in `basekit/UArray_format.c` and the existing `uarray_format_trailing_percent_test`.
+- The formatter advanced through the caller's `format` pointer while appending literal and conversion output to the same `UArray`. When `format` pointed into that array's backing bytes, append could overwrite its terminator or reallocate the backing store, leaving the parser to consume mutated data or a dangling pointer.
+- Detect overlap between the complete C format string and the receiver's logical storage using checked byte-size arithmetic and `uintptr_t` address differences. Snapshot only an overlapping format before any append, preserve the receiver unchanged if snapshot allocation fails, and release the snapshot through a shared cleanup path.
+- Extend the existing regression by using the receiver's own `value %i` bytes as the format and verifying the appended result is `value %ivalue 7`. Extend the existing Actions source-order and runtime contracts. Existing CMake/CTest registration reused; no new files, exports, or build-list changes.
+- No local build is claimed; remote Actions is the compiler/CTest gate.
+
+---
 ## 2026-11-07 15:42 CST — Avoid reading tm_hour for standalone PortableStrptime %p
 
 - Baseline: `17736e0ffdf6ed591947587e8f4a51d93b784c72`; mainline run #581 passed source contracts, configure, full build, and CTest.

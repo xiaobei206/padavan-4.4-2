@@ -17,6 +17,7 @@ int main(void)
     UArray *trailing = UArray_newWithFormat_("prefix%");
     UArray *only_marker = UArray_newWithFormat_("%");
     UArray *normal = UArray_newWithFormat_("value %i", 42);
+    UArray *aliased_format = NULL;
     UArray *large_float = NULL;
     char expected_large_float[512];
     int expected_large_float_length;
@@ -33,7 +34,22 @@ int main(void)
     if (!equals_bytes(normal, "value 42", 8)) {
         fprintf(stderr, "ordinary UArray formatting changed unexpectedly\n");
         goto done;
+    
+    aliased_format = UArray_newWithCString_("value %i");
+    if (NULL == aliased_format) {
+        fprintf(stderr, "UArray aliased-format fixture allocation failed\n");
+        goto done;
     }
+    {
+        const char *format = (const char *)UArray_bytes(aliased_format);
+        UArray_fromFormat_(aliased_format, format, 7);
+    }
+    if (!equals_bytes(aliased_format, "value %ivalue 7", 15)) {
+        fprintf(stderr, "aliased format string was invalidated during append\n");
+        goto done;
+    }
+    UArray_free(aliased_format);
+    aliased_format = NULL;}
 
     expected_large_float_length = snprintf(expected_large_float,
         sizeof(expected_large_float), "%f", DBL_MAX);
@@ -94,6 +110,7 @@ int main(void)
     puts("UArray trailing format marker and hex-byte test passed");
 
 done:
+    UArray_free(aliased_format);
     UArray_free(large_float);
     UArray_free(normal);
     UArray_free(only_marker);

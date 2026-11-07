@@ -47,8 +47,33 @@ UArray *UArray_fromFormat_(UArray *self, const char *format, ...)
 
 void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 {
+	size_t formatLength, storageBytes = 0;
+	uintptr_t formatStart, dataStart;
+	char *formatCopy = NULL;
+
 	if (NULL == self || NULL == format)
 		return;
+
+	/* Appending to self can realloc or overwrite a format string stored in it. */
+	formatLength = strlen(format);
+	if (formatLength == (size_t)-1)
+		return;
+	if (self->data && self->itemSize > 0 &&
+		self->size <= (size_t)-1 / self->itemSize) {
+		storageBytes = self->size * self->itemSize;
+		dataStart = (uintptr_t)(const void *)self->data;
+		formatStart = (uintptr_t)(const void *)format;
+		if (storageBytes > 0 &&
+			((formatStart >= dataStart && formatStart - dataStart < storageBytes) ||
+			 (formatStart < dataStart && dataStart - formatStart <= formatLength))) {
+			formatCopy = (char *)io_malloc(formatLength + 1);
+			if (NULL == formatCopy)
+				return;
+			memcpy(formatCopy, format, formatLength + 1);
+			format = formatCopy;
+		}
+	}
+
 	while (*format)
 	{
 		if (*format == '%')
@@ -59,13 +84,13 @@ void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 			if (*format == 0)
 			{
 				UArray_appendCString_(self, "%");
-				return;
+				goto done;
 			}
 
 			if (*format == 's')
 			{
 				char *s = va_arg(ap, char *);
-				if (!s) { printf("UArray_fromVargs_ missing param"); return; }
+				if (!s) { printf("UArray_fromVargs_ missing param"); goto done; }
 				UArray_appendCString_(self, s);
 			}
 			else if (*format == 'i' || *format == 'd')
@@ -84,11 +109,11 @@ void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 				char *formatted;
 
 				if (formattedLength < 0)
-					return;
+					goto done;
 				formattedSize = (size_t)formattedLength + 1;
 				formatted = (char *)malloc(formattedSize);
 				if (NULL == formatted)
-					return;
+					goto done;
 				if (snprintf(formatted, formattedSize, "%f", d) == formattedLength)
 					UArray_appendCString_(self, formatted);
 				free(formatted);
@@ -123,6 +148,10 @@ void UArray_fromVargs_(UArray *self, const char *format, va_list ap)
 
 		format ++;
 	}
+
+done:
+	if (formatCopy)
+		io_free(formatCopy);
 }
 
 UArray *UArray_asNewHexStringUArray(UArray *self)

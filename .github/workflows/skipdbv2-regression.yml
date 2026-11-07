@@ -1818,6 +1818,13 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_format.c": [
                   "void UArray_fromVargs_(UArray *self, const char *format, va_list ap)",
+                  "formatLength = strlen(format);",
+                  "formatStart - dataStart < storageBytes",
+                  "dataStart - formatStart <= formatLength",
+                  "formatCopy = (char *)io_malloc(formatLength + 1);",
+                  "memcpy(formatCopy, format, formatLength + 1);",
+                  "format = formatCopy;",
+                  "io_free(formatCopy);",
                   "snprintf(NULL, 0, \"%f\", d)",
                   "formattedSize = (size_t)formattedLength + 1;",
                   "snprintf(formatted, formattedSize, \"%f\", d)",
@@ -1831,6 +1838,9 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_format_trailing_percent.c": [
                   "UArray_newWithFormat_(\"prefix%\")",
                   "UArray_newWithFormat_(\"%\")",
+                  "UArray_newWithCString_(\"value %i\")",
+                  "UArray_fromFormat_(aliased_format, format, 7)",
+                  "aliased format string was invalidated during append",
                   "UArray floating formatter truncated DBL_MAX output",
                   "trailing format marker was not preserved safely",
                   "format consisting only of a percent marker was mishandled",
@@ -4428,8 +4438,23 @@ jobs:
                   "free(formatted);" not in float_body or
                   "char s[100]" in float_body):
               raise SystemExit("UArray %f formatting must allocate the complete snprintf result instead of truncating at a fixed buffer")
+          format_body = uarray_format_source[
+              uarray_format_source.find("void UArray_fromVargs_(UArray *self, const char *format, va_list ap)"):
+              uarray_format_source.find("UArray *UArray_asNewHexStringUArray(")
+          ]
+          format_length = format_body.find("formatLength = strlen(format);")
+          alias_guard = format_body.find("if (storageBytes > 0 &&")
+          alias_snapshot = format_body.find("memcpy(formatCopy, format, formatLength + 1);")
+          alias_redirect = format_body.find("format = formatCopy;")
+          parse_loop = format_body.find("while (*format)")
+          if (not format_body or min(format_length, alias_guard, alias_snapshot, alias_redirect, parse_loop) < 0 or
+                  not (format_length < alias_guard < alias_snapshot < alias_redirect < parse_loop)):
+              raise SystemExit("UArray formatter must snapshot a format string that overlaps its mutable receiver")
           uarray_format_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_format_trailing_percent.c").read_text()
           for needle in ('UArray_newWithFormat_("prefix%")',
+                         'UArray_newWithCString_("value %i")',
+                         "UArray_fromFormat_(aliased_format, format, 7)",
+                         "aliased format string was invalidated during append",
                          'UArray_newWithFormat_("%")',
                          "ordinary UArray formatting changed unexpectedly"):
               if needle not in uarray_format_test:
