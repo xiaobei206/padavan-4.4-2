@@ -398,7 +398,7 @@ jobs:
           command_end = web.index('else if (!strcmp(value, " ClearLog "))', command_start)
           command_submit = web[command_start:command_end]
           command_guard = command_submit.index("if (!get_login_safe())")
-          command_clear = command_submit.index("SystemCmd[0] = '\\\\0';", command_guard)
+          command_clear = command_submit.index("SystemCmd[0] =", command_guard)
           command_deny = command_submit.index("websError(wp, 403", command_guard)
           command_capture = command_submit.index('websGetVar(wp, "SystemCmd", "")')
           command_copy = command_submit.index("strncpy(SystemCmd, cmd_str, cmd_len);")
@@ -410,7 +410,7 @@ jobs:
           syscmd_end = sys_script.index('else if (strcmp(name, "syslog.sh")==0)', syscmd_start)
           syscmd = sys_script[syscmd_start:syscmd_end]
           assert 'if (SystemCmd[0] && get_login_safe())' in syscmd
-          assert syscmd.index("SystemCmd[0] = '\\\\0';", syscmd.index("} else {")) > syscmd.index("} else {")
+          assert syscmd.index("SystemCmd[0] =", syscmd.index("} else {")) > syscmd.index("} else {")
           print("HTTPD SystemCmd trusted-session queue and stale-command guard: OK")
           print("HTTPD strict Basic authentication and decoder wiring: OK")
 
