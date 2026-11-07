@@ -1,3 +1,12 @@
+## 2026-11-07 15:59 CST — Repair Datum delimiter source-contract newline
+
+- Baseline: `d57c81841b717e6d63a6ac3f5740422cf28ce53e`; SkipDBv2 Regression run #584 failed in the Python source-contract step before CMake configure/build.
+- Failure cause: the newly added function-body assertion encoded its newline delimiter with one extra backslash. Python searched for the literal characters `\\n}` instead of the source newline followed by a closing brace, so it extracted an empty body and rejected the otherwise intended contract.
+- Corrected the workflow delimiter to the normal Python newline escape. No Datum implementation or test code changed in this repair.
+- Rerun the source contracts, configure, full build, and CTest on main.
+
+---
+
 ## 2026-11-07 15:58 CST — Reject malformed Datum delimiter Lists
 
 - Baseline: `2845f1c94e30be00eae2e27582922507964adfbd`; SkipDBv2 Regression run #583 passed source contracts, configure, full build, and CTest.

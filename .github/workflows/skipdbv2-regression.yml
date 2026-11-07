@@ -5772,7 +5772,7 @@ jobs:
 
           for signature in ("long Datum_find_(", "void *Datum_split_("):
               start = datum_source.find(signature)
-              end = datum_source.find("\\n}", start)
+              end = datum_source.find("\n}", start)
               body = datum_source[start:end + 2] if start >= 0 and end > start else ""
               if (
                   not body or
