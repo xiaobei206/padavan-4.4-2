@@ -1,4 +1,5 @@
 #include "Datum.h"
+#include "List.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -223,6 +224,32 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 	free(slice);
+
+	{
+		List *delims = List_new();
+		List malformedDelims;
+		if (!check(delims != NULL, "Datum delimiter List allocation failed"))
+			return EXIT_FAILURE;
+		if (!check(List_append_(delims, &prefix) == &prefix,
+			"Datum delimiter List initialization failed")) {
+			List_free(delims);
+			return EXIT_FAILURE;
+		}
+		if (!check(Datum_find_(&alpha, delims, 0) == 0,
+			"Datum delimiter lookup changed for valid List storage")) {
+			List_free(delims);
+			return EXIT_FAILURE;
+		}
+		malformedDelims = *delims;
+		malformedDelims.memSize = 0;
+		if (!check(Datum_find_(&alpha, &malformedDelims, 0) == -1 &&
+			Datum_split_(&alpha, &malformedDelims) == NULL,
+			"Datum delimiter scans must reject malformed List storage")) {
+			List_free(delims);
+			return EXIT_FAILURE;
+		}
+		List_free(delims);
+	}
 	puts("Datum boundary test passed");
 	return EXIT_SUCCESS;
 }

@@ -1,3 +1,14 @@
+## 2026-11-07 15:58 CST — Reject malformed Datum delimiter Lists
+
+- Baseline: `2845f1c94e30be00eae2e27582922507964adfbd`; SkipDBv2 Regression run #583 passed source contracts, configure, full build, and CTest.
+- Scope: delimiter traversal in `Datum_find_()` and `Datum_split_()`, plus the existing `datum_boundaries_test`.
+- Both APIs trusted the public List size without checking its backing-storage metadata. A forged size beyond the pointer capacity could turn a tiny malformed descriptor into an oversized scan; additionally, the loops narrowed `size_t` indices to `long` even though `List_at_()` accepts `size_t`.
+- Validate delimiter List storage before traversal, snapshot the validated element count once, and pass `size_t` indices directly to `List_at_()`.
+- Extend the existing Datum boundary regression with a valid lookup and a malformed shallow List descriptor that both lookup and split must reject. Extend Actions source/runtime contracts; reuse the existing CMake target. No new files, public APIs, or cross-translation-unit symbols.
+- No local build is claimed; remote Actions remains the compiler/CTest gate.
+
+---
+
 ## 2026-11-07 15:56 CST — Preserve the argv NULL sentinel in MainArgs
 
 - Baseline: `4ef5aafca2a92b3b5832b11d7974f8a8125928ab`; SkipDBv2 Regression run #583 passed source contracts, configure, full build, and CTest.

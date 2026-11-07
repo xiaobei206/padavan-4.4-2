@@ -255,16 +255,17 @@ int Datum_detect_with_(Datum *self, DatumDetectWithFunc *func, void *target)
 long Datum_find_(Datum *self, void *delimsList, size_t startIndex)
 {
 	List *delims = (List *)delimsList;
-	size_t i;
-	if (!Datum_hasValidStorage_(self) || NULL == delims ||
+	size_t i, delimiterCount;
+	if (!Datum_hasValidStorage_(self) || !List_hasValidStorage_(delims) ||
 		self->size > (size_t)LONG_MAX ||
 		startIndex > self->size)
 		return -1;
+	delimiterCount = List_size(delims);
 	for (i = startIndex; i < self->size; i++) {
 		Datum d = Datum_datumAt_(self, i);
 		size_t j;
-		for (j = 0; j < (size_t)List_size(delims); j++) {
-			Datum *delim = (Datum *)List_at_(delims, (long)j);
+		for (j = 0; j < delimiterCount; j++) {
+			Datum *delim = (Datum *)List_at_(delims, j);
 			if (delim && Datum_beginsWith_(&d, delim))
 				return (long)i;
 		}
@@ -288,9 +289,10 @@ void *Datum_split_(Datum *self, void *delimsList) /* returns a List */
 {
 	List *delims = (List *)delimsList;
 	List *results;
-	size_t i, last = 0;
-	if (!Datum_hasValidStorage_(self) || NULL == delims)
+	size_t i, last = 0, delimiterCount;
+	if (!Datum_hasValidStorage_(self) || !List_hasValidStorage_(delims))
 		return NULL;
+	delimiterCount = List_size(delims);
 	results = List_new();
 	if (NULL == results)
 		return NULL;
@@ -298,8 +300,8 @@ void *Datum_split_(Datum *self, void *delimsList) /* returns a List */
 	for (i = 0; i < self->size; ++i) {
 		Datum d = Datum_datumAt_(self, i);
 		size_t j;
-		for (j = 0; j < (size_t)List_size(delims); ++j) {
-			Datum *delim = (Datum *)List_at_(delims, (long)j);
+		for (j = 0; j < delimiterCount; ++j) {
+			Datum *delim = (Datum *)List_at_(delims, j);
 			Datum *part;
 			size_t oldCount;
 			if (NULL == delim || delim->size == 0 ||

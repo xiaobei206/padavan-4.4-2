@@ -5759,6 +5759,8 @@ jobs:
                          "Datum_compare_(&alpha, &malformed) > 0",
                          "Datum_beginsWith_(&malformed, &malformed) == 0",
                          "Datum conversion accepted an impossible SIZE_MAX UArray byte extent",
+                         "Datum_find_(&alpha, &malformedDelims, 0) == -1",
+                         "Datum_split_(&alpha, &malformedDelims) == NULL",
                          "Datum boundary test passed"):
               if needle not in datum_test:
                   raise SystemExit("Datum boundary regression case missing: " + needle)
@@ -5767,6 +5769,19 @@ jobs:
                          "add_test(NAME datum_boundaries_test COMMAND datum_boundaries_test)"):
               if needle not in datum_cmake:
                   raise SystemExit("Datum boundary CTest registration missing: " + needle)
+
+          for signature in ("long Datum_find_(", "void *Datum_split_("):
+              start = datum_source.find(signature)
+              end = datum_source.find("\\n}", start)
+              body = datum_source[start:end + 2] if start >= 0 and end > start else ""
+              if (
+                  not body or
+                  "List_hasValidStorage_(delims)" not in body or
+                  "delimiterCount = List_size(delims);" not in body or
+                  "j < delimiterCount" not in body or
+                  "List_at_(delims, (long)j)" in body
+              ):
+                  raise SystemExit("Datum delimiter scans must validate list storage and retain size_t indices")
 
           datum_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/Datum.h").read_text()
           detector_start = datum_source.find("int Datum_detect_with_(")
