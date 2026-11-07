@@ -501,11 +501,12 @@ int
 ipdown_vpns_main(int argc, char **argv)
 {
 	FILE *fp1, *fp2;
-	int i_clients;
+	int i_clients, lease_fd, temp_fd, write_failed;
+	struct stat lease_stat;
 	char ifname[16], addr_l[64], addr_r[64], name_p[64];
 	char *peer_name;
-	char *clients_l1 = VPN_SERVER_LEASE_FILE;
-	char *clients_l2 = "/tmp/.vpns.leases";
+	const char *clients_l1 = VPN_SERVER_LEASE_FILE;
+	char clients_l2[] = "/tmp/.vpns.leases.XXXXXX";
 	char *svcs[] = { "bcrelay", NULL };
 	const char *script_name = VPN_SERVER_UPDOWN_SCRIPT;
 
@@ -522,24 +523,56 @@ ipdown_vpns_main(int argc, char **argv)
 	vpns_route_to_remote_lan(peer_name, argv[1], NULL, 0);
 
 	i_clients = 0;
-	fp1 = fopen(clients_l1, "r");
-	fp2 = fopen(clients_l2, "w");
+	fp1 = NULL;
+	fp2 = NULL;
+
+	/* Read only a root-owned private regular file; don't follow shared-/tmp links. */
+	lease_fd = open(clients_l1, O_RDONLY | O_NOFOLLOW);
+	if (lease_fd >= 0) {
+		if (fstat(lease_fd, &lease_stat) == 0 &&
+		    S_ISREG(lease_stat.st_mode) &&
+		    lease_stat.st_uid == 0 &&
+		    lease_stat.st_nlink == 1 &&
+		    (lease_stat.st_mode & 077) == 0)
+			fp1 = fdopen(lease_fd, "r");
+
+		if (!fp1)
+			close(lease_fd);
+	}
+
+	/* mkstemp gives the replacement a unique 0600 pathname. */
+	temp_fd = mkstemp(clients_l2);
+	if (temp_fd >= 0) {
+		if (fchmod(temp_fd, S_IRUSR | S_IWUSR) == 0)
+			fp2 = fdopen(temp_fd, "w");
+		if (!fp2) {
+			close(temp_fd);
+			unlink(clients_l2);
+		}
+	}
+
 	if (fp1) {
-		while(fscanf(fp1, "%15s %63s %63s %63[^\n]\n", ifname, addr_l, addr_r, name_p) == 4) {
+		while (fscanf(fp1, "%15s %63s %63s %63[^\\n]\\n", ifname, addr_l, addr_r, name_p) == 4) {
 			if (strcmp(ifname, argv[1])) {
 				i_clients++;
 				if (fp2)
-					fprintf(fp2, "%s %s %s %s\n", ifname, addr_l, addr_r, name_p);
+					fprintf(fp2, "%s %s %s %s\\n", ifname, addr_l, addr_r, name_p);
 			}
 		}
-		
+
 		fclose(fp1);
 	}
 
 	if (fp2) {
-		fclose(fp2);
-		rename(clients_l2, clients_l1);
-		unlink(clients_l2);
+		write_failed = 0;
+		if (fflush(fp2) != 0 || ferror(fp2))
+			write_failed = 1;
+		if (fclose(fp2) != 0)
+			write_failed = 1;
+		if (!write_failed && rename(clients_l2, clients_l1) == 0)
+			clients_l2[0] = '\\0';
+		if (clients_l2[0])
+			unlink(clients_l2);
 	}
 
 	if (check_if_file_exist(script_name)) {
