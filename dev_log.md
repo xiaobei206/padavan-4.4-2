@@ -1,3 +1,13 @@
+## 2026-11-07 15:27 CST — Validate cached SkipDB forward-link identity
+
+- Baseline: `d2771b90bb65ea3465d6934c79638503f9816cab`; SkipDBv2 Regression run #575 passed source contracts, configure, full build, and CTest.
+- Scope: `SkipDBRecord_recordAtLevel_()` in `skipdb/SkipDBRecordLinks.c` and the existing `skipdb_core_layers` regression.
+- A cache-resident `SkipDBPointer.record` was returned without checking that the pointed record still belonged to the source database or that its nonzero cached PID still matched the pointed record. A stale/cross-database pointer could therefore bypass the authoritative on-disk PID link and send ordered traversal into another database's records.
+- Before returning a cached target, require matching database ownership and, when the link carries a nonzero PID, exact PID identity. Invalid cache metadata closes the source UDB rather than being reported as an ordinary end-of-list; PID-zero transient in-memory links remain supported.
+- Extend the existing core-layers test with cross-database pointer and same-database PID-mismatch corruption fixtures. Each must fail closed and permit recovery from the persisted source database. Extend existing Actions source contracts; the CTest target is already registered and no CMake or public-header change is needed.
+- Static review confirms no new cross-translation-unit symbols or source files; remote Actions remains the compiler/runtime gate. No local build is claimed.
+
+---
 ## 2026-11-07 15:23 CST — Correct free-callback contract newline delimiter
 
 - Baseline: `550aef6dc0f938f5074dbeeb7ae592ffd4893def`; run #574 stopped in the Actions source-contract phase before CMake configure.

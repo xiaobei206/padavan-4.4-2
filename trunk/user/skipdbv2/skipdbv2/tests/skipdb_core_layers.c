@@ -119,6 +119,40 @@ int main(void)
  if(!SkipDB_isOpen(target)||SkipDB_count(target)!=3||!value_is(target,"alpha","updated")||
   !value_is(target,"alpine","2")||!value_is(target,"gamma","4")){
   fprintf(stderr,"merge persistence failed\n");goto done;}
+ /* A cached forward pointer may not cross database ownership. */
+ {
+  SkipDBRecord *source_alpha=SkipDB_recordAt_(source,Datum_FromCString_("alpha"));
+  SkipDBRecord *target_alpha=SkipDB_recordAt_(target,Datum_FromCString_("alpha"));
+  if(!source_alpha||!target_alpha||
+     !key_is(SkipDBRecord_recordAtLevel_(source_alpha,0),"alpine")){
+   fprintf(stderr,"cached forward-link ownership fixture failed\n");goto done;
+  }
+  source_alpha->pointers[0].record=target_alpha;
+  if(SkipDBRecord_recordAtLevel_(source_alpha,0)!=NULL||SkipDB_isOpen(source)){
+   fprintf(stderr,"cached cross-database forward pointer was accepted\n");goto done;
+  }
+  if(!SkipDB_open(source)||!SkipDB_isOpen(source)||SkipDB_count(source)!=3||
+     !value_is(source,"alpha","updated")||!value_is(source,"gamma","4")){
+   fprintf(stderr,"database did not recover after cross-database cache rejection\n");goto done;
+  }
+ }
+ /* A cached pointer must also match its nonzero persistent PID. */
+ {
+  SkipDBRecord *source_alpha=SkipDB_recordAt_(source,Datum_FromCString_("alpha"));
+  SkipDBRecord *source_gamma=SkipDB_recordAt_(source,Datum_FromCString_("gamma"));
+  if(!source_alpha||!source_gamma||
+     !key_is(SkipDBRecord_recordAtLevel_(source_alpha,0),"alpine")){
+   fprintf(stderr,"cached forward-PID fixture failed\n");goto done;
+  }
+  source_alpha->pointers[0].pid=SkipDBRecord_pid(source_gamma);
+  if(SkipDBRecord_recordAtLevel_(source_alpha,0)!=NULL||SkipDB_isOpen(source)){
+   fprintf(stderr,"cached forward PID mismatch was accepted\n");goto done;
+  }
+  if(!SkipDB_open(source)||!SkipDB_isOpen(source)||SkipDB_count(source)!=3||
+     !value_is(source,"alpine","2")||!value_is(source,"gamma","4")){
+   fprintf(stderr,"database did not recover after cached PID rejection\n");goto done;
+  }
+ }
  /* A prefix cursor is owned by exactly one SkipDB instance. */
  foreignCursor=SkipDB_createCursor(target);
  if(!foreignCursor||!key_is(SkipDBCursor_goto_(foreignCursor,Datum_FromCString_("alpha")),"alpha")){

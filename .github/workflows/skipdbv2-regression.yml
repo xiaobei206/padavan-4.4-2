@@ -325,6 +325,11 @@ jobs:
                   "self->previousSteps = 0;",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordLinks.c": [
+                  "SkipDBRecord *SkipDBRecord_recordAtLevel_(SkipDBRecord *self, int level)",
+                  "if (r && self->sdb)",
+                  "r->sdb != db",
+                  "p->pid != 0 && p->pid != SkipDBRecord_pid(r)",
+                  "cached forward reference belongs to another database or PID",
                   "static int SkipDBRecord_hasValidLevel_(SkipDBRecord *self)",
                   "SkipDBRecord_hasValidLevel_(current)",
                   "SkipDBRecord_hasValidLevel_(self)",
@@ -429,7 +434,9 @@ jobs:
                   "cursor=SkipDBCursor_newWithDB_(source);",
                   "direct cursor constructor left the cursor unregistered",
                   "SkipDB_count(source)!=4",
-                  "SkipDB_list_next(source,prefix,cursor)",
+                  "cached cross-database forward pointer was accepted",
+                  "cached forward PID mismatch was accepted",
+                  "SkipDB_list_next(source,prefix,cursor)"
                   "SkipDBCursor_goto_(cursor,Datum_FromCString_(\"alpine\"))",
                   "cache eviction lost active cursor record",
                   "cache eviction cursor lazy reload failed",

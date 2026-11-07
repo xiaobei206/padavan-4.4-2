@@ -118,6 +118,16 @@ SkipDBRecord *SkipDBRecord_recordAtLevel_(SkipDBRecord *self, int level)
 	if (NULL == p)
 		return NULL;
 	r = p->record;
+	if (r && self->sdb) {
+		SkipDB *db = (SkipDB *)self->sdb;
+		if (r->sdb != db ||
+			(p->pid != 0 && p->pid != SkipDBRecord_pid(r))) {
+			/* The cached object must agree with its owning database and PID. */
+			fprintf(stderr, "SkipDB: cached forward reference belongs to another database or PID\n");
+			UDB_close(SkipDB_udb(db));
+			return NULL;
+		}
+	}
 	if (NULL == r && p->pid && self->sdb) {
 		SkipDB *db = (SkipDB *)self->sdb;
 		r = SkipDB_recordAtPid_(db, p->pid);
