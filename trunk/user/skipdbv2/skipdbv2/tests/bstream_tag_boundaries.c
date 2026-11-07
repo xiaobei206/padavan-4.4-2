@@ -203,6 +203,26 @@ static int testBStreamWriteValidation(void)
 	stream->ba->size = originalSize;
 	stream->ba->data = originalData;
 	BStream_free(stream);
+
+	stream = BStream_new();
+	if (NULL == stream)
+		return fail("BStream array layout write fixture allocation failed");
+	{
+		/* Keep the physical buffer large enough so the old bug fails safely. */
+		unsigned char paddedBytes[sizeof(uint32_t) * 3] = {0};
+		UArray malformedSource = UArray_stackAllocedWithData_type_size_(
+			paddedBytes, CTYPE_uint8_t, 3);
+		malformedSource.itemSize = sizeof(uint32_t);
+		BStream_writeUArray_(stream, &malformedSource);
+		malformedSource.itemSize = sizeof(uint8_t);
+		error = BStream_errorString(stream);
+		if (NULL == error || error[0] == '\0' ||
+			stream->ba->size != 0 || stream->index != 0) {
+			BStream_free(stream);
+			return fail("BStream plain array write accepted a mismatched source item width");
+		}
+	}
+	BStream_free(stream);
 	return EXIT_SUCCESS;
 }
 

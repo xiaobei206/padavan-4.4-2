@@ -1330,6 +1330,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStream.c": [
                   "extern size_t CTYPE_size(CTYPE type);",
+                  "ba->itemSize != CTYPE_size(ba->itemType)",
                   "self->ba->itemSize != CTYPE_size(self->ba->itemType)",
                   "destination->itemSize != CTYPE_size(destination->itemType)",
                   "static int BStream_sourceOverlapsStream_(const UArray *streamArray,",
@@ -1367,6 +1368,7 @@ jobs:
                   "BStream clone accepted malformed backing storage",
                   "BStreamTag boundaries test passed",
                   "BStream write accepted malformed existing backing storage",
+                  "BStream plain array write accepted a mismatched source item width",
                   "BStream tagged write silently accepted a NULL payload",
                   "BStream tagged write accepted malformed existing backing storage",
                   "static int testBStreamTagWriterFieldBounds(void)",

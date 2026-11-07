@@ -370,7 +370,8 @@ void BStream_writeUArray_(BStream *self, UArray *ba)
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		NULL == ba || UArray_size(self->errorBa) != 0)
 		return;
-	if (ba->itemSize == 0 || ba->size > (size_t)-1 / ba->itemSize ||
+	if (ba->itemSize == 0 || ba->itemSize != CTYPE_size(ba->itemType) ||
+		ba->size > (size_t)-1 / ba->itemSize ||
 		(ba->size > 0 && NULL == ba->data) ||
 		self->ba->itemSize != 1 ||
 		(self->ba->size > 0 && NULL == self->ba->data)) {

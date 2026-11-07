@@ -1,3 +1,13 @@
+## 2026-11-07 12:19 CST — Reject malformed UArray layouts before binary stream writes
+
+- Baseline: main commit `7dfc1d1886069458b6c40e357fd3e9351ed307bb`; SkipDBv2 Regression run #523 passed source contracts, configure, full build, and CTest.
+- Scope: `BStream_writeUArray_()` in `basekit/BStream.c`, the existing `bstream_tag_boundaries` regression, and its Actions source contract.
+- The read-side array validator already required `itemSize == CTYPE_size(itemType)`, but the write-side preflight checked only multiplication geometry. A forged byte-array descriptor with a larger item width could make `UArray_sizeInBytes()` overstate the valid backing extent, causing the stream writer to read beyond the actual byte storage.
+- Reject a mismatched source item width before calculating the serialized payload length. Extend the existing write-validation test with padded backing storage so the regression detects acceptance without itself reading outside the fixture. Require an error and an unchanged stream.
+- Reuse the existing CMake/CTest target; no new files or target changes. No local C build or CTest run is claimed; mainline CI is the validation gate.
+
+---
+
 ## 2026-11-07 12:17 CST — Invalidate UArray hash after same-size fread
 
 - Baseline: main commit `1e4da38232e3d9c0f6fd28a691d30bbcf42d3e45`; SkipDBv2 Regression run #522 passed source contracts, configure, full build, and all CTest regressions.
