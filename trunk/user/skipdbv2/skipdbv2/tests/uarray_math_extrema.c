@@ -60,6 +60,44 @@ static int test_scalar_mutations(void)
         goto cleanup;
     }
 
+    {
+        const int8_t boundaryValues[] = {4, 64};
+        UArray *boundary = UArray_newWithData_type_size_copy_(
+            (void *)boundaryValues, CTYPE_int8_t, 2, 1);
+        if (NULL == boundary) {
+            fail("UArray scalar integer boundary fixture allocation failed");
+            goto cleanup;
+        }
+        boundary->hash = (uintptr_t)0x5a5a;
+        UArray_divideScalarDouble_(boundary, 0.5);
+        if (memcmp(boundary->data, boundaryValues, sizeof(boundaryValues)) != 0 ||
+            boundary->hash != (uintptr_t)0x5a5a) {
+            UArray_free(boundary);
+            fail("UArray scalar integer division mutated the receiver before rejecting an out-of-range quotient");
+            goto cleanup;
+        }
+        UArray_free(boundary);
+    }
+
+    {
+        const int16_t finiteValues[] = {12, -8};
+        UArray *nonFinite = UArray_newWithData_type_size_copy_(
+            (void *)finiteValues, CTYPE_int16_t, 2, 1);
+        if (NULL == nonFinite) {
+            fail("UArray scalar non-finite fixture allocation failed");
+            goto cleanup;
+        }
+        nonFinite->hash = (uintptr_t)0x6b6b;
+        UArray_divideScalarDouble_(nonFinite, NAN);
+        if (memcmp(nonFinite->data, finiteValues, sizeof(finiteValues)) != 0 ||
+            nonFinite->hash != (uintptr_t)0x6b6b) {
+            UArray_free(nonFinite);
+            fail("UArray scalar integer division accepted a non-finite quotient");
+            goto cleanup;
+        }
+        UArray_free(nonFinite);
+    }
+
     UArray_addScalarDouble_(NULL, 1.0);
     UArray_subtractScalarDouble_(NULL, 1.0);
     UArray_multiplyScalarDouble_(NULL, 1.0);

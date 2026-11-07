@@ -433,10 +433,22 @@ void UArray_multiplyScalarDouble_(UArray *self, double value)
 
 void UArray_divideScalarDouble_(UArray *self, double value)
 {
+	size_t i;
+
 	if (!UArray_hasValidNumericStorage_(self) ||
 		self->itemType == CTYPE_uintptr_t || self->size == 0 ||
 		value == 0.0)
 		return;
+
+	/* Floating-to-integer conversion outside the destination range is undefined. */
+	if (self->itemType != CTYPE_float32_t &&
+		self->itemType != CTYPE_float64_t) {
+		for (i = 0; i < self->size; ++i) {
+			double quotient = UArray_rawDoubleAt_(self, i) / value;
+			if (UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient))
+				return;
+		}
+	}
 
 	UARRAY_FOREACHASSIGN(self, i, v, v / value);
 	UArray_changed(self);

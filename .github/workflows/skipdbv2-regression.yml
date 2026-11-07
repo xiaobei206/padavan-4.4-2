@@ -1753,6 +1753,9 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c": [
                   "static float UArray_integerValueAsFloat_(const UArray *self, size_t index)",
                   "static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)",
+                  "Floating-to-integer conversion outside the destination range is undefined.",
+                  "UArray_rawDoubleAt_(self, i) / value",
+                  "UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)",
                   "if (!isfinite(quotient))",
                   "return quotient <= -1.0 || quotient >= ldexp(1.0, bits);",
                   "UArray_integerValueAsFloat_(self, i)",
@@ -3598,7 +3601,9 @@ jobs:
           division_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_math_extrema.c").read_text()
           for needle in ("UArray integer division changed valid mixed float64 results",
                          "UArray integer division committed a float quotient outside receiver range",
-                         "UArray integer division committed a non-finite float quotient"):
+                         "UArray integer division committed a non-finite float quotient",
+                         "UArray scalar integer division mutated the receiver before rejecting an out-of-range quotient",
+                         "UArray scalar integer division accepted a non-finite quotient"):
               if needle not in division_test:
                   raise SystemExit("UArray floating-to-integer division regression missing: " + needle)
 
@@ -3623,8 +3628,17 @@ jobs:
                   changed < 0 or changed < first_foreach
               ):
                   raise SystemExit(f"UArray scalar {label} must validate numeric storage and invalidate hash after assignment")
-              if label == "divide" and "value == 0.0" not in body:
-                  raise SystemExit("UArray scalar divide must reject a zero divisor before integer or floating-point assignment")
+              if label == "divide":
+                  if "value == 0.0" not in body:
+                      raise SystemExit("UArray scalar divide must reject a zero divisor before integer or floating-point assignment")
+                  range_loop = body.find("for (i = 0; i < self->size; ++i)")
+                  range_read = body.find("UArray_rawDoubleAt_(self, i) / value", range_loop)
+                  range_guard = body.find("UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)", range_read)
+                  floating_type_guard = body.find("self->itemType != CTYPE_float32_t", range_loop)
+                  if (range_loop < 0 or range_read < range_loop or
+                      range_guard < range_read or floating_type_guard < 0 or
+                      range_guard > first_foreach):
+                      raise SystemExit("UArray scalar integer division must preflight every quotient before mutating the array")
 
 
           dot_size_start = bit_math_source.find("static size_t UArray_numericItemSize_(CTYPE itemType)")

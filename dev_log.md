@@ -1,3 +1,13 @@
+## 2026-11-07 12:14 CST — Preflight scalar floating-to-integer division
+
+- Baseline: main commit `fcf717cb8fbb7e8df06b457ba32bb6e882d8a245`; SkipDBv2 Regression run #520 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `UArray_divideScalarDouble_()` in `basekit/UArray_math.c` and its existing `uarray_math_extrema` regression.
+- Scalar division previously assigned each floating quotient directly into an integer element. A finite quotient outside the target integer range, or a non-finite quotient, makes floating-to-integer conversion undefined; processing in-place could also mutate earlier elements before a later element proves invalid.
+- Reuse the existing integer-quotient range predicate to scan every integer element before the assignment loop. Reject invalid or non-finite quotients atomically; preserve the existing floating-array path, valid integer division, zero-divisor no-op, and cache invalidation behavior.
+- Extend the existing regression with a late out-of-range int8 quotient and a NaN quotient, asserting contents and cached hash remain unchanged. Update the existing Actions source contract; no new files or CMake changes. No local C build/CTest is claimed; mainline CI is the verification gate.
+
+---
+
 ## 2026-11-07 12:11 CST — Align UTF embedded-NUL regression source contract
 
 - Baseline: main commit `da34cf94d4f1c0939174658a355fc522b1e8d95b`; SkipDBv2 Regression run #519 stopped in source-contract preflight before configure/build.
