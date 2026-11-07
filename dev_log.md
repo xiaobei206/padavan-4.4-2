@@ -1,3 +1,12 @@
+## 2026-11-07 13:33 CST — Repair tagged BStream source-contract boundary
+
+- Baseline: main commit `354d78f6d391a7741408843a1abe14d0f12c65db`; run #546 passed dependency installation but stopped in the XY-C1 integration/source-contract step before CMake configure.
+- The new tagged-writer contract used an over-escaped newline string when locating the end of `BStream_writeTaggedUArray_()`; Python searched for a literal backslash-n and therefore produced an empty function slice.
+- Use `chr(10) + "}"` as the function boundary, avoiding escape ambiguity. The C implementation and regression cases remain unchanged.
+- Static preflight confirms the boundary expression is present exactly once and the stale expression is absent. The next Actions run is the build/CTest gate.
+
+---
+
 ## 2026-11-07 13:32 CST — Validate typed storage before tagged BStream array writes
 
 - Baseline: main commit `33e6da33e482f9ca13fb898d6eee55d7183c2d57`; SkipDBv2 Regression run #545 passed XY-C1 source contracts, configure, the complete build, and all CTest regressions.

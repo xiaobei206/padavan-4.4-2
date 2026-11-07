@@ -3291,7 +3291,7 @@ jobs:
           tagged_write_start = bstream_source.find(
               "void BStream_writeTaggedUArray_(BStream *self, UArray *ba)"
           )
-          tagged_write_end = bstream_source.find("\\n}", tagged_write_start)
+          tagged_write_end = bstream_source.find(chr(10) + "}", tagged_write_start)
           tagged_write_body = (
               bstream_source[tagged_write_start:tagged_write_end]
               if tagged_write_start >= 0 and tagged_write_end > tagged_write_start
