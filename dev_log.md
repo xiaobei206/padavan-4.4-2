@@ -1,3 +1,12 @@
+## 2026-11-07 17:54 CST — Validate UArray layouts before insert-every arithmetic
+
+- Baseline: `8906776f32240d305181efa4afa6cec3cb450ba3`; SkipDBv2 Regression run #615 passed all source contracts, the full build, and 57 CTests.
+- Scope: `UArray_insert_every_()` and its existing malformed-layout regression.
+- The routine checked only `itemSize` and multiplication bounds. When `itemType` claimed a wider C type than `itemSize`, raw byte arithmetic could produce a buffer sized for the forged width, then transfer it to `UArray_setData_type_size_copy_()` using the wider type, whose terminator write could exceed that allocation.
+- Reuse `UArray_hasValidItemLayout_()` for both source and destination before deriving byte counts; keep the overflow guard for `itemCount`. Extend the existing test to cover malformed source and destination while verifying data and metadata stay unchanged. Update static/dynamic workflow contracts and the expected validator call count; no new files or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the build/runtime gate.
+
+---
 ## 2026-11-07 17:52 CST — Snapshot UArray copies that alias the trailing terminator
 
 - Baseline: `9c8058e133fcd525380fdc77416ced290865694e`; SkipDBv2 Regression run #614 passed the source contracts, full build, and all 57 CTests.

@@ -20,6 +20,23 @@ static int testRejectsMalformedInsertItemLayouts(void)
         destinationBytes, CTYPE_uint8_t, sizeof(destinationBytes));
     UArray malformedSource = UArray_stackAllocedWithData_type_size_(
         sourceBytes, CTYPE_uint8_t, sizeof(sourceBytes));
+    uint8_t everyDestinationBytes[] = {'c', 'd'};
+    uint8_t everySourceBytes[] = {0x11, 0x22, 0x33, 0x44,
+        0x55, 0x66, 0x77, 0x88};
+    const uint8_t expectedEveryDestination[] = {'c', 'd'};
+    uint64_t everyTargetValues[] = {
+        UINT64_C(0x1122334455667788), UINT64_C(0x8877665544332211)
+    };
+    const uint64_t expectedEveryTarget[] = {
+        UINT64_C(0x1122334455667788), UINT64_C(0x8877665544332211)
+    };
+    UArray malformedEveryDestination = UArray_stackAllocedWithData_type_size_(
+        everyDestinationBytes, CTYPE_uint8_t, sizeof(everyDestinationBytes));
+    UArray malformedEverySource = UArray_stackAllocedWithData_type_size_(
+        everySourceBytes, CTYPE_uint8_t, sizeof(everySourceBytes));
+    UArray validEveryDestination = UArray_stackAllocedWithData_type_size_(
+        everyTargetValues, CTYPE_uint64_t,
+        sizeof(everyTargetValues) / sizeof(everyTargetValues[0]));
     int okay = 0;
 
     malformedDestination.itemType = CTYPE_uint64_t;
@@ -40,12 +57,47 @@ static int testRejectsMalformedInsertItemLayouts(void)
         goto done;
     }
 
+    /* insert_every must reject inconsistent widths before byte arithmetic. */
+    malformedEveryDestination.itemType = CTYPE_uint64_t;
+    malformedEveryDestination.itemSize = sizeof(uint8_t);
+    malformedEverySource.itemType = CTYPE_uint64_t;
+    malformedEverySource.itemSize = sizeof(uint8_t);
+    UArray_insert_every_(&malformedEveryDestination, &malformedEverySource, 1);
+    if (malformedEveryDestination.itemType != CTYPE_uint64_t ||
+        malformedEveryDestination.itemSize != sizeof(uint8_t) ||
+        malformedEveryDestination.size != sizeof(everyDestinationBytes) ||
+        malformedEveryDestination.data != everyDestinationBytes ||
+        memcmp(everyDestinationBytes, expectedEveryDestination,
+            sizeof(expectedEveryDestination)) != 0) {
+        fprintf(stderr, "UArray_insert_every_ modified a malformed destination layout\n");
+        goto done;
+    }
+
+    /* A valid destination must also remain untouched for a malformed source. */
+    if (validEveryDestination.itemSize != sizeof(uint64_t)) {
+        fprintf(stderr, "UArray insert-every valid fixture has inconsistent width\n");
+        goto done;
+    }
+    UArray_insert_every_(&validEveryDestination, &malformedEverySource, 1);
+    if (validEveryDestination.itemType != CTYPE_uint64_t ||
+        validEveryDestination.itemSize != sizeof(uint64_t) ||
+        validEveryDestination.size != sizeof(everyTargetValues) / sizeof(everyTargetValues[0]) ||
+        validEveryDestination.data != (uint8_t *)everyTargetValues ||
+        memcmp(everyTargetValues, expectedEveryTarget,
+            sizeof(expectedEveryTarget)) != 0) {
+        fprintf(stderr, "UArray_insert_every_ modified a destination for malformed source layout\n");
+        goto done;
+    }
+
     okay = 1;
 done:
     UArray_stackFree(&malformedDestination);
     UArray_stackFree(&validSource);
     UArray_stackFree(&validDestination);
     UArray_stackFree(&malformedSource);
+    UArray_stackFree(&malformedEveryDestination);
+    UArray_stackFree(&malformedEverySource);
+    UArray_stackFree(&validEveryDestination);
     return okay;
 }
 

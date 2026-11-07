@@ -2691,6 +2691,9 @@ jobs:
                   "!UArray_hasValidItemLayout_(self)",
                   "if (NULL == self || !UArray_hasValidItemLayout_(self))",
                   "if (NULL == self || NULL == cmp || !UArray_hasValidItemLayout_(self))",
+                  "void UArray_insert_every_(UArray *self, UArray *other, size_t itemCount)",
+                  "!UArray_hasValidItemLayout_(self) ||",
+                  "!UArray_hasValidItemLayout_(other) ||",
                   "int CTYPE_forName(const char *name)",
                   "int CENCODING_forName(const char *name)",
                   "if (NULL == name)",
@@ -2949,6 +2952,10 @@ jobs:
                   "shrinking a borrowed UArray did not detach",                  "static int testRejectsMalformedInsertItemLayouts(void)",
                   "UArray_at_putAll_(&malformedDestination, 1, &validSource)",
                   "UArray_at_putAll_(&validDestination, 1, &malformedSource)",
+                  "UArray_insert_every_(&malformedEveryDestination, &malformedEverySource, 1)",
+                  "UArray_insert_every_(&validEveryDestination, &malformedEverySource, 1)",
+                  "UArray_insert_every_ modified a malformed destination layout",
+                  "UArray_insert_every_ modified a destination for malformed source layout",
                   "static int testInsertSnapshotsTrailingTerminator(void)",
                   "owner->data + owner->size",
                   "UArray insertion did not snapshot a borrowed trailing-terminator view",
@@ -4622,8 +4629,43 @@ jobs:
                   "!UArray_hasValidItemLayout_(self)" not in copy_items_body or
                   "!UArray_hasValidItemLayout_(other)" not in copy_items_body):
               raise SystemExit("UArray typed copies must reject malformed source and destination layouts before typed access")
-          if uarray_source.count("UArray_hasValidItemLayout_(") != 11:
-              raise SystemExit("UArray layout validator must have one definition and ten guarded call sites")
+          if uarray_source.count("UArray_hasValidItemLayout_(") != 13:
+              raise SystemExit("UArray layout validator must have one definition and twelve guarded call sites")
+
+          insert_every_start = uarray_source.find(
+              "void UArray_insert_every_(UArray *self, UArray *other, size_t itemCount)"
+          )
+          insert_every_end = uarray_source.find(
+              chr(10) + "void UArray_at_putAll_", insert_every_start
+          )
+          insert_every_body = (
+              uarray_source[insert_every_start:insert_every_end]
+              if insert_every_start >= 0 and insert_every_end > insert_every_start
+              else ""
+          )
+          insert_self_guard = insert_every_body.find("!UArray_hasValidItemLayout_(self)")
+          insert_other_guard = insert_every_body.find("!UArray_hasValidItemLayout_(other)")
+          insert_size_math = insert_every_body.find("itemSize = self->itemSize;")
+          insert_allocation = insert_every_body.find("io_malloc(newBytes + 1)")
+          if (
+              not insert_every_body or min(insert_self_guard, insert_other_guard,
+                  insert_size_math, insert_allocation) < 0 or
+              not (insert_self_guard < insert_size_math and
+                   insert_other_guard < insert_size_math and
+                   insert_size_math < insert_allocation)
+          ):
+              raise SystemExit("UArray_insert_every_ must validate both typed layouts before byte arithmetic or allocation")
+          insert_every_test = Path(
+              "trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c"
+          ).read_text()
+          for needle in (
+              "UArray_insert_every_(&malformedEveryDestination, &malformedEverySource, 1)",
+              "UArray_insert_every_(&validEveryDestination, &malformedEverySource, 1)",
+              "UArray_insert_every_ modified a malformed destination layout",
+              "UArray_insert_every_ modified a destination for malformed source layout",
+          ):
+              if needle not in insert_every_test:
+                  raise SystemExit("UArray insert-every malformed-layout regression is missing: " + needle)
 
           copy_data_end = uarray_source.find(
               chr(10) + "void UArray_convertToItemType_", copy_data_start

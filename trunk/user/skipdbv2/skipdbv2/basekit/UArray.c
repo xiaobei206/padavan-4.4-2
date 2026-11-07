@@ -1288,11 +1288,8 @@ void UArray_insert_every_(UArray *self, UArray *other, size_t itemCount)
 	uint8_t *newData;
 
 	if (NULL == self || NULL == other || itemCount == 0 ||
-		self->itemSize == 0 || other->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize ||
-		other->size > (size_t)-1 / other->itemSize ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data) ||
+		!UArray_hasValidItemLayout_(self) ||
+		!UArray_hasValidItemLayout_(other) ||
 		itemCount > (size_t)-1 / self->itemSize)
 		return;
 
