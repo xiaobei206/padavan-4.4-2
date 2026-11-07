@@ -19,6 +19,7 @@ mount -t tmpfs tmpfs /home  -o size=1M
 mount -t tmpfs tmpfs /media -o size=8K
 mount -t tmpfs tmpfs /mnt   -o size=8K
 mount -t tmpfs tmpfs /tmp   -o size=$size_tmp
+chmod 1777 /tmp
 mount -t tmpfs tmpfs /var   -o size=$size_var
 
 mkdir /dev/pts
@@ -48,6 +49,7 @@ mkdir -p -m 777 /tmp/hashes
 mkdir -p -m 777 /tmp/modem
 mkdir -p -m 777 /tmp/rc_notification
 mkdir -p -m 777 /tmp/rc_action_incomplete
+mkdir -p -m 700 /tmp/.httpd-private
 mkdir -p -m 700 /home/root
 mkdir -p -m 700 /home/root/.ssh
 mkdir -p -m 755 /etc/storage

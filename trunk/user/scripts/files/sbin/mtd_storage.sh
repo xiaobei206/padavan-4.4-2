@@ -5,10 +5,10 @@ mtd_part_name="Storage"
 mtd_part_dev="/dev/mtdblock5"
 mtd_part_size=65536
 dir_storage="/etc/storage"
-slk="/home/root/.storage_locked"
-tmp="/home/root/.storage.tar"
+slk="/tmp/.httpd-private/.storage_locked"
+tmp="/tmp/.httpd-private/storage.tar"
 tbz="${tmp}.bz2"
-hsh="/home/root/.storage_md5"
+hsh="/tmp/.httpd-private/storage_md5"
 
 func_get_mtd()
 {
@@ -121,7 +121,7 @@ func_backup()
 
 func_restore()
 {
-	local fsz tmp_storage
+	local fsz tmp_storage restore_suffix
 
 	[ ! -f "$tbz" ] && exit 1
 
@@ -133,7 +133,7 @@ func_restore()
 		return 1
 	fi
 
-	tmp_storage="/home/root/.storage-restore"
+	tmp_storage="/tmp/.httpd-private/storage-restore"
 	restore_suffix=0
 	while ! mkdir -m 700 "$tmp_storage" 2>/dev/null; do
 		restore_suffix=$((restore_suffix + 1))
@@ -143,7 +143,7 @@ func_restore()
 			logger -t "Storage restore" "Cannot allocate private restore scratch directory"
 			return 1
 		fi
-		tmp_storage="/home/root/.storage-restore-$restore_suffix"
+		tmp_storage="/tmp/.httpd-private/storage-restore-$restore_suffix"
 	done
 	tar xjf "$tbz" -C "$tmp_storage" 2>/dev/null
 	if [ $? -ne 0 ] ; then

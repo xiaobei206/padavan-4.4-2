@@ -751,19 +751,20 @@ jobs:
           assert "symlink(victim, target)" in upload_policy_test
           assert "S_ISREG(info.st_mode)" in upload_policy_test
           assert "(info.st_mode & 0777) == 0600" in upload_policy_test
-          assert '#define PROFILE_FIFO_UPLOAD\t"/home/root/.settings_u.prf"' in httpd_header
-          assert '#define PROFILE_FIFO_DOWNLOAD\t"/home/root/.settings_d.prf"' in httpd_header
-          assert '#define STORAGE_FIFO_FILENAME\t"/home/root/.storage.tar.bz2"' in httpd_header
-          assert '#define FW_IMG_NAME\t\t"/home/root/.linux.trx"' in board_header
-          assert 'slk="/home/root/.storage_locked"' in storage_script
-          assert 'tmp="/home/root/.storage.tar"' in storage_script
-          assert 'hsh="/home/root/.storage_md5"' in storage_script
-          assert 'tmp_storage="/home/root/.storage-restore"' in restore
+          assert '#define PROFILE_FIFO_UPLOAD\t"/tmp/.httpd-private/settings_u.prf"' in httpd_header
+          assert '#define PROFILE_FIFO_DOWNLOAD\t"/tmp/.httpd-private/settings_d.prf"' in httpd_header
+          assert '#define STORAGE_FIFO_FILENAME\t"/tmp/.httpd-private/storage.tar.bz2"' in httpd_header
+          assert '#define FW_IMG_NAME\t\t"/tmp/.httpd-private/linux.trx"' in board_header
+          assert 'slk="/tmp/.httpd-private/.storage_locked"' in storage_script
+          assert 'tmp="/tmp/.httpd-private/storage.tar"' in storage_script
+          assert 'hsh="/tmp/.httpd-private/storage_md5"' in storage_script
+          assert 'tmp_storage="/tmp/.httpd-private/storage-restore"' in restore
           assert 'while ! mkdir -m 700 "$tmp_storage" 2>/dev/null; do' in restore
-          assert 'tmp_storage="/home/root/.storage-restore-$restore_suffix"' in restore
+          assert 'tmp_storage="/tmp/.httpd-private/storage-restore-$restore_suffix"' in restore
           assert 'if [ "$restore_suffix" -gt 999 ]; then' in restore
           assert 'cp -rf "$tmp_storage"/. "$dir_storage"/' in restore
-          assert dev_init.index("mkdir -p -m 700 /home/root") < dev_init.index("mtd_storage.sh load")
+          assert "chmod 1777 /tmp" in dev_init
+          assert dev_init.index("chmod 1777 /tmp") < dev_init.index("mkdir -p -m 700 /tmp/.httpd-private") < dev_init.index("mtd_storage.sh load")
           print("HTTPD upload exclusive-create and private restore staging contracts: OK")
 
           # Storage restore executes tar as root into a scratch directory.
