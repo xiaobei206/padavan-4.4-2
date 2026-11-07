@@ -1,3 +1,11 @@
+## 2026-11-07 19:11 CST — Locate UArray layout-validator definition precisely
+
+- Failed head: `8989a3bb30a48f46d5dfa164ba9f935b81156cf5`; Actions run #639 failed in the source-contract checker before compilation.
+- The preceding count repair passed the dictionary contracts, but a dynamic source-order contract used an unqualified `find()` for the validator signature. The new forward declaration matched before the actual function body, causing the validator-body geometry check to inspect the wrong span.
+- Anchor the dynamic check to the signature followed by its opening brace, so it selects the definition rather than the forward declaration. This is a workflow-only correction; no C logic, tests, build targets, or workflow triggers change.
+
+---
+
 ## 2026-11-07 19:10 CST — Repair UArray layout source-count contract
 
 - Failing head: `e6d1a4eb84c657db4d135456614f5bc0b9c5863c`; GitHub Actions run #638 reached the integration-contract checker and failed before configure/build.
