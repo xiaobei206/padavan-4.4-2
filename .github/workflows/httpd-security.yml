@@ -292,9 +292,12 @@ jobs:
           extract_start = data_extract.index("void FAST_FUNC data_extract_all")
           extract = data_extract[extract_start:]
           safety_check = extract.index("bb_archive_path_has_unsafe_component(file_header->name,")
+          hardlink_check = extract.index("bb_archive_path_has_unsafe_component(file_header->link_target, 0)")
           leading_dirs = extract.index("if (archive_handle->ah_flags & ARCHIVE_CREATE_LEADING_DIRS)")
           unlink_old = extract.index("if (archive_handle->ah_flags & ARCHIVE_UNLINK_OLD)")
-          assert safety_check < leading_dirs < unlink_old
+          hardlink_create = extract.index("res = link(file_header->link_target, file_header->name)")
+          assert safety_check < hardlink_check < leading_dirs < unlink_old < hardlink_create
+          assert "file_header->size == 0" in extract[hardlink_check - 140:hardlink_check]
           assert 'if (!path || !path[0] || path[0] == \'/\')' in safe_extract
           assert 'strcmp(component, "..") == 0' in safe_extract
           assert "lstat(copy, &st)" in safe_extract

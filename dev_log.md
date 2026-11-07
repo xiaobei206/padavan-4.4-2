@@ -1,3 +1,14 @@
+## 2026-11-07 23:39 CST — Validate BusyBox tar hardlink source paths
+
+- Baseline main HEAD: 2b475fca3ac41f59a22059625d5e56dfb9b49fba. Follow-up to the verified archive member-path policy.
+- Source review found `get_header_tar.c` strips unsafe prefixes from `file_header->name`, while `link_target` is taken from tar linkname fields; `data_extract_all()` later calls `link(file_header->link_target, file_header->name)` for hardlinks without equivalent validation. This creates a path-resolution escape attempt in root storage restore (actual hardlink success remains subject to Linux filesystem restrictions).
+- Fix: before any mkdir/unlink/open side effect, call `bb_archive_path_has_unsafe_component(file_header->link_target, 0)` for hardlink-shaped entries (`S_ISREG`, non-NULL link target, size zero) and terminate extraction if unsafe. This rejects absolute/`..` targets and target paths traversing symlink or non-directory parents.
+- The shared host policy regression already covers absolute paths, `..`, and symlink parents; added an explanatory assertion comment. Workflow now asserts link-target policy appears before leading-directory creation, unlink, and the `link()` call.
+- Validation: PENDING matching Actions run for this exact SHA. No full BusyBox MIPS build, tar integration fuzzing, image inspection or hardware validation is claimed.
+- Next: verify exact CI, then review hardlink order/valid-archive compatibility before returning to CGI system-command/dataflow audit.
+
+---
+
 ## 2026-11-07 23:37 CST — Verify CGI service-ID bounds regression
 
 - Code commit `b046e3cbb84d73f4b3420f014c35d7b65925f26e` passed HTTPD Authentication and Security Regression run `42387172293` on exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42387172293.

@@ -31,6 +31,7 @@ main(void)
 	assert(bb_archive_path_has_unsafe_component("plain", 1));
 	assert(!bb_archive_path_has_unsafe_component("safe", 1));
 	assert(!bb_archive_path_has_unsafe_component("safe/missing", 1));
+	/* The same predicate protects hardlink sources as well as member names. */
 	assert(bb_archive_path_has_unsafe_component("plain/child", 0));
 	assert(bb_archive_path_has_unsafe_component("../etc/passwd", 0));
 	assert(bb_archive_path_has_unsafe_component("safe/../etc/passwd", 0));

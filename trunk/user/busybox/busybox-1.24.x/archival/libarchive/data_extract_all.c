@@ -30,6 +30,16 @@ void FAST_FUNC data_extract_all(archive_handle_t *archive_handle)
 		bb_error_msg_and_die("refusing to extract through unsafe path component: %s",
 				     file_header->name);
 
+	/* Hardlink targets are archive-root-relative too; don't let link()
+	 * resolve a source outside the extraction tree or through a symlink parent.
+	 */
+	if (S_ISREG(file_header->mode)
+	 && file_header->link_target
+	 && file_header->size == 0
+	 && bb_archive_path_has_unsafe_component(file_header->link_target, 0))
+		bb_error_msg_and_die("refusing to link from unsafe archive path: %s",
+				     file_header->link_target);
+
 	if (archive_handle->ah_flags & ARCHIVE_CREATE_LEADING_DIRS) {
 		char *slash = strrchr(file_header->name, '/');
 		if (slash) {
