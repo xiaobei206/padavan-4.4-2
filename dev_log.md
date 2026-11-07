@@ -1,3 +1,12 @@
+## 2026-11-07 13:03 CST — Correct Python newline escape in helper contract
+
+- Baseline: main commit `dfb9a64b73c4ba0e2958a7542e1becd67038ae34`; Actions run #537 again failed in source-contract preflight, before configure/build/CTest.
+- The first contract repair selected the function definition, but encoded the newline escape twice, so Python searched for a literal backslash-n instead of the definition's line break.
+- Reduce the escape by one level so the contract search resolves the actual implementation after the forward declaration. No C source, tests, or build targets changed in this repair.
+- Mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 13:02 CST — Match float-range helper definition in source contract
 
 - Baseline: main commit `932f6f2ca0e0813f250af7da96bbd9ffec956663`; Actions run #536 failed during the source-contract preflight before configure/build/CTest.
