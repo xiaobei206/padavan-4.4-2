@@ -1545,7 +1545,7 @@ jobs:
                   "value = (long long)calendarYear - 1900LL",
                   "if (value < INT_MIN || value > INT_MAX)",
                   "!Date_tmYearFromCalendarYear_(v, &tmYear)",
-                  "tm->tm_year = tmYear;",
+                  "calendar.tm_year = tmYear;",
                   "long long year;",
                   "year = (long long)tm->tm_year + 1900LL;",
                   "year % 400LL == 0LL",

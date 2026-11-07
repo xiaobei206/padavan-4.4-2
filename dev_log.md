@@ -1,3 +1,11 @@
+## 2026-11-07 11:35 CST — Align Date setter contract with copy-first calendar conversion
+
+- Baseline: main commit `6b41c8ecec634e21d62aca0f03dcf6e1001e15fa`; SkipDBv2 Regression run #510 failed in the Actions source-contract step.
+- The Date setter implementation now changes a private `struct tm calendar` copy and commits only after checked conversion, but the static contract still required the removed in-place assignment `tm->tm_year = tmYear;`.
+- Update the existing Date source contract to require `calendar.tm_year = tmYear;`. No implementation, test, CMake, or file-path changes.
+
+---
+
 ## 2026-11-07 11:30 CST — Commit calendar conversions only after successful mktime
 
 - Baseline: main commit `e9d58845d1eb6a323a59e7c805abd4cb40bb8e3f`; SkipDBv2 Regression run #509 passed.
