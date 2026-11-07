@@ -1259,11 +1259,8 @@ void UArray_at_putAll_(UArray *self, size_t pos, const UArray *other)
 	UArray insertChunk;
 
 	if (NULL == self || NULL == other || other->size == 0 ||
-		self->itemSize == 0 || other->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize ||
-		other->size > (size_t)-1 / other->itemSize ||
-		(self->size > 0 && NULL == self->data) ||
-		(other->size > 0 && NULL == other->data))
+		!UArray_hasValidItemLayout_(self) ||
+		!UArray_hasValidItemLayout_(other))
 		return;
 
 	itemSize = self->itemSize;
@@ -1272,11 +1269,15 @@ void UArray_at_putAll_(UArray *self, size_t pos, const UArray *other)
 	sourceBytes = other->size * other->itemSize;
 	if (self == other)
 		overlaps = 1;
-	else if (selfBytes > 0 && sourceBytes > 0) {
+	else if (sourceBytes > 0 && self->data && source->data) {
 		selfStart = (uintptr_t)self->data;
-		sourceStart = (uintptr_t)other->data;
+		sourceStart = (uintptr_t)source->data;
+		/*
+		 * Include the trailing NUL at selfBytes: a borrowed UArray view may
+		 * legally begin there, and a tail move or realloc would invalidate it.
+		 */
 		overlaps = (sourceStart >= selfStart &&
-			sourceStart - selfStart < selfBytes) ||
+			sourceStart - selfStart <= selfBytes) ||
 			(selfStart >= sourceStart &&
 			selfStart - sourceStart < sourceBytes);
 	}

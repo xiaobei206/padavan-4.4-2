@@ -2325,7 +2325,11 @@ jobs:
                   "if (!UArray_hasValidPointerStorage_(self))",
                   "if (!UArray_hasValidPointerStorage_(self) || NULL == self->data)",
                   "return ((void **)self->data)[i];",
-                  "if (!UArray_hasValidPointerStorage_(self))",
+                  "if (!UArray_hasValidPointerStorage_(self))",                  "sourceBytes > 0 && self->data && source->data",
+                  "sourceStart - selfStart <= selfBytes",
+                  "!UArray_hasValidItemLayout_(self) ||",
+                  "!UArray_hasValidItemLayout_(other))",
+
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c": [
                   "UArray_sizeInBytes(NULL)",
@@ -2501,7 +2505,15 @@ jobs:
                   "grow_source",
                   "shrink_source",
                   "growing a borrowed UArray did not detach",
-                  "shrinking a borrowed UArray did not detach",
+                  "shrinking a borrowed UArray did not detach",                  "static int testRejectsMalformedInsertItemLayouts(void)",
+                  "UArray_at_putAll_(&malformedDestination, 1, &validSource)",
+                  "UArray_at_putAll_(&validDestination, 1, &malformedSource)",
+                  "static int testInsertSnapshotsTrailingTerminator(void)",
+                  "owner->data + owner->size",
+                  "UArray insertion did not snapshot a borrowed trailing-terminator view",
+                  "UArray insertion did not reject malformed item layouts atomically",
+                  "UArray insertion did not preserve an aliased trailing terminator",
+
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_memory_size.c": [
                   "List_new()",

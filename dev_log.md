@@ -1,3 +1,14 @@
+## 2026-11-07 10:37 CST — Make UArray insertion preflight and alias handling transactional
+
+- Baseline: main commit `81ddf68ab344420dfb6dd28d6682c773196ac589`; SkipDBv2 Regression run #504 passed.
+- Scope: `UArray_at_putAll_()` and the existing `uarray_stack_resize` regression.
+- The insertion path checked only nonzero widths and multiplication bounds. Mismatched CTYPE/itemSize metadata could therefore pass preflight, resize the destination, and move its tail before `UArray_copyItems_()` rejected the source or destination. Validate both complete item layouts before any mutation.
+- The overlap calculation excluded the allocated trailing NUL. A borrowed view beginning exactly at `self->data + selfBytes` could be overwritten by the tail move or invalidated by reallocation. Include this one-past-logical-end byte in overlap detection and snapshot it before resizing.
+- Extend the existing regression for malformed source/destination layouts and an insertion sourced from the owner's terminator. Update the Actions source contracts. The existing CMake target already builds the test; no new files or CMake changes.
+- No local C build or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 10:18 CST — Preserve malloc-compatible alignment in tracked allocations
 
 - Baseline: main commit `39ef3e80488b4c0876028f07a9635e6f41c58c50`; SkipDBv2 Regression run #503 passed.

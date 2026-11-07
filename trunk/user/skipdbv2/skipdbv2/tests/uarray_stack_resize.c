@@ -5,6 +5,68 @@
 #include <string.h>
 
 
+
+static int testRejectsMalformedInsertItemLayouts(void)
+{
+    uint8_t destinationBytes[] = {'a', 'b'};
+    uint8_t sourceBytes[] = {'x'};
+    UArray malformedDestination = UArray_stackAllocedWithData_type_size_(
+        destinationBytes, CTYPE_uint8_t, sizeof(destinationBytes));
+    UArray validSource = UArray_stackAllocedWithData_type_size_(
+        sourceBytes, CTYPE_uint8_t, sizeof(sourceBytes));
+    UArray validDestination = UArray_stackAllocedWithData_type_size_(
+        destinationBytes, CTYPE_uint8_t, sizeof(destinationBytes));
+    UArray malformedSource = UArray_stackAllocedWithData_type_size_(
+        sourceBytes, CTYPE_uint8_t, sizeof(sourceBytes));
+    int okay = 0;
+
+    malformedDestination.itemType = CTYPE_uint64_t;
+    UArray_at_putAll_(&malformedDestination, 1, &validSource);
+    if (malformedDestination.size != sizeof(destinationBytes) ||
+        malformedDestination.data != destinationBytes ||
+        memcmp(destinationBytes, "ab", sizeof(destinationBytes)) != 0) {
+        fprintf(stderr, "UArray insertion accepted malformed destination item metadata\n");
+        goto done;
+    }
+
+    malformedSource.itemType = CTYPE_uint64_t;
+    UArray_at_putAll_(&validDestination, 1, &malformedSource);
+    if (validDestination.size != sizeof(destinationBytes) ||
+        validDestination.data != destinationBytes ||
+        memcmp(destinationBytes, "ab", sizeof(destinationBytes)) != 0) {
+        fprintf(stderr, "UArray insertion accepted malformed source item metadata\n");
+        goto done;
+    }
+
+    okay = 1;
+done:
+    UArray_stackFree(&malformedDestination);
+    UArray_stackFree(&validSource);
+    UArray_stackFree(&validDestination);
+    UArray_stackFree(&malformedSource);
+    return okay;
+}
+
+
+static int testInsertSnapshotsTrailingTerminator(void)
+{
+    UArray *owner = UArray_newWithCString_("A");
+    UArray terminatorView;
+    int okay;
+
+    if (NULL == owner)
+        return 0;
+    terminatorView = UArray_stackAllocedWithData_type_size_(
+        owner->data + owner->size, CTYPE_uint8_t, 1);
+    UArray_at_putAll_(owner, 0, &terminatorView);
+    okay = owner->size == 2 && owner->data != NULL &&
+        owner->data[0] == 0 && owner->data[1] == 'A';
+    if (!okay)
+        fprintf(stderr, "UArray insertion did not snapshot a borrowed trailing-terminator view\n");
+    UArray_free(owner);
+    return okay;
+}
+
 static int testStackRangeRejectsMismatchedItemLayout(void)
 {
     uint8_t bytes[] = {0x11, 0x22};
@@ -274,6 +336,14 @@ int main(void)
         goto done;
     }
 
+    if (!testRejectsMalformedInsertItemLayouts()) {
+        fprintf(stderr, "UArray insertion did not reject malformed item layouts atomically\n");
+        goto done;
+    }
+    if (!testInsertSnapshotsTrailingTerminator()) {
+        fprintf(stderr, "UArray insertion did not preserve an aliased trailing terminator\n");
+        goto done;
+    }
     if (!testDuplicateIndexes()) {
         fprintf(stderr, "UArray_duplicateIndexes failed safety or duplication checks\n");
         goto done;
