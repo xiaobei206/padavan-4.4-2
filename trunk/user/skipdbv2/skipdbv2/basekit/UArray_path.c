@@ -28,11 +28,6 @@ UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathUintptrAlignmentProbe, uintptr_t)
 
 #undef UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_
 
-static size_t UArray_pathItemSize_(CTYPE itemType);
-static size_t UArray_pathItemAlignment_(CTYPE itemType);
-static int UArray_hasValidPathStorage_(const UArray *self);
-static int UArray_pathComponentBounds_(const UArray *self, size_t *componentStart, size_t *componentEnd);
-
 static size_t UArray_pathItemSize_(CTYPE itemType)
 {
 	switch (itemType) {

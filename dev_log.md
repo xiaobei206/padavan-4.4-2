@@ -1,3 +1,12 @@
+## 2026-11-07 15:08 CST — Preserve UArray path source-contract function discovery
+
+- Baseline: `3613cef7c01adac5480c3fbf1f1f0b45cad847d5`; run #572 completed its file-token checks but a legacy function-body contract failed before configure.
+- Cause: the path file already defines each private helper before its first use. The extra forward declarations added during the alignment change were unnecessary and caused an existing source-contract parser to mistake the `UArray_pathComponentBounds_` prototype for the function definition.
+- Removed only those four redundant static prototypes. All helper definitions remain file-local and ordered before callers; the per-CTYPE alignment guard and new regression stay unchanged.
+- This restores the existing contract's function-body discovery without weakening or rewriting the check. No header, CMake, test behavior, or exported symbol changed; remote Actions remains the compiler/CTest gate.
+
+---
+
 ## 2026-11-07 15:06 CST — Make path alignment CI anchors newline-safe
 
 - Baseline: `6b3d50451b21b87a49ecb9b492c97b7f7bd17ad2`; run #571 reached the regression-contract step, where the source-range assertion still failed.
