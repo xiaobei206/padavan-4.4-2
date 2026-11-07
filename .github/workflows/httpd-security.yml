@@ -209,6 +209,8 @@ jobs:
           assert 'if (!is_first_run && fill_dnsmasq_servers() != 0)' in net_wan
           assert 'if (resolv_changed && !do_not_notify && dns_servers_ready)' in net_wan
           assert 'dnsmasq_file_is_safe_regular(DNS_SERVERS_FILE)' in net_wan
+          assert 'if (dnsmasq_file_is_safe_regular("/tmp/hosts.static") == 0)' in net_wan
+          assert 'load_user_config(fp, "/tmp", "hosts.static", NULL)' in net_wan
           assert 'fopen("/tmp/hosts.static", "w+")' not in service
           assert 'fopen(DNS_SERVERS_FILE, "w")' not in service
           assert 'create_file(DHCPD_LEASE_FILE)' not in service

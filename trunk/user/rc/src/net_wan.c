@@ -1808,8 +1808,11 @@ update_hosts_router(const char *lan_ipaddr)
 			fprintf(fp, "%s %s\n", lan_ipaddr, lan_hname);
 		fprintf(fp, "%s %s\n", lan_ipaddr, "my.router");
 		
-		/* load static DHCP list */
-		load_user_config(fp, "/tmp", "hosts.static", NULL);
+		/* Never ingest a stale or attacker-planted shared-/tmp link as hosts data. */
+		if (dnsmasq_file_is_safe_regular("/tmp/hosts.static") == 0)
+			load_user_config(fp, "/tmp", "hosts.static", NULL);
+		else if (errno != ENOENT)
+			logmessage(LOGNAME, "skipping unsafe static DHCP host snapshot (errno=%d)", errno);
 		
 #if defined (USE_IPV6)
 		if (get_ipv6_type() != IPV6_DISABLED) {
