@@ -581,7 +581,6 @@ jobs:
                   "int UDB_compactStepFor_(UDB *self, double maxSeconds)",
                   "clock_gettime(CLOCK_MONOTONIC, &started)",
                   "clock_gettime(CLOCK_MONOTONIC, &now)",
-                  "gettimeofday(&started, NULL)",
                   "elapsed >= maxSeconds",
                   "if (compactions > INT_MAX - count)",
                   "UDBRecord_totalSize(record) > UDBRecord_totalSize(firstEmptyRecord)",

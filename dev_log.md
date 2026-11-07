@@ -1,3 +1,11 @@
+## 2026-11-07 09:59 CST — Align compaction contract with monotonic timing
+
+- Baseline: main commit `00ff2c40036da65f6010e59c4764fb6fc1a98b58`; SkipDBv2 Regression run #497 failed in the XY-C1 source-contract step.
+- The compaction implementation had switched from `gettimeofday()` to `clock_gettime(CLOCK_MONOTONIC)`, but the pre-existing contract still required the removed wall-clock call.
+- Remove the stale assertion; keep both monotonic-clock assertions. No C-source changes.
+
+---
+
 ## 2026-11-07 09:57 CST — Use monotonic time for compaction budgets
 
 - Baseline: main commit `8b5e96b65fe334202e265daf0a46f3a5368db602`; SkipDBv2 Regression run #496 passed.
