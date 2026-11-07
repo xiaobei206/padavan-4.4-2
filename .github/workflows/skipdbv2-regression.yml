@@ -1477,6 +1477,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PHash.c": [
                   "static void PHash_tableInit_(PHash* self, int log2tableSize)",
+                  "void PHash_free(PHash *self)",
+                  "if (PHash_hasValidStorage_(self))",
                   "PHash_hasValidStorage_(self)",
                   "PHash_hasValidStorage_(other)",
                   "if (oldRecords != other->records)",
@@ -1496,6 +1498,8 @@ jobs:
                   "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c": [
+                  "static int phashFreeRejectsMisalignedBacking(void)",
+                  "PHash_free did not reject misaligned backing storage",
                   "static int phashRejectsMisalignedStorage(void)",
                   "PHash accepted misaligned backing records storage",
                   "PHash operations accepted misaligned backing storage",
@@ -6787,7 +6791,14 @@ jobs:
           phash_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/PHash.c").read_text()
           phash_test = Path("trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c").read_text()
           phash_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
-          copy_start = phash_source.find("void PHash_copy_(")
+          free_start = phash_source.find("void PHash_free(PHash *self)")
+          free_end = phash_source.find("size_t PHash_memorySize(PHash *self)", free_start)
+          free_body = phash_source[free_start:free_end] if free_start >= 0 and free_end > free_start else ""
+          free_guard = free_body.find("if (PHash_hasValidStorage_(self))")
+          free_release = free_body.find("io_free(self->records);")
+          if not free_body or free_guard < 0 or free_release < 0 or free_guard > free_release:
+              raise SystemExit("PHash_free must validate backing storage before releasing it")
+                    copy_start = phash_source.find("void PHash_copy_(")
           copy_end = phash_source.find("/*\tthis is where", copy_start)
           copy_body = phash_source[copy_start:copy_end] if copy_start >= 0 and copy_end > copy_start else ""
           if (not copy_body or
@@ -6796,7 +6807,10 @@ jobs:
                   "if (oldRecords != other->records)" not in copy_body or
                   copy_body.find("if (oldRecords != other->records)") < copy_body.find("*self = copy;")):
               raise SystemExit("PHash_copy_ must preserve the source allocation when distinct objects share backing storage")
-          for needle in ("static int phashCopyPreservesSharedBacking(void)",
+          for needle in ("static int phashFreeRejectsMisalignedBacking(void)",
+                         "phashFreeRejectsMisalignedBacking()",
+                         "PHash_free did not reject misaligned backing storage",
+                         "static int phashCopyPreservesSharedBacking(void)",
                          "PHash shallow aliases must not free the source backing allocation"):
               if needle not in phash_test:
                   raise SystemExit("PHash aliased-copy lifecycle regression missing: " + needle)

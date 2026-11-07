@@ -1,3 +1,13 @@
+## 2026-11-07 19:38 CST — Validate PHash backing storage before teardown
+
+- Baseline: `aa6094a63f407a3202e93fbe4e741b5cd82df1d4`; main CI run #649 passed after the SHash teardown-contract repair.
+- Scope: `PHash_free()` and the existing `phash_compact_test` lifecycle coverage.
+- PHash already rejects misaligned backing storage in normal operations, but its destructor bypassed the validator and unconditionally freed `records`. Corrupted alignment metadata could still reach the allocator during teardown.
+- Guard backing release with `PHash_hasValidStorage_()`, always release the PHash object, and add a teardown regression that retains and frees the genuine allocation separately after presenting a misaligned alias.
+- Update existing static and dynamic Actions contracts; reuse the current CTest target without adding files or targets. No local compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-07 19:36 CST — Repair SHash teardown CI contract indentation
 
 - Baseline: `12c6e9493175c90acfb928bbf7fc3172d445bb9e`; run #648 stopped in the Python-based firmware/source-contract step with an `IndentationError` before configuration, compilation, or CTests.

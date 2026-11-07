@@ -106,7 +106,9 @@ void PHash_free(PHash *self)
 {
 	if (NULL == self)
 		return;
-	io_free(self->records);
+	/* A corrupted table must not pass its backing pointer to the allocator. */
+	if (PHash_hasValidStorage_(self))
+		io_free(self->records);
 	io_free(self);
 }
 

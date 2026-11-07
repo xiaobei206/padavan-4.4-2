@@ -369,6 +369,30 @@ done:
 }
 
 
+static int phashFreeRejectsMisalignedBacking(void)
+{
+	PHash *hash = PHash_new();
+	PHashRecord *originalBacking;
+	int key = 909, value = 1001;
+
+	if (NULL == hash)
+		return 0;
+	PHash_at_put_(hash, &key, &value);
+	if (hash->tableSize != 2 || hash->numKeys != 1) {
+		PHash_free(hash);
+		return 0;
+	}
+
+	originalBacking = hash->records;
+	hash->records = (PHashRecord *)((char *)originalBacking + 1);
+	PHash_free(hash);
+
+	/* The destructor must skip the invalid alias; release the true owner here. */
+	io_free(originalBacking);
+	return 1;
+}
+
+
 int main(void)
 {
 	PHash *hash;
@@ -380,6 +404,9 @@ int main(void)
 
 	if (!check(phashRejectsMisalignedStorage(),
 		"PHash operations accepted misaligned backing storage"))
+		return EXIT_FAILURE;
+	if (!check(phashFreeRejectsMisalignedBacking(),
+		"PHash_free did not reject misaligned backing storage"))
 		return EXIT_FAILURE;
 	if (!check(phashCuckooFailurePreservesState(),
 		"PHash cuckoo failure altered the original table or input record"))
