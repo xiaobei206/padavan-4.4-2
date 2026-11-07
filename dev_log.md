@@ -1,3 +1,11 @@
+## 2026-11-07 21:18 CST — Keep UArray source contracts below the workflow payload limit
+
+- Baseline: `2db6429c209f9de1e3075f08808f16a8f6654997`; runs #667 and #668 terminated before the connector exposed job records or logs.
+- The new unary-math assertions expanded an already very large workflow script. Compress repeated Python source-contract boilerplate while retaining scalar preflight ordering, assignment storage/hash checks, the float-only round guard, unary result preflight, and regression-call coverage.
+- Workflow and handoff log only; C implementation and tests remain unchanged.
+
+---
+
 ## 2026-11-07 21:16 CST — Make unary-math source-contract delimiter explicit
 
 - Baseline: `a5160eb3fdbf7e1e672040c8bf2053456e6977a9`; run #667 failed before the connector exposed any job records or logs.
