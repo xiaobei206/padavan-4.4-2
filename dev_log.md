@@ -1,3 +1,11 @@
+## 2026-11-07 15:23 CST — Correct free-callback contract newline delimiter
+
+- Baseline: `550aef6dc0f938f5074dbeeb7ae592ffd4893def`; run #574 stopped in the Actions source-contract phase before CMake configure.
+- The new callback-order contract searched for a literal backslash-n sequence instead of the newline preceding the C function's closing brace, so it extracted an empty function body and rejected the otherwise matching implementation.
+- Change the source-contract delimiter to the normal Python newline escape. The C implementation, regression, CMake registration, and public interfaces are unchanged.
+- No local build is claimed; rerun the mainline Actions contract, compiler, and CTest gates.
+
+---
 ## 2026-11-07 15:20 CST — Detach SkipDB cache records before object-free callbacks
 
 - Baseline: `8d5c717bb6fd31aeb69ed5adf63261aa5a89dade`; SkipDBv2 Regression run #573 completed successfully.

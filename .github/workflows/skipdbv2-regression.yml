@@ -3120,7 +3120,7 @@ jobs:
           free_callback_start = cache_source.find(
               "void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)"
           )
-          free_callback_end = cache_source.find("\\n}", free_callback_start)
+          free_callback_end = cache_source.find("\n}", free_callback_start)
           free_callback_body = (
               cache_source[free_callback_start:free_callback_end]
               if free_callback_start >= 0 and free_callback_end > free_callback_start
