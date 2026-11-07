@@ -1251,13 +1251,56 @@ man_up(char *man_ifname, int unit, int is_static)
 void
 man_down(char *man_ifname, int unit)
 {
+	int wan_proto, is_modem_active, is_man_dns_auto;
+	char *next, *man_gate, *man_addr, *man_mask, *man_dns;
+	char word[100];
+
 	logmessage(LOGNAME, "%s %s (%s)", "MAN", "down", man_ifname);
 
-	/* Retire classless routes from the expired physical WAN lease. */
-	del_dhcp_routes_by_prefix("wanx_", man_ifname, 0);
+	man_gate = nvram_safe_get("wanx_gateway");
+	man_addr = nvram_safe_get("wanx_ipaddr");
+	man_mask = nvram_safe_get("wanx_netmask");
+	man_dns = nvram_safe_get("wanx_dns");
+	wan_proto = get_wan_proto(unit);
+	is_modem_active = get_usb_modem_wan(unit);
+	is_man_dns_auto = (get_wan_unit_value_int(unit, "dnsenable_x") > 0) ? 1 : 0;
 
-	/* for update dnsmasq.servers */
+	/* Remove the gateway and any off-subnet host routes from the old lease. */
+	if (dhcp_lease_ipv4_is_valid(man_gate)) {
+		if (dhcp_lease_ipv4_is_valid(man_addr) &&
+		    dhcp_lease_netmask_is_valid(man_mask) &&
+		    !is_same_subnet(man_gate, man_addr, man_mask))
+			route_del(man_ifname, 2, man_gate, NULL, "255.255.255.255");
+		route_del(man_ifname, 2, "0.0.0.0", man_gate, "0.0.0.0");
+
+		/* Match the conditional DNS host routes installed by man_up(). */
+		if (is_man_dns_auto && !is_modem_active &&
+		    wan_proto != IPV4_WAN_PROTO_PPPOE) {
+			foreach(word, man_dns, next) {
+				if (is_valid_ipv4(word) &&
+				    inet_addr(word) != inet_addr(man_gate) &&
+				    dhcp_lease_ipv4_is_valid(man_addr) &&
+				    dhcp_lease_netmask_is_valid(man_mask) &&
+				    !is_same_subnet(word, man_addr, man_mask))
+					route_del(man_ifname, 2, word, man_gate, "255.255.255.255");
+			}
+		}
+	}
+
+	/* Remove DHCP and static MAN routes before discarding their source data. */
+	del_dhcp_routes_by_prefix("wanx_", man_ifname, 0);
+	del_static_man_routes(man_ifname);
+
+	nvram_set_temp("wanx_gateway", "");
+	nvram_set_temp("wanx_dns", "");
 	nvram_set_temp("wanx_domain", "");
+	nvram_set_temp("wanx_routes", "");
+	nvram_set_temp("wanx_routes_ms", "");
+	nvram_set_temp("wanx_routes_rfc", "");
+
+	/* Refresh both resolv.conf and dnsmasq's domain-specific server snapshot. */
+	update_resolvconf(0, 0);
+	notify_rc("restart_firewall_wan");
 
 	/* stop multicast router */
 	stop_igmpproxy(man_ifname);

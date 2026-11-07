@@ -331,6 +331,14 @@ jobs:
           assert "if (is_add && !nvram_match(\"dr_enable_x\", \"1\"))" in route_body
           assert 'del_dhcp_routes_by_prefix("manv_", man_ifname, 0);' in wan
           assert 'del_dhcp_routes_by_prefix("manv_", man_ifname, 0);' in wan[wan.index("udhcpc_viptv_main("):]
+
+          man_start = wan.index("void\nman_down(")
+          man_end = wan.index("void\nwan_up(", man_start)
+          man_down = wan[man_start:man_end]
+          assert 'route_del(man_ifname, 2, "0.0.0.0", man_gate, "0.0.0.0");' in man_down
+          assert "del_static_man_routes(man_ifname);" in man_down
+          assert "update_resolvconf(0, 0);" in man_down
+          assert 'notify_rc("restart_firewall_wan");' in man_down
           print("DHCP lease normalization, route reconciliation, and resolver refresh contracts: OK")
           PY
 
