@@ -1,3 +1,13 @@
+## 2026-11-07 13:32 CST — Validate typed storage before tagged BStream array writes
+
+- Baseline: main commit `33e6da33e482f9ca13fb898d6eee55d7183c2d57`; SkipDBv2 Regression run #545 passed XY-C1 source contracts, configure, the complete build, and all CTest regressions.
+- Scope: `BStream_writeTaggedUArray_()` in `basekit/BStream.c` and the existing `bstream_tag_boundaries_test`.
+- The plain array writer and array readers reject mismatched `itemType`/`itemSize` pairs, but the tagged writer checked only nonzero item size and multiplication bounds. A malformed public `UArray` could therefore be serialized using a byte extent inconsistent with its declared C type; the tagged writer also accepted a stream buffer whose own CTYPE width did not match its byte-sized storage.
+- Validate both source and destination stream CTYPE widths before computing serialized byte counts or testing backing-store overlap. Extend the existing layout regression to exercise both malformed source and malformed stream cases and assert the writer leaves the stream untouched.
+- No new files, exported declarations, or CMake changes. Extend the existing Actions source contract to scope the width checks to the tagged writer. No local compiler run is claimed; the mainline Actions run is the build/CTest gate.
+
+---
+
 ## 2026-11-07 13:31 CST — Stabilize UArray scalar dispatch source contracts
 
 - Baseline: main commit `781ed26360155963e42174e4c60de31ac0c9aaaa`; run #543 failed during the XY-C1 source-contract phase before configure/build. Its new UArray source-contract entries assumed space indentation, while the C switch uses tabs.

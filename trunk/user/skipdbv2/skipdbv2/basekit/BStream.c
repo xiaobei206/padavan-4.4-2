@@ -793,9 +793,11 @@ void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 	size_t length, streamBytes;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		NULL == ba || ba->itemSize == 0 ||
+		ba->itemSize != CTYPE_size(ba->itemType) ||
 		ba->size > (size_t)-1 / ba->itemSize ||
 		(ba->size > 0 && NULL == ba->data) ||
 		self->ba->itemSize != 1 ||
+		self->ba->itemSize != CTYPE_size(self->ba->itemType) ||
 		self->ba->size > (size_t)-1 / self->ba->itemSize ||
 		(self->ba->size > 0 && NULL == self->ba->data)) {
 		BStream_error_(self, "invalid tagged array");

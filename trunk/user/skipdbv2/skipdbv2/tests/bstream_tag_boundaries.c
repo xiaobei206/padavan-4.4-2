@@ -486,6 +486,37 @@ static int testBStreamArrayLayoutValidation(void)
         goto done;
     }
 
+    {
+        unsigned char paddedBytes[sizeof(uint32_t) * sizeof(payload)] = {0};
+        UArray malformedSource = UArray_stackAllocedWithData_type_size_(
+            paddedBytes, CTYPE_uint8_t, sizeof(payload));
+
+        /* A typed source must not be serialized using inconsistent item geometry. */
+        malformedSource.itemSize = sizeof(uint32_t);
+        BStream_empty(stream);
+        BStream_writeTaggedUArray_(stream, &malformedSource);
+        error = BStream_errorString(stream);
+        malformedSource.itemSize = sizeof(uint8_t);
+        UArray_stackFree(&malformedSource);
+        if (NULL == error || error[0] == '\0' ||
+            stream->ba->size != 0 || stream->index != 0) {
+            fprintf(stderr, "BStream tagged array write accepted a mismatched source item width\n");
+            goto done;
+        }
+    }
+
+    BStream_empty(stream);
+    streamType = stream->ba->itemType;
+    stream->ba->itemType = CTYPE_uint32_t;
+    BStream_writeTaggedUArray_(stream, &source);
+    error = BStream_errorString(stream);
+    stream->ba->itemType = streamType;
+    if (NULL == error || error[0] == '\0' ||
+        stream->ba->size != 0 || stream->index != 0) {
+        fprintf(stderr, "BStream tagged array write accepted a mismatched stream item width\n");
+        goto done;
+    }
+
     okay = 1;
 done:
     malformedDestination.itemSize = sizeof(uint32_t);

@@ -1350,6 +1350,7 @@ jobs:
                   "sizeof(intptr_t) < sizeof(value)",
                   "(value > (int64_t)INTPTR_MAX || value < (int64_t)INTPTR_MIN)",
                   "tagged pointer exceeds platform width",
+                  "void BStream_writeTaggedUArray_(BStream *self, UArray *ba)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c": [
                   "if (NULL == self)",
@@ -1408,6 +1409,8 @@ jobs:
                   "BStream plain array read round trip failed",
                   "BStream tagged array read accepted an aliased destination",
                   "BStream tagged array read round trip failed",
+                  "BStream tagged array write accepted a mismatched source item width",
+                  "BStream tagged array write accepted a mismatched stream item width",
               ],
                             "trunk/user/skipdbv2/skipdbv2/basekit/PortableStrlcpy.c": [
                   "#include <stddef.h>",
@@ -3285,6 +3288,24 @@ jobs:
               'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")' not in tagged_array_body
           ):
               raise SystemExit("tagged BStream array reads must validate before consuming input")
+          tagged_write_start = bstream_source.find(
+              "void BStream_writeTaggedUArray_(BStream *self, UArray *ba)"
+          )
+          tagged_write_end = bstream_source.find("\\n}", tagged_write_start)
+          tagged_write_body = (
+              bstream_source[tagged_write_start:tagged_write_end]
+              if tagged_write_start >= 0 and tagged_write_end > tagged_write_start
+              else ""
+          )
+          tagged_source_layout = tagged_write_body.find("ba->itemSize != CTYPE_size(ba->itemType)")
+          tagged_stream_layout = tagged_write_body.find("self->ba->itemSize != CTYPE_size(self->ba->itemType)")
+          tagged_bytes = tagged_write_body.find("length = UArray_sizeInBytes(ba)")
+          if (
+              not tagged_write_body or tagged_source_layout < 0 or
+              tagged_stream_layout < 0 or tagged_bytes < 0 or
+              tagged_source_layout > tagged_bytes or tagged_stream_layout > tagged_bytes
+          ):
+              raise SystemExit("tagged BStream array writes must validate source and stream CTYPE widths before byte sizing")
 
           set_array_start = bstream_source.find("void BStream_setUArray_(BStream *self, UArray *ba)")
           set_data_start = bstream_source.find("\nvoid BStream_setData_length_", set_array_start)
