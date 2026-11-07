@@ -1,3 +1,13 @@
+## 2026-11-07 19:05 CST — Guard Stack backing release during teardown
+
+- Baseline: `796411d5f2d86e9df3053c18942dc4d9d470c2ef`; SkipDBv2 Regression run #635 passed integration contracts, full build, and all 57 CTests.
+- Scope: `Stack_free()` in the Stack lifecycle module.
+- All normal Stack operations used the existing storage validator, but destruction unconditionally passed `self->items` to `io_free`. If the backing pointer was corrupted or misaligned, teardown could hand an invalid pointer to the allocator.
+- Validate the existing storage geometry before releasing the backing allocation; always release the Stack object itself. Extend the existing lifecycle test with a deliberately misaligned backing pointer and safely free the saved true allocation after teardown.
+- Update existing source-contract assertions only; no new files, declarations, or build targets. No local build/CTest result is claimed.
+
+---
+
 ## 2026-11-07 19:02 CST — Restore Actions workflow startup
 
 - Failed head: `6a20f802d6008c11dadadab8ca8d5b208087c165`; run #634 failed immediately and GitHub reported zero jobs/check runs, so no step-level log was available.

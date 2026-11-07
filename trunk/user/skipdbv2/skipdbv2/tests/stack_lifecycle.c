@@ -313,8 +313,37 @@ done:
 }
 
 
+
+static int test_free_rejects_misaligned_backing(void)
+{
+	Stack *stack = Stack_new();
+	void **originalItems;
+	uintptr_t misalignedItems;
+
+	if (NULL == stack)
+		return 0;
+	originalItems = stack->items;
+	if (NULL == originalItems ||
+		((uintptr_t)originalItems % sizeof(void *)) != 0) {
+		Stack_free(stack);
+		return 0;
+	}
+
+	misalignedItems = (uintptr_t)originalItems + 1u;
+	stack->items = (void **)misalignedItems;
+	Stack_free(stack);
+
+	/* Stack_free must skip the corrupt alias; release the real allocation here. */
+	io_free(originalItems);
+	return 1;
+}
+
 int main(void)
 {
+	if (!test_free_rejects_misaligned_backing()) {
+		fprintf(stderr, "Stack_free did not safely reject misaligned backing storage\n");
+		return EXIT_FAILURE;
+	}
 	if (test_pop_releases_top_mark() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (!test_copy_preserves_shared_backing()) {

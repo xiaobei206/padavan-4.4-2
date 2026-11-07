@@ -80,7 +80,9 @@ void Stack_free(Stack *self)
 {
 	if (NULL == self)
 		return;
-	io_free(self->items);
+	/* Never pass malformed backing metadata to the allocator during teardown. */
+	if (Stack_hasValidStorage_(self, NULL, NULL))
+		io_free(self->items);
 	io_free(self);
 }
 
