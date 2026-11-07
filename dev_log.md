@@ -1,3 +1,13 @@
+## 2026-11-07 19:32 CST — Reject misaligned SHash backing storage
+
+- Baseline: `def32970755e938fa0c119eb2c69639dca95e3e7`; latest main CI run #646 passed the source/integration contracts, complete build, and all 57 CTests.
+- Scope: the shared `SHash_hasValidStorage_()` predicate and existing `shash_compact_test` regression.
+- The SHash validator checked table dimensions, mask, and key-count bounds but accepted an unaligned `records` pointer. A malformed shallow view could therefore pass every inline guard and access `SHashRecord` slots at an invalid alignment.
+- Include the fixed-width pointer-integer declaration and reject backing pointers that are not aligned to pointer slots before any indexed access. Extend the existing compaction test with a misaligned shallow view, covering reads, sizing, clone/copy, enumeration, and mutation fail-closed behavior while confirming the true allocation remains unchanged.
+- Update existing source and dynamic Actions contracts; reuse the existing CMake target, with no new files or build targets. No local compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-07 19:25 CST — Recover RandomGen from an impossible zero index
 
 - Baseline: `c6e4948bc4187189f4d417db1b006ac5409cd6d3`; latest main CI run #645 passed the integration/source contracts, full build, and all 57 CTests.

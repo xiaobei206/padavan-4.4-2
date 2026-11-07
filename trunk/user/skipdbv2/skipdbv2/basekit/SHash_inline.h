@@ -11,6 +11,7 @@
 #endif
 #include "Common_inline.h"
 #include <limits.h>
+#include <stdint.h>
 #ifdef IO_DECLARE_INLINES
 
 #include <stdio.h>
@@ -27,6 +28,9 @@ IOINLINE int SHash_hasValidStorage_(const SHash *self)
 		self->tableSize != (1u << self->log2tableSize) ||
 		self->mask != self->tableSize - 1 ||
 		self->numKeys > self->tableSize * 2)
+		return 0;
+	/* SHashRecord contains pointers; backing slots must be naturally aligned. */
+	if ((uintptr_t)self->records % sizeof(void *) != 0)
 		return 0;
 	return 1;
 }

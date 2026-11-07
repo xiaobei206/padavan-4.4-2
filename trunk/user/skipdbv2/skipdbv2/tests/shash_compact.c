@@ -293,6 +293,83 @@ done:
 }
 
 
+static int shashRejectsMisalignedBacking(void)
+{
+	SHash *hash = SHash_new();
+	SHash *clone = NULL;
+	SHash view = {0};
+	SHashRecord originalRecords[4];
+	SHashRecord *originalBacking;
+	SHashRecord *misalignedBacking;
+	int key = 101, value = 202, otherKey = 303, otherValue = 404;
+	unsigned int originalNumKeys, originalTableSize, originalMask, originalBalance;
+	unsigned int iterationCount = 0;
+	int okay = 0;
+
+	if (NULL == hash)
+		return 0;
+	SHash_setKeysEqualCallback(hash, keys_equal);
+	SHash_setHashForKeyCallback(hash, hash_key);
+	SHash_at_put_(hash, &key, &value);
+	if (hash->tableSize != 2 || hash->numKeys != 1)
+		goto done;
+
+	originalBacking = hash->records;
+	originalNumKeys = hash->numKeys;
+	originalTableSize = hash->tableSize;
+	originalMask = hash->mask;
+	originalBalance = hash->balance;
+	memcpy(originalRecords, originalBacking, sizeof(originalRecords));
+	view = *hash;
+	misalignedBacking = (SHashRecord *)((char *)originalBacking + 1);
+	view.records = misalignedBacking;
+
+	/* The bad view must fail validation before any table slot is accessed. */
+	if (SHash_hasValidStorage_(&view)) {
+		fprintf(stderr, "SHash accepted misaligned backing storage\n");
+		goto done;
+	}
+	if (SHash_count(&view) != 0 || SHash_memorySize(&view) != 0 ||
+		SHash_recordAt_(&view, &key) != &view.nullRecord ||
+		SHash_at_(&view, &key) != NULL || SHashKey_hasKey_(&view, &key) ||
+		SHash_firstKeyForValue_(&view, &value) != NULL)
+		goto done;
+	clone = SHash_clone(&view);
+	if (clone != NULL) {
+		fprintf(stderr, "SHash cloned misaligned backing storage\n");
+		goto done;
+	}
+
+	SHash_at_put_(&view, &otherKey, &otherValue);
+	SHash_removeKey_(&view, &key);
+	SHash_removeValue_(&view, &value);
+	SHash_clean(&view);
+	SHash_grow(&view);
+	SHash_compact(&view);
+	SHash_copy_(&view, hash);
+	SHash_copy_(hash, &view);
+	SHASH_FOREACH(&view, iterKey, iterValue, ++iterationCount);
+
+	if (iterationCount != 0 || view.records != misalignedBacking ||
+		view.numKeys != originalNumKeys || view.tableSize != originalTableSize ||
+		view.mask != originalMask || view.balance != originalBalance ||
+		hash->records != originalBacking || hash->numKeys != originalNumKeys ||
+		hash->tableSize != originalTableSize || hash->mask != originalMask ||
+		hash->balance != originalBalance ||
+		0 != memcmp(originalRecords, hash->records, sizeof(originalRecords)) ||
+		SHash_at_(hash, &key) != &value || SHash_at_(hash, &otherKey) != NULL) {
+		fprintf(stderr, "SHash operations accessed misaligned backing storage\n");
+		goto done;
+	}
+	okay = 1;
+
+done:
+	SHash_free(clone);
+	SHash_free(hash);
+	return okay;
+}
+
+
 int main(void)
 {
 	SHash *hash;
@@ -310,6 +387,9 @@ int main(void)
 		return EXIT_FAILURE;
 	if (!check(shashCopyPreservesSharedBacking(),
 		"SHash shallow aliases must not free the source backing allocation"))
+		return EXIT_FAILURE;
+	if (!check(shashRejectsMisalignedBacking(),
+		"SHash operations accessed misaligned backing storage"))
 		return EXIT_FAILURE;
 	if (!check(shashGrowRejectsInvalidState(0),
 		"SHash_grow accepted inconsistent table geometry"))

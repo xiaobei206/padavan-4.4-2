@@ -1413,11 +1413,13 @@ jobs:
                   "Datum boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/SHash_inline.h": [
+                  "#include <stdint.h>",
                   "IOINLINE int SHash_hasValidStorage_(const SHash *self)",
                   "self->log2tableSize == 0 || self->log2tableSize > 20",
                   "self->tableSize != (1u << self->log2tableSize)",
                   "self->mask != self->tableSize - 1",
                   "self->numKeys > self->tableSize * 2",
+                  "if ((uintptr_t)self->records % sizeof(void *) != 0)",
                   "SHash_hasValidStorage_(self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/SHash.c": [
@@ -1441,6 +1443,10 @@ jobs:
                   "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c": [
+                  "static int shashRejectsMisalignedBacking(void)",
+                  "SHash accepted misaligned backing storage",
+                  "SHash cloned misaligned backing storage",
+                  "SHash operations accessed misaligned backing storage",
                   "static int shashCopyPreservesSharedBacking(void)",
                   "SHash shallow aliases must not free the source backing allocation",
                   "static int shashOperationsRejectInvalidGeometry(int corruption)",
@@ -6671,8 +6677,13 @@ jobs:
                   raise SystemExit("Datum detector regression case missing: " + needle)
 
           shash_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/SHash.c").read_text()
+          shash_inline = Path("trunk/user/skipdbv2/skipdbv2/basekit/SHash_inline.h").read_text()
           shash_test = Path("trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c").read_text()
           shash_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
+          for needle in ("#include <stdint.h>",
+                         "if ((uintptr_t)self->records % sizeof(void *) != 0)"):
+              if needle not in shash_inline:
+                  raise SystemExit("SHash backing storage alignment contract missing: " + needle)
           compact_start = shash_source.find("void SHash_compact(SHash *self)")
           compact_end = shash_source.find("void SHash_copy_(", compact_start)
           compact_body = shash_source[compact_start:compact_end] if compact_start >= 0 and compact_end > compact_start else ""
@@ -6685,11 +6696,15 @@ jobs:
               raise SystemExit("SHash_compact must build a candidate table and publish it only after complete rehash")
           if "need to implement SHash_compact" in compact_body:
               raise SystemExit("SHash_compact remains an unimplemented stub")
-          for needle in ("SHash_compact did not reduce the table while preserving count",
+          for needle in ("static int shashRejectsMisalignedBacking(void)",
+                         "shashRejectsMisalignedBacking()",
+                         "SHash accepted misaligned backing storage",
+                         "SHash operations accessed misaligned backing storage",
+                         "SHash_compact did not reduce the table while preserving count",
                          "SHash_compact lost a retained key/value mapping",
                          "SHash compact test passed"):
               if needle not in shash_test:
-                  raise SystemExit("SHash compaction regression case missing: " + needle)
+                  raise SystemExit("SHash storage/compaction regression case missing: " + needle)
           for needle in ("ADD_EXECUTABLE(shash_compact_test",
                          "${PROJECT_SOURCE_DIR}/tests/shash_compact.c",
                          "add_test(NAME shash_compact_test COMMAND shash_compact_test)"):
