@@ -320,6 +320,9 @@ jobs:
                   "SkipDBRecord_allocedPidAtLevel_(SkipDBRecord *self, int level)",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c": [
+                  "void SkipDB_noteNewRecord_(SkipDB *self, SkipDBRecord *r)",
+                  "void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)",
+                  "r->sdb != self",
                   '#include <stdint.h>',
                   "PID_TYPE next_pid = next ? SkipDBRecord_pid(next) : 0;",
                   "uintptr_t next_address = (uintptr_t)next;",
@@ -493,6 +496,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/skipdb_core_layers.c": [
                   "static int test_record_level_rejects_invalid_receiver_metadata(void)",
+                  "Cache age-list notifications must not splice a record owned by another DB.",
+                  "foreign record corrupted cache age-list ownership",
+                  "SkipDB_noteAccessedRecord_(source,foreign_record);",
+                  "SkipDB_noteNewRecord_(source,foreign_record);",
                   "negative existing record level was used for pointer growth",
                   "out-of-range existing record level was modified",
                   "if (!test_record_level_rejects_invalid_receiver_metadata())",
@@ -3534,6 +3541,36 @@ jobs:
           cache_source = Path(
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c"
           ).read_text()
+          new_record_start = cache_source.find(
+              "void SkipDB_noteNewRecord_(SkipDB *self, SkipDBRecord *r)"
+          )
+          accessed_record_start = cache_source.find(
+              "void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)"
+          )
+          new_record_end = cache_source.find(
+              chr(10) + "void SkipDB_noteAccessedRecord_", new_record_start
+          )
+          accessed_record_end = cache_source.find(
+              chr(10) + "void SkipDB_noteDirtyRecord_", accessed_record_start
+          )
+          new_record_body = (
+              cache_source[new_record_start:new_record_end]
+              if new_record_start >= 0 and new_record_end > new_record_start else ""
+          )
+          accessed_record_body = (
+              cache_source[accessed_record_start:accessed_record_end]
+              if accessed_record_start >= 0 and accessed_record_end > accessed_record_start else ""
+          )
+          if (
+              not new_record_body or not accessed_record_body or
+              "r->sdb != self" not in new_record_body or
+              new_record_body.find("r->sdb != self") > new_record_body.find("self->cachedRecordCount++") or
+              "r->sdb != self" not in accessed_record_body or
+              accessed_record_body.find("r->sdb != self") > accessed_record_body.find("y = self->youngestRecord")
+          ):
+              raise SystemExit(
+                  "SkipDB cache-age updates must validate record ownership before touching counts or age links"
+              )
           age_validator_start = cache_source.find("static int SkipDB_cacheAgeListIsValid_(SkipDB *self)")
           age_validator_end = cache_source.find("\n}", age_validator_start)
           age_validator = cache_source[age_validator_start:age_validator_end] if age_validator_start >= 0 and age_validator_end > age_validator_start else ""

@@ -1,3 +1,14 @@
+## 2026-11-07 18:34 CST — Reject foreign records at SkipDB cache-age entry points
+
+- Baseline: `d7a3fae074f2c7972a5819746c3227a830dfed6c`; SkipDBv2 Regression run #627 passed the integration contracts, complete build, and all 57 CTests.
+- Scope: `SkipDB_noteNewRecord_()` and `SkipDB_noteAccessedRecord_()` in `SkipDBCache.c`.
+- The cache age-list mutators checked only for NULL. Passing a live record owned by another SkipDB could unlink it from its real owner's age list, splice it into the wrong database, and/or inflate the wrong cache count, breaking eviction invariants.
+- Require `record->sdb == self` before changing the cached-record count or touching age links. Normal record construction binds the owning database before cache registration, so legitimate insertion remains unchanged.
+- Extend the existing two-database core regression to call both entry points with a foreign record and verify both age-list roots, ownership links, and cached counts remain unchanged. Add workflow source-order checks; no new files or build targets.
+- No local compiler/CTest result is claimed; GitHub Actions remains the validation gate.
+
+---
+
 ## 2026-11-07 18:32 CST — Preserve the UDB PID-index cursor while counting slots
 
 - Baseline: `81a4e8660c2d618b57ee33c8080fe0f31d12b27a`; SkipDBv2 Regression run #626 passed the source contracts, complete build, and all 57 CTests.

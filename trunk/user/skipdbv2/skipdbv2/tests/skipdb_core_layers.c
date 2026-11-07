@@ -166,6 +166,31 @@ int main(void)
  if(!SkipDB_isOpen(target)||SkipDB_count(target)!=3||!value_is(target,"alpha","updated")||
   !value_is(target,"alpine","2")||!value_is(target,"gamma","4")){
   fprintf(stderr,"merge persistence failed\n");goto done;}
+ /* Cache age-list notifications must not splice a record owned by another DB. */
+ {
+  SkipDBRecord *foreign_record=SkipDB_recordAt_(target,Datum_FromCString_("alpha"));
+  SkipDBRecord *source_youngest=source->youngestRecord;
+  SkipDBRecord *target_youngest=target->youngestRecord;
+  SkipDBRecord *foreign_older, *foreign_younger;
+  size_t source_count=source->cachedRecordCount;
+  size_t target_count=target->cachedRecordCount;
+
+  if(!foreign_record||foreign_record->sdb!=target){
+   fprintf(stderr,"foreign cache-owner fixture failed\n");goto done;
+  }
+  foreign_older=foreign_record->olderRecord;
+  foreign_younger=foreign_record->youngerRecord;
+  SkipDB_noteAccessedRecord_(source,foreign_record);
+  SkipDB_noteNewRecord_(source,foreign_record);
+  if(source->youngestRecord!=source_youngest||
+     target->youngestRecord!=target_youngest||
+     source->cachedRecordCount!=source_count||
+     target->cachedRecordCount!=target_count||
+     foreign_record->olderRecord!=foreign_older||
+     foreign_record->youngerRecord!=foreign_younger){
+   fprintf(stderr,"foreign record corrupted cache age-list ownership\n");goto done;
+  }
+ }
  /* A cached forward pointer may not cross database ownership. */
  {
   SkipDBRecord *source_alpha=SkipDB_recordAt_(source,Datum_FromCString_("alpha"));

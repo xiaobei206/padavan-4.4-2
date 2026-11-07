@@ -9,7 +9,7 @@
 
 void SkipDB_noteNewRecord_(SkipDB *self, SkipDBRecord *r)
 {
-	if (NULL == self || NULL == r)
+	if (NULL == self || NULL == r || r->sdb != self)
 		return;
 	self->cachedRecordCount++;
 	SkipDB_noteAccessedRecord_(self, r);
@@ -18,7 +18,7 @@ void SkipDB_noteNewRecord_(SkipDB *self, SkipDBRecord *r)
 void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)
 {
 	SkipDBRecord *y;
-	if (NULL == self || NULL == r)
+	if (NULL == self || NULL == r || r->sdb != self)
 		return;
 	y = self->youngestRecord;
 	if (y != r) {
