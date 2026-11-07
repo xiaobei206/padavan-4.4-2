@@ -1,3 +1,21 @@
+## 2026-11-08 07:54 CST — Fail closed on unavailable block-storage partition inventory
+
+### Finding and implementation
+- **Base main SHA:** `98bb2a1952f80b8c27658969a309a8457c263209`; **code/test/workflow SHA:** `3fbde30bbdf91a37380752b8e33148bd88e0d2a6` on `main`.
+- **P2 data-integrity finding:** `trunk/user/rc/src/hotplug_stor.c::check_root_partition()` returned zero when `/proc/partitions` could not be opened. Both SCSI and MMC whole-disk handlers interpret zero as evidence that there are no child partitions and may proceed to pass the raw device to `automount.sh`. An unavailable or unreadable partition inventory must not authorize whole-disk mounting.
+- **Fix:** added `storage_partition_probe.h` with strict SCSI/MMC whole-disk-name validation, exact numeric child-partition parsing and tri-state results (partition found / no partition / error). The production wrapper now returns an error on invalid names, failed open, stream read error, and close error if no partition was found. Existing SCSI and MMC whole-disk call sites stop on any nonzero result, so an inventory failure cannot take the unpartitioned-disk path.
+- **Regression and workflow:** added `trunk/user/rc/src/tests/storage_partition_probe.c` covering SCSI/MMC partition discovery, unpartitioned disks, prefix lookalikes (`sdaa1`, `sdaX`), invalid device names and missing input. Extended `.github/workflows/httpd-security.yml` with GNU89 `-Wall -Wextra -Werror` compile/run plus source wiring assertions; both push and PR path filters include the production source, helper and test.
+- **Changed paths:** `trunk/user/rc/src/hotplug_stor.c`; new `trunk/user/rc/src/storage_partition_probe.h`; new `trunk/user/rc/src/tests/storage_partition_probe.c`; `.github/workflows/httpd-security.yml`.
+
+### Validation and limits
+- L1 scoped source review: PASS.
+- Exact-head L2 GitHub Actions [run 42427177541](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42427177541) completed **SUCCESS** on code/test SHA `3fbde30bbdf91a37380752b8e33148bd88e0d2a6`; the single job's 18 recorded steps all completed successfully, including compilation and execution of the new C regression and production source-contract checks.
+- L3 production RC/MIPS object/firmware/TRX build and artifact validation: **NOT RUN**. L4 physical-router flash/boot and runtime storage tests: **NOT RUN**.
+- This fix does not close the storage audit. `automount.sh` mountpoint concurrency and filesystem-check gates, permission/option compatibility (including post-mount `chmod 777`), `services_stor.c::umount_dev()` ignored optware/umount status, swapoff ordering, stale mount cleanup and `libdisk` removable-device path provenance remain open.
+
+### Next
+- Audit the complete `automount.sh` → mountpoint → optware → unmount/eject lifecycle, including `services_stor.c` status handling and libdisk device enumeration. Make one bounded tested change for a confirmed defect. Then rotate to init/service lifecycle and keep the higher-risk HTTPD/CGI/auth, firewall rollback/IPv6 and WAN/PPP rows active; do not pivot back to routine SkipDBv2 work.
+
 ## 2026-11-08 07:29 CST — Secure USB modem hotplug metadata staging against /tmp symlink races
 
 ### Finding and change
