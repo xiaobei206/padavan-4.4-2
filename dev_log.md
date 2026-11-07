@@ -1,3 +1,11 @@
+## 2026-11-07 09:32 CST — Preserve platform timezone declarations in DST regression
+
+- Baseline: main commit `fde8f11122c0c2bb1a909feaa646c169c281e421`; Regression run #486 failed while compiling `date_time_init_test`, before tests ran.
+- The test-only feature macro `_POSIX_C_SOURCE` hid glibc's non-POSIX `struct timezone` declaration, breaking existing Date test declarations. Replace it with `_DEFAULT_SOURCE` so the DST fixture exposes `setenv/tzset` while retaining the timezone compatibility types.
+- Production Date logic and workflow contracts are unchanged; no new files.
+
+---
+
 ## 2026-11-07 09:30 CST — Resolve DST when parsing local Date strings
 
 - Baseline: main commit `8e5d94a562ea0cd8e554fc4c7584eda6aad7fb16`; SkipDBv2 Regression run #485 passed.
