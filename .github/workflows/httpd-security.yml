@@ -44,7 +44,6 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           root = Path("trunk/user/httpd/src")
           httpd = (root / "httpd.c").read_text()
@@ -69,10 +68,10 @@ jobs:
               if '"dbconf"' in line and 'do_dbconf' in line
           ]
           assert len(dbconf_routes) == 1
-          assert re.search(r'\\bdo_dbconf\\s*,\\s*1\\s*\\}', dbconf_routes[0]), dbconf_routes
+          assert dbconf_routes[0].rstrip().endswith("do_dbconf, 1 },")
 
-          request_start = httpd.index("static void\\nhandle_request(")
-          request_end = httpd.index("\\nstatic void\\nreset_lang_dict", request_start)
+          request_start = httpd.index("handle_request(FILE *conn_fp")
+          request_end = httpd.index("reset_lang_dict(void)", request_start)
           request = httpd[request_start:request_end]
           auth_gate = request.index("if (handler->need_auth && login_state > 1")
           output_call = request.index("handler->output(file, conn_fp)")

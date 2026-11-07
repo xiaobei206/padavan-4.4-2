@@ -18,6 +18,7 @@ int main(void)
     UArray *only_marker = UArray_newWithFormat_("%");
     UArray *normal = UArray_newWithFormat_("value %i", 42);
     UArray *aliased_format = NULL;
+    UArray *escaped_percent = NULL;
     UArray *large_float = NULL;
     char expected_large_float[512];
     int expected_large_float_length;
@@ -34,7 +35,8 @@ int main(void)
     if (!equals_bytes(normal, "value 42", 8)) {
         fprintf(stderr, "ordinary UArray formatting changed unexpectedly\n");
         goto done;
-    
+    }
+
     aliased_format = UArray_newWithCString_("value %i");
     if (NULL == aliased_format) {
         fprintf(stderr, "UArray aliased-format fixture allocation failed\n");
@@ -49,7 +51,14 @@ int main(void)
         goto done;
     }
     UArray_free(aliased_format);
-    aliased_format = NULL;}
+    aliased_format = NULL;
+
+    escaped_percent = UArray_newWithFormat_("100%% complete");
+    if (!equals_bytes(escaped_percent, "100% complete",
+            sizeof("100% complete") - 1)) {
+        fprintf(stderr, "literal percent escape failed\n");
+        goto done;
+    }
 
     expected_large_float_length = snprintf(expected_large_float,
         sizeof(expected_large_float), "%f", DBL_MAX);
@@ -110,6 +119,7 @@ int main(void)
     puts("UArray trailing format marker and hex-byte test passed");
 
 done:
+    UArray_free(escaped_percent);
     UArray_free(aliased_format);
     UArray_free(large_float);
     UArray_free(normal);

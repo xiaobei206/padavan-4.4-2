@@ -45,6 +45,7 @@
 
 #include "httpd.h"
 #include "common.h"
+#include "httpd_access_policy.h"
 
 #define LOGIN_TIMEOUT		30
 #define SERVER_NAME		"httpd"
@@ -456,6 +457,17 @@ get_login_safe(void)
 #endif
 
 	return login_safe;
+}
+
+/*
+ * TLS protects the transport, but it does not make an off-LAN peer trusted
+ * to receive private key material. Keep this policy separate from
+ * get_login_safe(), whose HTTPS behavior gates other remote admin actions.
+ */
+int
+get_login_private_key_access(void)
+{
+	return httpd_private_key_access_allowed(login_ip.len != 0, login_safe);
 }
 
 static void

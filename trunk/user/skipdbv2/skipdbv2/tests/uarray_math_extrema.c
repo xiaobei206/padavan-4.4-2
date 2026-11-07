@@ -8,6 +8,27 @@
 static int fail(const char *s) { fprintf(stderr, "%s\n", s); return EXIT_FAILURE; }
 static int nearEnough(double a, double b) { return fabs(a - b) <= 1e-12; }
 
+typedef void (*ScalarDoubleOperation)(UArray *, double);
+
+static int expect_scalar_integer_range_rejection(
+    const int8_t initial[2], double operand, ScalarDoubleOperation operation)
+{
+    UArray *values = UArray_newWithData_type_size_copy_(
+        (void *)initial, CTYPE_int8_t, 2, 1);
+    const uintptr_t original_hash = (uintptr_t)0x5a5a;
+    if (NULL == values)
+        return fail("UArray scalar integer arithmetic fixture allocation failed");
+    values->hash = original_hash;
+    operation(values, operand);
+    if (memcmp(values->data, initial, 2 * sizeof(initial[0])) != 0 ||
+        values->hash != original_hash) {
+        UArray_free(values);
+        return fail("UArray scalar integer arithmetic committed an out-of-range result");
+    }
+    UArray_free(values);
+    return EXIT_SUCCESS;
+}
+
 static int test_scalar_mutations(void)
 {
     const int32_t initial[] = {2, -4, 6};
@@ -98,6 +119,17 @@ static int test_scalar_mutations(void)
         UArray_free(nonFinite);
     }
 
+    {
+        const int8_t addOverflow[] = {INT8_MAX, -5};
+        const int8_t subtractOverflow[] = {INT8_MIN, 5};
+        const int8_t multiplyOverflow[] = {64, -10};
+        const int8_t finiteValues[] = {1, 2};
+        if (expect_scalar_integer_range_rejection(addOverflow, 1.0, UArray_addScalarDouble_) ||
+            expect_scalar_integer_range_rejection(subtractOverflow, 1.0, UArray_subtractScalarDouble_) ||
+            expect_scalar_integer_range_rejection(multiplyOverflow, 2.0, UArray_multiplyScalarDouble_) ||
+            expect_scalar_integer_range_rejection(finiteValues, NAN, UArray_addScalarDouble_))
+            goto cleanup;
+    }
     UArray_addScalarDouble_(NULL, 1.0);
     UArray_subtractScalarDouble_(NULL, 1.0);
     UArray_multiplyScalarDouble_(NULL, 1.0);
@@ -1307,6 +1339,36 @@ static int test_assignment_transforms(void)
         goto cleanup;
     }
 
+    {
+        const int64_t signedValues[] = {INT64_MIN, INT64_MAX, INT64_C(9007199254740993)};
+        const uint64_t unsignedValues[] = {0, UINT64_MAX, UINT64_MAX - 1};
+        UArray *signedArray = UArray_newWithData_type_size_copy_(
+            (void *)signedValues, CTYPE_int64_t, 3, 1);
+        UArray *unsignedArray = UArray_newWithData_type_size_copy_(
+            (void *)unsignedValues, CTYPE_uint64_t, 3, 1);
+        if (NULL == signedArray || NULL == unsignedArray) {
+            UArray_free(signedArray);
+            UArray_free(unsignedArray);
+            fail("UArray integer round boundary fixture allocation failed");
+            goto cleanup;
+        }
+        signedArray->hash = (uintptr_t)0x5151;
+        unsignedArray->hash = (uintptr_t)0x6161;
+        UArray_round(signedArray);
+        UArray_round(unsignedArray);
+        if (memcmp(signedArray->data, signedValues, sizeof(signedValues)) != 0 ||
+            memcmp(unsignedArray->data, unsignedValues, sizeof(unsignedValues)) != 0 ||
+            signedArray->hash != (uintptr_t)0x5151 ||
+            unsignedArray->hash != (uintptr_t)0x6161) {
+            UArray_free(signedArray);
+            UArray_free(unsignedArray);
+            fail("UArray round changed integer backing storage or invalidated its hash");
+            goto cleanup;
+        }
+        UArray_free(signedArray);
+        UArray_free(unsignedArray);
+    }
+
     empty->hash = 0x6666;
     UArray_clear(empty);
     UArray_setItemsToLong_(empty, 1);
@@ -1516,6 +1578,29 @@ typedef struct {
     UArrayUnaryMathFunction_ expected;
 } UArrayUnaryTransformCase_;
 
+static int expect_rejected_integer_unary_transform_(
+    const void *initial, CTYPE itemType, size_t size,
+    UArrayUnaryTransform_ transform, const char *message)
+{
+    UArray *values = UArray_newWithData_type_size_copy_(
+        (void *)initial, itemType, size, 1);
+    const uintptr_t originalHash = (uintptr_t)0xa5a5;
+
+    if (NULL == values)
+        return fail("UArray integer unary preflight fixture allocation failed");
+
+    values->hash = originalHash;
+    transform(values);
+    if (memcmp(values->data, initial, size * values->itemSize) != 0 ||
+        values->hash != originalHash) {
+        UArray_free(values);
+        return fail(message);
+    }
+
+    UArray_free(values);
+    return EXIT_SUCCESS;
+}
+
 static int test_unary_transforms(void)
 {
     static const double initial[] = {0.25, 0.5};
@@ -1563,6 +1648,101 @@ static int test_unary_transforms(void)
             fail("UArray unary transform changed values or retained the cached hash");
             goto cleanup;
         }
+    }
+
+    {
+        const int32_t signedInput[] = {-12, 3};
+        const int32_t signedExpected[] = {12, 3};
+        const int64_t minimumInput[] = {INT64_MIN, -7};
+        const uint64_t unsignedInput[] = {UINT64_MAX, UINT64_MAX - 1};
+        UArray *signedArray = UArray_newWithData_type_size_copy_(
+            (void *)signedInput, CTYPE_int32_t, 2, 1);
+        UArray *minimumArray = UArray_newWithData_type_size_copy_(
+            (void *)minimumInput, CTYPE_int64_t, 2, 1);
+        UArray *unsignedArray = UArray_newWithData_type_size_copy_(
+            (void *)unsignedInput, CTYPE_uint64_t, 2, 1);
+        if (NULL == signedArray || NULL == minimumArray || NULL == unsignedArray) {
+            UArray_free(signedArray);
+            UArray_free(minimumArray);
+            UArray_free(unsignedArray);
+            fail("UArray integer absolute-value fixture allocation failed");
+            goto cleanup;
+        }
+
+        signedArray->hash = (uintptr_t)0x7171;
+        UArray_abs(signedArray);
+        if (memcmp(signedArray->data, signedExpected, sizeof(signedExpected)) != 0 ||
+            signedArray->hash != 0) {
+            UArray_free(signedArray);
+            UArray_free(minimumArray);
+            UArray_free(unsignedArray);
+            fail("UArray fabs did not safely normalize signed integer values");
+            goto cleanup;
+        }
+
+        minimumArray->hash = (uintptr_t)0x8181;
+        UArray_abs(minimumArray);
+        if (memcmp(minimumArray->data, minimumInput, sizeof(minimumInput)) != 0 ||
+            minimumArray->hash != (uintptr_t)0x8181) {
+            UArray_free(signedArray);
+            UArray_free(minimumArray);
+            UArray_free(unsignedArray);
+            fail("UArray absolute value did not reject signed minimum values atomically");
+            goto cleanup;
+        }
+
+        unsignedArray->hash = (uintptr_t)0x9191;
+        UArray_abs(unsignedArray);
+        if (memcmp(unsignedArray->data, unsignedInput, sizeof(unsignedInput)) != 0 ||
+            unsignedArray->hash != (uintptr_t)0x9191) {
+            UArray_free(signedArray);
+            UArray_free(minimumArray);
+            UArray_free(unsignedArray);
+            fail("UArray fabs changed unsigned integer storage");
+            goto cleanup;
+        }
+        UArray_free(signedArray);
+        UArray_free(minimumArray);
+        UArray_free(unsignedArray);
+    }
+
+    {
+        const int8_t safeInput[] = {4, 9};
+        const int8_t safeExpected[] = {2, 3};
+        const int8_t negativeInput[] = {-1, 4};
+        const int8_t expOverflow[] = {0, 6};
+        const int64_t signedMaximum[] = {INT64_MAX};
+        const uint64_t unsignedMaximum[] = {UINT64_MAX};
+        UArray *safe = UArray_newWithData_type_size_copy_(
+            (void *)safeInput, CTYPE_int8_t, 2, 1);
+
+        if (NULL == safe) {
+            fail("UArray integer unary valid-result fixture allocation failed");
+            goto cleanup;
+        }
+        safe->hash = (uintptr_t)0x9292;
+        UArray_sqrt(safe);
+        if (memcmp(safe->data, safeExpected, sizeof(safeExpected)) != 0 ||
+            safe->hash != 0) {
+            UArray_free(safe);
+            fail("UArray integer unary transform changed valid results or retained the cached hash");
+            goto cleanup;
+        }
+        UArray_free(safe);
+
+        if (expect_rejected_integer_unary_transform_(
+                negativeInput, CTYPE_int8_t, 2, UArray_sqrt,
+                "UArray integer sqrt committed a NaN result") != EXIT_SUCCESS ||
+            expect_rejected_integer_unary_transform_(
+                expOverflow, CTYPE_int8_t, 2, UArray_exp,
+                "UArray integer exp committed an out-of-range result") != EXIT_SUCCESS ||
+            expect_rejected_integer_unary_transform_(
+                signedMaximum, CTYPE_int64_t, 1, UArray_floor,
+                "UArray integer floor changed INT64_MAX through double rounding") != EXIT_SUCCESS ||
+            expect_rejected_integer_unary_transform_(
+                unsignedMaximum, CTYPE_uint64_t, 1, UArray_ceil,
+                "UArray integer ceil changed UINT64_MAX through double rounding") != EXIT_SUCCESS)
+            goto cleanup;
     }
 
     empty->hash = 0x5151;

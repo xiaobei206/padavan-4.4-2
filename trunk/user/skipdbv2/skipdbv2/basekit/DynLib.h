@@ -25,6 +25,9 @@ typedef struct
 	char *error;
 	void *handle;
 	int refCount;
+	/* Keep the image mapped until an active init callback has returned. */
+	unsigned char initCallbackActive;
+	unsigned char closeAfterInit;
 } DynLib;
 
 BASEKIT_API DynLib *DynLib_new(void);

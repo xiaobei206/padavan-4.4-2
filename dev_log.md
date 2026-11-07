@@ -1,3 +1,157 @@
+## 2026-11-07 22:14 CST — Separate HTTPD private-key disclosure from HTTPS transport trust
+
+- Baseline main HEAD: `8152ec72c39d4a435114806a5e861e2aed925248`.
+- Audited the current HTTPD authentication helper and the `web_ex.c::dump_file()` key-file gate. `get_login_safe()` intentionally treated HTTPS as safe for several remote-admin operations, but that transport-level override was also authorizing disclosure of files explicitly described as write-only secret keys.
+- Added a dedicated private-key access predicate requiring an active login and the trusted LAN/VPN network flag. The `.key` masking path now uses this predicate; the existing HTTPS behavior for unrelated management operations is preserved.
+- Added the standalone C policy regression and a new HTTPD Security Regression workflow with an additional source-wiring contract.
+- Production code commit: `1ef811e5cb37613fc5ae0caf59041ecdf294e5d2`.
+- GitHub Actions run `42380444876` passed on that exact SHA: C regression compile/run and HTTPD getter/route wiring checks succeeded.
+- This round did not run a full HTTPD MIPS build, XY-C1 firmware image build, or hardware validation. Broader HTTPD/CGI/authentication and whole-userland reviews remain open.
+
+---
+
+## 2026-11-07 21:54 CST — Finalize bootstrap commit reference in handoff
+
+- Parent: 84e2fb77973393dd2804b9feb2d94b2ce74933c4; verified this commit is present on main before updating the handoff metadata.
+- Recorded the exact governance bootstrap commit SHA and marked the bootstrap task complete in SESSION_HANDOFF.md.
+- Linked the bootstrap commit in REFACTOR_ROADMAP.md.
+- Documentation-only follow-up; no production source or tests changed. The last verified regression remains run 42376349424 on the pre-bootstrap parent SHA; no new code test is claimed.
+
+---
+
+## 2026-11-07 21:53 CST — Add repository-wide AI development governance and cross-chat handoff
+
+- Baseline main HEAD: 412eebb4d0c36f9cbaf43921b4ce1f2056665984.
+- Added AI_DEVELOPMENT_PROTOCOL.md as the durable repository-wide development contract.
+- Added AI_BOOTSTRAP_PROMPT.md as the short reusable prompt for new ChatGPT conversations.
+- Added REFACTOR_ROADMAP.md for whole-repository module inventory and risk-based governance.
+- Added SESSION_HANDOFF.md for resumable task state across conversations.
+- Preserved the existing dev_log.md history and prepended this entry.
+- Documentation-only change: no production C source, firmware build configuration, or tests were modified or executed in this commit.
+- Baseline CI reference: SkipDBv2 Regression run 42376349424 on 412eebb4d0c36f9cbaf43921b4ce1f2056665984, success. This is not MIPS firmware-build or hardware-validation evidence.
+- Next: inventory the complete source tree and verify historical audit pointers; prioritize a documented HTTPD/HTTPS/CGI/authentication review.
+
+---
+
+## 2026-11-07 21:18 CST — Keep UArray source contracts below the workflow payload limit
+
+- Baseline: `2db6429c209f9de1e3075f08808f16a8f6654997`; runs #667 and #668 terminated before the connector exposed job records or logs.
+- The new unary-math assertions expanded an already very large workflow script. Compress repeated Python source-contract boilerplate while retaining scalar preflight ordering, assignment storage/hash checks, the float-only round guard, unary result preflight, and regression-call coverage.
+- Workflow and handoff log only; C implementation and tests remain unchanged.
+
+---
+
+## 2026-11-07 21:16 CST — Make unary-math source-contract delimiter explicit
+
+- Baseline: `a5160eb3fdbf7e1e672040c8bf2053456e6977a9`; run #667 failed before the connector exposed any job records or logs.
+- Review found the new source contract searched for a double-escaped backslash-n sequence rather than the actual newline preceding `UARRAY_DOP(sin);`. Use `chr(10)` to delimit the macro body unambiguously.
+- Workflow and handoff log only; the production C and regression-test changes are unchanged.
+
+---
+
+## 2026-11-07 21:13 CST — Preflight integer results in UArray unary math transforms
+
+- Baseline: `15b0e36837eb067af3c28dcc06bc7e81cbe60fbb`; main run #666 passed source contracts, configure, full target build, and all CTests.
+- Scope: the `UARRAY_DOP(OP)` family in `UArray_math.c`.
+- Unary functions such as `sqrt`, `log`, and `exp` can produce NaN, infinity, or values outside an integer receiver's range. The prior macro cast each result directly into the receiver while iterating, allowing undefined conversion and partial mutation. `floor`/`ceil` could also round INT64/UINT64 boundary inputs through an unrepresentable double.
+- For integer arrays, preflight every double result with the existing range predicate before the first write. Preserve the existing floating-array path and valid integer truncation behavior. Add regressions for valid integer sqrt, NaN sqrt, overflowing exp, and signed/unsigned 64-bit floor/ceil boundaries; extend the existing Actions source contract.
+- Existing C source, existing math test, workflow, and handoff log only; no new files, API declarations, or CMake targets. Remote Actions is the build/test gate.
+
+---
+
+## 2026-11-07 21:04 CST — Test integer absolute value through the public UArray_abs API
+
+- Baseline: `ef57cfc46091a08549157134a384ecb9e90f3096`; run #665 passed the source-contract and configure steps but failed compiling the math regression because `UArray_fabs` is not declared in the public `UArray_math.h`.
+- Route the new integer regressions through the declared `UArray_abs()` alias. Keep the implementation unchanged and avoid creating an unnecessary public declaration solely for a test.
+- Existing math test and handoff log only; no new files, declarations, CMake targets, or workflow changes.
+
+---
+
+## 2026-11-07 21:02 CST — Repair scalar-math Actions contract syntax
+
+- Baseline: `9099b75d6fa0c70ae07c4657d0fdac4194a2b737`; main run #663 passed, while run #664 stopped in the source-contract step before configure/build.
+- Cause: the scalar-operation contract's `type_guard` assignment was accidentally placed inside a Python boolean expression, producing a syntax error.
+- Move the assignment before the condition and retain the intended type-guard ordering assertion. Production C and regression-test content are unchanged.
+- Existing workflow and handoff log only; no new files or build-target changes.
+
+---
+
+## 2026-11-07 21:00 CST — Make UArray integer absolute value type-safe
+
+- Baseline: `dcde85885d0013b55f6a70b2448187255aa3a46a`; main SkipDBv2 Regression run #663 passed the source contracts, full target build, and all CTests.
+- Scope: `UArray_fabs()` and its `UArray_abs()` alias.
+- The generic unary-math macro converted every element to double, then converted the absolute result back to its original integer type. This overflows for signed minima and can round large unsigned values to (2^{64}) before an undefined cast.
+- Handle float arrays with `fabs`; handle signed integers with native typed negation after the existing signed-minimum preflight; leave unsigned arrays unchanged. Add signed, minimum, and UINT64 boundary regressions plus explicit Actions source contracts.
+- Existing C source, math test, workflow, and handoff log only; no new files or CMake targets. Remote Actions remains the build/test gate.
+
+---
+
+## 2026-11-07 20:58 CST — Keep UArray_round restricted to floating-point storage
+
+- Baseline: `a53124fbe978c7c8b9e1753219dcc7ea057f185a`; main SkipDBv2 Regression run #662 passed the source contracts, full target build, and all CTests.
+- Scope: `UArray_round()`.
+- Integer arrays are already integral; routing 64-bit values through `double` can round them outside their representable range before the typed assignment, invoking undefined floating-to-integer conversion.
+- Restrict rounding to float32/float64 arrays. Preserve integer storage and its cached hash unchanged, with signed/unsigned 64-bit boundary regressions and a matching Actions source contract.
+- Existing C source, existing math test, workflow, and handoff log only; no new files or CMake targets. No local firmware build is claimed; remote Actions is the validation gate.
+
+---
+
+## 2026-11-07 20:57 CST — Preflight integer UArray scalar arithmetic before mutation
+
+- Baseline: `cce040bbed5b339af9272ad011d32843c5f13ebf`; main SkipDBv2 Regression run #661 passed.
+- Scope: integer destination handling in `UArray_addScalarDouble_()`, `UArray_subtractScalarDouble_()`, and `UArray_multiplyScalarDouble_()`.
+- These operations converted each intermediate double directly into an integer element. A later NaN, infinity, or out-of-range result could invoke undefined floating-to-integer conversion after earlier elements had already changed.
+- Generalize the existing range predicate and preflight every integer result before writing any element. Preserve floating-array behavior and hash invalidation semantics; add boundary and non-finite regressions to the existing math test and strengthen its existing Actions source contract.
+- Existing C source, test, workflow, and handoff log only; no new declarations, files, or CMake targets. No local firmware build is claimed; remote Actions is the validation gate.
+
+---
+
+## 2026-11-07 20:34 CST — Keep Date timezone refresh atomic on clock errors
+
+- Baseline: `3a517037eb67ff816d75f7c7ac202f6936486e72`; main SkipDBv2 Regression run #660 passed the source contracts, full target build, and all CTests.
+- Scope: `Date_setToLocalTimeZone()`.
+- The helper passed `&self->tz` directly to `gettimeofday()` and ignored its return value. A failed system query could therefore leave the receiver with partially updated timezone metadata.
+- Read into a local `struct timezone`, reject a failed query, and publish the complete zone only after success. Extend the existing Actions source contract to require the checked call and the final assignment.
+- Existing C source and workflow only; no new headers, symbols, tests, or CMake targets. No local build is claimed; remote Actions is the validation gate.
+
+---
+
+## 2026-11-07 20:33 CST — Defer DynLib unload until init callbacks return
+
+- Baseline: `b7f2ea43c11738302e5ae91e4a567f56e2ef6b98`; main SkipDBv2 Regression run #659 passed.
+- Scope: the `DynLib_open()` / `DynLib_close()` initializer lifecycle.
+- An init callback may receive its owning `DynLib` through `initArg` and call `DynLib_close()`. The old path unloaded the shared object while its initializer was still executing, so the callback could return into unmapped code.
+- Track the active init callback and defer close requests until it returns; drain the request before `DynLib_open()` returns. Extend the existing reentrant fixture and lifecycle test to verify callback completion and the final closed state.
+- Reuse existing source, fixture, CTest target, and workflow contracts. No new files or CMake targets. No local firmware build is claimed; remote Actions is the validation gate.
+
+---
+
+## 2026-11-07 20:16 CST — Match escaped-percent contract to the actual branch
+
+- Failed head: `84a3053d3282d53f7ae7a78a3371eff101a898dd`; run #658 passed workflow-script parsing, then failed the static source contract before configuration or compilation.
+- The formatter correctly introduces the escape handler as `if (*format == '%')`, followed by `else if` for the other directives. The new contract mistakenly expected the escape handler itself to be an `else if`.
+- Correct the single source-token assertion. No production source or regression test changes.
+
+---
+
+## 2026-11-07 20:15 CST — Repair escaped-percent source-contract quoting
+
+- Failed head: `4764f40d2af8748d41396c0fc84d67e15567e506`; run #657 failed while parsing the Python source-contract script, before any firmware contract check or C build.
+- The added test-source needle had two backslashes before its embedded quotes; Python therefore terminated the string literal early. Reduce this to the single escape used by the surrounding contract entries.
+- Workflow-only CI syntax repair. The UArray implementation and test changes are unchanged.
+
+---
+
+## 2026-11-07 20:14 CST — Complete UArray percent escaping and execute alias regression
+
+- Baseline: `f8ecb05f3a7d8163139e8db2ae39414439b25196`; SkipDBv2 Regression run #656 passed all XY-C1 contracts, CMake configuration, the full target build, and all CTests.
+- Scope: `UArray_fromVargs_()` in `basekit/UArray_format.c` and its existing `uarray_format_trailing_percent_test`.
+- The formatter already preserves a trailing lone `%`, but a conventional escaped `%%` was discarded instead of emitting one literal percent. Add the explicit escape case.
+- The existing format-alias regression had accidentally been placed inside the failure branch of the preceding ordinary-format assertion, so the successful path never executed it. Close that assertion before the alias case, then add a literal-percent regression.
+- Reuse the current CTest target; extend the Actions source contract. No new files, headers, exported symbols, or CMake target changes. Validation is delegated to the current remote Actions run.
+
+---
+
 ## 2026-11-07 20:07 CST — Align MainArgs replacement-order contract with sentinel cleanup
 
 - Failed head: `3d147dd2fe54162b5e02b01b3cd7bb84dbe633de`; run #655 passed the static source/path inventory but failed the dynamic MainArgs replacement-order check before CMake.
