@@ -4098,7 +4098,7 @@ jobs:
           number_start = bstream_source.find("void BStream_readNumber_size_(BStream *self, unsigned char *v, int size)")
           number_end = bstream_source.find("\nuint32_t BStream_readUint32(", number_start)
           number_body = bstream_source[number_start:number_end] if number_start >= 0 and number_end > number_start else ""
-          number_alias_guard = number_body.find("if (size > 0 && BStream_sourceOverlapsStream_(self->ba, v, (size_t)size))")
+          number_alias_guard = number_body.find("Check aliases before any malformed-stream or latched-error path can zero v.")
           number_alias_error = number_body.find("binary stream read destination overlaps stream storage", number_alias_guard)
           number_copy = number_body.find("memcpy(v, b + self->index, (size_t)size)")
           number_alias_end = number_body.find("\n\t}", number_alias_guard)

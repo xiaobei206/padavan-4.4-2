@@ -1,3 +1,11 @@
+## 2026-11-07 19:21 CST — Update BStream read-alias CI contract
+
+- Failed head: `79e4fdeb3aca3ad5c209d1efc80f0b8f69f091da`; Actions run #644 reached source-contract validation and failed before configure/build.
+- The runtime source check searched for the old one-line alias guard. The refactor moved the alias check ahead of malformed-metadata handling and added conservative extent guards, so that exact expression no longer exists.
+- Retarget the checker to the new alias-guard comment, preserving the existing ordering and no-zeroing assertions. Only the workflow contract and handoff log are changed; no source or regression behavior is altered in this CI repair.
+
+---
+
 ## 2026-11-07 19:19 CST — Guard BStream read aliases on malformed metadata
 
 - Baseline: `8181b9ded7a74a45ba70726a611981db68d3c0b4`; SkipDBv2 Regression run #643 passed integration/source contracts, full build, and all 57 CTests.
