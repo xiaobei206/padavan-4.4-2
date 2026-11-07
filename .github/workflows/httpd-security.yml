@@ -417,7 +417,7 @@ jobs:
           # as root. action_script is POST-controlled on authenticated CGI routes,
           # so the generic fallback must additionally require a trusted session.
           # Fixed named handlers above retain their existing policy.
-          fallback_start = sys_script.rfind("\\n\\telse\\n\\t{")
+          fallback_start = sys_script.rfind("else")
           assert fallback_start >= 0, "generic sys_script fallback not found"
           fallback = sys_script[fallback_start:]
           trusted_gate = fallback.index("if (!get_login_safe())")
