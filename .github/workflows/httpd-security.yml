@@ -369,11 +369,17 @@ jobs:
           assert "firewall_ip_protocol_number_is_safe" in firewall_policy
           assert "firewall_schedule_date_is_safe" in firewall_policy
           assert "firewall_schedule_time_is_safe" in firewall_policy
+          assert "firewall_schedule_is_active" in firewall_policy
           # Verify the untrusted NVRAM fragments are rejected before rule writes.
           lw_port_guard = lw_filter.index("firewall_tcp_flags_are_safe(flag)")
           lw_rule_write = lw_filter.index('filterstr = filter_conv(proto, flag, srcip, srcport, dstip, dstport);')
           assert lw_port_guard < lw_rule_write
-          assert "firewall_schedule_time_is_safe(time)" in firewall
+          assert "firewall_schedule_is_active(date, time)" in firewall
+          assert 'firewall_schedule_is_active("1111111", "00002359")' in firewall_test
+          assert 'firewall_schedule_is_active("0000000", "00002359")' in firewall_test
+          assert 'if (!timematch_conv(mac_timematch, nv_date, nv_time))' in firewall
+          assert firewall.count('if (timematch_conv(timematch, "url_date_x", "url_time_x"))') == 2
+          assert 'timematch_conv(timematch, "filter_lw_date_x", "filter_lw_time_x") &&' in firewall
           vts_filter_start = firewall.index("include_vts_filter(FILE *fp")
           vts_nat_start = firewall.index("include_vts_nat(FILE *fp")
           assert "firewall_port_range_is_safe(port, 0)" in firewall[vts_filter_start:vts_nat_start]
