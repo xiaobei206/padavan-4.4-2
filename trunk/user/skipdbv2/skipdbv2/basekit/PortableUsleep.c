@@ -1,6 +1,6 @@
 int PortableUsleep_justHereToAvoidRanlibWarning(void) { return 0; }
 
-#ifdef WIN32
+#if defined(ON_WINDOWS) || defined(__WIN32__) || defined(WIN32) || defined(_WIN32) || defined(_MSC_VER) || defined(__MINGW32__)
 #include <limits.h>
 #include <windows.h>
 

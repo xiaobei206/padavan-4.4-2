@@ -1,3 +1,13 @@
+## 2026-11-07 13:06 CST — Align PortableUsleep Windows detection
+
+- Baseline: main commit `ba87ea7a6ca9f8b5a2e08f0316651a58c076316b`; Actions run #538 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `basekit/PortableUsleep.c`, its existing public header, and their workflow source contracts.
+- The implementation selected its Windows shim only under `WIN32`, while the header used the project-specific `ON_WINDOWS` guard. Toolchains that provide `_WIN32`/MSVC or MinGW macros without the legacy `WIN32` alias could therefore include a native POSIX header or miss the shim implementation.
+- Use one consistent Windows-macro family in the declaration and implementation, preserving the existing high-resolution sleep behavior. Add the header to existing source-contract validation; no new files or CMake targets.
+- No local Windows cross-build is claimed; mainline CI verifies Linux integration and the static platform contract.
+
+---
+
 ## 2026-11-07 13:03 CST — Correct Python newline escape in helper contract
 
 - Baseline: main commit `dfb9a64b73c4ba0e2958a7542e1becd67038ae34`; Actions run #537 again failed in source-contract preflight, before configure/build/CTest.
