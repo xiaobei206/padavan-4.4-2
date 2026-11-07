@@ -2421,7 +2421,7 @@ start_firewall_ex(void)
 	if (firewall_hook_file_stage(int_iptables_script, "/home/root", ".post-firewall-",
 				     int_iptables_staged, sizeof(int_iptables_staged)) == 0) {
 		firewall_log_command_failure("Persistent post-firewall hook",
-					     doSystem("/bin/sh %s", int_iptables_staged));
+					     doSystem("%s", int_iptables_staged));
 		firewall_hook_file_remove(int_iptables_staged);
 	} else if (errno != ENOENT) {
 		firewall_log_hook_stage_failure("Persistent post-firewall hook", errno);
@@ -2431,7 +2431,7 @@ start_firewall_ex(void)
 	if (firewall_hook_file_stage(opt_iptables_script, "/home/root", ".opt-iptables-",
 				     opt_iptables_staged, sizeof(opt_iptables_staged)) == 0) {
 		firewall_log_command_failure("Optware iptables update hook",
-					     doSystem("/bin/sh %s update", opt_iptables_staged));
+					     doSystem("%s update", opt_iptables_staged));
 		firewall_hook_file_remove(opt_iptables_staged);
 	} else if (errno != ENOENT) {
 		firewall_log_hook_stage_failure("Optware iptables update hook", errno);

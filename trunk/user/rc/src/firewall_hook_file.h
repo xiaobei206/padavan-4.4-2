@@ -78,7 +78,9 @@ firewall_hook_file_stage(const char *source_path, const char *private_dir,
     if (staged_fd < 0)
         goto fail;
     created = 1;
-    if (fchmod(staged_fd, S_IRUSR | S_IWUSR) != 0)
+    /* Keep the owner's execute intent for scripts while never copying group/other bits. */
+    if (fchmod(staged_fd, S_IRUSR | S_IWUSR |
+               ((source_stat.st_mode & S_IXUSR) ? S_IXUSR : 0)) != 0)
         goto fail;
     for (;;) {
         amount = read(source_fd, buffer, sizeof(buffer));

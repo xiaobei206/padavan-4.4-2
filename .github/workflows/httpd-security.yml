@@ -190,17 +190,19 @@ jobs:
           assert '#include "firewall_hook_file.h"' in firewall
           assert "O_NOFOLLOW" in helper and "st_uid != geteuid()" in helper
           assert "st_nlink != 1" in helper and "FIREWALL_HOOK_FILE_MAX_BYTES" in helper
+          assert "source_stat.st_mode & S_IXUSR" in helper
+          assert "st.st_mode&0777)==0700" in helper_test
           assert "firewall_hook_file_stage(" in dispatch
           assert 'firewall_log_command_failure("Shadowsocks firewall hook", doSystem("sh %s", shadowsocks_staged));' in dispatch
           assert 'doSystem("sh %s", shadowsocks_iptables_script);' not in dispatch
           assert "firewall_hook_file_remove(shadowsocks_staged);" in dispatch
           assert 'firewall_hook_file_stage(int_iptables_script, "/home/root", ".post-firewall-",' in dispatch
           assert 'firewall_log_command_failure("Persistent post-firewall hook",' in dispatch
-          assert 'doSystem("/bin/sh %s", int_iptables_staged)' in dispatch
+          assert 'doSystem("%s", int_iptables_staged)' in dispatch
           assert "firewall_hook_file_remove(int_iptables_staged);" in dispatch
           assert 'firewall_hook_file_stage(opt_iptables_script, "/home/root", ".opt-iptables-",' in dispatch
           assert 'firewall_log_command_failure("Optware iptables update hook",' in dispatch
-          assert 'doSystem("/bin/sh %s update", opt_iptables_staged)' in dispatch
+          assert 'doSystem("%s update", opt_iptables_staged)' in dispatch
           assert "firewall_hook_file_remove(opt_iptables_staged);" in dispatch
           assert 'check_if_file_exist(int_iptables_script)' not in dispatch
           assert 'check_if_file_exist(opt_iptables_script)' not in dispatch

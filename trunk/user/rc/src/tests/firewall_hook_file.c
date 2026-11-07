@@ -22,6 +22,8 @@ int main(void){
  assert(stat(staged,&st)==0&&S_ISREG(st.st_mode));assert(st.st_uid==geteuid()&&(st.st_mode&0777)==0600);assert(strcmp(staged,src));
  fp=fopen(staged,"r");assert(fp&&fgets(buf,sizeof(buf),fp));assert(strcmp(buf,"#!/bin/sh\n")==0);assert(fclose(fp)==0);
  firewall_hook_file_remove(staged);assert(staged[0]=='\0');
+ assert(chmod(src,0755)==0);assert(firewall_hook_file_stage(src,dir,".hook-",staged,sizeof(staged))==0);
+ assert(stat(staged,&st)==0&&(st.st_mode&0777)==0700);firewall_hook_file_remove(staged);assert(chmod(src,0644)==0);
  assert(symlink(src,linkp)==0);assert(firewall_hook_file_stage(linkp,dir,".hook-",staged,sizeof(staged))!=0);
  assert(chmod(src,0660)==0);assert(firewall_hook_file_stage(src,dir,".hook-",staged,sizeof(staged))!=0);assert(chmod(src,0644)==0);
  assert(chmod(src,0602)==0);assert(firewall_hook_file_stage(src,dir,".hook-",staged,sizeof(staged))!=0);assert(chmod(src,0644)==0);
