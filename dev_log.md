@@ -1,10 +1,19 @@
+## 2026-11-07 23:37 CST — Verify CGI service-ID bounds regression
+
+- Code commit `b046e3cbb84d73f4b3420f014c35d7b65925f26e` passed HTTPD Authentication and Security Regression run `42387172293` on exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42387172293.
+- `Compile and run policy regression` passed, including building production `trunk/user/httpd/src/common.c` plus the new `tests/httpd_service_id.c` under GNU89 `-Wall -Wextra -Werror`. `Verify HTTPD auth and route-access wiring` passed, including assertions that both `update_variables_ex()` and `apply_cgi()` resolve service IDs through `LookupServiceId()`, skip `<0` values while advancing `sid_list`, and no longer contain the sentinel-walking loop.
+- Existing strict Basic-auth, login inactivity, private-key, MIME authorization, stale-upload and BusyBox archive path regressions also passed in the same workflow.
+- L1/L2 PASS for this bounded service-ID fix. Full HTTPD/firmware MIPS build, image validation, archive fuzzing and hardware remain NOT VERIFIED. Continue `sys_script()`/`SystemCmd`, command/config dataflow and whole-userland review.
+
+---
+
 ## 2026-11-07 23:36 CST — Reject unknown service IDs in HTTPD CGI POST handlers
 
 - Baseline main HEAD: 5fa70fcb0547851704001274ec1ba6792cc4d83c. Scope: `trunk/user/httpd/src/web_ex.c::{update_variables_ex,apply_cgi}` and existing `common.c::LookupServiceId()`.
 - Finding: POST-controlled `sid_list` parsing used an open-ended `GetServiceId(sid)` loop in both handlers. Unknown IDs left `sid` at the service-table NULL sentinel and still reached `GetVariables(sid)`, `validate_asp_apply()` or `validate_cgi()`, whose loops dereference `v->name`. This could terminate HTTPD on a malformed authenticated management request; this is not described as unauthenticated remote code execution.
 - Fix: both paths now call the existing safe `LookupServiceId(serviceId)`. Negative results advance the list and continue before validators, variable lookups or group mutation. Known IDs follow the old path unchanged.
 - Regression: new `trunk/user/httpd/src/tests/httpd_service_id.c` links production `common.c` and tests known IDs, unknown/empty IDs and sentinel behavior. Workflow path triggers, GNU89 `-Wall -Wextra -Werror` compilation/run and Python source-contract assertions were added for both production call sites.
-- Validation: PENDING matching Actions for this implementation SHA. No local compilation or target build is claimed in this entry. Full MIPS firmware artifact and hardware remain NOT VERIFIED.
+- Validation: HTTPD Authentication and Security Regression run `42387172293` passed on exact source SHA `b046e3cbb84d73f4b3420f014c35d7b65925f26e` (https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42387172293). The production `common.c` lookup regression compiled and ran with GNU89 `-Wall -Wextra -Werror`; both CGI call-site wiring assertions and all prior HTTPD/archive policies passed. No local build or target build is claimed in this entry. Full MIPS firmware artifact and hardware remain NOT VERIFIED.
 - Next: inspect the exact workflow result, then continue CGI command/configuration dataflow and broader userland modules.
 
 ---
