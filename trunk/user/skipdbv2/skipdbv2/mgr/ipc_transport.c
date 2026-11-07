@@ -141,8 +141,14 @@ int skipdb_ipc_read_exact(int fd, char *buffer, int length,
         n = (int)recv(fd, buffer + *received,
             (size_t)(length - *received), 0);
         if (n < 0) {
-            if (errno == EINTR)
+            if (errno == EINTR) {
+                /* Repeated signals must not extend the absolute I/O deadline. */
+                if (skipdb_monotonic_milliseconds(&now) != 0)
+                    return -2;
+                if (now >= timeout)
+                    break;
                 continue;
+            }
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 ready = skipdb_wait_socket_until(fd, POLLIN, timeout);
                 if (ready < 0)
@@ -190,8 +196,14 @@ int skipdb_ipc_write_exact(int fd, const char *buffer, int length,
         }
         if (n == 0)
             return -1;
-        if (errno == EINTR)
+        if (errno == EINTR) {
+            /* Repeated signals must not extend the absolute I/O deadline. */
+            if (skipdb_monotonic_milliseconds(&now) != 0)
+                return -1;
+            if (now >= timeout)
+                break;
             continue;
+        }
         if (errno != EAGAIN && errno != EWOULDBLOCK)
             return -1;
 

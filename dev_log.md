@@ -1,3 +1,13 @@
+## 2026-11-07 09:47 CST — Preserve absolute IPC deadlines across EINTR
+
+- Baseline: main commit `1f15eb00a065392db5904d7b1032fc385b485e70`; SkipDBv2 Regression run #491 passed.
+- Scope: exact socket I/O retries in `mgr/ipc_transport.c`.
+- Direct `recv()` and `send()` interruptions retried immediately without rechecking the monotonic deadline. A continuous signal stream could therefore keep a caller in the retry loop beyond its configured timeout even though poll-based retries already used an absolute deadline.
+- Recheck monotonic time after EINTR, return the existing clock-failure code if the clock cannot be read, and stop retrying when the deadline has expired. Strengthen the existing Actions source contract for both read and write paths; existing IPC transport CTest registration remains unchanged. No new files.
+- No local compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:40 CST — Reject missing DBAPI list callbacks before parsing
 
 - Baseline: main commit `e4abcfeb795752e0deb8738e821a3048a11d25f2`; SkipDBv2 Regression run #489 passed.

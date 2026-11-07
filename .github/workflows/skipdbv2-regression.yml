@@ -5458,6 +5458,17 @@ jobs:
               if "usleep(5);" in content or "usleep(50);" in content:
                   raise SystemExit(f"busy-poll IPC retry remains: {path}")
 
+          ipc_transport_text = Path("trunk/user/skipdbv2/skipdbv2/mgr/ipc_transport.c").read_text()
+          ipc_read_body = ipc_transport_text.split("int skipdb_ipc_read_exact(", 1)[1].split(chr(10) + "int skipdb_ipc_write_exact(", 1)[0]
+          ipc_write_body = ipc_transport_text.split("int skipdb_ipc_write_exact(", 1)[1]
+          for direction, body in (("read", ipc_read_body), ("write", ipc_write_body)):
+              if "if (errno == EINTR) {" not in body:
+                  raise SystemExit(f"IPC {direction} retry must use an explicit interruption guard")
+              interrupted = body.split("if (errno == EINTR) {", 1)[1].split("continue;", 1)[0]
+              if ("skipdb_monotonic_milliseconds(&now)" not in interrupted or
+                  "if (now >= timeout)" not in interrupted or "break;" not in interrupted):
+                  raise SystemExit(f"IPC {direction} EINTR retry can exceed its absolute deadline")
+
 
           udb_record_core = Path("trunk/user/skipdbv2/skipdbv2/udb/UDBRecord.c").read_text()
           for moved_definition in (
