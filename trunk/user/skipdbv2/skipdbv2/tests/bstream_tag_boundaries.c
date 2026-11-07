@@ -100,6 +100,31 @@ static int testBStreamSetUArrayOwnership(void)
 	ownedSize = stream->ba->size;
 	stream->index = 2;
 
+	/*
+	 * Reject malformed byte views before the attachment path can free the
+	 * currently owned stream buffer or publish an impossible logical extent.
+	 */
+	{
+		UArray malformed = external;
+		malformed.itemType = CTYPE_uint32_t;
+		BStream_setUArray_(stream, &malformed);
+		if (stream->ba != ownedArray || stream->ownsUArray != 1 ||
+			stream->index != 2 || stream->ba->data != ownedData ||
+			stream->ba->size != ownedSize) {
+			BStream_free(stream);
+			return fail("BStream setUArray accepted a mismatched CTYPE width");
+		}
+
+		malformed.itemType = CTYPE_uint8_t;
+		malformed.size = (size_t)-1;
+		BStream_setUArray_(stream, &malformed);
+		if (stream->ba != ownedArray || stream->ownsUArray != 1 ||
+			stream->index != 2 || stream->ba->data != ownedData ||
+			stream->ba->size != ownedSize) {
+			BStream_free(stream);
+			return fail("BStream setUArray accepted an impossible SIZE_MAX byte extent");
+		}
+	}
 	/* A distinct UArray object can still borrow the exact owned allocation. */
 	alias = *stream->ba;
 	BStream_setUArray_(stream, &alias);

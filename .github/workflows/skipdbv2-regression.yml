@@ -1363,6 +1363,7 @@ jobs:
                   "BStream_sourceOverlapsStream_(self->ba, ba->data, length)",
                   "BStream_sourceOverlapsStream_(self->ba, data, length)",
                   "BStream_viewOverlapsStream_(self->ba, ba)",
+                  "ba->size == (size_t)-1",
                   "if (a > 1 || t > 3 || b > 31)",
                   "unsupported binary stream tag",
                   "static int BStream_viewOverlapsStream_(const UArray *streamArray,",
@@ -1421,6 +1422,8 @@ jobs:
                   "BStream setUArray accepted an exact alias of owned storage",
                   "BStream setUArray accepted an interior alias of owned storage",
                   "BStream setUArray accepted a tail alias of owned storage",
+                  "BStream setUArray accepted a mismatched CTYPE width",
+                  "BStream setUArray accepted an impossible SIZE_MAX byte extent",
                   "BStream setUArray rejected an unrelated external array",
                   "static int testBStreamReadValidation(void)",
                   "static int expectBStreamAliasedBackingRejected(BStream *stream,",
@@ -3418,6 +3421,8 @@ jobs:
               if set_array_start >= 0 and set_data_start > set_array_start
               else ""
           )
+          layout_guard = set_array_body.find("ba->itemSize != CTYPE_size(ba->itemType)")
+          extent_guard = set_array_body.find("ba->size == (size_t)-1")
           alias_preflight = set_array_body.find(
               "BStream_viewOverlapsStream_(self->ba, ba)"
           )
@@ -3425,10 +3430,11 @@ jobs:
           if (
               not set_array_body or "self->ownsUArray" not in set_array_body or
               "self->ba == ba" not in set_array_body or
-              alias_preflight < 0 or old_buffer_free < 0 or
-              alias_preflight > old_buffer_free
+              min(layout_guard, extent_guard, alias_preflight, old_buffer_free) < 0 or
+              not layout_guard < alias_preflight < old_buffer_free or
+              not extent_guard < alias_preflight < old_buffer_free
           ):
-              raise SystemExit("BStream setUArray must reject borrowed views before freeing owned storage")
+              raise SystemExit("BStream setUArray must validate byte CTYPE and representable extent, then reject borrowed views before freeing owned storage")
 
           view_helper_start = bstream_source.find(
               "static int BStream_viewOverlapsStream_(const UArray *streamArray,"

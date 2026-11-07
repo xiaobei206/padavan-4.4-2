@@ -110,6 +110,8 @@ char *BStream_errorString(BStream *self)
 void BStream_setUArray_(BStream *self, UArray *ba)
 {
 	if (NULL == self || NULL == ba || ba->itemSize != 1 ||
+		ba->itemSize != CTYPE_size(ba->itemType) ||
+		ba->size == (size_t)-1 ||
 		(ba->size > 0 && NULL == ba->data))
 		return;
 	if (self->ba == ba) {

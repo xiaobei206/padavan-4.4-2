@@ -42,6 +42,17 @@
 
 ---
 
+## 2026-11-07 14:37 CST — Validate byte-array geometry before BStream attachment
+
+- Baseline: `247619af3bcb549ac31ef727da6efab8cefaf1e7`; main's SkipDBv2 Regression run #567 completed successfully.
+- Scope: `BStream_setUArray_` and the existing `testBStreamSetUArrayOwnership` case.
+- The attachment boundary accepted any UArray with `itemSize == 1`, even when its declared CTYPE had a different natural width, and also accepted an exact `SIZE_MAX` logical extent. Attaching such a view could discard the currently owned buffer and make subsequent stream reads trust invalid byte geometry.
+- Require the uint8 CTYPE width to match and reject the unrepresentable exact-size sentinel before alias checks or ownership transfer. Add borrowed-view regressions for both malformed metadata cases and verify the original owned buffer, ownership flag, and cursor remain unchanged.
+- Extend the existing BStream source and test contracts. The boundary test is already registered in CMake; no new files, public declarations, or build-list changes.
+- Validation: the test never reads the forged length and keeps the real external byte buffer unchanged. Remote Actions remains the compiler/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:36 CST — Reject the unrepresentable SIZE_MAX UArray stream extent
 
 - Baseline: `b8bbfbc937a4d81f7ffdbab1f02852fbe33cbfd3`; BStream expected-tag validation passed SkipDBv2 Regression run #563.
