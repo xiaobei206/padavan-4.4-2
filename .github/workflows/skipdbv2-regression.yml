@@ -2950,6 +2950,25 @@ jobs:
           if commit_marker_source.count("UDBCommitMarker_verifyOpenedFile_(") != 3:
               raise SystemExit("UDB commit marker file identity validation is not centralized")
 
+          marker_write_start = commit_marker_source.find(
+              "int UDBCommitMarker_write(UDBCommitMarker *self, int flag)"
+          )
+          marker_write_end = commit_marker_source.find(
+              "static FILE *UDBCommitMarker_openJournal_", marker_write_start
+          )
+          marker_write_body = (
+              commit_marker_source[marker_write_start:marker_write_end]
+              if marker_write_start >= 0 and marker_write_end > marker_write_start
+              else ""
+          )
+          if (
+              not marker_write_body or
+              "return JFile_hardSyncFileDescriptor_(NULL,fd);" not in marker_write_body or
+              "return fcntl(fd,F_FULLFSYNC,0);" in marker_write_body or
+              "return fsync(fd);" in marker_write_body
+          ):
+              raise SystemExit("UDB commit marker writes must use the shared EINTR-safe durability barrier")
+
           recovery_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecovery.c"
           ).read_text()

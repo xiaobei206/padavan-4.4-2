@@ -1,3 +1,13 @@
+## 2026-11-07 12:46 CST — Route commit-marker writes through EINTR-safe sync
+
+- Baseline: main commit `a6ff958cf1fc9b94f709370dea98552a458b5261`; SkipDBv2 Regression run #528 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `UDBCommitMarker_write()` in `udb/UDBCommitMarker.c` and its existing Actions source contract.
+- Marker writes duplicated direct `fsync()`/`F_FULLFSYNC` calls without the `EINTR` retry already provided by `JFile_hardSyncFileDescriptor_()`. A transient signal could therefore turn a recoverable sync interruption into a failed commit-marker durability barrier.
+- Reuse the existing shared barrier after the marker byte is flushed, preserving error propagation and the existing platform-specific sync choice. Add a function-scoped source contract ensuring future edits keep this call in the marker-write path.
+- The existing `commit_marker_test` and CMake target are reused; no new files or exported declarations. No local C build/CTest is claimed; mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 12:40 CST — Remove unreachable legacy snprintf formatter
 
 - Baseline: main commit `e08721f1f5b68b941ae671a24bcbb77a70a1152b`; SkipDBv2 Regression run #527 passed source-contract preflight, configure, full build, and CTest.

@@ -79,11 +79,8 @@ int UDBCommitMarker_write(UDBCommitMarker *self, int flag)
         fseek(self->file,0,SEEK_SET)!=0 || fputc(flag,self->file)==EOF ||
         fflush(self->file)!=0) return -1;
     fd=fileno(self->file); if(fd<0)return -1;
-#ifdef F_FULLFSYNC
-    return fcntl(fd,F_FULLFSYNC,0);
-#else
-    return fsync(fd);
-#endif
+    /* Share the EINTR-safe platform durability barrier used by JFile. */
+    return JFile_hardSyncFileDescriptor_(NULL,fd);
 }
 static FILE *UDBCommitMarker_openJournal_(const char *path)
 {
