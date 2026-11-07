@@ -21,6 +21,9 @@ on:
       - "trunk/user/httpd/src/tests/httpd_service_id.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
+      - "trunk/user/rc/src/firewall_ex.c"
+      - "trunk/user/rc/src/firewall_filter_policy.h"
+      - "trunk/user/rc/src/tests/firewall_filter_policy.c"
   pull_request:
     paths:
       - ".github/workflows/httpd-security.yml"
@@ -41,6 +44,9 @@ on:
       - "trunk/user/httpd/src/tests/httpd_service_id.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
+      - "trunk/user/rc/src/firewall_ex.c"
+      - "trunk/user/rc/src/firewall_filter_policy.h"
+      - "trunk/user/rc/src/tests/firewall_filter_policy.c"
   workflow_dispatch:
 
 permissions:
@@ -84,6 +90,11 @@ jobs:
             trunk/user/busybox/busybox-1.24.x/archival/libarchive/tests/safe_extract_path.c \
             -o /tmp/busybox_safe_extract_path
           /tmp/busybox_safe_extract_path
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/firewall_filter_policy.c \
+            -o /tmp/firewall_filter_policy
+          /tmp/firewall_filter_policy
 
       - name: Verify HTTPD auth and route-access wiring
         run: |
@@ -101,6 +112,10 @@ jobs:
           data_extract = (archive_root / "data_extract_all.c").read_text()
           safe_extract = (archive_root / "safe_extract_path.h").read_text()
           storage_script = Path("trunk/user/scripts/files/sbin/mtd_storage.sh").read_text()
+          firewall_root = Path("trunk/user/rc/src")
+          firewall = (firewall_root / "firewall_ex.c").read_text()
+          firewall_policy = (firewall_root / "firewall_filter_policy.h").read_text()
+          firewall_test = (firewall_root / "tests/firewall_filter_policy.c").read_text()
 
           getter_start = httpd.index("get_login_private_key_access(void)")
           getter_end = httpd.index("\nstatic void\nhttp_login", getter_start)
@@ -311,6 +326,20 @@ jobs:
           assert "if [ $? -ne 0 ]" in restore
           assert 'if [ ! -f "$tmp_storage/start_script.sh" ]' in restore
           print("BusyBox archive extraction symlink-parent guard: OK")
+
+          # URL values are written into quoted iptables-restore rules.
+          assert "firewall_url_filter_value_is_safe(filterstr)" in firewall
+          assert "firewall_url_filter_value_is_safe" in firewall_test
+          firewall_start = firewall.index("include_webstr_filter(FILE *fp)")
+          firewall_end = firewall.index(chr(10) + "static int" + chr(10) + "include_lw_filter", firewall_start)
+          url_filter = firewall[firewall_start:firewall_end]
+          safe_value = url_filter.index("if (!firewall_url_filter_value_is_safe(filterstr))")
+          value_length = url_filter.index("url_length = strlen(filterstr);", safe_value)
+          value_append = url_filter.index("strcat(url_list, filterstr)", value_length)
+          rule_write = url_filter.index("fprintf(fp,")
+          assert safe_value < value_length < value_append < rule_write
+          assert "*p < 0x20" in firewall_policy and "*p == 0x7f" in firewall_policy
+          print("Firewall URL pattern config-injection guard: OK")
           # Session ownership is a 30-second idle lock, not a fixed 30 seconds
           # from first login. Preserve the initial-login timestamp for UI use.
           login_policy = (root / "httpd_login_policy.h").read_text()

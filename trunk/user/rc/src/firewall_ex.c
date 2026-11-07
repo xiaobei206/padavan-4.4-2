@@ -26,6 +26,7 @@
 #include <dirent.h>
 
 #include "rc.h"
+#include "firewall_filter_policy.h"
 
 #define foreach_x(x)		for (i=0; i<nvram_get_int(x); i++)
 
@@ -550,7 +551,11 @@ include_webstr_filter(FILE *fp)
 			filterstr += 7;
 		else if (strncasecmp(filterstr, "https://", 8) == 0)
 			filterstr += 8;
-		
+
+		/* Keep untrusted filter values inside the quoted rule syntax. */
+		if (!firewall_url_filter_value_is_safe(filterstr))
+			continue;
+
 		url_length = strlen(filterstr);
 		if (url_length < 1 || url_length >= sizeof(url_list))
 			continue;
