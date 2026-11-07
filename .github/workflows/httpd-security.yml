@@ -347,7 +347,32 @@ jobs:
           }
           for pattern, callback in protected_routes.items():
               expect_route(pattern, callback, 1)
-          print("HTTPD MIME authorization matrix: OK")
+
+          # Fail closed on future route additions: every MIME handler must be
+          # explicitly classified as a public static asset or an authenticated
+          # dynamic/API/export route. Also reject duplicate patterns because
+          # first-match dispatch would otherwise make later policy unreachable.
+          actual_patterns = [route[0] for route in routes]
+          expected_patterns = set(public_assets) | set(protected_routes)
+          duplicates = sorted({
+              pattern for pattern in actual_patterns
+              if actual_patterns.count(pattern) > 1
+          })
+          assert not duplicates, f"duplicate MIME route patterns: {duplicates}"
+          assert set(actual_patterns) == expected_patterns, (
+              "unclassified or missing MIME routes: "
+              f"unexpected={sorted(set(actual_patterns) - expected_patterns)}, "
+              f"missing={sorted(expected_patterns - set(actual_patterns))}"
+          )
+          assert len(actual_patterns) == len(expected_patterns), (
+              f"route count mismatch: actual={len(actual_patterns)}, "
+              f"expected={len(expected_patterns)}"
+          )
+          assert all(
+              route[2] == (0 if route[0] in public_assets else 1)
+              for route in routes
+          ), "a route's auth flag disagrees with its explicit policy class"
+          print("HTTPD exhaustive MIME authorization matrix: OK")
 
           # User-controlled sid_list values must resolve to a real service
           # before any validator/group operation can dereference GetVariables().
