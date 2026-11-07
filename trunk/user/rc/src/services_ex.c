@@ -33,6 +33,7 @@
 #include <net/ethernet.h>
 
 #include "rc.h"
+#include "dnsmasq_file.h"
 
 #define DHCPD_STATIC_MAX	64
 #define DHCPD_MULTIMAC_MAX	8
@@ -109,15 +110,20 @@ fill_static_ethers(const char *lan_ip, const char *lan_mask)
 	struct ip4_items_t ip4_list[DHCPD_STATIC_MAX];
 	int i, j, i_max_items, i_arp_bind;
 	char dh_fn[64], nvram_key[32], *smac, *sip4, *shname;
+	char hosts_static_path[] = "/tmp/hosts.static.XXXXXX";
+	int hosts_static_errno;
 
 	memset(ip4_list, 0, sizeof(ip4_list));
+	hosts_static_errno = 0;
 
 	mkdir_if_none(DHCPD_HOSTS_DIR, "755");
 	snprintf(dh_fn, sizeof(dh_fn), "%s/dhcp-hosts.rc", DHCPD_HOSTS_DIR);
 
 	fp[0] = fopen(dh_fn, "w+");
 	fp[1] = fopen("/etc/ethers", "w+");
-	fp[2] = fopen("/tmp/hosts.static", "w+");
+	fp[2] = dnsmasq_file_open(hosts_static_path);
+	if (!fp[2])
+		hosts_static_errno = errno ? errno : EIO;
 
 	if (nvram_get_int("dhcp_static_x") == 1) {
 		ip4_lan = inet_addr_safe(lan_ip);
@@ -217,8 +223,17 @@ fill_static_ethers(const char *lan_ip, const char *lan_mask)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(fp); i++) {
-		if (fp[i])
+		if (i == 2) {
+			if (fp[i]) {
+				if (dnsmasq_file_publish(fp[i], hosts_static_path,
+						 "/tmp/hosts.static", 0644) != 0)
+					logmessage(LOGNAME, "cannot publish static DHCP host snapshot (errno=%d)", errno);
+			} else if (hosts_static_errno) {
+				logmessage(LOGNAME, "cannot stage static DHCP host snapshot (errno=%d)", hosts_static_errno);
+			}
+		} else if (fp[i]) {
 			fclose(fp[i]);
+		}
 	}
 }
 
@@ -226,15 +241,19 @@ int
 fill_dnsmasq_servers(void)
 {
 	FILE *fp;
-	int lock;
+	int lock, saved_errno;
 	char word[256], *next, *wan_dns, *wan_dom;
+	char servers_path[] = "/tmp/dnsmasq.servers.XXXXXX";
 	const char *storage_dir = "/etc/storage/dnsmasq";
 
 	lock = file_lock("dservers");
 
-	fp = fopen(DNS_SERVERS_FILE, "w");
+	fp = dnsmasq_file_open(servers_path);
 	if (!fp) {
+		saved_errno = errno ? errno : EIO;
+		logmessage(LOGNAME, "cannot stage DNS server snapshot (errno=%d)", saved_errno);
 		file_unlock(lock);
+		errno = saved_errno;
 		return -1;
 	}
 
@@ -263,7 +282,13 @@ fill_dnsmasq_servers(void)
 	/* fill from user dnsmasq.servers */
 	load_user_config(fp, storage_dir, "dnsmasq.servers", NULL);
 
-	fclose(fp);
+	if (dnsmasq_file_publish(fp, servers_path, DNS_SERVERS_FILE, 0644) != 0) {
+		saved_errno = errno ? errno : EIO;
+		logmessage(LOGNAME, "cannot publish DNS server snapshot (errno=%d)", saved_errno);
+		file_unlock(lock);
+		errno = saved_errno;
+		return -1;
+	}
 
 	file_unlock(lock);
 
@@ -294,6 +319,7 @@ start_dns_dhcpd(int is_ap_mode)
 {
 	FILE *fp;
 	int i_verbose, i_dhcp_enable, is_dhcp_used, is_dns_used;
+	int saved_errno;
 	char dhcp_start[32], dhcp_end[32], dns_all[64], dnsv6[40];
 	char *ipaddr, *netmask, *gw, *dns1, *dns2, *dns3, *wins, *domain, *dns6, *dns61;
 	const char *storage_dir = "/etc/storage/dnsmasq";
@@ -305,8 +331,12 @@ start_dns_dhcpd(int is_ap_mode)
 	netmask = nvram_safe_get("lan_netmask");
 	domain  = nvram_safe_get("lan_domain");
 
-	/* touch dnsmasq.leases if not exist */
-	create_file(DHCPD_LEASE_FILE);
+	/* Preserve valid leases, but never follow a symlink or write through a hardlink. */
+	if (dnsmasq_lease_file_ensure(DHCPD_LEASE_FILE) != 0) {
+		saved_errno = errno ? errno : EIO;
+		logmessage(LOGNAME, "refusing unsafe DNSMasq lease file (errno=%d)", saved_errno);
+		return saved_errno;
+	}
 
 	/* create /etc/ethers */
 	fill_static_ethers(ipaddr, netmask);

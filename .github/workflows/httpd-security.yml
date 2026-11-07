@@ -32,6 +32,9 @@ on:
       - "trunk/user/httpd/src/httpd_access_policy.h"
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
       - "trunk/user/rc/src/firewall_ex.c"
+      - "trunk/user/rc/src/services_ex.c"
+      - "trunk/user/rc/src/dnsmasq_file.h"
+      - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
       - "trunk/user/rc/src/firewall_filter_policy.h"
       - "trunk/user/rc/src/tests/firewall_filter_policy.c"
@@ -75,6 +78,9 @@ on:
       - "trunk/user/httpd/src/httpd_access_policy.h"
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
       - "trunk/user/rc/src/firewall_ex.c"
+      - "trunk/user/rc/src/services_ex.c"
+      - "trunk/user/rc/src/dnsmasq_file.h"
+      - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
       - "trunk/user/rc/src/firewall_filter_policy.h"
       - "trunk/user/rc/src/tests/firewall_filter_policy.c"
@@ -172,6 +178,42 @@ jobs:
             trunk/user/rc/src/tests/firewall_hook_file.c \
             -o /tmp/firewall_hook_file
           /tmp/firewall_hook_file
+
+      - name: Verify DNSMasq generated file trust boundaries
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/dnsmasq_file.c \
+            -o /tmp/dnsmasq_file
+          /tmp/dnsmasq_file
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service = Path("trunk/user/rc/src/services_ex.c").read_text()
+          helper = Path("trunk/user/rc/src/dnsmasq_file.h").read_text()
+          test = Path("trunk/user/rc/src/tests/dnsmasq_file.c").read_text()
+
+          assert '#include "dnsmasq_file.h"' in service
+          assert 'fp[2] = dnsmasq_file_open(hosts_static_path);' in service
+          assert 'dnsmasq_file_publish(fp[i], hosts_static_path,' in service
+          assert '"/tmp/hosts.static", 0644)' in service
+          assert 'fp = dnsmasq_file_open(servers_path);' in service
+          assert 'dnsmasq_file_publish(fp, servers_path, DNS_SERVERS_FILE, 0644)' in service
+          assert 'dnsmasq_lease_file_ensure(DHCPD_LEASE_FILE)' in service
+          assert 'fopen("/tmp/hosts.static", "w+")' not in service
+          assert 'fopen(DNS_SERVERS_FILE, "w")' not in service
+          assert 'create_file(DHCPD_LEASE_FILE)' not in service
+          assert 'mkstemp(path)' in helper and 'rename(path, destination)' in helper
+          assert 'O_NOFOLLOW' in helper and 'st.st_uid != geteuid()' in helper
+          assert 'st.st_nlink != 1' in helper and 'S_ISREG(st.st_mode)' in helper
+          assert 'fchmod(fd, lease_mode)' in helper
+          assert 'assert(symlink(sentinel, destination) == 0)' in test
+          assert 'assert(dnsmasq_lease_file_ensure(symlink_lease) == -1)' in test
+          assert 'assert(dnsmasq_lease_file_ensure(hardlink_lease) == -1)' in test
+          assert 'assert(dnsmasq_lease_file_ensure(fifo_lease) == -1)' in test
+          print("DNSMasq temporary-file symlink, hardlink, FIFO and atomic-publication regressions: OK")
+          PY
 
       - name: Verify add-on firewall hook staging
         run: |
