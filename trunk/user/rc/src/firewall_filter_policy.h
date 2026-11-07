@@ -13,6 +13,36 @@ firewall_ipv4_address_is_safe(const char *value)
 	return value && inet_pton(AF_INET, value, &address) == 1;
 }
 
+/* VPN lease interface names must be exact ppp<decimal-unit> tokens. */
+static int
+firewall_ppp_interface_is_safe(const char *value, unsigned int min_unit)
+{
+	const unsigned char *p;
+	unsigned int unit = 0;
+
+	if (!value || strncmp(value, "ppp", 3) != 0)
+		return 0;
+
+	p = (const unsigned char *)value + 3;
+	if (!*p)
+		return 0;
+
+	for (; *p; ++p) {
+		unsigned int digit;
+
+		if (*p < '0' || *p > '9')
+			return 0;
+
+		digit = (unsigned int)(*p - '0');
+		if (unit > (65535U - digit) / 10U)
+			return 0;
+
+		unit = unit * 10U + digit;
+	}
+
+	return (unit >= min_unit);
+}
+
 /* URL patterns are embedded in a quoted iptables-restore rule. */
 static int
 firewall_url_filter_value_is_safe(const char *value)
