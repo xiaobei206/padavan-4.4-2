@@ -34,6 +34,8 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/firewall_filter_policy.h"
       - "trunk/user/rc/src/tests/firewall_filter_policy.c"
+      - "trunk/user/rc/src/firewall_rule_file.h"
+      - "trunk/user/rc/src/tests/firewall_rule_file.c"
   pull_request:
     paths:
       - ".github/workflows/httpd-security.yml"
@@ -67,6 +69,8 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/firewall_filter_policy.h"
       - "trunk/user/rc/src/tests/firewall_filter_policy.c"
+      - "trunk/user/rc/src/firewall_rule_file.h"
+      - "trunk/user/rc/src/tests/firewall_rule_file.c"
   workflow_dispatch:
 
 permissions:
@@ -142,6 +146,11 @@ jobs:
             trunk/user/rc/src/tests/firewall_filter_policy.c \
             -o /tmp/firewall_filter_policy
           /tmp/firewall_filter_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/firewall_rule_file.c \
+            -o /tmp/firewall_rule_file
+          /tmp/firewall_rule_file
 
       - name: Check root-managed executable script staging
         run: |
@@ -212,6 +221,8 @@ jobs:
           firewall = (firewall_root / "firewall_ex.c").read_text()
           firewall_policy = (firewall_root / "firewall_filter_policy.h").read_text()
           firewall_test = (firewall_root / "tests/firewall_filter_policy.c").read_text()
+          firewall_rule_file = (firewall_root / "firewall_rule_file.h").read_text()
+          firewall_rule_file_test = (firewall_root / "tests/firewall_rule_file.c").read_text()
 
           getter_start = httpd.index("get_login_private_key_access(void)")
           getter_end = httpd.index("\nstatic void\nhttp_login", getter_start)
@@ -497,6 +508,24 @@ jobs:
           assert "firewall_port_range_is_safe(port, 0)" in firewall[vts_nat_start:]
           print("Firewall rule-token validation: OK")
           print("Firewall ICMP type rule-token validation: OK")
+          assert "mkstemp(path)" in firewall_rule_file
+          assert 'fdopen(fd, "w")' in firewall_rule_file
+          assert "fchmod(fd, S_IRUSR | S_IWUSR)" in firewall_rule_file
+          assert "fflush(fp)" in firewall_rule_file and "ferror(fp)" in firewall_rule_file
+          assert "fclose(fp)" in firewall_rule_file and "unlink(path)" in firewall_rule_file
+          assert firewall.count("firewall_rule_file_open(ipt_file)") == 10
+          assert firewall.count('fopen(ipt_file, "w")') == 0
+          assert firewall.count("firewall_rule_file_finish(fp, ipt_file)") == 10
+          assert firewall.count("firewall_rule_file_remove(ipt_file)") == 10
+          assert all(f'"/tmp/{name}"' not in firewall for name in (
+              "ipt_filter.rules", "ipt_filter.default", "ipt_mangle.rules",
+              "ipt_raw.rules", "ip6t_filter.rules", "ip6t_filter.default",
+              "ip6t_mangle.rules", "ip6t_nat.rules", "ipt_nat.rules", "ipt_nat.default"
+          ))
+          assert "symlink(sentinel_path, legacy_path)" in firewall_rule_file_test
+          assert "(st.st_mode & 0777) == 0600" in firewall_rule_file_test
+          print("Firewall IPv4/IPv6 restore files use exclusive 0600 staging and checked cleanup: OK")
+
           # Session ownership is a 30-second idle lock, not a fixed 30 seconds
           # from first login. Preserve the initial-login timestamp for UI use.
           login_policy = (root / "httpd_login_policy.h").read_text()

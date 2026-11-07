@@ -27,6 +27,7 @@
 
 #include "rc.h"
 #include "firewall_filter_policy.h"
+#include "firewall_rule_file.h"
 
 #define foreach_x(x)		for (i=0; i<nvram_get_int(x); i++)
 
@@ -876,7 +877,7 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 {
 	FILE *fp;
 	char timematch[160], *ftype, *dtype, *vpnc_if;
-	const char *ipt_file = "/tmp/ipt_filter.rules";
+	char ipt_file[] = "/tmp/ipt_filter.XXXXXX";
 	int ret, wport, lport;
 	int is_nat_enabled, is_dos_enabled, is_fw_enabled, is_logaccept, is_logdrop;
 	int is_url_enabled, is_lwf_enabled;
@@ -924,7 +925,7 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 			vpnc_if = IFNAME_CLIENT_PPP;
 	}
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return 0;
 
 	fprintf(fp, "*%s\n", "filter");
@@ -1343,12 +1344,12 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 	}
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	if (ret & MODULE_WEBSTR_MASK)
-		module_smart_load("xt_webstr", NULL);
-
-	doSystem("iptables-restore %s", ipt_file);
+	if (firewall_rule_file_finish(fp, ipt_file) == 0) {
+		if (ret & MODULE_WEBSTR_MASK)
+			module_smart_load("xt_webstr", NULL);
+		doSystem("iptables-restore %s", ipt_file);
+	}
+	firewall_rule_file_remove(ipt_file);
 
 	return ret;
 }
@@ -1359,11 +1360,11 @@ ipt_filter_default(void)
 	FILE *fp;
 	char *ftype, *dtype;
 	int is_fw_enabled;
-	const char *ipt_file = "/tmp/ipt_filter.default";
+	char ipt_file[] = "/tmp/ipt_filter.XXXXXX";
 
 	is_fw_enabled = nvram_match("fw_enable_x", "1");
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return;
 
 	fprintf(fp, "*%s\n", "filter");
@@ -1393,9 +1394,9 @@ ipt_filter_default(void)
 		fprintf(fp, "-A %s -i %s -j %s\n", dtype, IFNAME_BR, ftype);
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	doSystem("iptables-restore %s", ipt_file);
+	if (firewall_rule_file_finish(fp, ipt_file) == 0)
+		doSystem("iptables-restore %s", ipt_file);
+	firewall_rule_file_remove(ipt_file);
 }
 
 static void
@@ -1405,7 +1406,7 @@ ipt_mangle_rules(const char *man_if, const char *wan_if, int use_man)
 	int i_wan_ttl_fix;
 	int i_wan_ttl_value;
 	const char *dtype;
-	const char *ipt_file = "/tmp/ipt_mangle.rules";
+	char ipt_file[] = "/tmp/ipt_mangle.XXXXXX";
 
 	i_wan_ttl_fix = nvram_get_int("wan_ttl_fix");
 	i_wan_ttl_value = nvram_get_int("wan_ttl_value");
@@ -1422,7 +1423,7 @@ ipt_mangle_rules(const char *man_if, const char *wan_if, int use_man)
 		module_smart_load("xt_HL", NULL);
 	}
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return;
 
 	fprintf(fp, "*%s\n", "mangle");
@@ -1451,19 +1452,19 @@ ipt_mangle_rules(const char *man_if, const char *wan_if, int use_man)
 	}
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	if (i_wan_ttl_fix || is_module_loaded("iptable_mangle"))
+	if (firewall_rule_file_finish(fp, ipt_file) == 0 &&
+	    (i_wan_ttl_fix || is_module_loaded("iptable_mangle")))
 		doSystem("iptables-restore %s", ipt_file);
+	firewall_rule_file_remove(ipt_file);
 }
 
 static void
 ipt_raw_rules(void)
 {
 	FILE *fp;
-	const char *ipt_file = "/tmp/ipt_raw.rules";
+	char ipt_file[] = "/tmp/ipt_raw.XXXXXX";
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return;
 
 	fprintf(fp, "*%s\n", "raw");
@@ -1471,10 +1472,9 @@ ipt_raw_rules(void)
 	fprintf(fp, ":%s %s [0:0]\n", "OUTPUT", "ACCEPT");
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	if (is_module_loaded("iptable_raw"))
+	if (firewall_rule_file_finish(fp, ipt_file) == 0 && is_module_loaded("iptable_raw"))
 		doSystem("iptables-restore %s", ipt_file);
+	firewall_rule_file_remove(ipt_file);
 }
 
 #if defined (USE_IPV6)
@@ -1487,7 +1487,7 @@ ip6t_filter_rules(char *man_if, char *wan_if, char *lan_if,
 	int ret, wport, lport;
 	int ipv6_type, is_fw_enabled, is_url_enabled, is_logaccept, is_logdrop;
 	int i_http_proto, i_bfplimit_ref, i_mac_filter;
-	const char *ipt_file = "/tmp/ip6t_filter.rules";
+	char ipt_file[] = "/tmp/ip6t_filter.XXXXXX";
 
 	ret = 0;
 	i_bfplimit_ref = 0;
@@ -1502,7 +1502,7 @@ ip6t_filter_rules(char *man_if, char *wan_if, char *lan_if,
 	is_logaccept = (strcmp(logaccept, IPT_CHAIN_NAME_LOG_ACCEPT) == 0) ? 1 : 0;
 	is_logdrop = (strcmp(logdrop, IPT_CHAIN_NAME_LOG_DROP) == 0) ? 1 : 0;
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return 0;
 
 	fprintf(fp, "*%s\n", "filter");
@@ -1751,12 +1751,12 @@ ip6t_filter_rules(char *man_if, char *wan_if, char *lan_if,
 	}
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	if (ret & MODULE_WEBSTR_MASK)
-		module_smart_load("xt_webstr", NULL);
-
-	doSystem("ip6tables-restore %s", ipt_file);
+	if (firewall_rule_file_finish(fp, ipt_file) == 0) {
+		if (ret & MODULE_WEBSTR_MASK)
+			module_smart_load("xt_webstr", NULL);
+		doSystem("ip6tables-restore %s", ipt_file);
+	}
+	firewall_rule_file_remove(ipt_file);
 
 	return ret;
 }
@@ -1767,11 +1767,11 @@ ip6t_filter_default(void)
 	FILE *fp;
 	char *ftype, *dtype;
 	int is_fw_enabled;
-	const char *ipt_file = "/tmp/ip6t_filter.default";
+	char ipt_file[] = "/tmp/ip6t_filter.XXXXXX";
 
 	is_fw_enabled = nvram_match("fw_enable_x", "1");
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return;
 
 	fprintf(fp, "*%s\n", "filter");
@@ -1802,18 +1802,18 @@ ip6t_filter_default(void)
 		fprintf(fp, "-A %s -i %s -j %s\n", dtype, IFNAME_BR, ftype);
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	doSystem("ip6tables-restore %s", ipt_file);
+	if (firewall_rule_file_finish(fp, ipt_file) == 0)
+		doSystem("ip6tables-restore %s", ipt_file);
+	firewall_rule_file_remove(ipt_file);
 }
 
 static void
 ip6t_mangle_rules(char *man_if)
 {
 	FILE *fp;
-	const char *ipt_file = "/tmp/ip6t_mangle.rules";
+	char ipt_file[] = "/tmp/ip6t_mangle.XXXXXX";
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return;
 
 	fprintf(fp, "*%s\n", "mangle");
@@ -1824,19 +1824,18 @@ ip6t_mangle_rules(char *man_if)
 	fprintf(fp, ":%s %s [0:0]\n", "POSTROUTING", "ACCEPT");
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	if (is_module_loaded("ip6table_mangle"))
+	if (firewall_rule_file_finish(fp, ipt_file) == 0 && is_module_loaded("ip6table_mangle"))
 		doSystem("ip6tables-restore %s", ipt_file);
+	firewall_rule_file_remove(ipt_file);
 }
 
 static void
 ip6t_nat_rules(char *man_if)
 {
 	FILE *fp;
-	const char *ipt_file = "/tmp/ip6t_nat.rules";
+	char ipt_file[] = "/tmp/ip6t_nat.XXXXXX";
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return;
 
 	fprintf(fp, "*%s\n", "nat");
@@ -1846,8 +1845,9 @@ ip6t_nat_rules(char *man_if)
 	fprintf(fp, ":%s %s [0:0]\n", "POSTROUTING", "ACCEPT");
 	fprintf(fp, "-A POSTROUTING -s fc00:101:101::1/64 -j FULLCONENAT\n");
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
+	if (firewall_rule_file_finish(fp, ipt_file) == 0)
 		doSystem("ip6tables-restore %s", ipt_file);
+		firewall_rule_file_remove(ipt_file);
 }
 
 
@@ -1861,7 +1861,7 @@ ipt_nat_rules(char *man_if, char *man_ip,
 {
 	FILE *fp;
 	char *dtype, *vpnc_if;
-	const char *ipt_file = "/tmp/ipt_nat.rules";
+	char ipt_file[] = "/tmp/ipt_nat.XXXXXX";
 	int wport, lport, is_nat_enabled, is_fw_enabled, is_upnp_enabled;
 	int i_vpns_enable, i_vpnc_enable, i_vpns_type, i_vpnc_type, i_vpnc_sfw, i_http_proto;
 #if defined (APP_OPENVPN)
@@ -1897,7 +1897,7 @@ ipt_nat_rules(char *man_if, char *man_ip,
 	if (!is_valid_ipv4(man_ip))
 		man_ip = NULL;
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return 0;
 
 	fprintf(fp, "*%s\n", "nat");
@@ -2205,9 +2205,9 @@ ipt_nat_rules(char *man_if, char *man_ip,
 	}
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	doSystem("iptables-restore %s", ipt_file);
+	if (firewall_rule_file_finish(fp, ipt_file) == 0)
+		doSystem("iptables-restore %s", ipt_file);
+	firewall_rule_file_remove(ipt_file);
 
 	return 0;
 }
@@ -2217,11 +2217,11 @@ ipt_nat_default(void)
 {
 	FILE *fp;
 	int is_nat_enabled;
-	const char *ipt_file = "/tmp/ipt_nat.default";
+	char ipt_file[] = "/tmp/ipt_nat.XXXXXX";
 
 	is_nat_enabled = nvram_match("wan_nat_x", "1");
 
-	if (!(fp=fopen(ipt_file, "w")))
+	if (!(fp=firewall_rule_file_open(ipt_file)))
 		return;
 
 	fprintf(fp, "*%s\n", "nat");
@@ -2248,9 +2248,9 @@ ipt_nat_default(void)
 	}
 
 	fprintf(fp, "COMMIT\n\n");
-	fclose(fp);
-
-	doSystem("iptables-restore %s", ipt_file);
+	if (firewall_rule_file_finish(fp, ipt_file) == 0)
+		doSystem("iptables-restore %s", ipt_file);
+	firewall_rule_file_remove(ipt_file);
 }
 
 void
