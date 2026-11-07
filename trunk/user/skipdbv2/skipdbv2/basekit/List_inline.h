@@ -318,7 +318,8 @@ IOINLINE void List_removeLast_(List *self, void *item)
 
 IOINLINE void List_removeItems_(List *self, List *other)
 {
-	List *snapshot;
+	size_t copyBytes;
+	void **newItems;
 
 	if (!List_hasValidStorage_(self) || !List_hasValidStorage_(other))
 		return;
@@ -328,18 +329,21 @@ IOINLINE void List_removeItems_(List *self, List *other)
 	}
 
 	/*
-	 * Separate List structs can be shallow views of the same backing array.
-	 * Removing from self mutates that array and can invalidate other's traversal
-	 * (including freeing the old allocation during compaction). Snapshot the
-	 * source first so every original item participates exactly once.
+	 * Separate List structs may be shallow views of the same backing array.
+	 * Detach self before removing so compaction cannot invalidate or mutate
+	 * the source view that supplies the values being removed.
 	 */
 	if (self->items && self->items == other->items) {
-		snapshot = List_clone(other);
-		if (NULL == snapshot)
-			return;
-		LIST_FOREACH(snapshot, i, v, List_remove_(self, v));
-		List_free(snapshot);
-		return;
+		copyBytes = self->size * sizeof(void *);
+		newItems = NULL;
+		if (self->memSize > 0) {
+			newItems = (void **)io_calloc(1, self->memSize);
+			if (NULL == newItems)
+				return;
+			if (copyBytes > 0)
+				memcpy(newItems, self->items, copyBytes);
+		}
+		self->items = newItems;
 	}
 
 	LIST_FOREACH(other, i, v, List_remove_(self, v));

@@ -559,42 +559,60 @@ done:
 
 static int test_remove_items_shared_storage(void)
 {
-	int values[] = {10, 20, 30, 40};
+	int values[600];
 	List *source = List_new();
 	List *view = List_new();
+	void **sharedItems = NULL;
+	size_t originalMemSize = 0;
+	size_t i;
 	int result = EXIT_FAILURE;
 
 	if (NULL == source || NULL == view) {
 		check(0, "List shared remove fixture allocation failed");
 		goto done;
 	}
-	if (List_append_(source, &values[0]) != &values[0] ||
-		List_append_(source, &values[1]) != &values[1] ||
-		List_append_(source, &values[2]) != &values[2] ||
-		List_append_(source, &values[3]) != &values[3]) {
-		check(0, "List shared remove fixture initialization failed");
-		goto done;
+	for (i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
+		values[i] = (int)i;
+		if (List_append_(source, &values[i]) != &values[i]) {
+			check(0, "List shared remove fixture initialization failed");
+			goto done;
+		}
 	}
 
 	io_free(view->items);
 	*view = *source;
-	view->size = 2;
+	view->size = 500;
+	sharedItems = source->items;
+	originalMemSize = source->memSize;
 	List_removeItems_(source, view);
-	if (!check(source->size == 2 &&
-		source->items[0] == &values[2] &&
-		source->items[1] == &values[3],
+	if (!check(source->items != sharedItems && view->items == sharedItems &&
+		source->size == 100 && view->size == 500 &&
+		source->memSize < originalMemSize,
 		"List_removeItems_ corrupted a shallow source view"))
 		goto done;
+	for (i = 0; i < view->size; ++i) {
+		if (!check(view->items[i] == &values[i],
+			"List_removeItems_ changed the shared source view during compaction"))
+			goto done;
+	}
+	for (i = 0; i < source->size; ++i) {
+		if (!check(source->items[i] == &values[i + 500],
+			"List_removeItems_ retained the wrong destination items"))
+			goto done;
+	}
 
-	/* Identical views must remove every original value, not every other one. */
+	/* Recreate identical backing views and force compaction on the first removal. */
+	for (i = 0; i < 4; ++i)
+		source->items[i] = &values[i];
 	source->size = 4;
-	source->items[0] = &values[0];
-	source->items[1] = &values[1];
-	source->items[2] = &values[2];
-	source->items[3] = &values[3];
+	io_free(view->items);
+	*view = *source;
 	view->size = 4;
+	sharedItems = source->items;
 	List_removeItems_(source, view);
-	if (!check(source->size == 0,
+	if (!check(source->size == 0 && source->items != sharedItems &&
+		view->items == sharedItems && view->size == 4 &&
+		view->items[0] == &values[0] && view->items[3] == &values[3],
 		"List_removeItems_ skipped values while traversing identical backing storage"))
 		goto done;
 

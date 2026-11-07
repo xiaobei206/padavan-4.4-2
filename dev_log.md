@@ -1,3 +1,13 @@
+## 2026-11-07 11:02 CST — Detach List removal targets from shared backing storage
+
+- Baseline: main commit `94974e71a66fdd59836c5088ee5b18de940d715e`; SkipDBv2 Regression run #42330825341 passed.
+- Scope: `List_removeItems_()` in `basekit/List_inline.h` and its existing `list_storage_bounds` regression.
+- When two List structs shared an allocation, the old path cloned the source for traversal but still removed items from the shared destination buffer. Automatic compaction could reallocate/free that buffer while the other view retained a dangling pointer; without compaction, the source view was silently mutated.
+- Detach the destination into an allocation-checked copy before removals, so the source view remains stable through threshold compaction. Extend the existing regression to check retained source contents, destination results, and immediate-compaction behavior for identical backing views. Update static and function-order Actions source contracts. Existing CMake/CTest target is reused; no new files.
+- No local C build or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 10:45 CST — Bound Gaussian rejection and recover unusable RandomGen states
 
 - Baseline: main commit `4c9775873b7b86b6b972bf32def21fbe5ed59228`; SkipDBv2 Regression run #42330602360 passed.

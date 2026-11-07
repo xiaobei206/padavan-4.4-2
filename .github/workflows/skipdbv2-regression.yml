@@ -2554,7 +2554,10 @@ jobs:
                   "if (!List_hasValidStorage_(self) || NULL == callback)",
                   "IOINLINE void List_removeItems_(List *self, List *other)",
                   "if (self->items && self->items == other->items)",
-                  "snapshot = List_clone(other);",
+                  "copyBytes = self->size * sizeof(void *);",
+                  "newItems = (void **)io_calloc(1, self->memSize);",
+                  "memcpy(newItems, self->items, copyBytes);",
+                  "self->items = newItems;",
                   "IOINLINE int List_removeTrueFor_(List *self, ListCollectCallback* callback)",
                   "if (!List_hasValidStorage_(self) || self->size != count)",
                   "shouldRemove = (*callback)(item);",
@@ -2617,6 +2620,12 @@ jobs:
                   "static int test_remove_items_shared_storage(void)",
                   "List_removeItems_(source, view)",
                   "List_removeItems_ corrupted a shallow source view",
+                  "source->items != sharedItems && view->items == sharedItems",
+                  "source->size == 100 && view->size == 500",
+                  "source->memSize < originalMemSize",
+                  "view->items[i] == &values[i]",
+                  "source->items[i] == &values[i + 500]",
+                  "source->size == 0 && source->items != sharedItems",
                   "List_removeItems_ skipped values while traversing identical backing storage",
                   "test_remove_items_shared_storage() != EXIT_SUCCESS",
                   "List_copy_(destination, source)",
@@ -4128,6 +4137,37 @@ jobs:
               first_items_use = body.find("self->items")
               if not body or guard < 0 or (first_items_use >= 0 and guard > first_items_use):
                   raise SystemExit("List storage validation must precede backing-array access: " + signature)
+          list_remove_items_start = list_inline_source.find(
+              "IOINLINE void List_removeItems_(List *self, List *other)"
+          )
+          list_remove_items_end = list_inline_source.find("\n}", list_remove_items_start)
+          list_remove_items_body = (
+              list_inline_source[list_remove_items_start:list_remove_items_end]
+              if list_remove_items_start >= 0 and list_remove_items_end > list_remove_items_start
+              else ""
+          )
+          detach_guard = list_remove_items_body.find(
+              "if (self->items && self->items == other->items)"
+          )
+          detach_allocation = list_remove_items_body.find(
+              "newItems = (void **)io_calloc(1, self->memSize);"
+          )
+          detach_copy_guard = list_remove_items_body.find("if (copyBytes > 0)")
+          detach_copy = list_remove_items_body.find(
+              "memcpy(newItems, self->items, copyBytes);"
+          )
+          detach_assign = list_remove_items_body.find("self->items = newItems;")
+          remove_iteration = list_remove_items_body.find(
+              "LIST_FOREACH(other, i, v, List_remove_(self, v));"
+          )
+          if (not list_remove_items_body or
+                  "copyBytes = self->size * sizeof(void *);" not in list_remove_items_body or
+                  "if (self->memSize > 0)" not in list_remove_items_body or
+                  min(detach_guard, detach_allocation, detach_copy_guard,
+                      detach_copy, detach_assign, remove_iteration) < 0 or
+                  not (detach_guard < detach_allocation < detach_copy_guard <
+                       detach_copy < detach_assign < remove_iteration)):
+              raise SystemExit("List_removeItems_ must detach shared storage before mutating or compacting its destination")
           list_storage_test = Path("trunk/user/skipdbv2/skipdbv2/tests/list_storage_bounds.c").read_text()
           for needle in ("malformed_source.memSize = sizeof(void *)",
                          "List_copy_(target, &malformed_source)",
@@ -4145,6 +4185,14 @@ jobs:
                          "test_append_seq_shared_storage",
                          "List_appendSeq_(destination, source);",
                          "destination->items != sharedItems && source->items == sharedItems",
+                         "test_remove_items_shared_storage",
+                         "List_removeItems_(source, view);",
+                         "source->items != sharedItems && view->items == sharedItems",
+                         "source->size == 100 && view->size == 500",
+                         "source->memSize < originalMemSize",
+                         "view->items[i] == &values[i]",
+                         "source->items[i] == &values[i + 500]",
+                         "source->size == 0 && source->items != sharedItems",
                          "List_at_put_(&malformed_target, 0, &values[2])",
                          "List_removeTrueFor_(&malformed_target, remove_everything)",
                          "malformed_target.items[1] == saved_target_items[1]",
