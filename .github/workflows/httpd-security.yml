@@ -36,6 +36,9 @@ on:
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
+      - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/samba_share_policy.h"
+      - "trunk/user/rc/src/tests/samba_share_policy.c"
       - "trunk/user/rc/src/net_wan.c"
       - "trunk/user/rc/src/rc.h"
       - "trunk/user/rc/src/dhcp_lease_policy.h"
@@ -92,6 +95,9 @@ on:
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
+      - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/samba_share_policy.h"
+      - "trunk/user/rc/src/tests/samba_share_policy.c"
       - "trunk/user/rc/src/net_wan.c"
       - "trunk/user/rc/src/rc.h"
       - "trunk/user/rc/src/dhcp_lease_policy.h"
@@ -363,6 +369,47 @@ jobs:
           assert "update_resolvconf(0, 0);" in man_down
           assert 'notify_rc("restart_firewall_wan");' in man_down
           print("DHCP lease normalization, route reconciliation, and resolver refresh contracts: OK")
+          PY
+
+      - name: Verify Samba share configuration trust boundaries
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/samba_share_policy.c \
+            -o /tmp/samba_share_policy
+          /tmp/samba_share_policy
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("trunk/user/rc/src/services_stor.c").read_text()
+          assert '#include "samba_share_policy.h"' in source
+
+          # Partition share output must follow path, section-name and comment guards.
+          partition = source[source.index("if (i_smb_mode == 1) {"):
+                             source.index("} else if (i_smb_mode == 3) {")]
+          assert partition.index("samba_share_name_is_safe(mount_folder)") < partition.index('fprintf(fp, "[%s]\\n", mount_folder)')
+          assert partition.index("samba_mount_path_is_safe(follow_partition->mount_point)") < partition.index('fprintf(fp, "path = %s\\n", follow_partition->mount_point)')
+          assert partition.index("samba_conf_text_is_safe(disk_tag)") < partition.index('fprintf(fp, "comment = %s')
+
+          # Per-folder names/paths are checked before permission lookup and config output.
+          folder_block = source[source.index("/* 2. start to get every share */"):
+                                source.index("free_2_dimension_list(&sh_num, &folder_list);",
+                                             source.index("/* 2. start to get every share */"))]
+          assert folder_block.index("samba_share_name_is_safe(folder_list[n])") < folder_block.index('fprintf(fp, "[%s]\\n", share)')
+          assert folder_block.index("samba_mount_path_is_safe(follow_partition->mount_point)") < folder_block.index('fprintf(fp, "path = %s/%s\\n"')
+          assert folder_block.count("if (!samba_acl_user_is_safe(account_list[i]))") == 4
+
+          # Guest/account and smbpasswd tokens also cross the same policy boundary.
+          assert 'if (!samba_acl_user_is_safe(rootnm)) rootnm = "admin";' in source
+          account_guard = source.index("if (!samba_acl_user_is_safe(nvram_safe_get(tmpuser)))")
+          assert account_guard < source.index("_eval(smb_args, NULL, 0, NULL);", account_guard)
+
+          # The FTP banner is emitted only after rejecting line controls/escapes.
+          banner_guard = source.index("if (!samba_conf_text_is_safe(banner_product)")
+          banner_write = source.index('fprintf(fp, "ftpd_banner=Welcome to %s FTP service.')
+          assert banner_guard < banner_write
+          print("Samba share/ACL and FTP configuration trust-boundary contracts: OK")
           PY
 
       - name: Verify add-on firewall hook staging

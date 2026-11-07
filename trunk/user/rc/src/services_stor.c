@@ -37,6 +37,7 @@
 #include <disk_share.h>
 
 #include "rc.h"
+#include "samba_share_policy.h"
 #include "switch.h"
 
 void
@@ -88,10 +89,15 @@ write_vsftpd_conf(void)
 {
 	FILE *fp;
 	int i_maxuser, i_ftp_mode;
+	const char *banner_product;
 
 	fp=fopen("/etc/vsftpd.conf", "w");
 	if (!fp)
 		return;
+
+	banner_product = nvram_safe_get("productid");
+	if (!samba_conf_text_is_safe(banner_product) || !*banner_product)
+		banner_product = "Padavan";
 
 #if defined (USE_IPV6)
 	if (get_ipv6_type() != IPV6_DISABLED) {
@@ -149,7 +155,7 @@ write_vsftpd_conf(void)
 
 	fprintf(fp, "max_clients=%d\n", i_maxuser);
 	fprintf(fp, "max_per_ip=%d\n", i_maxuser);
-	fprintf(fp, "ftpd_banner=Welcome to %s FTP service.\n", nvram_safe_get("productid"));
+	fprintf(fp, "ftpd_banner=Welcome to %s FTP service.\n", banner_product);
 	
 	fclose(fp);
 }
@@ -242,7 +248,7 @@ write_smb_conf(void)
 	/* share mode */
 	if (i_smb_mode == 1 || i_smb_mode == 3) {
 		char *rootnm = nvram_safe_get("http_username");
-		if (!(*rootnm)) rootnm = "admin";
+		if (!samba_acl_user_is_safe(rootnm)) rootnm = "admin";
 #if defined (APP_SMBD36)
 		fprintf(fp, "map to guest = %s\n", "Bad Password");
 #else
@@ -295,14 +301,26 @@ write_smb_conf(void)
 		for (follow_disk = disks_info; follow_disk != NULL; follow_disk = follow_disk->next) {
 			for (follow_partition = follow_disk->partitions; follow_partition != NULL; follow_partition = follow_partition->next) {
 				char *mount_folder;
-				
+				char *last_slash;
+				const char *disk_tag;
+
 				if (follow_partition->mount_point == NULL)
 					continue;
-				
-				mount_folder = strrchr(follow_partition->mount_point, '/')+1;
-				
+
+				last_slash = strrchr(follow_partition->mount_point, '/');
+				if (last_slash == NULL || last_slash[1] == '\0')
+					continue;
+				mount_folder = last_slash + 1;
+				disk_tag = follow_disk->tag ? follow_disk->tag : "";
+				if (!samba_share_name_is_safe(mount_folder) ||
+				    !samba_mount_path_is_safe(follow_partition->mount_point) ||
+				    !samba_conf_text_is_safe(disk_tag)) {
+					logmessage("Samba Server", "skip share with unsafe storage metadata");
+					continue;
+				}
+
 				fprintf(fp, "[%s]\n", mount_folder);
-				fprintf(fp, "comment = %s's %s\n", follow_disk->tag, mount_folder);
+				fprintf(fp, "comment = %s's %s\n", disk_tag, mount_folder);
 				fprintf(fp, "path = %s\n", follow_partition->mount_point);
 				fprintf(fp, "guest ok = yes\n");
 				fprintf(fp, "writeable = yes\n");
@@ -354,10 +372,15 @@ write_smb_conf(void)
 				// 2. start to get every share
 				for (n = 0; n < sh_num; ++n) {
 					int i, right, first;
+					int guest_right;
 					char share[256];
-					
-					int guest_right = get_permission(SMB_GUEST_USER, follow_partition->mount_point, folder_list[n], "cifs");
 
+					if (!samba_mount_path_is_safe(follow_partition->mount_point) ||
+					    !samba_share_name_is_safe(folder_list[n])) {
+						logmessage("Samba Server", "skip share with unsafe storage metadata");
+						continue;
+					}
+					guest_right = get_permission(SMB_GUEST_USER, follow_partition->mount_point, folder_list[n], "cifs");
 					snprintf(share, sizeof(share), "%s", folder_list[n]);
 					
 					fclose(fp);
@@ -388,6 +411,8 @@ write_smb_conf(void)
 						fprintf(fp, "%s", "nobody");
 					}
 					for (i = 0; i < acc_num; ++i) {
+						if (!samba_acl_user_is_safe(account_list[i]))
+							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
 						if (first == 1)
 							first = 0;
@@ -401,6 +426,8 @@ write_smb_conf(void)
 					fprintf(fp, "invalid users = ");
 					first = 1;
 					for (i = 0; i < acc_num; ++i) {
+						if (!samba_acl_user_is_safe(account_list[i]))
+							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
 						if (right >= 1)
 							continue;
@@ -421,6 +448,8 @@ write_smb_conf(void)
 						fprintf(fp, "%s", "nobody");
 					}
 					for (i = 0; i < acc_num; ++i) {
+						if (!samba_acl_user_is_safe(account_list[i]))
+							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
 						if (right < 1)
 							continue;
@@ -441,6 +470,8 @@ write_smb_conf(void)
 						fprintf(fp, "%s", "nobody");
 					}
 					for (i = 0; i < acc_num; ++i) {
+						if (!samba_acl_user_is_safe(account_list[i]))
+							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
 						if (right < 2)
 							continue;
@@ -560,6 +591,8 @@ void run_samba(void)
 	for (i = 0; i < sh_num; i++) {
 		snprintf(tmpuser, sizeof(tmpuser), "acc_username%d", i);
 		snprintf(tmp2, sizeof(tmp2), "acc_password%d", i);
+		if (!samba_acl_user_is_safe(nvram_safe_get(tmpuser)))
+			continue;
 		{
 			char *smb_args[] = {
 				"smbpasswd",
