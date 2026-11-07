@@ -499,36 +499,14 @@ int Date_isLeapYear(const Date *self)
 		(year % 400LL == 0LL);
 }
 
+// format --------------------------------------------------------
+
 static struct tm EmptyTM(void)
 {
 	struct tm t;
 
 	memset(&t, 0, sizeof(t));
 	(void)Date_localTimeForTimestamp_((time_t)0, &t);
-	t.tm_sec  = 0;
-	t.tm_min  = 0;
-	t.tm_hour = 0;
-	t.tm_mday = 0;
-	t.tm_mon  = 0;
-	t.tm_year = 0;
-	t.tm_wday = 0;
-	t.tm_yday = 0;
-	/* Let mktime resolve DST for the parsed date, not the epoch template. */
-	t.tm_isdst = -1;
-	return t;
-}
-
-// format --------------------------------------------------------
-
-static struct tm EmptyTM(void)
-{
-	time_t tmp = 0;
-	struct tm *tt = localtime(&tmp);
-	struct tm t;
-
-	memset(&t, 0, sizeof(t));
-	if (tt)
-		memcpy(&t, tt, sizeof(struct tm));
 	t.tm_sec  = 0;
 	t.tm_min  = 0;
 	t.tm_hour = 0;

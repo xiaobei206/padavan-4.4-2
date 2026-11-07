@@ -1,3 +1,11 @@
+## 2026-11-07 16:38 CST — Replace the active Date parsing template with reentrant conversion
+
+- Baseline: `21caba8bf10a2912114d771d10b10adc17a95435`; SkipDBv2 Regression run #594 reached the focused Date source contract and rejected the still-active `EmptyTM()` implementation.
+- Review of the contract exposed that the prior edit had inserted a caller-owned `EmptyTM()` before the format section instead of replacing the original definition. The old, later definition remained the one used by parsing and still called shared-buffer `localtime()`.
+- Remove the accidental duplicate and update the sole original `EmptyTM()` to use `Date_localTimeForTimestamp_()`. Verify one definition remains and that the only raw `localtime()` call is isolated inside the Symbian compatibility branch. No public API, test target, or CMake change.
+
+---
+
 ## 2026-11-07 16:37 CST — Align Date formatting contract with local calendar storage
 
 - Baseline: `6e67144049dac0ddfd1bdf9d00e14cc597bf4730`; SkipDBv2 Regression run #593 stopped in the XY-C1 source-contract stage before configure/build.
