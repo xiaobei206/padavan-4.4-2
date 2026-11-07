@@ -1,3 +1,13 @@
+## 2026-11-07 17:35 CST — Preflight PID-hole capacity before clearing index mappings
+
+- Baseline: `28479b7674e71529c2e0020277284b669a755e7b`; mainline SkipDBv2 Regression run #609 passed the source contracts, complete build, and all 57 CTests.
+- Scope: `UDBIndex_setPos_forPid_()` and its existing PID index regression.
+- A deletion wrote the zero-valued index entry to the journal before `UDBIndex_releasePid_()` attempted to insert the freed PID into the reusable-hole list. If list growth failed, the API returned failure after mutating the journal, so a failed delete could still be replayed by a later commit.
+- Validate the hole-list storage and preallocate one slot before the mapping write when a release is required. Verify the resulting capacity, while avoiding allocation when the PID already exists in the hole list. Failure now exits before touching the index journal; normal release still centralizes deduplication and reservation transfer in the free-list owner.
+- Extend `udb_index_layers_test` for both reserved and already-mapped PIDs, asserting failed hole allocation does not advance the journal or clear a committed mapping. Add Actions source-order contracts for the capacity preflight. No new files, exported declarations, or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
 ## 2026-11-07 17:30 CST — Unify UDBIndex partial-construction cleanup
 
 - Baseline: `a76d9ad9138659d72a9dec052ea04d5f8a7dbe72`; mainline SkipDBv2 Regression run #608 passed source contracts, the complete build, and all 57 CTests.

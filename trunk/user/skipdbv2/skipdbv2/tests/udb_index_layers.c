@@ -93,14 +93,17 @@ int main(void)
         fprintf(stderr, "allocator did not reserve consecutive PIDs\n");
         goto done;
     }
-    /* A failed hole insertion must not drop the allocator reservation. */
+    /* A failed hole insertion must not change the reservation or journal. */
     {
         size_t saved_holes_size = db->index->holes->size;
+        long saved_log_pos = ftell(db->index->file->log);
         db->index->holes->size = (size_t)-1;
-        if (UDBIndex_setPos_forPid_(db->index, 0, first) != 0 ||
+        if (saved_log_pos < 0 ||
+            UDBIndex_setPos_forPid_(db->index, 0, first) != 0 ||
+            ftell(db->index->file->log) != saved_log_pos ||
             !List_contains_(db->index->reserved, (void *)first)) {
             db->index->holes->size = saved_holes_size;
-            fprintf(stderr, "failed PID release discarded its reservation\\n");
+            fprintf(stderr, "failed PID release discarded its reservation or wrote a journal entry\\n");
             goto done;
         }
         db->index->holes->size = saved_holes_size;
@@ -123,6 +126,27 @@ int main(void)
         UDBIndex_nextPid(db->index) != 3) {
         fprintf(stderr, "committed index retained reservations or lost mappings\n");
         goto done;
+    }
+
+    /* A failed delete of a mapped PID must not journal a zero mapping. */
+    {
+        PID_TYPE saved_mapping = UDBIndex_posForPid_(db->index, first);
+        size_t saved_holes_size = db->index->holes->size;
+        long saved_log_pos = ftell(db->index->file->log);
+
+        if (saved_mapping == 0 || saved_log_pos < 0) {
+            fprintf(stderr, "unable to prepare mapped-PID release regression\\n");
+            goto done;
+        }
+        db->index->holes->size = (size_t)-1;
+        if (UDBIndex_setPos_forPid_(db->index, 0, first) != 0 ||
+            ftell(db->index->file->log) != saved_log_pos ||
+            UDBIndex_posForPid_(db->index, first) != saved_mapping) {
+            db->index->holes->size = saved_holes_size;
+            fprintf(stderr, "failed PID deletion changed its mapping or journal\\n");
+            goto done;
+        }
+        db->index->holes->size = saved_holes_size;
     }
 
     UDB_beginTransaction(db);

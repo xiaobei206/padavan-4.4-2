@@ -3,6 +3,32 @@
 #include <stdio.h>
 #include <limits.h>
 
+/* Reserve free-list capacity before zeroing a mapping in the journal. */
+static int UDBIndex_prepareReleaseHole_(UDBIndex *self, PID_TYPE pid)
+{
+	List *holes;
+	size_t required;
+	long existing;
+
+	if (!UDBIndex_isValid_(self) || pid == 0)
+		return 0;
+	holes = self->holes;
+	if (!List_hasValidStorage_(holes))
+		return 0;
+
+	existing = List_indexOf_(holes, (void *)pid);
+	if (existing >= 0)
+		return 1;
+
+	if (holes->size >= (size_t)-1 / sizeof(void *))
+		return 0;
+	required = holes->size + 1;
+	List_preallocateToSize_(holes, required);
+	return List_hasValidStorage_(holes) &&
+		holes->items != NULL &&
+		required <= holes->memSize / sizeof(void *);
+}
+
 /* Compute a seek-safe byte offset for one fixed-width PID slot. */
 int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)
 {
@@ -61,6 +87,11 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	was_reserved = UDBIndex_hasReservation_(self, pid);
 	/* Never manufacture mappings or free PIDs from an arbitrary unmapped slot. */
 	if (pid != 0 && old_pos == 0 && !was_reserved)
+		return 0;
+
+	/* A failed free-list allocation must not leave a zero mapping in the log. */
+	if (pos == 0 && pid != 0 && (old_pos != 0 || was_reserved) &&
+		!UDBIndex_prepareReleaseHole_(self, pid))
 		return 0;
 
 	previous_file_pos = self->file->pos;

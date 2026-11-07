@@ -204,6 +204,12 @@ jobs:
                   "UDBIndex_removeHole_(self, pid);",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexMap.c": [
+                  "static int UDBIndex_prepareReleaseHole_(UDBIndex *self, PID_TYPE pid)",
+                  "!List_hasValidStorage_(holes)",
+                  "List_indexOf_(holes, (void *)pid)",
+                  "List_preallocateToSize_(holes, required)",
+                  "required <= holes->memSize / sizeof(void *)",
+                  "UDBIndex_prepareReleaseHole_(self, pid)",
                   "int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)",
                   "UDBIndex_offsetForPid_(pid, &offset)",
                   "sizeof(UDBIndexEntry) <= (size_t)LONG_MAX - *offset",
@@ -225,6 +231,9 @@ jobs:
                   "UDBIndex_setPos_forPid_(db->index, 1, (PID_TYPE)-1)",
                   "index accepted a record offset before the data header",
                   "failed PID release discarded its reservation",
+                  "long saved_log_pos = ftell(db->index->file->log);",
+                  "ftell(db->index->file->log) != saved_log_pos",
+                  "failed PID deletion changed its mapping or journal",
                   "overflow PID offset was accepted",
                   "UDBIndex_setPos_forPid_(db->index, 1, 2)",
                   "unreserved PID mapping changed index state",
@@ -3190,14 +3199,49 @@ jobs:
           ).read_text()
           if index_map_source.count("UDBIndex_offsetForPid_(") != 3:
               raise SystemExit("UDB PID-to-offset overflow validation is not centralized")
+          release_helper_start = index_map_source.find(
+              "static int UDBIndex_prepareReleaseHole_(UDBIndex *self, PID_TYPE pid)"
+          )
+          release_helper_end = index_map_source.find(
+              chr(10) + "int UDBIndex_offsetForPid_", release_helper_start
+          )
+          release_helper_body = (
+              index_map_source[release_helper_start:release_helper_end]
+              if release_helper_start >= 0 and release_helper_end > release_helper_start
+              else ""
+          )
+          release_storage_guard = release_helper_body.find("if (!List_hasValidStorage_(holes))")
+          release_lookup = release_helper_body.find("List_indexOf_(holes, (void *)pid)")
+          release_size_guard = release_helper_body.find("holes->size >= (size_t)-1 / sizeof(void *)")
+          release_size_add = release_helper_body.find("required = holes->size + 1;")
+          release_preallocate = release_helper_body.find("List_preallocateToSize_(holes, required)")
+          release_capacity_check = release_helper_body.find("required <= holes->memSize / sizeof(void *)")
+          if (
+              not release_helper_body or
+              min(release_storage_guard, release_lookup, release_size_guard, release_size_add,
+                  release_preallocate, release_capacity_check) < 0 or
+              not (release_storage_guard < release_lookup < release_size_guard < release_size_add <
+                   release_preallocate < release_capacity_check)
+          ):
+              raise SystemExit("PID release must validate and preallocate hole storage before mapping writes")
+
           mapping_owner_guard = index_map_source.find(
               "if (pid != 0 && old_pos == 0 && !was_reserved)"
+          )
+          mapping_body_start = index_map_source.find(
+              "int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)"
+          )
+          release_preflight = index_map_source.find(
+              "UDBIndex_prepareReleaseHole_(self, pid)", mapping_body_start
           )
           mapping_write = index_map_source.find(
               "JFile_fwrite(self->file, (unsigned char *)&entry,"
           )
-          if mapping_owner_guard < 0 or mapping_write < 0 or mapping_owner_guard > mapping_write:
-              raise SystemExit("UDB PID mappings must be owned by an existing mapping or active reservation before writes")
+          if (
+              mapping_owner_guard < 0 or mapping_write < 0 or mapping_owner_guard > mapping_write or
+              mapping_body_start < 0 or release_preflight < 0 or release_preflight > mapping_write
+          ):
+              raise SystemExit("UDB PID mappings must validate ownership and secure release capacity before writes")
 
           query_source = Path(
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBQuery.c"
