@@ -39,6 +39,8 @@ on:
       - "trunk/user/rc/src/services_stor.c"
       - "trunk/user/rc/src/samba_share_policy.h"
       - "trunk/user/rc/src/tests/samba_share_policy.c"
+      - "trunk/user/rc/src/ftp_share_policy.h"
+      - "trunk/user/rc/src/tests/ftp_share_policy.c"
       - "trunk/user/rc/src/net_wan.c"
       - "trunk/user/rc/src/rc.h"
       - "trunk/user/rc/src/dhcp_lease_policy.h"
@@ -98,6 +100,8 @@ on:
       - "trunk/user/rc/src/services_stor.c"
       - "trunk/user/rc/src/samba_share_policy.h"
       - "trunk/user/rc/src/tests/samba_share_policy.c"
+      - "trunk/user/rc/src/ftp_share_policy.h"
+      - "trunk/user/rc/src/tests/ftp_share_policy.c"
       - "trunk/user/rc/src/net_wan.c"
       - "trunk/user/rc/src/rc.h"
       - "trunk/user/rc/src/dhcp_lease_policy.h"
@@ -379,11 +383,39 @@ jobs:
             trunk/user/rc/src/tests/samba_share_policy.c \
             -o /tmp/samba_share_policy
           /tmp/samba_share_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/ftp_share_policy.c \
+            -o /tmp/ftp_share_policy
+          /tmp/ftp_share_policy
           python3 - <<'PY'
           from pathlib import Path
 
           source = Path("trunk/user/rc/src/services_stor.c").read_text()
+          ftp_policy = Path("trunk/user/rc/src/ftp_share_policy.h").read_text()
+          ftp_test = Path("trunk/user/rc/src/tests/ftp_share_policy.c").read_text()
+          accounts = Path("trunk/user/shared/src/shutils.c").read_text()
           assert '#include "samba_share_policy.h"' in source
+          assert '#include "ftp_share_policy.h"' in source
+
+          # Preserve supported UI modes; corrupted values must not fall
+          # through to anonymous-enabled FTP mode.
+          ftp_start = source.index("write_vsftpd_conf(void)")
+          ftp_end = source.index(chr(10) + "void" + chr(10) + "run_ftp", ftp_start)
+          ftp_config = source[ftp_start:ftp_end]
+          assert 'ftp_share_mode_normalize(nvram_get_int("st_ftp_mode"))' in ftp_config
+          assert 'fprintf(fp, "anonymous_enable=%s\\n", (i_ftp_mode == 2) ? "NO" : "YES");' in ftp_config
+          assert 'fprintf(fp, "nopriv_user=%s\\n", "nobody");' in ftp_config
+          assert 'fprintf(fp, "nopriv_user=%s\\n", "root");' not in ftp_config
+          assert "case 1:" in ftp_policy and "case 4:" in ftp_policy
+          assert "return 2;" in ftp_policy
+          assert "ftp_share_mode_normalize(INT_MIN) == 2" in ftp_test
+          assert "ftp_share_mode_normalize(INT_MAX) == 2" in ftp_test
+
+          # The selected non-root account exists in the firmware passwd
+          # database and is locked out of interactive login.
+          assert 'SYS_USER_NOBODY, 99, 99, "/media", "/bin/false"' in accounts
+          assert 'SYS_USER_NOBODY, "*", 16000' in accounts
 
           # Partition share output must follow path, section-name and comment guards.
           partition = source[source.index("if (i_smb_mode == 1) {"):

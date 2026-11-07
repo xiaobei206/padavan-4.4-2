@@ -38,6 +38,7 @@
 
 #include "rc.h"
 #include "samba_share_policy.h"
+#include "ftp_share_policy.h"
 #include "switch.h"
 
 void
@@ -117,7 +118,7 @@ write_vsftpd_conf(void)
 	fprintf(fp, "ssl_enable=%s\n", "NO");
 #endif
 
-	i_ftp_mode = nvram_get_int("st_ftp_mode");
+	i_ftp_mode = ftp_share_mode_normalize(nvram_get_int("st_ftp_mode"));
 	if (i_ftp_mode == 1 || i_ftp_mode == 3) {
 		fprintf(fp, "local_enable=%s\n", "NO");
 		fprintf(fp, "anonymous_enable=%s\n", "YES");
@@ -136,7 +137,8 @@ write_vsftpd_conf(void)
 	if (i_ftp_mode == 3 || i_ftp_mode == 4)
 		fprintf(fp, "anon_max_rate=%u\n", nvram_safe_get_int("st_ftp_anmr", 0, 0, 1000*10) * 1024);
 
-	fprintf(fp, "nopriv_user=%s\n", "root");
+	/* Do not run vsftpd unprivileged workers as root. */
+	fprintf(fp, "nopriv_user=%s\n", "nobody");
 	fprintf(fp, "write_enable=%s\n", "YES");
 	fprintf(fp, "chroot_local_user=%s\n", "YES");
 	fprintf(fp, "allow_writable_root=%s\n", "YES");
