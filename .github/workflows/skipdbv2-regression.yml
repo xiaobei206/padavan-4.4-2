@@ -4846,7 +4846,7 @@ jobs:
               if not body or helper_call < 0 or neutral_result < 0 or neutral_result < helper_call:
                   raise SystemExit("Date component accessor must handle invalid receivers/localtime results: " + signature)
           calendar_helper_start = date_source.find("static int Date_calendarToTime_(struct tm *calendar, time_t *timestamp)")
-          calendar_helper_end = date_source.find("\\nDate *Date_new(", calendar_helper_start)
+          calendar_helper_end = date_source.find("\nDate *Date_new(", calendar_helper_start)
           calendar_helper = (
               date_source[calendar_helper_start:calendar_helper_end]
               if calendar_helper_start >= 0 and calendar_helper_end > calendar_helper_start

@@ -1,3 +1,11 @@
+## 2026-11-07 11:38 CST — Correct Date helper source-contract boundary
+
+- Baseline: main commit `32938d6d2f9c6e41aba802d74f8b916cc2499e67`; run #510 confirmed the preceding Date setter contract mismatch.
+- The new helper contract searched for a literal backslash-plus-`n` instead of the newline preceding `Date_new`, leaving its source slice empty. Correct the delimiter so CI checks the actual helper body and its error/commit ordering.
+- No C implementation, test, CMake, or file-path changes.
+
+---
+
 ## 2026-11-07 11:35 CST — Align Date setter contract with copy-first calendar conversion
 
 - Baseline: main commit `6b41c8ecec634e21d62aca0f03dcf6e1001e15fa`; SkipDBv2 Regression run #510 failed in the Actions source-contract step.
