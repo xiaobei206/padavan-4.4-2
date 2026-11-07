@@ -17,7 +17,7 @@ firewall_ipv4_address_is_safe(const char *value)
 static int
 firewall_ppp_interface_is_safe(const char *value, unsigned int min_unit)
 {
- 	const unsigned char *p;
+	const unsigned char *p;
 	size_t len;
 	unsigned int unit = 0;
 
