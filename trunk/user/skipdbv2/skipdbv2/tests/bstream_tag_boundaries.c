@@ -839,6 +839,34 @@ static int testBStreamReadNumberAliasing(void)
         return fail("BStream latched read error modified aliased stream storage");
     }
 
+    /* Invalid item widths must not let the error path zero aliased stream bytes. */
+    stream->ba->itemSize = 2;
+    UArray_setSize_(stream->errorBa, 0);
+    BStream_readNumber_size_(stream, stream->ba->data + 1, 2);
+    stream->ba->itemSize = 1;
+    error = BStream_errorString(stream);
+    if (NULL == error ||
+        strcmp(error, "binary stream read destination overlaps stream storage") != 0 ||
+        stream->index != 0 ||
+        memcmp(stream->ba->data, original, sizeof(original)) != 0) {
+        BStream_free(stream);
+        return fail("BStream malformed-layout alias read modified stream backing storage");
+    }
+
+    /* An unknown extent (zero item width) must conservatively block destination writes. */
+    stream->ba->itemSize = 0;
+    UArray_setSize_(stream->errorBa, 0);
+    BStream_readNumber_size_(stream, stream->ba->data + 1, 2);
+    stream->ba->itemSize = 1;
+    error = BStream_errorString(stream);
+    if (NULL == error ||
+        strcmp(error, "binary stream read destination overlaps stream storage") != 0 ||
+        stream->index != 0 ||
+        memcmp(stream->ba->data, original, sizeof(original)) != 0) {
+        BStream_free(stream);
+        return fail("BStream malformed-layout alias read modified stream backing storage");
+    }
+
     BStream_free(stream);
     return EXIT_SUCCESS;
 }

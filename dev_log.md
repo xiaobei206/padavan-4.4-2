@@ -1,3 +1,13 @@
+## 2026-11-07 19:19 CST — Guard BStream read aliases on malformed metadata
+
+- Baseline: `8181b9ded7a74a45ba70726a611981db68d3c0b4`; SkipDBv2 Regression run #643 passed integration/source contracts, full build, and all 57 CTests.
+- Scope: `BStream_sourceOverlapsStream_()` and `BStream_readNumber_size_()`.
+- The overlap guard ran only after checking that the stream item width was one byte. If `itemSize` was corrupted, the invalid-stream path could zero the caller's output buffer even when it pointed inside the stream's own allocation, corrupting input bytes.
+- Check known/possible aliases before any error path writes to the destination; calculate byte extents with overflow guards and conservatively reject output writes when malformed metadata leaves no reliable extent. Extend the existing regression for item widths 2 and 0, checking the cursor and backing bytes stay unchanged.
+- Update only existing C, test, workflow, and handoff-log files. No new files or CMake targets; no local build/CTest result is claimed.
+
+---
+
 ## 2026-11-07 19:16 CST — Fix PID-preview workflow contract indentation
 
 - Failing head: `e0c680468fb4623067844b069ef469842b9c4633`; Actions run #642 stopped before compilation with a Python `IndentationError` in the newly added PID-preview source-order check.

@@ -185,15 +185,17 @@ static int BStream_sourceOverlapsStream_(const UArray *streamArray,
     uintptr_t streamStart, sourceStart;
 
     if (NULL == streamArray || NULL == source || length == 0 ||
-        NULL == streamArray->data || streamArray->itemSize != 1 ||
-        streamArray->size == (size_t)-1)
+        NULL == streamArray->data || streamArray->itemSize == 0 ||
+        streamArray->size > (size_t)-1 / streamArray->itemSize)
         return 0;
 
-    streamBytes = streamArray->size;
+    streamBytes = streamArray->size * streamArray->itemSize;
+    if (streamBytes == (size_t)-1)
+        return 0;
     streamStart = (uintptr_t)streamArray->data;
     sourceStart = (uintptr_t)source;
 
-    /* Include the trailing NUL: a later append may reallocate the buffer. */
+    /* Include the trailing NUL for byte streams: a later append may reallocate. */
     if (sourceStart >= streamStart)
         return sourceStart - streamStart <= streamBytes;
     return streamStart - sourceStart < length;
@@ -440,15 +442,21 @@ void BStream_readNumber_size_(BStream *self, unsigned char *v, int size)
 	const uint8_t *b;
 	if (NULL == v || size < 0)
 		return;
+	/* Check aliases before any malformed-stream or latched-error path can zero v. */
+	if (size > 0 && NULL != self && NULL != self->ba &&
+		NULL != self->ba->data &&
+		(self->ba->itemSize == 0 ||
+		 self->ba->size > (size_t)-1 / self->ba->itemSize ||
+		 self->ba->size * self->ba->itemSize == (size_t)-1 ||
+		 BStream_sourceOverlapsStream_(self->ba, v, (size_t)size))) {
+		if (NULL != self->errorBa && UArray_size(self->errorBa) == 0)
+			BStream_error_(self, "binary stream read destination overlaps stream storage");
+		return;
+	}
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		self->ba->itemSize != 1) {
 		BStream_error_(self, "invalid binary stream read");
 		memset(v, 0, (size_t)size);
-		return;
-	}
-	if (size > 0 && BStream_sourceOverlapsStream_(self->ba, v, (size_t)size)) {
-		if (UArray_size(self->errorBa) == 0)
-			BStream_error_(self, "binary stream read destination overlaps stream storage");
 		return;
 	}
 	if (UArray_size(self->errorBa) != 0) {
