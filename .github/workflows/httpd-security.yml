@@ -534,7 +534,8 @@ jobs:
           assert "if (!firewall_ipv4_address_is_safe(dstip))" in firewall[vts_nat_start:]
           assert "if (!firewall_ipv4_address_is_safe(wan_ip))" in firewall
           assert "if (!firewall_ipv4_address_is_safe(man_ip))" in firewall
-          assert "if (!firewall_ipv4_address_is_safe(dmz_ip))" in firewall
+          assert "if (firewall_ipv4_address_is_safe(dmz_ip))" in firewall
+          assert "is_use_dmz = (firewall_ipv4_address_is_safe(dmz_ip)) ? 1 : 0;" in firewall
           print("Firewall strict IPv4 restore-token validation and LAN fallback: OK")
           # VPN leases are root-managed policy input in shared /tmp. Require a
           # private, no-follow file and exact PPP interface tokens before rules.
