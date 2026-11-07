@@ -204,15 +204,55 @@ static size_t UArray_expectedNumberItemSize_(CTYPE itemType)
 	}
 }
 
+
+#define UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(name, type) \
+	typedef struct { char leadingByte; type value; } name
+
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberUInt8AlignmentProbe, uint8_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberInt8AlignmentProbe, int8_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberUInt16AlignmentProbe, uint16_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberInt16AlignmentProbe, int16_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberUInt32AlignmentProbe, uint32_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberInt32AlignmentProbe, int32_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberUInt64AlignmentProbe, uint64_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberInt64AlignmentProbe, int64_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberFloat32AlignmentProbe, float32_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberFloat64AlignmentProbe, float64_t);
+UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_(UArrayNumberUintptrAlignmentProbe, uintptr_t);
+
+#undef UARRAY_NUMBER_DECLARE_ALIGNMENT_PROBE_
+
+static size_t UArray_expectedNumberItemAlignment_(CTYPE itemType)
+{
+	switch (itemType) {
+		case CTYPE_uint8_t: return offsetof(UArrayNumberUInt8AlignmentProbe, value);
+		case CTYPE_int8_t: return offsetof(UArrayNumberInt8AlignmentProbe, value);
+		case CTYPE_uint16_t: return offsetof(UArrayNumberUInt16AlignmentProbe, value);
+		case CTYPE_int16_t: return offsetof(UArrayNumberInt16AlignmentProbe, value);
+		case CTYPE_uint32_t: return offsetof(UArrayNumberUInt32AlignmentProbe, value);
+		case CTYPE_int32_t: return offsetof(UArrayNumberInt32AlignmentProbe, value);
+		case CTYPE_uint64_t: return offsetof(UArrayNumberUInt64AlignmentProbe, value);
+		case CTYPE_int64_t: return offsetof(UArrayNumberInt64AlignmentProbe, value);
+		case CTYPE_float32_t: return offsetof(UArrayNumberFloat32AlignmentProbe, value);
+		case CTYPE_float64_t: return offsetof(UArrayNumberFloat64AlignmentProbe, value);
+		case CTYPE_uintptr_t: return offsetof(UArrayNumberUintptrAlignmentProbe, value);
+		default: return 0;
+	}
+}
+
 static int UArray_hasValidNumberArrayLayout_(const UArray *self)
 {
-	size_t expectedItemSize;
+	size_t expectedItemSize, expectedItemAlignment;
 	if (NULL == self)
 		return 0;
 	expectedItemSize = UArray_expectedNumberItemSize_(self->itemType);
-	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+	expectedItemAlignment = UArray_expectedNumberItemAlignment_(self->itemType);
+	if (expectedItemSize == 0 || expectedItemAlignment == 0 ||
+		self->itemSize != expectedItemSize ||
 		self->size > (size_t)-1 / expectedItemSize ||
-		(self->size > 0 && NULL == self->data))
+		(self->size > 0 && NULL == self->data) ||
+		(self->data &&
+			((uintptr_t)self->data % expectedItemAlignment) != 0))
 		return 0;
 	return 1;
 }

@@ -165,6 +165,42 @@ static int rejects_misaligned_unicode_storage(void)
     return 1;
 }
 
+
+static int rejects_misaligned_numeric_array_storage(void)
+{
+	union {
+		uint64_t alignment;
+		unsigned char bytes[sizeof(uint64_t) + 1];
+	} storage;
+	uint64_t value = UINT64_C(0x123456789abcdef0);
+	UArray malformed;
+	UArray *converted;
+
+	memset(storage.bytes, 0, sizeof(storage.bytes));
+	memcpy(storage.bytes + 1, &value, sizeof(value));
+	malformed = UArray_stackAllocedWithData_type_size_(
+		storage.bytes + 1, CTYPE_uint64_t, 1);
+	malformed.encoding = CENCODING_NUMBER;
+
+	converted = UArray_asUTF8(&malformed);
+	if (converted) {
+		UArray_free(converted);
+		return 0;
+	}
+	converted = UArray_asUTF16(&malformed);
+	if (converted) {
+		UArray_free(converted);
+		return 0;
+	}
+	converted = UArray_asUTF32(&malformed);
+	if (converted) {
+		UArray_free(converted);
+		return 0;
+	}
+	return memcmp(storage.bytes + 1, &value, sizeof(value)) == 0;
+}
+
+
 int main(void)
 {
 	static const unsigned char ascii_bytes[] = {0x41, 0x42};
@@ -318,6 +354,10 @@ int main(void)
 			fprintf(stderr, "UArray multibyte detection accepted a wide item type over byte storage\n");
 			goto done;
 		}
+	}
+	if (!rejects_misaligned_numeric_array_storage()) {
+		fprintf(stderr, "UArray numeric conversion accepted misaligned source storage\\n");
+		goto done;
 	}
 	if (!rejects_misaligned_unicode_storage()) {
 		fprintf(stderr, "UArray accepted misaligned UTF-16/UTF-32 source storage\\n");

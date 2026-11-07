@@ -1,3 +1,14 @@
+## 2026-11-07 14:06 CST — Reject misaligned numeric UArray conversion sources
+
+- Baseline: `b2bbd1ff47146eec03713ac249a1ec8ab9fd8aee`; SkipDBv2 Regression run #554 passed after the typed string-storage alignment change.
+- Scope: numeric-array conversion validation in `basekit/UArray_utf.c`.
+- The number-array formatter uses typed iteration after checking CTYPE width and allocation bounds, but previously accepted unaligned borrowed storage. Since numeric UArrays are converted through this path by all UTF output conversions, misaligned numeric data could trigger undefined typed reads.
+- Added per-CTYPE alignment probes to the existing numeric-layout validator and extended `uarray_encoding_conversion_test` with a misaligned uint64-backed numeric source. UTF-8/16/32 conversion entry points must now reject it without modifying the borrowed bytes.
+- Updated existing Actions source contracts. CMake registration and source lists are unchanged; no new files, exported symbols, or unrelated modules.
+- Validation: static review confirms numeric formatting validates before `UARRAY_INTFOREACH`; remote CI is the build/CTest gate, with no local build claimed.
+
+---
+
 ## 2026-11-07 14:00 CST — Reject misaligned typed UArray string storage
 
 - Baseline: `c7771fb5b3cba1afb8ea2ff38d36b37362392784`; preceding Unicode alignment commit passed SkipDBv2 Regression run #553, including configure, all targets, and CTest.
