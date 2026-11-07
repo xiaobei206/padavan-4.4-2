@@ -12,10 +12,12 @@ int skipdb_ipc_parse_envelope(char *body, size_t body_len,
     size_t key_len;
     size_t key_offset;
 
-    if (NULL == body || NULL == frame || body_len == 0)
+    if (NULL == frame)
         return -4;
 
     memset(frame, 0, sizeof(*frame));
+    if (NULL == body || body_len == 0)
+        return -4;
     command_end = (char *)memchr(body, ' ', body_len);
     if (NULL == command_end || command_end == body)
         return -4;

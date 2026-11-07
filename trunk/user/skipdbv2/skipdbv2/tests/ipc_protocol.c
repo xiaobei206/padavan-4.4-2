@@ -3,6 +3,50 @@
 #include <stdio.h>
 #include <string.h>
 
+static int frame_is_empty(const skipdb_ipc_frame_view *frame)
+{
+    return frame &&
+        frame->command == NULL && frame->command_len == 0 &&
+        frame->key == NULL && frame->key_len == 0 &&
+        frame->payload == NULL && frame->payload_len == 0;
+}
+
+static int test_invalid_inputs_clear_frame(void)
+{
+    char marker[] = "marker";
+    skipdb_ipc_frame_view frame;
+
+    frame.command = marker;
+    frame.command_len = 6;
+    frame.key = marker;
+    frame.key_len = 5;
+    frame.payload = marker;
+    frame.payload_len = 4;
+    if (skipdb_ipc_parse_envelope(NULL, 0, &frame) != -4 ||
+        !frame_is_empty(&frame)) {
+        fprintf(stderr, "ipc envelope did not clear output after invalid null-body input\\n");
+        return -1;
+    }
+
+    frame.command = marker;
+    frame.command_len = 6;
+    frame.key = marker;
+    frame.key_len = 5;
+    frame.payload = marker;
+    frame.payload_len = 4;
+    if (skipdb_ipc_parse_envelope(marker, 0, &frame) != -4 ||
+        !frame_is_empty(&frame)) {
+        fprintf(stderr, "ipc envelope did not clear output after invalid empty-body input\\n");
+        return -1;
+    }
+
+    if (skipdb_ipc_parse_envelope(NULL, 0, NULL) != -4) {
+        fprintf(stderr, "ipc envelope accepted a null output frame\\n");
+        return -1;
+    }
+    return 0;
+}
+
 static int expect_invalid(char *body, size_t body_len, const char *label)
 {
     skipdb_ipc_frame_view frame;
@@ -54,6 +98,9 @@ int main(void)
         fprintf(stderr, "ipc envelope terminal marker was not split\n");
         return 1;
     }
+
+    if (test_invalid_inputs_clear_frame() != 0)
+        return 1;
 
     if (expect_invalid(no_separator, sizeof(no_separator) - 1,
             "missing command separator") != 0 ||

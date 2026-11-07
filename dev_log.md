@@ -1,3 +1,13 @@
+## 2026-11-07 09:16 CST — Clear IPC envelope views on invalid input
+
+- Baseline: main commit `27ec1a6a99d3b91adcc5ed9bad1e7dc50f30e789`; SkipDBv2 Regression run #479 passed.
+- Scope: `skipdb_ipc_parse_envelope()` in `mgr/ipc_protocol.c`.
+- The parser returned immediately for a null body or zero-length frame before clearing a non-null output structure. Callers that reused a frame view could retain pointers and lengths from a prior successful parse after a failed parse.
+- Reject a null output pointer first, clear valid output storage next, and only then reject null/empty input. Add regression coverage for both invalid-input paths and update the Actions source contract to enforce the guard order. The existing CMake/CTest registration remains unchanged.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 09:12 CST — Track realloc growth in allocator high-water accounting
 
 - Baseline: main commit `f0cb6e3992ac99efff7d320aeeaba990750e7b46`; SkipDBv2 Regression run #478 passed.
