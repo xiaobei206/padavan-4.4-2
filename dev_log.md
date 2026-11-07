@@ -1,3 +1,13 @@
+## 2026-11-07 19:01 CST — Reject PID-map writes on invalid index extents
+
+- Baseline: `83f9a595ed8841cb9e43f93293330f723622e42e`; SkipDBv2 Regression run #632 passed the integration contracts, full build, and all 57 CTests.
+- Scope: `UDBIndex_setPos_forPid_()` in `UDBIndexMap.c`.
+- The mapping writer validated the PID offset and reservation state but not the current index-file extent. PID 0 / position 0 could therefore journal a write even when the index extent was negative or ended in a partial fixed-width entry, bypassing the startup alignment check.
+- Reject negative and misaligned extents before reading mappings or writing to the journal. Preserve the valid empty index initialization path (`maxPos == 0`).
+- Extend the existing `udb_index_layers_test` to assert both invalid extents leave journal length and cursor state unchanged; strengthen workflow source-order and regression contracts. No new files or CMake changes; no local build is claimed.
+
+---
+
 ## 2026-11-07 18:59 CST — Reject misaligned PHash backing storage
 
 - Baseline: `638680f1bd5268a9e24448aadc90d33842707d53`; SkipDBv2 Regression run #632 passed the integration contracts, full build, and all 57 CTests.

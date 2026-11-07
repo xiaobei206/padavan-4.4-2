@@ -83,7 +83,8 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 	size_t offset;
 	int was_reserved = 0;
 
-	if (!UDBIndex_hasStreams_(self) ||
+	if (!UDBIndex_hasStreams_(self) || self->file->maxPos < 0 ||
+		self->file->maxPos % (long)sizeof(UDBIndexEntry) != 0 ||
 		!UDBIndex_offsetForPid_(pid, &offset) ||
 		pos > (PID_TYPE)LONG_MAX ||
 		(pos != 0 && pos < (PID_TYPE)sizeof(PID_TYPE)) ||

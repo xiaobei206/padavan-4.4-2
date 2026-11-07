@@ -41,7 +41,7 @@ int main(void)
     /* Counting fixed-width PID slots must preserve logical cursor state. */
     {
         JFile *index_file = db->index->file;
-        long saved_pos, saved_max, result_count;
+        long saved_pos, saved_max, result_count, saved_log_pos;
 
         JFile_setPosition_(index_file, 0);
         saved_pos = index_file->pos;
@@ -61,6 +61,31 @@ int main(void)
             index_file->pos = saved_pos;
             index_file->maxPos = saved_max;
             fprintf(stderr, "invalid PID count query changed index cursor state\\n");
+            goto done;
+        }
+
+        /* Mapping writes must reject corrupt extents before logging bytes. */
+        index_file->maxPos = -1;
+        saved_log_pos = ftell(index_file->log);
+        if (saved_log_pos < 0 ||
+            UDBIndex_setPos_forPid_(db->index, 0, 0) != 0 ||
+            ftell(index_file->log) != saved_log_pos ||
+            index_file->pos != saved_pos || index_file->maxPos != -1) {
+            index_file->pos = saved_pos;
+            index_file->maxPos = saved_max;
+            fprintf(stderr, "UDBIndex_setPos_forPid_ accepted a negative extent\\n");
+            goto done;
+        }
+
+        index_file->maxPos = saved_max + 1;
+        saved_log_pos = ftell(index_file->log);
+        if (saved_log_pos < 0 ||
+            UDBIndex_setPos_forPid_(db->index, 0, 0) != 0 ||
+            ftell(index_file->log) != saved_log_pos ||
+            index_file->pos != saved_pos || index_file->maxPos != saved_max + 1) {
+            index_file->pos = saved_pos;
+            index_file->maxPos = saved_max;
+            fprintf(stderr, "UDBIndex_setPos_forPid_ accepted a misaligned extent\\n");
             goto done;
         }
         index_file->pos = saved_pos;

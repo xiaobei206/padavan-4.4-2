@@ -226,6 +226,7 @@ jobs:
                   "NULL == self->file->file",
                   "int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)",
                   "pos != 0 && pos < (PID_TYPE)sizeof(PID_TYPE)",
+                  "self->file->maxPos % (long)sizeof(UDBIndexEntry) != 0",
                   "if (pid != 0 && old_pos == 0 && !was_reserved)",
                   "UDBIndex_releasePid_(self, pid)",
                   "UDBIndex_forgetPid_(self, pid)",
@@ -236,6 +237,9 @@ jobs:
                   "Counting fixed-width PID slots must preserve logical cursor state.",
                   "PID count query changed the index cursor",
                   "invalid PID count query changed index cursor state",
+                   "UDBIndex_setPos_forPid_(db->index, 0, 0)",
+                   "UDBIndex_setPos_forPid_ accepted a negative extent",
+                   "UDBIndex_setPos_forPid_ accepted a misaligned extent",
                   "index_file->maxPos = saved_max + 1",
                   "max_seekable_pid =",
                   "UDBIndex_nextPid(db->index)",
@@ -3464,6 +3468,12 @@ jobs:
           mapping_body_start = index_map_source.find(
               "int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)"
           )
+          mapping_extent_guard = index_map_source.find(
+              "self->file->maxPos < 0", mapping_body_start
+          )
+          mapping_alignment_guard = index_map_source.find(
+              "self->file->maxPos % (long)sizeof(UDBIndexEntry) != 0", mapping_body_start
+          )
           release_preflight = index_map_source.find(
               "UDBIndex_prepareReleaseHole_(self, pid)", mapping_body_start
           )
@@ -3472,7 +3482,10 @@ jobs:
           )
           if (
               mapping_owner_guard < 0 or mapping_write < 0 or mapping_owner_guard > mapping_write or
-              mapping_body_start < 0 or release_preflight < 0 or release_preflight > mapping_write
+              mapping_body_start < 0 or release_preflight < 0 or release_preflight > mapping_write or
+              mapping_extent_guard < mapping_body_start or
+              mapping_alignment_guard < mapping_body_start or
+              mapping_extent_guard > mapping_write or mapping_alignment_guard > mapping_write
           ):
               raise SystemExit("UDB PID mappings must validate ownership and secure release capacity before writes")
 
