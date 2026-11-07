@@ -1,3 +1,12 @@
+## 2026-11-07 13:52 CST — Repair List alignment regression test dependency
+
+- Baseline: main commit `181bc9b8f98fdc07dbf961b9bf391249fa24498b`; SkipDBv2 Regression run #551 failed in the XY-C1 source-contract stage before CMake configure/build/CTest.
+- The existing `list_storage_bounds.c` regression uses `uintptr_t` to construct a deliberately misaligned List view, but the test omitted its direct `<stdint.h>` include. The workflow correctly requires the test to declare that dependency itself.
+- Added the missing standard header to the existing test. No production logic, new files, CMake registration, or workflow contracts changed.
+- Validation: verified the failing contract's missing token against the test source and confirmed the implementation-side `List_inline.h` already includes `<stdint.h>` for its own `uintptr_t` use. Remote CI remains the compiler/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 13:47 CST — Reject misaligned List backing storage
 
 - Baseline: main commit `8ffeb9ce6e50096f55e9918b0c968c57ce994d02`; SkipDBv2 Regression run #550 passed the source contracts, configure, full build, and all CTest regressions.
