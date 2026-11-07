@@ -21,6 +21,7 @@ static int UArray_streamHasValidLayout_(const UArray *self)
 	expectedItemSize = CTYPE_size(self->itemType);
 	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
 		self->size > (size_t)-1 / expectedItemSize ||
+		self->size * expectedItemSize == (size_t)-1 ||
 		(self->size > 0 && NULL == self->data))
 		return 0;
 	return 1;

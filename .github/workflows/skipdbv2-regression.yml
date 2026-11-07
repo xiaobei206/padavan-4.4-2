@@ -2292,6 +2292,7 @@ jobs:
                   "uarray character ctype test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c": [
+                  "self->size * expectedItemSize == (size_t)-1",
                   "extern size_t CTYPE_size(CTYPE type);",
                   "static int UArray_streamHasValidLayout_(const UArray *self)",
                   "size_t originalSize;",
@@ -2321,6 +2322,10 @@ jobs:
                   "itemsRead > (size_t)-1 / self->itemSize - oldSize",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stream_io.c": [
+                  "static int testRejectsUnrepresentableBufferExtent(void)",
+                  "UArray_fread_ accepted a SIZE_MAX byte extent or attempted I/O",
+                  "UArray stream readers consumed input for a SIZE_MAX byte extent",
+                  "UArray_fwrite_ exposed data from a SIZE_MAX byte extent",
                   "static int testFreadInvalidatesCachedHashOnFullOverwrite(void)",
                   "UArray_fread_ retained a stale hash after a same-size full overwrite",
                   "UArray direct fread did not invalidate its cached hash",

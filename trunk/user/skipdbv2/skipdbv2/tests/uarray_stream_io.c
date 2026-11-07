@@ -63,6 +63,47 @@ static int lineEquals(UArray *line, FILE *stream,
 		(expectedSize == 0 || memcmp(line->data, expected, expectedSize) == 0);
 }
 
+
+typedef struct {
+    size_t readCalls;
+    size_t writeCalls;
+} IoCallCounter;
+
+static ssize_t countOnlyRead(void *opaque, char *buffer, size_t size)
+{
+    IoCallCounter *counter = (IoCallCounter *)opaque;
+    (void)buffer;
+    (void)size;
+    counter->readCalls++;
+    return 0;
+}
+
+static ssize_t countOnlyWrite(void *opaque, const char *buffer, size_t size)
+{
+    IoCallCounter *counter = (IoCallCounter *)opaque;
+    (void)buffer;
+    counter->writeCalls++;
+    return (ssize_t)size;
+}
+
+static FILE *openCountingStream(IoCallCounter *counter, int writing)
+{
+    cookie_io_functions_t functions;
+    FILE *stream;
+
+    memset(&functions, 0, sizeof(functions));
+    if (writing)
+        functions.write = countOnlyWrite;
+    else
+        functions.read = countOnlyRead;
+    stream = fopencookie(counter, writing ? "w" : "r", functions);
+    if (stream && setvbuf(stream, NULL, _IONBF, 0) != 0) {
+        fclose(stream);
+        return NULL;
+    }
+    return stream;
+}
+
 static int testLineBoundaries(void)
 {
 	static const uint8_t input[] =
@@ -205,6 +246,74 @@ done:
 		fclose(stream);
 	UArray_free(array);
 	return ok;
+}
+
+
+
+static int testRejectsUnrepresentableBufferExtent(void)
+{
+    UArray *array = newByteArray();
+    IoCallCounter readCounter = {0, 0};
+    IoCallCounter writeCounter = {0, 0};
+    FILE *readStream = NULL;
+    FILE *writeStream = NULL;
+    uint8_t *originalData = NULL;
+    size_t originalSize = 0;
+    int okay = 0;
+
+    if (NULL == array)
+        goto done;
+    UArray_setSize_(array, 1);
+    if (array->size != 1 || NULL == array->data)
+        goto done;
+    originalData = array->data;
+    originalSize = array->size;
+    array->data[0] = 'x';
+
+    /*
+     * UArray reserves one byte beyond its logical extent for the trailing
+     * NUL. A byte count of SIZE_MAX cannot satisfy that storage invariant.
+     * Keep the real allocation small and make the I/O callbacks non-reading
+     * / non-writing so this regression never touches beyond it.
+     */
+    array->size = (size_t)-1;
+    readStream = openCountingStream(&readCounter, 0);
+    writeStream = openCountingStream(&writeCounter, 1);
+    if (NULL == readStream || NULL == writeStream)
+        goto done;
+
+    if (UArray_fread_(array, readStream) != 0 ||
+        readCounter.readCalls != 0 ||
+        array->size != (size_t)-1 || array->data != originalData) {
+        fprintf(stderr, "UArray_fread_ accepted a SIZE_MAX byte extent or attempted I/O\\n");
+        goto done;
+    }
+    if (UArray_readFromCStream_(array, readStream) != -1 ||
+        UArray_readLineFromCStream_(array, readStream) != -1 ||
+        readCounter.readCalls != 0 ||
+        array->size != (size_t)-1 || array->data != originalData) {
+        fprintf(stderr, "UArray stream readers consumed input for a SIZE_MAX byte extent\\n");
+        goto done;
+    }
+    if (UArray_fwrite_(array, 1, writeStream) != 0 ||
+        writeCounter.writeCalls != 0 ||
+        array->size != (size_t)-1 || array->data != originalData) {
+        fprintf(stderr, "UArray_fwrite_ exposed data from a SIZE_MAX byte extent\\n");
+        goto done;
+    }
+    okay = 1;
+
+done:
+    if (array && originalData) {
+        array->data = originalData;
+        array->size = originalSize;
+    }
+    if (readStream)
+        fclose(readStream);
+    if (writeStream)
+        fclose(writeStream);
+    UArray_free(array);
+    return okay;
 }
 
 
@@ -592,6 +701,10 @@ int main(void)
 		fprintf(stderr, "UArray direct fread did not invalidate its cached hash\\n");
 		return EXIT_FAILURE;
 	}
+    if (!testRejectsUnrepresentableBufferExtent()) {
+        fprintf(stderr, "UArray stream unrepresentable-extent regression failed\\n");
+        return EXIT_FAILURE;
+    }
 	if (!testMismatchedItemWidthRejected()) {
 		fprintf(stderr, "UArray stream I/O accepted inconsistent CTYPE/itemSize metadata\n");
 		return EXIT_FAILURE;

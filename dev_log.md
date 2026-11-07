@@ -1,3 +1,14 @@
+## 2026-11-07 14:36 CST — Reject the unrepresentable SIZE_MAX UArray stream extent
+
+- Baseline: `b8bbfbc937a4d81f7ffdbab1f02852fbe33cbfd3`; BStream expected-tag validation passed SkipDBv2 Regression run #563.
+- Scope: the shared UArray stream layout preflight in `basekit/UArray_stream.c`.
+- UArray storage reserves one extra byte for its trailing NUL, and core allocation paths reject a logical byte extent equal to `SIZE_MAX`. The stream validator rejected multiplication overflow but admitted the exact `SIZE_MAX` result for one-byte items. Direct fread/fwrite could then trust impossible public-struct metadata and issue I/O against an allocation that cannot represent that extent.
+- The validator now rejects the sentinel extent after its overflow guard. Extended the existing stream I/O regression with a deliberately forged SIZE_MAX byte-array extent and non-reading/non-writing cookie callbacks; all direct and buffered readers plus direct fwrite must reject it without invoking I/O or mutating the array.
+- Updated existing Actions source contracts. The stream test is already registered in CMake; no build-file changes, new files, or exported symbols.
+- Validation: the byte-count multiplication is evaluated only after the preceding division bound proves it cannot overflow. Remote CI remains the compile/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:33 CST — Validate expected BStream tag fields before reading
 
 - Baseline: `f745eb4ace0b51178bd26179effb94d090ce0421`; DynLib callback-reentrancy fixture passed the full SkipDBv2 Regression run #562.
