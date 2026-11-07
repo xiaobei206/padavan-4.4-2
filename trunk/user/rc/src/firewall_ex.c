@@ -257,9 +257,9 @@ timematch_conv(char *mstr, const char *nv_date, const char *nv_time)
 
 	mstr[0] = 0;
 
-/* Invalid or disabled schedules must never become unqualified all-time rules. */
-if (!firewall_schedule_is_active(date, time))
-	return 0;
+	/* Invalid or disabled schedules must never become unqualified all-time rules. */
+	if (!firewall_schedule_is_active(date, time))
+		return 0;
 
 	strncpy(time_s, time+0, 4);
 	strncpy(time_e, time+4, 4);
