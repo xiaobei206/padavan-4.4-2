@@ -1,3 +1,21 @@
+## 2026-11-08 04:51 CST — Validate root extension hooks before firewall dispatch
+
+### Baseline and CI
+- Work resumed from the firewall restore/hook trust-boundary handoff. The production dispatch change was committed in `1010cef088825972272039103fc7ccafa7467ade`; interpreter/execute-mode compatibility was refined in `6a0a196b0ec7423b6c3108f102c6e809f74892d4`. The source-contract check was corrected in `e934796333ccf184b1bc3e0c1479abc065fb5bff` and finalized in `dd9326876226ebf7948710a66a38ee883d5fb576`.
+- Exact-head GitHub Actions run [`42412978452`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42412978452), head SHA `dd9326876226ebf7948710a66a38ee883d5fb576`, completed SUCCESS. Job `128524878720` completed every step successfully.
+- Intermediate runs `42412856071` (head `6a0a196b0ec7423b6c3108f102c6e809f74892d4`) and `42412921372` (head `e934796333ccf184b1bc3e0c1479abc065fb5bff`) failed in the command-status source-contract step: assertions expected old direct hook paths, then an over-escaped whitespace regex. The production/helper host test and preceding workflow steps passed; the final contract now checks multiline hook labels and staged-command fragments separately. Only the final exact-head PASS is authoritative.
+  
+### Finding and implementation
+- The persistent `/etc/storage/post_iptables_script.sh` and externally managed `/opt/bin/update_iptables.sh` were root-dispatched after checking path existence, without independently validating the opened inode. The first hook is stored as an admin extension through the trusted HTTPD script writer; the second is on the mounted Optware storage tree. These are privileged extension points, not evidence of a proven unauthenticated exploit.
+- Updated `trunk/user/rc/src/firewall_ex.c` to apply the existing `firewall_hook_file_stage()` trust gate to both paths. The helper is now included unconditionally instead of only under `APP_SHADOWSOCKS`. On a staging failure other than missing-file `ENOENT`, the firewall logs the failure and does not execute the source path.
+- `trunk/user/rc/src/firewall_hook_file.h` opens the source with `O_NOFOLLOW | O_NONBLOCK`, validates the descriptor via `fstat` (regular file, effective-UID ownership, single link, no group/other write bits and size at most 1 MiB), checks the root-private directory, and copies from that descriptor to a unique staged file under `/home/root`. Execution uses the staged path and cleanup follows the command. The snapshot mode is `0600` for non-executable source and `0700` if the owner-execute bit is present; group/other permissions are never copied, and the original shebang/interpreter and Optware `update` argument remain supported.
+- Expanded `trunk/user/rc/src/tests/firewall_hook_file.c` for group-write, other-write, FIFO and owner-executable staging behavior. Updated `.github/workflows/httpd-security.yml` to check the new dispatch contract without line-wrapping dependencies.
+
+### Validation and limits
+- Exact-head workflow PASS includes host C regressions built with `cc -std=gnu89 -Wall -Wextra -Werror`, helper execution tests, shell snapshot and AP migration regression, source contracts and HTTPD auth/route-access checks.
+- L1 static review PASS; L2 focused host regression PASS. The workflow does not compile production `firewall_ex.c` into the firmware. Production RC/MIPS compilation, firmware image generation/validation, actual iptables restore, and router/hardware testing are NOT RUN.
+- Still open: persistent multi-table restore failures are logged but not rolled back; investigate safe partial-failure/rollback semantics and compare IPv6 rule semantics. Whole-userland inventory remains IN PROGRESS, with DNS/DHCP and broader WAN/PPP/service lifecycle audits outstanding. SkipDBv2-only checkpoint changes were compared but not merged.
+
 ## 2026-11-08 04:42 CST — Report firewall restore and extension-hook command failures
 
 - Source/test checkpoint: implementation `79daaef39110c33078d747a017aefb6845ffbca6`; exact tested source/workflow SHA after a workflow assertion correction: `f7e3a3270a4f90ecd296bdb09313843d958d85af`. Exact-head GitHub Actions run `42412279665` completed SUCCESS; job `128522798720` passed all steps. The local GNU89 status unit test compiled with `-Wall -Wextra -Werror` and passed.
