@@ -3671,7 +3671,7 @@ jobs:
                   integer_divisor_fallback < integer_float_continue):
               raise SystemExit("UArray integer division must range-check floating quotients before the integer-only -1 overflow path")
           float_range_helper_start = bit_math_source.find(
-              "static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)"
+              "static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)\\n{"
           )
           float_range_helper_end = bit_math_source.find(
               "static int UArray_hasUnsafeIntegerDivision_", float_range_helper_start

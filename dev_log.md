@@ -1,3 +1,13 @@
+## 2026-11-07 13:02 CST — Match float-range helper definition in source contract
+
+- Baseline: main commit `932f6f2ca0e0813f250af7da96bbd9ffec956663`; Actions run #536 failed during the source-contract preflight before configure/build/CTest.
+- Scope: `.github/workflows/skipdbv2-regression.yml` and this handoff log only.
+- Adding the required forward declaration for `UArray_integerFloatQuotientIsOutOfRange_()` made the contract's broad signature search stop at the prototype instead of the implementation, falsely reporting that the helper no longer rejected non-finite/out-of-range values.
+- Anchor the contract lookup to the function definition's opening brace so declarations and implementation remain unambiguous. The C change and its regression tests are retained; no build-script or test-target changes are required.
+- This is a CI-contract repair only. The prior run did not reach compilation or CTest; the new mainline run is the verification gate.
+
+---
+
 ## 2026-11-07 13:00 CST — Preflight float-to-integer array fills
 
 - Baseline: main commit `3f005da247d342a2cdf20a19ea49cf8a9ba21782`; SkipDBv2 Regression run #535 passed source contracts, configure, full build, and all CTest regressions.
