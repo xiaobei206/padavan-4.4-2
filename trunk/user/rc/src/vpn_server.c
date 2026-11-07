@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <fcntl.h>
 
 #include "rc.h"
 
@@ -31,6 +32,44 @@
 #define VPNS_PPP_DW_SCRIPT	"/tmp/ppp/ip-down.vpns"
 
 static int xl2tpd_killed_vpns = 0;
+
+/* Keep the VPN lease index root-private even though the caller uses umask(0000).
+ * O_NOFOLLOW, descriptor checks and fchmod prevent shared-/tmp replacement and
+ * world-writable lease entries from becoming firewall policy input. */
+static FILE *
+open_vpns_lease_file_append(void)
+{
+	int fd, saved_errno;
+	FILE *fp;
+	struct stat st;
+
+	fd = open(VPN_SERVER_LEASE_FILE,
+		  O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW,
+		  S_IRUSR | S_IWUSR);
+	if (fd < 0)
+		return NULL;
+
+	if (fstat(fd, &st) != 0)
+		goto fail;
+	if (!S_ISREG(st.st_mode) || st.st_uid != 0 || st.st_nlink != 1) {
+		errno = EPERM;
+		goto fail;
+	}
+	if (fchmod(fd, S_IRUSR | S_IWUSR) != 0)
+		goto fail;
+
+	fp = fdopen(fd, "a");
+	if (!fp)
+		goto fail;
+
+	return fp;
+
+fail:
+	saved_errno = errno;
+	close(fd);
+	errno = saved_errno;
+	return NULL;
+}
 
 static int
 get_xl2tpd_vpns_active(void)
@@ -431,7 +470,7 @@ ipup_vpns_main(int argc, char **argv)
 
 	set_vpn_balancing(argv[1], 1);
 
-	fp = fopen(VPN_SERVER_LEASE_FILE, "a+");
+	fp = open_vpns_lease_file_append();
 	if (fp) {
 		fprintf(fp, "%s %s %s %s\n", argv[1], argv[5], argv[6], peer_name);
 		fclose(fp);
