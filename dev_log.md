@@ -1,10 +1,19 @@
+## 2026-11-07 23:40 CST — Verify BusyBox hardlink-source path guard
+
+- Code commit `14c6658c06ed030f84dbdf7afb53c4d66b436540` passed HTTPD Authentication and Security Regression run `42387366333` on exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42387366333.
+- Both `Compile and run policy regression` and `Verify HTTPD auth and route-access wiring` succeeded. The path-policy C regression and source contract verify hardlink target paths are validated before archive destination directory creation, unlink and `link()` operations.
+- L1/L2 PASS for this bounded extraction policy. Full BusyBox/XY-C1 MIPS build, tar integration fuzzing, firmware artifact inspection, and hardware validation remain NOT VERIFIED.
+- Next: review restore format compatibility, then focus on CGI `SystemCmd`/script dispatch and network/firewall userland modules.
+
+---
+
 ## 2026-11-07 23:39 CST — Validate BusyBox tar hardlink source paths
 
 - Baseline main HEAD: 2b475fca3ac41f59a22059625d5e56dfb9b49fba. Follow-up to the verified archive member-path policy.
 - Source review found `get_header_tar.c` strips unsafe prefixes from `file_header->name`, while `link_target` is taken from tar linkname fields; `data_extract_all()` later calls `link(file_header->link_target, file_header->name)` for hardlinks without equivalent validation. This creates a path-resolution escape attempt in root storage restore (actual hardlink success remains subject to Linux filesystem restrictions).
 - Fix: before any mkdir/unlink/open side effect, call `bb_archive_path_has_unsafe_component(file_header->link_target, 0)` for hardlink-shaped entries (`S_ISREG`, non-NULL link target, size zero) and terminate extraction if unsafe. This rejects absolute/`..` targets and target paths traversing symlink or non-directory parents.
 - The shared host policy regression already covers absolute paths, `..`, and symlink parents; added an explanatory assertion comment. Workflow now asserts link-target policy appears before leading-directory creation, unlink, and the `link()` call.
-- Validation: PENDING matching Actions run for this exact SHA. No full BusyBox MIPS build, tar integration fuzzing, image inspection or hardware validation is claimed.
+- Validation: HTTPD Authentication and Security Regression run `42387366333` passed on exact SHA `14c6658c06ed030f84dbdf7afb53c4d66b436540` (https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42387366333). The C policy test and the source-contract step passed, including the new pre-side-effect hardlink-source guard ordering. No full BusyBox MIPS build, tar integration fuzzing, image inspection or hardware validation is claimed.
 - Next: verify exact CI, then review hardlink order/valid-archive compatibility before returning to CGI system-command/dataflow audit.
 
 ---
