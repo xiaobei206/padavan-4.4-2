@@ -1,3 +1,12 @@
+## 2026-11-07 19:41 CST — Keep regression workflow under the Actions file-size boundary
+
+- Baseline: `0b64cf993d17adba15e64a2c42d34a779cd055fe`; runs #650–#652 failed before creating any jobs or logs after the workflow contract additions.
+- The workflow grew from 511,665 characters on green run #649 to 512,140 after the PHash static-contract update; the latest failed run had zero jobs/check records and reverted to a path-based workflow name. Treat this as a workflow-definition size/instantiation boundary rather than a C build failure.
+- Remove the redundant dynamic SHash destructor body-order scan. Keep its static source/test needles, along with the PHash destructor source/test contract and both production regressions. The resulting workflow is 511535 characters, with no changes to C behavior or CMake targets.
+- Re-run Actions; do not resume refactoring until the workflow instantiates and reaches the build/test stages.
+
+---
+
 ## 2026-11-07 19:41 CST — Simplify PHash teardown workflow contract
 
 - Baseline: `00e572c6f47e5717ce71669ece8546a05e659394`; run #651 terminated with no jobs, logs, or check records after the indentation correction.
