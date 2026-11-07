@@ -1,3 +1,13 @@
+## 2026-11-07 19:35 CST — Validate SHash backing storage before teardown
+
+- Baseline: `7ab39ac305831b584354ef380914b3584ffb91f3`; main CI run #647 passed all source/integration contracts, the full build, and all 57 CTests.
+- Scope: `SHash_free()` and its existing compaction/lifecycle regression target.
+- The table operations now reject a misaligned backing pointer through `SHash_hasValidStorage_()`, but destruction bypassed that shared invariant and unconditionally called `io_free()` on the pointer. A corrupted table could therefore turn cleanup into an invalid allocator release.
+- Gate backing release on the existing storage validator while always freeing the SHash object itself. Add a regression that corrupts only the backing pointer alignment, verifies teardown completes, and then explicitly releases the saved genuine allocation.
+- Extend existing source and dynamic workflow contracts. No new files, declarations, or CMake targets; no local compiler/CTest result is claimed.
+
+---
+
 ## 2026-11-07 19:32 CST — Reject misaligned SHash backing storage
 
 - Baseline: `def32970755e938fa0c119eb2c69639dca95e3e7`; latest main CI run #646 passed the source/integration contracts, complete build, and all 57 CTests.

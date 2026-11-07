@@ -1424,6 +1424,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/SHash.c": [
                   "static void SHash_tableInit_(SHash* self, int log2tableSize)",
+                  "void SHash_free(SHash *self)",
+                  "if (SHash_hasValidStorage_(self))",
                   "SHash_hasValidStorage_(self)",
                   "SHash_hasValidStorage_(other)",
                   "if (oldRecords != other->records)",
@@ -1443,6 +1445,8 @@ jobs:
                   "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/shash_compact.c": [
+                  "static int shashFreeRejectsMisalignedBacking(void)",
+                  "SHash_free did not reject misaligned backing storage",
                   "static int shashRejectsMisalignedBacking(void)",
                   "SHash accepted misaligned backing storage",
                   "SHash cloned misaligned backing storage",
@@ -6684,7 +6688,14 @@ jobs:
                          "if ((uintptr_t)self->records % sizeof(void *) != 0)"):
               if needle not in shash_inline:
                   raise SystemExit("SHash backing storage alignment contract missing: " + needle)
-          compact_start = shash_source.find("void SHash_compact(SHash *self)")
+          free_start = shash_source.find("void SHash_free(SHash *self)")
+          free_end = shash_source.find("size_t SHash_memorySize(SHash *self)", free_start)
+          free_body = shash_source[free_start:free_end] if free_start >= 0 and free_end > free_start else ""
+          free_guard = free_body.find("if (SHash_hasValidStorage_(self))")
+          free_release = free_body.find("io_free(self->records);")
+          if not free_body or free_guard < 0 or free_release < 0 or free_guard > free_release:
+              raise SystemExit("SHash_free must validate backing storage before releasing it")
+                    compact_start = shash_source.find("void SHash_compact(SHash *self)")
           compact_end = shash_source.find("void SHash_copy_(", compact_start)
           compact_body = shash_source[compact_start:compact_end] if compact_start >= 0 and compact_end > compact_start else ""
           compact_tokens = ("SHash_tableInit_(&candidate, log2tableSize)",
@@ -6696,7 +6707,10 @@ jobs:
               raise SystemExit("SHash_compact must build a candidate table and publish it only after complete rehash")
           if "need to implement SHash_compact" in compact_body:
               raise SystemExit("SHash_compact remains an unimplemented stub")
-          for needle in ("static int shashRejectsMisalignedBacking(void)",
+          for needle in ("static int shashFreeRejectsMisalignedBacking(void)",
+                         "shashFreeRejectsMisalignedBacking()",
+                         "SHash_free did not reject misaligned backing storage",
+                         "static int shashRejectsMisalignedBacking(void)",
                          "shashRejectsMisalignedBacking()",
                          "SHash accepted misaligned backing storage",
                          "SHash operations accessed misaligned backing storage",

@@ -370,6 +370,32 @@ done:
 }
 
 
+static int shashFreeRejectsMisalignedBacking(void)
+{
+	SHash *hash = SHash_new();
+	SHashRecord *originalBacking;
+	int key = 909, value = 1001;
+
+	if (NULL == hash)
+		return 0;
+	SHash_setKeysEqualCallback(hash, keys_equal);
+	SHash_setHashForKeyCallback(hash, hash_key);
+	SHash_at_put_(hash, &key, &value);
+	if (hash->tableSize != 2 || hash->numKeys != 1) {
+		SHash_free(hash);
+		return 0;
+	}
+
+	originalBacking = hash->records;
+	hash->records = (SHashRecord *)((char *)originalBacking + 1);
+	SHash_free(hash);
+
+	/* The destructor must skip the invalid alias; release the true owner here. */
+	io_free(originalBacking);
+	return 1;
+}
+
+
 int main(void)
 {
 	SHash *hash;
@@ -390,6 +416,9 @@ int main(void)
 		return EXIT_FAILURE;
 	if (!check(shashRejectsMisalignedBacking(),
 		"SHash operations accessed misaligned backing storage"))
+		return EXIT_FAILURE;
+	if (!check(shashFreeRejectsMisalignedBacking(),
+		"SHash_free did not reject misaligned backing storage"))
 		return EXIT_FAILURE;
 	if (!check(shashGrowRejectsInvalidState(0),
 		"SHash_grow accepted inconsistent table geometry"))
