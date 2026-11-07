@@ -1,3 +1,14 @@
+## 2026-11-07 14:52 CST — Validate alignment in UArray distance vectors
+
+- Baseline: `23a6f0cbbbafa1d0c476624ccfec70cb31058508`; Datum byte-extent validation passed SkipDBv2 Regression run #570.
+- Scope: distance-vector preflight in `basekit/UArray_math.c`.
+- The general numeric math validator already enforces each CTYPE's natural alignment, but the dedicated float32/float64 distance-vector validator checked only item width, extent overflow, and non-NULL storage. `UArray_distanceTo_` then dereferenced the backing pointer as a typed float array, leaving a strict-alignment undefined-behavior path.
+- Reused the existing per-CTYPE alignment lookup in the distance validator. Extended the existing distance precision test with deliberately offset float32 buffers; their mathematically valid distance is 5, so the API must reject the misaligned inputs and return its invalid-input sentinel 0.
+- Updated the existing Actions source contracts. The test is already registered in CMake; no build-file changes, new files, or exported symbols.
+- Validation: fixture bytes are populated only through `memcpy`; remote CI is the compiler/CTest gate, with no local build claimed.
+
+---
+
 ## 2026-11-07 14:48 CST — Reject impossible SIZE_MAX string-item extents
 
 - Baseline: `1c7610362f1525d401d4f70e6f4e1a361927fc36`; core UArray SIZE_MAX layout regression passed SkipDBv2 Regression run #566.

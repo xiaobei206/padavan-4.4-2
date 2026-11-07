@@ -1,6 +1,9 @@
 #include "UArray.h"
 
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -14,6 +17,46 @@ static int closeEnough(double actual, double expected)
 {
     return fabs(actual - expected) <= fabs(expected) * 1e-12;
 }
+
+
+typedef struct {
+    char leadingByte;
+    float32_t value;
+} TestDistanceFloat32AlignmentProbe;
+
+static int misaligned_distance_storage_is_rejected(void)
+{
+    union {
+        float32_t alignment;
+        unsigned char bytes[sizeof(float32_t) * 2 + 1];
+    } leftStorage, rightStorage;
+    const float32_t leftValues[] = { 3.0f, 4.0f };
+    const float32_t rightValues[] = { 0.0f, 0.0f };
+    const size_t alignment =
+        offsetof(TestDistanceFloat32AlignmentProbe, value);
+    UArray left, right;
+    double distance;
+
+    if (alignment <= 1)
+        return 1;
+    memcpy(leftStorage.bytes + 1, leftValues, sizeof(leftValues));
+    memcpy(rightStorage.bytes + 1, rightValues, sizeof(rightValues));
+    if (((uintptr_t)(leftStorage.bytes + 1) % alignment) == 0 ||
+        ((uintptr_t)(rightStorage.bytes + 1) % alignment) == 0)
+        return 0;
+
+    left = UArray_stackAllocedWithData_type_size_(
+        leftStorage.bytes + 1, CTYPE_float32_t, 2);
+    right = UArray_stackAllocedWithData_type_size_(
+        rightStorage.bytes + 1, CTYPE_float32_t, 2);
+    distance = UArray_distanceTo_(&left, &right);
+    UArray_stackFree(&left);
+    UArray_stackFree(&right);
+
+    /* A valid aligned pair would have Euclidean distance 5. */
+    return distance == 0.0;
+}
+
 
 int main(void)
 {
@@ -131,6 +174,11 @@ int main(void)
     distance = UArray_distanceTo_(floatA, floatB);
     if (!closeEnough(distance, 5.0)) {
         fail("UArray float32 distance changed");
+        goto failed;
+    }
+
+    if (!misaligned_distance_storage_is_rejected()) {
+        fail("UArray distance accepted misaligned float32 backing storage");
         goto failed;
     }
 

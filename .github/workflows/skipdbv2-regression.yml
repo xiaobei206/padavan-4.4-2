@@ -1846,6 +1846,8 @@ jobs:
                   "UArray unescape bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c": [
+                  "expectedItemAlignment = UArray_numericItemAlignment_(self->itemType);",
+                  "((uintptr_t)self->data % expectedItemAlignment) != 0",
                   "static size_t UArray_numericItemAlignment_(CTYPE itemType)",
                   "expectedItemAlignment == 0",
                   "((uintptr_t)self->data % expectedItemAlignment) != 0",
@@ -2165,6 +2167,8 @@ jobs:
                   "UArray in-place indexed long write did not invalidate the cached hash",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c": [
+                  "static int misaligned_distance_storage_is_rejected(void)",
+                  "UArray distance accepted misaligned float32 backing storage",
                   "UArray float64 distance overflowed intermediate squares for a finite result",
                   "UArray float32 cross product changed",
                   "UArray cross product accepted missing receiver storage",

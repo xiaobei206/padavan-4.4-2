@@ -1011,7 +1011,7 @@ void UArray_crossProduct_(UArray *self, const UArray *other)
 
 static int UArray_hasValidDistanceVector_(const UArray *self)
 {
-	size_t expectedItemSize;
+	size_t expectedItemSize, expectedItemAlignment;
 
 	if (NULL == self)
 		return 0;
@@ -1021,10 +1021,14 @@ static int UArray_hasValidDistanceVector_(const UArray *self)
 		expectedItemSize = sizeof(float64_t);
 	else
 		return 0;
+	expectedItemAlignment = UArray_numericItemAlignment_(self->itemType);
 
 	if (self->itemSize != expectedItemSize ||
+		expectedItemAlignment == 0 ||
 		self->size > (size_t)-1 / expectedItemSize ||
-		(self->size > 0 && NULL == self->data))
+		(self->size > 0 && NULL == self->data) ||
+		(self->data &&
+			((uintptr_t)self->data % expectedItemAlignment) != 0))
 		return 0;
 	return 1;
 }
