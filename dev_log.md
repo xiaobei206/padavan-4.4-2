@@ -1,3 +1,14 @@
+## 2026-11-07 14:33 CST — Validate expected BStream tag fields before reading
+
+- Baseline: `f745eb4ace0b51178bd26179effb94d090ce0421`; DynLib callback-reentrancy fixture passed the full SkipDBv2 Regression run #562.
+- Scope: the internal `BStream_readTag` field-validation and cursor-consumption boundary.
+- The writer rejects tag fields outside the wire format (`array <= 1`, `type <= 3`, `byteCount <= 31`), but the reader constructed its expected tag directly into narrow bit-fields. Invalid caller expectations could therefore truncate and alias a valid wire tag, while consuming the stream byte before reporting the mismatch.
+- Added the same range validation to the reader before calling `BStream_readUint8`; invalid expectations now set a deterministic error and preserve the cursor and stream byte. Extended the existing BStream tag-boundary test for all three invalid fields and the maximum valid combination.
+- Updated the existing Actions source contracts. The test is already registered in CMake; no build-file changes, new files, or exported symbols.
+- Validation: reviewed the guard ordering so caller arguments are checked before any read; remote CI remains the compile/CTest gate, no local build is claimed.
+
+---
+
 ## 2026-11-07 14:29 CST — Repair DynLib fixture CMake contract gate
 
 - Baseline: `5f571bc7b3109649b292bbba49b4b5a173b69880`; run #561 failed only in the XY-C1 integration-contract step before CMake configure/build.

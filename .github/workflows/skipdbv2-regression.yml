@@ -1346,6 +1346,8 @@ jobs:
                   "PHash compact test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStream.c": [
+                  "int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int a)",
+                  "unsupported expected binary stream tag",
                   "extern size_t CTYPE_size(CTYPE type);",
                   "ba->itemSize != CTYPE_size(ba->itemType)",
                   "self->ba->itemSize != CTYPE_size(self->ba->itemType)",
@@ -1373,6 +1375,11 @@ jobs:
                   "return \"UNKNOWN TYPE\";",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c": [
+                  "static int testBStreamTagReaderFieldBounds(void)",
+                  "BStream tag reader accepted an out-of-range expected type",
+                  "BStream tag reader accepted an out-of-range expected byte count",
+                  "BStream tag reader accepted an out-of-range expected array flag",
+                  "BStream invalid reader-tag expectation consumed or changed stream data",
                   "static int testBStreamArrayLayoutValidation(void)",
                   "BStream plain array read accepted a mismatched destination item width",
                   "BStream array read accepted a mismatched stream item width",

@@ -6,6 +6,8 @@
 #include <string.h>
 #include <stdint.h>
 
+extern int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int a);
+
 extern intptr_t BStream_readTaggedPointer(BStream *self);
 
 /* Internal writer is exercised here to test raw wire-field range checks. */
@@ -666,6 +668,61 @@ static int testBStreamTagWriterFieldBounds(void)
 }
 
 
+
+static int expectBStreamInvalidTagExpectationRejected_(unsigned int type,
+    unsigned int byteCount, unsigned int arrayFlag, const char *message)
+{
+    BStream *stream = BStream_new();
+    const unsigned char wireTag = 0xff;
+    const char *error;
+    if (NULL == stream)
+        return fail("BStream invalid reader-tag fixture allocation failed");
+    BStream_writeUint8_(stream, wireTag);
+    if (UArray_size(stream->ba) != 1 || stream->ba->data[0] != wireTag) {
+        BStream_free(stream);
+        return fail("BStream reader-tag fixture could not write its wire byte");
+    }
+    stream->index = 0;
+    if (BStream_readTag(stream, type, byteCount, arrayFlag) != -1) {
+        BStream_free(stream);
+        return fail(message);
+    }
+    error = BStream_errorString(stream);
+    if (NULL == error || strcmp(error, "unsupported expected binary stream tag") != 0 ||
+        stream->index != 0 || UArray_size(stream->ba) != 1 ||
+        stream->ba->data[0] != wireTag) {
+        BStream_free(stream);
+        return fail("BStream invalid reader-tag expectation consumed or changed stream data");
+    }
+    BStream_free(stream);
+    return EXIT_SUCCESS;
+}
+
+static int testBStreamTagReaderFieldBounds(void)
+{
+    BStream *stream;
+    if (expectBStreamInvalidTagExpectationRejected_(4, 1, 0,
+            "BStream tag reader accepted an out-of-range expected type") != EXIT_SUCCESS ||
+        expectBStreamInvalidTagExpectationRejected_(BSTREAM_UNSIGNED_INT, 32, 0,
+            "BStream tag reader accepted an out-of-range expected byte count") != EXIT_SUCCESS ||
+        expectBStreamInvalidTagExpectationRejected_(BSTREAM_UNSIGNED_INT, 1, 2,
+            "BStream tag reader accepted an out-of-range expected array flag") != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+
+    stream = BStream_new();
+    if (NULL == stream)
+        return fail("BStream valid reader-tag fixture allocation failed");
+    BStream_writeUint8_(stream, 0xff);
+    stream->index = 0;
+    if (BStream_readTag(stream, BSTREAM_POINTER, 31, 1) != 0 ||
+        stream->index != 1 || UArray_size(stream->errorBa) != 0) {
+        BStream_free(stream);
+        return fail("BStream tag reader rejected the maximum valid field combination");
+    }
+    BStream_free(stream);
+    return EXIT_SUCCESS;
+}
+
 #if !defined(__SYMBIAN32__)
 static int testBStreamTaggedPointerWidth(void)
 {
@@ -752,6 +809,8 @@ int main(void)
 	if (strcmp(BStreamTag_typeName(&sample), "pointer") != 0)
 		return fail("BStreamTag valid type name changed");
 	if (testBStreamTagWriterFieldBounds() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (testBStreamTagReaderFieldBounds() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamClone() != EXIT_SUCCESS)
 		return EXIT_FAILURE;

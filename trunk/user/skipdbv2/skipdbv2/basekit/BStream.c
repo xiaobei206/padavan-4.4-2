@@ -831,14 +831,21 @@ void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int a)
 {
 	unsigned char c;
+	BStreamTag readTag, expectedTag;
+
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		UArray_size(self->errorBa) != 0)
 		return -1;
+	/* Validate caller expectations before consuming a byte from the stream. */
+	if (a > 1 || t > 3 || b > 31) {
+		BStream_error_(self, "unsupported expected binary stream tag");
+		return -1;
+	}
 	c = BStream_readUint8(self);
 	if (UArray_size(self->errorBa) != 0)
 		return -1;
-	BStreamTag readTag = BStreamTag_FromUnsignedChar(c);
-	BStreamTag expectedTag = BStreamTag_TagArray_type_byteCount_(a, t, b);
+	readTag = BStreamTag_FromUnsignedChar(c);
+	expectedTag = BStreamTag_TagArray_type_byteCount_(a, t, b);
 
 	if (!BStreamTag_isEqual_(&readTag, &expectedTag)) {
 		BStream_error_(self, "unexpected binary stream tag");
