@@ -190,4 +190,16 @@ firewall_schedule_time_is_safe(const char *value)
 	       start_minute <= 59U && end_minute <= 59U;
 }
 
+/*
+ * Invalid or explicitly disabled schedules are inactive, not unqualified
+ * (all-time) rules. A valid all-days/all-day schedule remains active.
+ */
+static int
+firewall_schedule_is_active(const char *date, const char *time)
+{
+	return firewall_schedule_date_is_safe(date) &&
+	       firewall_schedule_time_is_safe(time) &&
+	       strcmp(date, "0000000") != 0;
+}
+
 #endif /* PADAVAN_FIREWALL_FILTER_POLICY_H */
