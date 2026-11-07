@@ -12,6 +12,9 @@ docObject("Datum")
 #include <stdlib.h>
 #include <string.h>
 
+/* CTYPE_size is implemented by UArray.c and shared with stream validation. */
+extern size_t CTYPE_size(CTYPE type);
+
 static int Datum_hasValidStorage_(const Datum *self)
 {
 	return NULL != self && (0 == self->size || NULL != self->data);
@@ -92,6 +95,7 @@ Datum Datum_FromUArray_(UArray *ba)
 {
 	Datum d;
 	if (NULL == ba || ba->itemSize == 0 ||
+		CTYPE_size(ba->itemType) != ba->itemSize ||
 		ba->size > (size_t)-1 / ba->itemSize ||
 		(ba->size > 0 && NULL == ba->data))
 		return Datum_Empty();

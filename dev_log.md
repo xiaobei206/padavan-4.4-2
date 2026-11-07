@@ -1,3 +1,13 @@
+## 2026-11-07 09:20 CST — Reject malformed UArray layouts in Datum conversion
+
+- Baseline: main commit `e6d63bc90e0d8a99b7e34c8926f02002be1b53f8`; SkipDBv2 Regression run #481 passed.
+- Scope: `Datum_FromUArray_()` in `basekit/Datum.c`.
+- The conversion checked multiplication overflow and the backing pointer, but not whether `itemSize` matched the declared `itemType`. A corrupted UArray could therefore be exposed as an incorrectly sized raw Datum byte span.
+- Validate the declared CTYPE width before returning `UArray_bytes()`. Extend the existing Datum boundary test to preserve valid conversions and reject mismatched item widths, and add a workflow source contract for guard ordering. The CMake/CTest test is already registered; no new files.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 09:17 CST — Repair IPC parser source-contract delimiter
 
 - Baseline: main commit `45e1a75f8eea3af4598cd05c3e6bbb9bfd581bae`; SkipDBv2 Regression run #480 failed during source-contract preflight, before configuration or compilation.

@@ -72,6 +72,8 @@ int main(void)
 	Datum searchable = Datum_FromData_length_((unsigned char *)searchableBytes, sizeof(searchableBytes));
 	DetectContext detect = { 'h', 0, 0, 0 };
 	Datum at;
+	Datum arrayDatum;
+	UArray *array;
 	Datum *slice;
 
 
@@ -162,6 +164,34 @@ int main(void)
 		Datum_endsWith_(&alpha, &empty),
 		"valid prefix/suffix boundary behavior changed"))
 		return EXIT_FAILURE;
+	array = UArray_new();
+	if (!check(array != NULL, "Datum UArray conversion fixture allocation failed"))
+		return EXIT_FAILURE;
+	UArray_setItemType_(array, CTYPE_uint8_t);
+	UArray_setSize_(array, 2);
+	if (!check(array->itemType == CTYPE_uint8_t && array->itemSize == sizeof(uint8_t) &&
+		array->size == 2 && array->data != NULL,
+		"Datum UArray conversion fixture could not be initialized")) {
+		UArray_free(array);
+		return EXIT_FAILURE;
+	}
+	arrayDatum = Datum_FromUArray_(array);
+	if (!check(arrayDatum.data == array->data && arrayDatum.size == 2,
+		"Datum conversion changed valid UArray byte spans")) {
+		UArray_free(array);
+		return EXIT_FAILURE;
+	}
+	array->itemSize *= 2;
+	arrayDatum = Datum_FromUArray_(array);
+	if (!check(arrayDatum.data == NULL && arrayDatum.size == 0,
+		"Datum conversion accepted a mismatched UArray item width")) {
+		array->itemSize /= 2;
+		UArray_free(array);
+		return EXIT_FAILURE;
+	}
+	array->itemSize /= 2;
+	UArray_free(array);
+
 	if (!check(Datum_hash(&malformed) == 0 &&
 		Datum_matchingPrefixSizeWith_(&malformed, &alpha) == 0 &&
 		Datum_asUArray(&malformed) == NULL,
