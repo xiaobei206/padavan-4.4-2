@@ -204,6 +204,12 @@ jobs:
             -o /tmp/firewall_hook_file
           /tmp/firewall_hook_file
 
+      - name: Check privileged staging shell syntax
+        run: |
+          set -eu
+          sh -n trunk/user/scripts/files/sbin/mtd_storage.sh
+          sh -n trunk/user/scripts/files/sbin/dev_init.sh
+
       - name: Verify DNSMasq generated file trust boundaries
         run: |
           set -eu
