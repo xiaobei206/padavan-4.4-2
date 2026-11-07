@@ -1948,7 +1948,7 @@ control_dhcp_routes(char *rt, char *rt_rfc, char *rt_ms,
 		if (bits_end == bits_str || *bits_end != '\0' ||
 		    parsed_bits < 0 || parsed_bits > 32 ||
 		    !gateway || !*gateway ||
-		    !dhcp_lease_ipv4_is_valid(ipaddr) ||
+		    !dhcp_lease_route_destination_is_valid(ipaddr, (unsigned int)parsed_bits) ||
 		    !dhcp_lease_ipv4_is_valid(gateway))
 			continue;
 

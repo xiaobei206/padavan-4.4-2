@@ -293,9 +293,12 @@ jobs:
 
           assert '#include "dhcp_lease_policy.h"' in wan
           assert "dhcp_lease_ipv4_is_valid" in policy
+          assert "dhcp_lease_route_destination_is_valid" in policy
+          assert "dhcp_lease_ipv4_text_is_valid" in policy
           assert "dhcp_lease_netmask_is_valid" in policy
           assert "dhcp_lease_ipv4_list_first" in policy
           assert "dhcp_lease_decimal_is_valid" in policy
+          assert "dhcp_lease_route_destination_is_valid(ipaddr, (unsigned int)parsed_bits)" in wan
           assert "dhcp_lease_route_text_is_safe" in policy
           for payload in ("192.0.2.1;reboot", "255.0.255.0", "192.0.2.0/24\\nCOMMIT"):
               assert payload in test

@@ -5,13 +5,34 @@
 #include <stddef.h>
 #include <string.h>
 
-/* DHCP lease options come from the network; accept only canonical IPv4 text. */
+/* Check canonical dotted-quad syntax, including the all-zero route prefix. */
 static int
-dhcp_lease_ipv4_is_valid(const char *value)
+dhcp_lease_ipv4_text_is_valid(const char *value)
 {
 	struct in_addr address;
 
 	return value && inet_pton(AF_INET, value, &address) == 1;
+}
+
+/* Match the existing RC is_valid_ipv4() contract: 0.0.0.0 is not a host. */
+static int
+dhcp_lease_ipv4_is_valid(const char *value)
+{
+	return dhcp_lease_ipv4_text_is_valid(value) &&
+	       strcmp(value, "0.0.0.0") != 0;
+}
+
+/* RFC classless routes permit 0.0.0.0 only for the /0 default route. */
+static int
+dhcp_lease_route_destination_is_valid(const char *address,
+                                      unsigned int prefix_length)
+{
+	if (prefix_length > 32U)
+		return 0;
+	if (prefix_length == 0U)
+		return address && strcmp(address, "0.0.0.0") == 0;
+
+	return dhcp_lease_ipv4_is_valid(address);
 }
 
 /* A netmask must be non-zero and contain one contiguous run of leading ones. */

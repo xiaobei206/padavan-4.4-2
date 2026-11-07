@@ -12,6 +12,13 @@ main(void)
 	unsigned int number = 0;
 
 	assert(dhcp_lease_ipv4_is_valid("192.0.2.1"));
+	assert(!dhcp_lease_ipv4_is_valid("0.0.0.0"));
+	assert(!dhcp_lease_ipv4_list_is_valid("0.0.0.0 192.0.2.1", 255, 16, 1));
+	assert(dhcp_lease_route_destination_is_valid("0.0.0.0", 0));
+	assert(!dhcp_lease_route_destination_is_valid("192.0.2.1", 0));
+	assert(!dhcp_lease_route_destination_is_valid("0.0.0.0", 24));
+	assert(dhcp_lease_route_destination_is_valid("192.0.2.0", 24));
+	assert(!dhcp_lease_route_destination_is_valid("192.0.2.0", 33));
 	assert(!dhcp_lease_ipv4_is_valid("192.0.2.1;reboot"));
 	assert(!dhcp_lease_ipv4_is_valid("192.0.2.1\n"));
 	assert(!dhcp_lease_ipv4_is_valid("999.0.2.1"));
