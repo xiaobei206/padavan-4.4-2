@@ -31,6 +31,7 @@
 #include <signal.h>
 
 #include "rc.h"
+#include "dnsmasq_file.h"
 #include "switch.h"
 #include <gpioutils.h>
 
@@ -1672,9 +1673,18 @@ update_resolvconf(int is_first_run, int do_not_notify)
 	const char *resolv_temp = "/etc/resolv.tmp";
 	int i, i_pdns, i_total_dns = 0;
 	int lock, dns_static, resolv_changed = 0;
+	int dns_servers_ready = 1, saved_errno, validation_errno;
 
-	if (!is_first_run)
-		fill_dnsmasq_servers();
+	if (!is_first_run && fill_dnsmasq_servers() != 0) {
+		saved_errno = errno ? errno : EIO;
+		if (dnsmasq_file_is_safe_regular(DNS_SERVERS_FILE) != 0) {
+			validation_errno = errno ? errno : EPERM;
+			dns_servers_ready = 0;
+			logmessage(LOGNAME, "DNSMasq reload blocked: unsafe DNS server snapshot (errno=%d)", validation_errno);
+		} else {
+			logmessage(LOGNAME, "DNS server snapshot refresh failed; keeping last-known-good file (errno=%d)", saved_errno);
+		}
+	}
 
 	lock = file_lock("resolv");
 
@@ -1765,7 +1775,7 @@ update_resolvconf(int is_first_run, int do_not_notify)
 		resolv_changed = 1;
 
 	/* notify dnsmasq */
-	if (resolv_changed && !do_not_notify)
+	if (resolv_changed && !do_not_notify && dns_servers_ready)
 		restart_dns();
 
 	return 0;

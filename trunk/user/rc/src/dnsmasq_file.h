@@ -103,6 +103,38 @@ dnsmasq_file_publish(FILE *fp, char *path, const char *destination, mode_t mode)
 	return 0;
 }
 
+/* Validate a last-known-good server file without following the final path. */
+static int
+dnsmasq_file_is_safe_regular(const char *path)
+{
+	struct stat st;
+
+	if (!path || !path[0]) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (lstat(path, &st) != 0)
+		return -1;
+	if (!S_ISREG(st.st_mode)) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (st.st_uid != geteuid()) {
+		errno = EPERM;
+		return -1;
+	}
+	if (st.st_nlink != 1) {
+		errno = EMLINK;
+		return -1;
+	}
+	if (st.st_mode & (S_IWGRP | S_IWOTH)) {
+		errno = EPERM;
+		return -1;
+	}
+
+	return 0;
+}
+
 /* dnsmasq opens this predictable lease pathname as part of service startup.
  * Refuse links, non-regular files and multiply-linked files before changing
  * permissions; opening never truncates existing lease records. */

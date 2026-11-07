@@ -47,6 +47,7 @@ main(void)
 
 	/* Publishing over a planted symlink replaces the link, not its target. */
 	assert(symlink(sentinel, destination) == 0);
+	assert(dnsmasq_file_is_safe_regular(destination) == -1);
 	fp = dnsmasq_file_open(template);
 	assert(fp != NULL);
 	assert(snprintf(staged, sizeof(staged), "%s", template) > 0);
@@ -58,6 +59,10 @@ main(void)
 	assert(lstat(destination, &st) == 0 && S_ISREG(st.st_mode));
 	assert(st.st_uid == geteuid() && st.st_nlink == 1);
 	assert((st.st_mode & 0777) == 0644);
+	assert(dnsmasq_file_is_safe_regular(destination) == 0);
+	assert(chmod(destination, 0666) == 0);
+	assert(dnsmasq_file_is_safe_regular(destination) == -1);
+	assert(chmod(destination, 0644) == 0);
 	read_exact(destination, "server=/example.test/192.0.2.53\n");
 	read_exact(sentinel, "preserve-me\n");
 
@@ -95,9 +100,11 @@ main(void)
 
 	/* Do not chmod a hard-linked victim or block while opening a FIFO. */
 	assert(link(sentinel, hardlink_lease) == 0);
+	assert(dnsmasq_file_is_safe_regular(hardlink_lease) == -1);
 	assert(dnsmasq_lease_file_ensure(hardlink_lease) == -1);
 	assert(stat(sentinel, &st) == 0 && (st.st_mode & 0777) == 0644);
 	assert(mkfifo(fifo_lease, 0600) == 0);
+	assert(dnsmasq_file_is_safe_regular(fifo_lease) == -1);
 	assert(dnsmasq_lease_file_ensure(fifo_lease) == -1);
 	assert(lstat(fifo_lease, &st) == 0 && S_ISFIFO(st.st_mode));
 	read_exact(sentinel, "preserve-me\n");

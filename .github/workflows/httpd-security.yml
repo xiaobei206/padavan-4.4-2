@@ -33,6 +33,7 @@ on:
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
+      - "trunk/user/rc/src/net_wan.c"
       - "trunk/user/rc/src/dnsmasq_file.h"
       - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
@@ -79,6 +80,7 @@ on:
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
+      - "trunk/user/rc/src/net_wan.c"
       - "trunk/user/rc/src/dnsmasq_file.h"
       - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
@@ -191,6 +193,7 @@ jobs:
           from pathlib import Path
 
           service = Path("trunk/user/rc/src/services_ex.c").read_text()
+          net_wan = Path("trunk/user/rc/src/net_wan.c").read_text()
           helper = Path("trunk/user/rc/src/dnsmasq_file.h").read_text()
           test = Path("trunk/user/rc/src/tests/dnsmasq_file.c").read_text()
 
@@ -201,6 +204,11 @@ jobs:
           assert 'fp = dnsmasq_file_open(servers_path);' in service
           assert 'dnsmasq_file_publish(fp, servers_path, DNS_SERVERS_FILE, 0644)' in service
           assert 'dnsmasq_lease_file_ensure(DHCPD_LEASE_FILE)' in service
+          assert 'if (is_dns_used && fill_dnsmasq_servers() != 0)' in service
+          assert 'dnsmasq_file_is_safe_regular(DNS_SERVERS_FILE)' in service
+          assert 'if (!is_first_run && fill_dnsmasq_servers() != 0)' in net_wan
+          assert 'if (resolv_changed && !do_not_notify && dns_servers_ready)' in net_wan
+          assert 'dnsmasq_file_is_safe_regular(DNS_SERVERS_FILE)' in net_wan
           assert 'fopen("/tmp/hosts.static", "w+")' not in service
           assert 'fopen(DNS_SERVERS_FILE, "w")' not in service
           assert 'create_file(DHCPD_LEASE_FILE)' not in service

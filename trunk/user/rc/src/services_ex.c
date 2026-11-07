@@ -319,7 +319,7 @@ start_dns_dhcpd(int is_ap_mode)
 {
 	FILE *fp;
 	int i_verbose, i_dhcp_enable, is_dhcp_used, is_dns_used;
-	int saved_errno;
+	int saved_errno, validation_errno;
 	char dhcp_start[32], dhcp_end[32], dns_all[64], dnsv6[40];
 	char *ipaddr, *netmask, *gw, *dns1, *dns2, *dns3, *wins, *domain, *dns6, *dns61;
 	const char *storage_dir = "/etc/storage/dnsmasq";
@@ -556,8 +556,15 @@ start_dns_dhcpd(int is_ap_mode)
 
 	fprintf(fp, "conf-file=%s/dnsmasq.conf\n", storage_dir);
 	fclose(fp);
-	if (is_dns_used)
-		fill_dnsmasq_servers();
+	if (is_dns_used && fill_dnsmasq_servers() != 0) {
+		saved_errno = errno ? errno : EIO;
+		if (dnsmasq_file_is_safe_regular(DNS_SERVERS_FILE) != 0) {
+			validation_errno = errno ? errno : EPERM;
+			logmessage(LOGNAME, "refusing DNSMasq start with unsafe DNS server snapshot (errno=%d)", validation_errno);
+			return validation_errno;
+		}
+		logmessage(LOGNAME, "DNS server snapshot refresh failed; retaining last-known-good file (errno=%d)", saved_errno);
+	}
 
 	if (is_dns_used || is_dhcp_used)
 		return eval("/usr/sbin/dnsmasq");
