@@ -191,7 +191,7 @@ jobs:
           assert "O_NOFOLLOW" in helper and "st_uid != geteuid()" in helper
           assert "st_nlink != 1" in helper and "FIREWALL_HOOK_FILE_MAX_BYTES" in helper
           assert "firewall_hook_file_stage(" in dispatch
-          assert 'doSystem("sh %s", shadowsocks_staged);' in dispatch
+          assert 'firewall_log_command_failure("Shadowsocks firewall hook", doSystem("sh %s", shadowsocks_staged));' in dispatch
           assert 'doSystem("sh %s", shadowsocks_iptables_script);' not in dispatch
           assert "firewall_hook_file_remove(shadowsocks_staged);" in dispatch
           assert '"/tmp/shadowsocks_iptables.save"' in dispatch
