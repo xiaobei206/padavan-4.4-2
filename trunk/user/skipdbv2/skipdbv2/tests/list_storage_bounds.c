@@ -685,8 +685,69 @@ done:
 }
 
 
+
+static int test_malformed_capacity_bytes(void)
+{
+	int value = 42;
+	List *source = List_new();
+	List malformed;
+	UArray view;
+	void **originalItems;
+	size_t originalMemSize;
+	int result = EXIT_FAILURE;
+
+	if (NULL == source) {
+		fprintf(stderr, "malformed List capacity fixture allocation failed\n");
+		return EXIT_FAILURE;
+	}
+	if (List_append_(source, &value) != &value) {
+		fprintf(stderr, "malformed List capacity fixture append failed\n");
+		goto done;
+	}
+	originalItems = source->items;
+	originalMemSize = source->memSize;
+	malformed = *source;
+	malformed.memSize = sizeof(void *) + 1;
+
+	if (List_hasValidStorage_(&malformed) ||
+		List_memorySize(&malformed) != 0 ||
+		List_at_(&malformed, 0) != NULL ||
+		List_rawAt_(&malformed, 0) != NULL) {
+		fprintf(stderr, "List accepted malformed pointer-slot capacity bytes\n");
+		goto done;
+	}
+	view = List_asStackAllocatedUArray(&malformed);
+	if (view.size != 0 || view.data != NULL) {
+		fprintf(stderr, "List exposed malformed capacity as a UArray view\n");
+		goto done;
+	}
+
+	List_setSize_(&malformed, 0);
+	List_preallocateToSize_(&malformed, 8);
+	List_compact(&malformed);
+	List_removeAll(&malformed);
+	List_sliceInPlace(&malformed, 0, 0);
+	view = List_asStackAllocatedUArray(&malformed);
+	if (malformed.items != originalItems ||
+		malformed.size != 1 ||
+		malformed.memSize != sizeof(void *) + 1 ||
+		view.size != 0 || view.data != NULL ||
+		source->items != originalItems || source->memSize != originalMemSize ||
+		source->size != 1 || source->items[0] != &value) {
+		fprintf(stderr, "List mutation changed malformed pointer-slot capacity metadata\n");
+		goto done;
+	}
+
+	result = EXIT_SUCCESS;
+done:
+	List_free(source);
+	return result;
+}
+
 int main(void)
 {
+	if (test_malformed_capacity_bytes() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 	if (test_misaligned_backing_storage() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (test_copy_shared_storage() != EXIT_SUCCESS)

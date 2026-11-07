@@ -110,7 +110,8 @@ UArray List_asStackAllocatedUArray(List *self)
 
 size_t List_memorySize(const List *self)
 {
-	if (NULL == self || self->memSize > (size_t)-1 - sizeof(List))
+	if (!List_hasValidStorage_(self) ||
+		self->memSize > (size_t)-1 - sizeof(List))
 		return 0;
 	return sizeof(List) + self->memSize;
 }

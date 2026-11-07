@@ -1,3 +1,13 @@
+## 2026-11-07 18:56 CST — Enforce List backing-slot geometry
+
+- Baseline: `be8165380da6b6f824cffccd63c69de3d10222d6`; SkipDBv2 Regression run #630 passed integration/source contracts, full build, and all 57 CTests.
+- Scope: `List_hasValidStorage_()` and `List_memorySize()` storage validation.
+- The shared List validator accepted byte capacities not divisible by `sizeof(void *)`, and `List_memorySize()` bypassed that validator. Malformed backing geometry could therefore appear valid and report a plausible allocation size.
+- Require pointer-slot-aligned capacity bytes in the central validator; route memory-size reporting through the same invariant. Extend the existing storage-bounds test to verify reads, sizing, views, and mutations fail closed without changing the source allocation. No new files or CMake targets.
+- No local compiler/CTest result is claimed; GitHub Actions remains the build/runtime gate.
+
+---
+
 ## 2026-11-07 18:53 CST — Reject foreign records from dirty and PID caches
 
 - Baseline: `e5fbfd7d87efdf80b431b8dbd264d76a378b80b7`; SkipDBv2 Regression run #629 passed the integration contracts, full build, and all 57 CTests.

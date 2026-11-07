@@ -2915,6 +2915,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/List.c": [
                   "size_t List_memorySize(const List *self)",
+                  "if (!List_hasValidStorage_(self) ||",
                   "self->memSize > (size_t)-1 - sizeof(List)",
                   "return sizeof(List) + self->memSize;",
                   "void List_sliceInPlace(List* self, long startIndex, long endIndex)",
@@ -3047,6 +3048,7 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/List.c": [
                   "size_t List_memorySize(const List *self)",
+                  "if (!List_hasValidStorage_(self) ||",
                   "self->memSize > (size_t)-1 - sizeof(List)",
                   "return sizeof(List) + self->memSize;",
                   "void List_sliceInPlace(List* self, long startIndex, long endIndex)",
@@ -3061,6 +3063,7 @@ jobs:
                   "static inline int List_hasValidStorage_(const List *self)",
                   "self->size > (size_t)-1 / sizeof(void *)",
                   "self->size > self->memSize / sizeof(void *)",
+                  "(self->memSize % sizeof(void *)) != 0",
                   "(self->memSize > 0 && NULL == self->items)",
                   "(self->size > 0 && NULL == self->items)",
                   "if (!List_hasValidStorage_(self) || index >= self->size)",
@@ -3088,6 +3091,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/list_storage_bounds.c": [
                   "malformed_source.memSize = sizeof(void *)",
+                  "malformed.memSize = sizeof(void *) + 1",
+                  "List_memorySize(&malformed) != 0",
+                  "List accepted malformed pointer-slot capacity bytes",
+                  "test_malformed_capacity_bytes() != EXIT_SUCCESS",
                   "List_rawAt_(&malformed_source, 0) == NULL",
                   "LIST_SAFEFOREACH(source, live_index, live_value, shrink_safe_iteration(live_value))",
                   "safe_iteration_count == 1 && source->size == 1",

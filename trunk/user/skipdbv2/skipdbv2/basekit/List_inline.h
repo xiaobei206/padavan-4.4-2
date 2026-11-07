@@ -21,6 +21,7 @@ static inline int List_hasValidStorage_(const List *self)
 	if (NULL == self ||
 		self->size > (size_t)-1 / sizeof(void *) ||
 		self->size > self->memSize / sizeof(void *) ||
+		(self->memSize % sizeof(void *)) != 0 ||
 		(self->memSize > 0 && NULL == self->items) ||
 		(self->size > 0 && NULL == self->items))
 		return 0;
