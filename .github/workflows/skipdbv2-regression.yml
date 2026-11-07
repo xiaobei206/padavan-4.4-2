@@ -523,6 +523,7 @@ jobs:
                   "JFile_hardSyncFileDescriptor_(self, fd)",
                   "void JFile_syncLogWritesToDisk(JFile *self)",
                   "static void JFile_closeFailedStream_(FILE **stream)",
+                  "while (result == -1 && errno == EINTR)",
                   "errno = EBADF;",
                   "errno = EINVAL;",
                   "JFile_closeFailedStream_(&self->file)",

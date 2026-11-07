@@ -23,16 +23,22 @@ static void JFile_closeFailedStream_(FILE **stream)
 
 int JFile_hardSyncFileDescriptor_(JFile *self, int fd)
 {
+	int result;
 	(void)self;
 	if (fd < 0) {
 		errno = EBADF;
 		return -1;
 	}
+/* A signal interruption must not be mistaken for a completed durability barrier. */
 #ifdef F_FULLFSYNC
-	return fcntl(fd, F_FULLFSYNC, 0);
+	do {
+		result = fcntl(fd, F_FULLFSYNC, 0);
+	} while (result == -1 && errno == EINTR);
 #else
 	/* Linux fsync provides the strongest portable durability request here. */
-	return fsync(fd);
+	do {
+		result = fsync(fd);
+	} while (result == -1 && errno == EINTR);
 #endif
 }
 

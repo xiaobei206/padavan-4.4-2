@@ -1,3 +1,13 @@
+## 2026-11-07 08:43 CST — Retry interrupted durability barriers
+
+- Baseline: main commit `73b2c1b693f87abfd3d6d3e9762f7ca39a310c5a`; SkipDBv2 Regression run #474 passed source contracts, configure, full build, and all regression tests.
+- Scope: `JFile_hardSyncFileDescriptor_()` in `jfile/JFileSync.c`.
+- `fsync()` and `F_FULLFSYNC` may return `EINTR`. The shared helper treated this transient interruption as a fatal persistence error, causing callers to close an otherwise usable data or journal stream.
+- Retry only interrupted durability calls; preserve existing error propagation for all other failures. Add the retry invariant to the existing Actions source contract. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 07:56 CST — Stop safe reverse iteration after cursor invalidation
 
 - Baseline: main commit `fd7a0b31a8ffbdc6815bb95065f0880653109fea`; SkipDBv2 Regression run #473 passed integration contracts and the full build but failed `list_storage_bounds_test`.
