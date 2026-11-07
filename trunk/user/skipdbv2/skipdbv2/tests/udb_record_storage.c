@@ -201,6 +201,40 @@ int main(void)
         goto done;
     }
 
+    /* Free-list metadata I/O must preserve an unrelated record cursor. */
+    {
+        long cursor_pos, cursor_max;
+
+        UDB_beginTransaction(db);
+        if (!UDB_isOpen(db)) {
+            fprintf(stderr, "free-list cursor fixture transaction did not begin\\n");
+            goto done;
+        }
+        JFile_setPosition_(db->records->file, (long)UDBRecord_pos(record));
+        cursor_pos = db->records->file->pos;
+        cursor_max = db->records->file->maxPos;
+
+        if (UDBRecords_firstEmptyRecordPos(db->records) != 0 ||
+            db->records->file->pos != cursor_pos ||
+            db->records->file->maxPos != cursor_max) {
+            fprintf(stderr, "free-list metadata read changed the record cursor\\n");
+            UDB_close(db);
+            goto done;
+        }
+        if (!UDBRecords_firstEmptyRecordPos_(db->records, 0) ||
+            db->records->file->pos != cursor_pos ||
+            db->records->file->maxPos != cursor_max) {
+            fprintf(stderr, "free-list metadata write changed the record cursor\\n");
+            UDB_close(db);
+            goto done;
+        }
+        UDB_commitTransaction(db);
+        if (!UDB_isOpen(db)) {
+            fprintf(stderr, "free-list cursor fixture transaction failed to commit\\n");
+            goto done;
+        }
+    }
+
     saved_pos = UDBRecord_pos(record);
     saved_file_end = db->records->file->maxPos;
     if (UDBRecord_totalSize(record) !=

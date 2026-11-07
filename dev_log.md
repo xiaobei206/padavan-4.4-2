@@ -1,3 +1,14 @@
+## 2026-11-07 18:23 CST — Preserve UDB record cursor during free-list metadata I/O
+
+- Baseline: `804b982d1a7665b4f6303ad9b7dbde4fe8c3f32d`; SkipDBv2 Regression run #622 passed the XY-C1 source contracts, full build, and all 57 CTests.
+- Scope: `UDBRecords_firstEmptyRecordPos()` and `UDBRecords_firstEmptyRecordPos_()` in the existing free-list module.
+- The getter sought to offset zero and returned with the tracked cursor at the metadata boundary. The setter restored `pos/maxPos` on a failed write but left the cursor changed after a successful write. Both APIs therefore leaked internal metadata I/O into the caller's record-stream state.
+- Snapshot and restore the tracked `JFile` position and extent on successful metadata reads and writes; leave the existing fail-closed read-error behavior and failed-write rollback untouched.
+- Extend the existing `udb_record_storage_test` to exercise both APIs inside a transaction with the cursor positioned at a live record. Add workflow source contracts checking the snapshots/restores and test coverage. No new source files or build targets.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 18:20 CST — Centralize tagged-array alias snapshots in BStream
 
 - Baseline: `3bd47426de801b9eb5d0eaad0829cb8e404a9beb`; SkipDBv2 Regression run #621 passed the source contracts, complete build, and all 57 CTests.

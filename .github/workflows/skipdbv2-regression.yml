@@ -780,6 +780,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_record_storage.c": [
                   "UDBRecord_saveWithDatum_(record, input)",
+                  "UDBRecords_firstEmptyRecordPos(db->records)",
+                  "UDBRecords_firstEmptyRecordPos_(db->records, 0)",
+                  "free-list metadata read changed the record cursor",
+                  "free-list metadata write changed the record cursor",
                   "UDBRecords_newRecord accepted a negative maxPos",
                   "UDBRecords_newRecord failed at a valid EOF",
                   "record save accepted a non-append position",
@@ -3359,6 +3363,46 @@ jobs:
           ).read_text()
           if records_free_source.count("UDBRecords_isValidEmptyPosition_(") != 3:
               raise SystemExit("UDB free-list position bounds are not centralized")
+          free_get_start = records_free_source.find(
+              "PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)"
+          )
+          free_get_end = records_free_source.find(
+              chr(10) + "int UDBRecords_firstEmptyRecordPos_", free_get_start
+          )
+          free_get_body = (
+              records_free_source[free_get_start:free_get_end]
+              if free_get_start >= 0 and free_get_end > free_get_start else ""
+          )
+          free_set_start = records_free_source.find(
+              "int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)"
+          )
+          free_set_end = records_free_source.find(
+              chr(10) + "UDBRecord *UDBRecords_firstEmptyRecord", free_set_start
+          )
+          free_set_body = (
+              records_free_source[free_set_start:free_set_end]
+              if free_set_start >= 0 and free_set_end > free_set_start else ""
+          )
+          if (
+              not free_get_body or
+              free_get_body.find("old_file_pos = self->file->pos;") < 0 or
+              free_get_body.find("old_max_pos = self->file->maxPos;") < 0 or
+              free_get_body.find("JFile_setPosition_(self->file, 0);") <
+                  free_get_body.find("old_file_pos = self->file->pos;") or
+              free_get_body.find("self->file->pos = old_file_pos;") <
+                  free_get_body.find("self->firstEmptyPos = pos;") or
+              free_get_body.find("self->file->maxPos = old_max_pos;") <
+                  free_get_body.find("self->firstEmptyPos = pos;") or
+              not free_set_body or
+              free_set_body.find("JFile_fwrite(self->file,") < 0 or
+              free_set_body.rfind("self->file->pos = old_file_pos;") <
+                  free_set_body.find("if (JFile_fwrite(self->file,") or
+              free_set_body.rfind("self->file->maxPos = old_max_pos;") <
+                  free_set_body.find("if (JFile_fwrite(self->file,")
+          ):
+              raise SystemExit(
+                  "UDB free-list metadata read/write must restore the prior cursor on success"
+              )
 
           record_storage_source = Path(
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordStorage.c"

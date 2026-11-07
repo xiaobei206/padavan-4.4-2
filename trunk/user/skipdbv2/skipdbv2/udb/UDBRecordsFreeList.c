@@ -46,6 +46,7 @@ PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)
 {
 	PID_TYPE pos = 0;
 	size_t file_size;
+	long old_file_pos, old_max_pos;
 
 	if (NULL == self || NULL == self->file || NULL == self->file->file || self->file->maxPos < 0)
 		return 0;
@@ -55,6 +56,8 @@ PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)
 		return 0;
 	}
 
+	old_file_pos = self->file->pos;
+	old_max_pos = self->file->maxPos;
 	JFile_setPosition_(self->file, 0);
 	if (JFile_fread(self->file, (unsigned char *)&pos, sizeof(PID_TYPE), 1) != 1) {
 		/* The metadata block must exist once finishOpening accepted the file.
@@ -68,6 +71,9 @@ PID_TYPE UDBRecords_firstEmptyRecordPos(UDBRecords *self)
 		pos = 0;
 
 	self->firstEmptyPos = pos;
+	/* A metadata query must not disturb a caller's physical record cursor. */
+	self->file->pos = old_file_pos;
+	self->file->maxPos = old_max_pos;
 	return pos;
 }
 
@@ -95,6 +101,9 @@ int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)
 		self->file->maxPos = old_max_pos;
 		return 0;
 	}
+	/* Writing offset-zero metadata must preserve the active record cursor. */
+	self->file->pos = old_file_pos;
+	self->file->maxPos = old_max_pos;
 	return 1;
 }
 
