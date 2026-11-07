@@ -216,6 +216,11 @@ jobs:
                   "UDBIndex_prepareReleaseHole_(self, pid)",
                   "int UDBIndex_offsetForPid_(PID_TYPE pid, size_t *offset)",
                   "UDBIndex_offsetForPid_(pid, &offset)",
+                  "long UDBIndex_pidCount(UDBIndex *self)",
+                  "previous_file_pos = self->file->pos;",
+                  "previous_max_pos = self->file->maxPos;",
+                  "self->file->pos = previous_file_pos;",
+                  "self->file->maxPos = previous_max_pos;",
                   "sizeof(UDBIndexEntry) <= (size_t)LONG_MAX - *offset",
                   "PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)",
                   "NULL == self->file->file",
@@ -228,6 +233,10 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_index_layers.c": [
                   "UDBIndex_posForPid_(db->index, (PID_TYPE)-1)",
+                  "Counting fixed-width PID slots must preserve logical cursor state.",
+                  "PID count query changed the index cursor",
+                  "invalid PID count query changed index cursor state",
+                  "index_file->maxPos = saved_max + 1",
                   "max_seekable_pid =",
                   "UDBIndex_nextPid(db->index)",
                   "next-PID preview returned a slot beyond LONG_MAX",
@@ -3356,6 +3365,36 @@ jobs:
               raise SystemExit(
                   "UDB PID mapping lookups must restore the caller's logical file cursor on both success and read failure"
               )
+          pid_count_start = index_map_source.find(
+              "long UDBIndex_pidCount(UDBIndex *self)"
+          )
+          pid_count_end = index_map_source.find(
+              chr(10) + chr(10) + "void UDBIndex_show", pid_count_start
+          )
+          pid_count_body = (
+              index_map_source[pid_count_start:pid_count_end]
+              if pid_count_start >= 0 and pid_count_end > pid_count_start else ""
+          )
+          count_snapshot = pid_count_body.find("previous_file_pos = self->file->pos;")
+          count_max_snapshot = pid_count_body.find("previous_max_pos = self->file->maxPos;")
+          count_seek = pid_count_body.find("JFile_setPositionToEnd(self->file);")
+          count_restore = pid_count_body.find("self->file->pos = previous_file_pos;")
+          count_restore_max = pid_count_body.find("self->file->maxPos = previous_max_pos;")
+          count_validation = pid_count_body.find("if (end_pos < 0")
+          if (
+              not pid_count_body or min(
+                  count_snapshot, count_max_snapshot, count_seek, count_restore,
+                  count_restore_max, count_validation
+              ) < 0 or not (
+                  count_snapshot < count_seek < count_restore < count_validation and
+                  count_max_snapshot < count_seek and
+                  count_restore_max > count_seek and count_restore_max < count_validation
+              )
+          ):
+              raise SystemExit(
+                  "UDB PID count queries must restore the caller's index cursor before extent validation and return"
+              )
+
           release_helper_start = index_map_source.find(
               "static int UDBIndex_prepareReleaseHole_(UDBIndex *self, PID_TYPE pid)"
           )

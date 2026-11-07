@@ -126,11 +126,16 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 
 long UDBIndex_pidCount(UDBIndex *self)
 {
-	long end_pos;
+	long end_pos, previous_file_pos, previous_max_pos;
 
 	if (NULL == self || NULL == self->file || NULL == self->file->file)
 		return -1;
+	previous_file_pos = self->file->pos;
+	previous_max_pos = self->file->maxPos;
 	end_pos = JFile_setPositionToEnd(self->file);
+	/* A count query must not move the caller's active index cursor. */
+	self->file->pos = previous_file_pos;
+	self->file->maxPos = previous_max_pos;
 	if (end_pos < 0 ||
 		end_pos % (long)sizeof(UDBIndexEntry) != 0)
 		return -1;

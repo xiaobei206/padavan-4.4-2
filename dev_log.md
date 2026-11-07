@@ -1,3 +1,14 @@
+## 2026-11-07 18:32 CST — Preserve the UDB PID-index cursor while counting slots
+
+- Baseline: `81a4e8660c2d618b57ee33c8080fe0f31d12b27a`; SkipDBv2 Regression run #626 passed the source contracts, complete build, and all 57 CTests.
+- Scope: `UDBIndex_pidCount()` in the fixed-width PID map module.
+- Counting slots used `JFile_setPositionToEnd()` and returned the file wrapper's logical position at EOF; malformed extents also returned with the mutated cursor. Traversal callers therefore could unexpectedly disturb an index cursor just by asking for a bound.
+- Snapshot and restore the logical position/extent before validating the observed EOF and alignment, keeping invalid counts fail-closed and the cursor unchanged on every return.
+- Extend `udb_index_layers_test` for valid and misaligned PID counts, with workflow source-order assertions. Existing test target reused; no new files or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the validation gate.
+
+---
+
 ## 2026-11-07 18:29 CST — Validate PID free-list storage before direct traversal
 
 - Baseline: `f91746bcdb1a6705fe624cdf1d50da93cc9f4544`; SkipDBv2 Regression run #625 passed the integration/source contracts, complete build, and all 57 CTests.

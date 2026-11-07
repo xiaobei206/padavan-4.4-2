@@ -38,6 +38,35 @@ int main(void)
         fprintf(stderr, "fresh index did not establish its sentinel slot\n");
         goto done;
     }
+    /* Counting fixed-width PID slots must preserve logical cursor state. */
+    {
+        JFile *index_file = db->index->file;
+        long saved_pos, saved_max, result_count;
+
+        JFile_setPosition_(index_file, 0);
+        saved_pos = index_file->pos;
+        saved_max = index_file->maxPos;
+        result_count = UDBIndex_pidCount(db->index);
+        if (result_count != 1 || index_file->pos != saved_pos ||
+            index_file->maxPos != saved_max) {
+            fprintf(stderr, "PID count query changed the index cursor\\n");
+            goto done;
+        }
+
+        /* Misaligned extents fail closed without altering the caller's state. */
+        index_file->maxPos = saved_max + 1;
+        result_count = UDBIndex_pidCount(db->index);
+        if (result_count != -1 || index_file->pos != saved_pos ||
+            index_file->maxPos != saved_max + 1) {
+            index_file->pos = saved_pos;
+            index_file->maxPos = saved_max;
+            fprintf(stderr, "invalid PID count query changed index cursor state\\n");
+            goto done;
+        }
+        index_file->pos = saved_pos;
+        index_file->maxPos = saved_max;
+    }
+
     if (UDBIndex_posForPid_(db->index, (PID_TYPE)-1) != 0 ||
         UDBIndex_setPos_forPid_(db->index, 1, (PID_TYPE)-1) != 0 ||
         UDBIndex_nextPid(db->index) != 1) {
