@@ -1,3 +1,11 @@
+## 2026-11-07 12:11 CST — Align UTF embedded-NUL regression source contract
+
+- Baseline: main commit `da34cf94d4f1c0939174658a355fc522b1e8d95b`; SkipDBv2 Regression run #519 stopped in source-contract preflight before configure/build.
+- The regression was expanded to cover UTF-16/UTF-32 output, and its failure diagnostic changed accordingly. The workflow's static test-file contract still required the previous UTF-8-only diagnostic, so preflight rejected the correctly updated test.
+- Replace the stale needle with the new UTF-16/UTF-32 regression helper and diagnostic. Production code and test behavior are unchanged; no CMake or file-path changes.
+
+---
+
 ## 2026-11-07 12:10 CST — Preserve embedded NUL across UTF-16/UTF-32 conversions
 
 - Baseline: main commit `8789c433a53345b74b46d5493de577bf50672397`; SkipDBv2 Regression run #518 passed source contracts, configure, full build, and CTest.
