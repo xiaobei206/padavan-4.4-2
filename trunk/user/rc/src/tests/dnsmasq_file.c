@@ -29,6 +29,21 @@ main(void)
 	struct stat st;
 	int saved_errno;
 
+	assert(dnsmasq_valid_server_domain("example.com"));
+	assert(dnsmasq_valid_server_domain("sub-domain.example.co"));
+	assert(dnsmasq_valid_server_domain("router"));
+	assert(dnsmasq_valid_server_domain("example.com."));
+	assert(!dnsmasq_valid_server_domain(NULL));
+	assert(!dnsmasq_valid_server_domain(""));
+	assert(!dnsmasq_valid_server_domain(".example.com"));
+	assert(!dnsmasq_valid_server_domain("example..com"));
+	assert(!dnsmasq_valid_server_domain("-bad.example"));
+	assert(!dnsmasq_valid_server_domain("bad-.example"));
+	assert(!dnsmasq_valid_server_domain("bad domain"));
+	assert(!dnsmasq_valid_server_domain("example.com/8.8.8.8"));
+	assert(!dnsmasq_valid_server_domain("evil.example\\nserver=//203.0.113.9#"));
+	assert(!dnsmasq_valid_server_domain("evil.example\\raddress=/blocked.test/127.0.0.1"));
+
 	assert(mkdtemp(directory) != NULL);
 	assert(snprintf(sentinel, sizeof(sentinel), "%s/sentinel", directory) > 0);
 	assert(snprintf(destination, sizeof(destination), "%s/dnsmasq.servers", directory) > 0);

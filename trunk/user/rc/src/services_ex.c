@@ -261,22 +261,26 @@ fill_dnsmasq_servers(void)
 	if (nvram_get_int("vpnc_pdns") > 0) {
 		wan_dom = nvram_safe_get("vpnc_dom_t");
 		wan_dns = nvram_safe_get("vpnc_dns_t");
-		if (strlen(wan_dom) > 0 && strlen(wan_dns) > 6) {
+		if (dnsmasq_valid_server_domain(wan_dom) && strlen(wan_dns) > 6) {
 			foreach(word, wan_dns, next) {
 				if (is_valid_ipv4(word))
 					fprintf(fp, "server=/%s/%s\n", wan_dom, word);
 			}
+		} else if (wan_dom[0]) {
+			logmessage(LOGNAME, "ignoring invalid domain-specific DNS routing domain");
 		}
 	}
 
 	/* add DNS servers (via specific domain) for MAN subnet */
 	wan_dom = nvram_safe_get("wanx_domain");
 	wan_dns = nvram_safe_get("wanx_dns");
-	if (strlen(wan_dom) > 0 && strlen(wan_dns) > 6) {
+	if (dnsmasq_valid_server_domain(wan_dom) && strlen(wan_dns) > 6) {
 		foreach(word, wan_dns, next) {
 			if (is_valid_ipv4(word))
 				fprintf(fp, "server=/%s/%s\n", wan_dom, word);
 		}
+	} else if (wan_dom[0]) {
+		logmessage(LOGNAME, "ignoring invalid domain-specific DNS routing domain");
 	}
 
 	/* fill from user dnsmasq.servers */
