@@ -1,3 +1,13 @@
+## 2026-11-07 18:14 CST — Align time-sliced compaction count with split-hole merges
+
+- Baseline: `23f854636f1bfe1bd073375c46990665ba91b83d`; SkipDBv2 Regression run #618 passed the integration contracts and full build, but CTest failed only in `udb_reserved_pid_test`.
+- Scope: the existing time-sliced compaction assertion and its workflow source contract; no production algorithm change or new files.
+- The larger-hole fix now preserves the residual free extent and tombstones the old live-row extent. In this fixture, the subsequent time slice performs two successful adjacent-hole merges before the trailing-hole truncation, so `UDB_compactStepFor_(db, 5.0)` correctly reports 2 rather than the old expected count of 1.
+- Update the regression's expected compaction count and assert that exact expectation in the existing workflow contract. Keep the database-open, live-value, removed-PID, and tail-shrink assertions unchanged.
+- No local compiler/CTest result is claimed; GitHub Actions remains the validation gate.
+
+---
+
 ## 2026-11-07 18:00 CST — Preserve record boundaries when compacting into larger holes
 
 - Baseline: `3c631b805bfdefd44fa90d5b937881a59f04e9e0`; SkipDBv2 Regression run #617 passed the source contracts, full build, and all 57 CTests.

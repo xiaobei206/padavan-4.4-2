@@ -176,7 +176,7 @@ int main(void)
         long previous_max_pos = db->records->file->maxPos;
 
         /* The time-sliced API must merge the adjacent hole and trim the tail. */
-        if (UDB_compactStepFor_(db, 5.0) != 1 || !UDB_isOpen(db) ||
+        if (UDB_compactStepFor_(db, 5.0) != 2 || !UDB_isOpen(db) ||
             !has_value(db, first_pid, "updated") ||
             UDB_at_(db, second_pid).data != NULL ||
             db->records->file->maxPos >= previous_max_pos) {
