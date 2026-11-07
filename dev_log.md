@@ -1,3 +1,11 @@
+## 2026-11-07 11:52 CST — Repair UArray bit-count Actions contract placement
+
+- Baseline: main commit `15a34fe809d5b35d7c0cff0aaa8614ca0f301e99`; run #517 failed before configure because a Python ordering assertion had been inserted inside the workflow's source-contract dictionary.
+- Remove the misplaced executable assertion from the dictionary while retaining the explicit source guard and regression needles in the existing contract list. The C fix and test remain unchanged.
+- No CMake or file-path changes.
+
+---
+
 ## 2026-11-07 11:51 CST — Guard UArray bit-count result overflow
 
 - Baseline: main commit `52101f5e858b0d8869aa6e60c6b2822237ff5a23`; SkipDBv2 Regression run #516 passed.
