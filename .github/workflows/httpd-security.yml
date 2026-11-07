@@ -404,7 +404,7 @@ jobs:
           command_copy = command_submit.index("strncpy(SystemCmd, cmd_str, cmd_len);")
           assert command_guard < command_clear < command_deny < command_capture < command_copy
           script_start = web.index('sys_script(char *name)')
-          script_end = web.index('static int\\nwrite_file_dos2unix', script_start)
+          script_end = web.index(chr(10) + "static int" + chr(10) + "write_file_dos2unix", script_start)
           sys_script = web[script_start:script_end]
           syscmd_start = sys_script.index('if (strcmp(name,"syscmd.sh")==0)')
           syscmd_end = sys_script.index('else if (strcmp(name, "syslog.sh")==0)', syscmd_start)
