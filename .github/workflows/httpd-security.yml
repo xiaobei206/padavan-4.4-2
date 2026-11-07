@@ -336,8 +336,10 @@ jobs:
           safe_value = url_filter.index("if (!firewall_url_filter_value_is_safe(filterstr))")
           value_length = url_filter.index("url_length = strlen(filterstr);", safe_value)
           value_append = url_filter.index("strcat(url_list, filterstr)", value_length)
-          rule_write = url_filter.index("fprintf(fp,")
-          assert safe_value < value_length < value_append < rule_write
+          # The first fprintf flushes an already-validated accumulated list before
+          # appending the current item. Check the final writer after the append.
+          rule_writes = [match.start() for match in re.finditer(r"fprintf\\(fp,", url_filter)]
+          assert rule_writes and safe_value < value_length < value_append < rule_writes[-1]
           assert "*p < 0x20" in firewall_policy and "*p == 0x7f" in firewall_policy
           print("Firewall URL pattern config-injection guard: OK")
 
