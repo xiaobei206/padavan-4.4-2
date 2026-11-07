@@ -4286,7 +4286,7 @@ jobs:
 
           bit_math_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c").read_text()
           unary_math_start = bit_math_source.find("#define UARRAY_DOP(OP)")
-          unary_math_end = bit_math_source.find("\\nUARRAY_DOP(sin);", unary_math_start)
+          unary_math_end = bit_math_source.find(chr(10) + "UARRAY_DOP(sin);", unary_math_start)
           unary_math_body = (bit_math_source[unary_math_start:unary_math_end]
                              if unary_math_start >= 0 and unary_math_end > unary_math_start else "")
           unary_range_loop = unary_math_body.find("for (i = 0; i < self->size; ++i)")

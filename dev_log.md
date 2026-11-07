@@ -1,3 +1,11 @@
+## 2026-11-07 21:16 CST — Make unary-math source-contract delimiter explicit
+
+- Baseline: `a5160eb3fdbf7e1e672040c8bf2053456e6977a9`; run #667 failed before the connector exposed any job records or logs.
+- Review found the new source contract searched for a double-escaped backslash-n sequence rather than the actual newline preceding `UARRAY_DOP(sin);`. Use `chr(10)` to delimit the macro body unambiguously.
+- Workflow and handoff log only; the production C and regression-test changes are unchanged.
+
+---
+
 ## 2026-11-07 21:13 CST — Preflight integer results in UArray unary math transforms
 
 - Baseline: `15b0e36837eb067af3c28dcc06bc7e81cbe60fbb`; main run #666 passed source contracts, configure, full target build, and all CTests.
