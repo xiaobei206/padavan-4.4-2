@@ -1,3 +1,13 @@
+## 2026-11-07 12:53 CST — Prevent UArray item-count ceiling overflow
+
+- Baseline: main commit `0845cf06b9200a2de592ffcb3fd4da1cbdaa7425`; SkipDBv2 Regression run #531 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `UArray_sizeRequiredToContain_()` in `basekit/UArray.c`, its existing byte-size regression, and the matching Actions source contracts.
+- The helper computed ceiling division as `(bytes + itemSize - 1) / itemSize`, which can wrap when the byte extent is near `SIZE_MAX`; it also dereferenced a NULL receiver and divided by zero for malformed item metadata.
+- Guard the arguments and compute quotient plus a nonzero-remainder flag, avoiding overflowing addition while preserving normal rounding semantics. Extend the existing test with NULL/zero-width cases and a SIZE_MAX boundary without allocating an enormous buffer.
+- The existing `uarray_size_in_bytes_test` CMake target is reused; no new files or exported declarations. No local C build/CTest is claimed; mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 12:51 CST — Enforce 32-bit MT state and output width
 
 - Baseline: main commit `3420dd2891a7edf14dd858fc58de4340135d1629`; SkipDBv2 Regression run #530 passed source contracts, configure, full build, and all CTest regressions.

@@ -132,7 +132,13 @@ size_t UArray_itemSize(const UArray *self)
 //inline 
 size_t UArray_sizeRequiredToContain_(const UArray *self, const UArray *other)
 {
-	return (UArray_sizeInBytes(other)  + self->itemSize - 1) / self->itemSize;
+	size_t otherBytes;
+	if (NULL == self || self->itemSize == 0 || NULL == other)
+		return 0;
+	otherBytes = UArray_sizeInBytes(other);
+	/* Divide before adding the remainder flag to avoid ceil-division overflow. */
+	return otherBytes / self->itemSize +
+		(otherBytes % self->itemSize != 0);
 }
 
 void UArray_rawSetItemType_(UArray *self, CTYPE type)

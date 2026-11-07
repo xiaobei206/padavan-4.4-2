@@ -2387,6 +2387,10 @@ jobs:
                   "size_t UArray_sizeInBytes(const UArray *self)",
                   "self->size > (size_t)-1 / self->itemSize",
                   "return self->size * self->itemSize;",
+                  "size_t UArray_sizeRequiredToContain_(const UArray *self, const UArray *other)",
+                  "if (NULL == self || self->itemSize == 0 || NULL == other)",
+                  "return otherBytes / self->itemSize +",
+                  "otherBytes % self->itemSize != 0",
                   "static int UArray_searchArrayIsValid_(const UArray *self)",
                   "self->itemSize != itemSize",
                   "self->size > (size_t)LONG_MAX",
@@ -2404,6 +2408,11 @@ jobs:
 
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c": [
+                  "extern size_t UArray_sizeRequiredToContain_(const UArray *self, const UArray *other);",
+                  "UArray_sizeRequiredToContain_(NULL, &valid)",
+                  "UArray_sizeRequiredToContain_(&no_width, &valid)",
+                  "(size_t)-1 / valid.itemSize + 1",
+                  "UArray item-count ceiling division overflowed near SIZE_MAX",
                   "UArray_sizeInBytes(NULL)",
                   "UArray_byteAt_(NULL, 0)",
                   "UArray_byteAt_(&valid, 3)",
