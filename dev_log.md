@@ -1,3 +1,11 @@
+## 2026-11-07 12:15 CST — Correct scalar-division contract guard ordering
+
+- Baseline: main commit `6cec8277387e1fd6f405be5874612e71eac31c21`; SkipDBv2 Regression run #521 stopped in the source-contract preflight.
+- The scalar divide implementation and regression compiled neither way because the source-contract verifier searched for the float-type guard starting at the later range-loop declaration, while the guard correctly precedes that loop.
+- Correct the verifier to locate the type guard from the start of the scalar function and explicitly require it to precede the scan. Keep the quotient scan and its placement before mutation unchanged.
+
+---
+
 ## 2026-11-07 12:14 CST — Preflight scalar floating-to-integer division
 
 - Baseline: main commit `fcf717cb8fbb7e8df06b457ba32bb6e882d8a245`; SkipDBv2 Regression run #520 passed source contracts, configure, full build, and all CTest regressions.

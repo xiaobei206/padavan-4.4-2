@@ -3634,9 +3634,10 @@ jobs:
                   range_loop = body.find("for (i = 0; i < self->size; ++i)")
                   range_read = body.find("UArray_rawDoubleAt_(self, i) / value", range_loop)
                   range_guard = body.find("UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)", range_read)
-                  floating_type_guard = body.find("self->itemType != CTYPE_float32_t", range_loop)
+                  floating_type_guard = body.find("self->itemType != CTYPE_float32_t")
                   if (range_loop < 0 or range_read < range_loop or
                       range_guard < range_read or floating_type_guard < 0 or
+                      floating_type_guard > range_loop or
                       range_guard > first_foreach):
                       raise SystemExit("UArray scalar integer division must preflight every quotient before mutating the array")
 
