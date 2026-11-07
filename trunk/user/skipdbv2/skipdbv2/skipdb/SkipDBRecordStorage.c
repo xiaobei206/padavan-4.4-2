@@ -49,8 +49,7 @@ static int SkipDBRecord_readFromStream_(SkipDBRecord *self, BStream *s)
 	int level, max;
 	size_t stream_size;
 
-	if (!SkipDBRecord_streamIsReady_(self, s))
-		return 0;
+	/* The public entry point validates the stream before staging a record. */
 	UArray_setSize_(s->errorBa, 0);
 	stream_size = UArray_size(s->ba);
 	if (s->index > stream_size)

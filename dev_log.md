@@ -1,3 +1,12 @@
+## 2026-11-07 18:17 CST — Restore single-owner stream readiness validation
+
+- Baseline: `6c2ae64a76df92f82f4233d217bd505c4faf55cf`; run #620 stopped at the source-contract gate before configuration, compilation, or CTests.
+- The staged decoder repeated `SkipDBRecord_streamIsReady_()` after the public entry point had already validated the caller and stream, changing the established centralized-helper count from three to four.
+- Remove the redundant private guard; the private decoder is only called by the checked public wrapper with a newly allocated record. Keep error-buffer reset and all bounds/tag checks unchanged.
+- No build or runtime test ran in failed run #620; the new commit will rerun the complete Actions gate.
+
+---
+
 ## 2026-11-07 18:16 CST — Make SkipDB record deserialization atomic
 
 - Baseline: `2740ec2ecf0c63a808f54b21cdb171ced29f29d0`; SkipDBv2 Regression run #619 passed the integration/source contracts, full build, and all 57 CTests.
