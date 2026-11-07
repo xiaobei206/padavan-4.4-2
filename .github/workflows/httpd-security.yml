@@ -6,6 +6,10 @@ on:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
       - "trunk/user/httpd/src/upload.c"
+      - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/data_extract_all.c"
+      - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/safe_extract_path.h"
+      - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/tests/safe_extract_path.c"
+      - "trunk/user/scripts/files/sbin/mtd_storage.sh"
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
       - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
@@ -20,6 +24,10 @@ on:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
       - "trunk/user/httpd/src/upload.c"
+      - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/data_extract_all.c"
+      - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/safe_extract_path.h"
+      - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/tests/safe_extract_path.c"
+      - "trunk/user/scripts/files/sbin/mtd_storage.sh"
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
       - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
@@ -62,6 +70,10 @@ jobs:
             trunk/user/httpd/src/tests/httpd_login_policy.c \
             -o /tmp/httpd_login_policy
           /tmp/httpd_login_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            trunk/user/busybox/busybox-1.24.x/archival/libarchive/tests/safe_extract_path.c \
+            -o /tmp/busybox_safe_extract_path
+          /tmp/busybox_safe_extract_path
 
       - name: Verify HTTPD auth and route-access wiring
         run: |
@@ -73,6 +85,10 @@ jobs:
           httpd = (root / "httpd.c").read_text()
           web = (root / "web_ex.c").read_text()
           upload = (root / "upload.c").read_text()
+          archive_root = Path("trunk/user/busybox/busybox-1.24.x/archival/libarchive")
+          data_extract = (archive_root / "data_extract_all.c").read_text()
+          safe_extract = (archive_root / "safe_extract_path.h").read_text()
+          storage_script = Path("trunk/user/scripts/files/sbin/mtd_storage.sh").read_text()
 
           getter_start = httpd.index("get_login_private_key_access(void)")
           getter_end = httpd.index("\nstatic void\nhttp_login", getter_start)
@@ -225,6 +241,27 @@ jobs:
           storage_boundary_check = storage_post.index("if (!boundary || !*boundary || clen < 0)")
           assert storage_clear < storage_boundary_check, "invalid storage boundary can reuse a stale archive"
           print("HTTPD stale upload-artifact guard wiring: OK")
+
+          # Storage restore executes tar as root into a scratch directory.
+          # Enforce member-path safety before tar creates parents or unlinks
+          # destinations, and fail the restore before it copies scratch data.
+          extract_start = data_extract.index("void FAST_FUNC data_extract_all")
+          extract = data_extract[extract_start:]
+          safety_check = extract.index("bb_archive_has_unsafe_parent(file_header->name)")
+          leading_dirs = extract.index("if (archive_handle->ah_flags & ARCHIVE_CREATE_LEADING_DIRS)")
+          unlink_old = extract.index("if (archive_handle->ah_flags & ARCHIVE_UNLINK_OLD)")
+          assert safety_check < leading_dirs < unlink_old
+          assert 'if (!path || !path[0] || path[0] == \'/\')' in safe_extract
+          assert 'strcmp(component, "..") == 0' in safe_extract
+          assert "lstat(copy, &st)" in safe_extract
+          assert "!S_ISDIR(st.st_mode)" in safe_extract
+          restore_start = storage_script.index("func_restore()")
+          restore_end = storage_script.index(chr(10) + "func_erase()", restore_start)
+          restore = storage_script[restore_start:restore_end]
+          assert "tar xjf $tbz -C $tmp_storage" in restore
+          assert "if [ $? -ne 0 ]" in restore
+          assert 'if [ ! -f "$tmp_storage/start_script.sh" ]' in restore
+          print("BusyBox archive extraction symlink-parent guard: OK")
           # Session ownership is a 30-second idle lock, not a fixed 30 seconds
           # from first login. Preserve the initial-login timestamp for UI use.
           login_policy = (root / "httpd_login_policy.h").read_text()

@@ -5,6 +5,7 @@
 
 #include "libbb.h"
 #include "bb_archive.h"
+#include "safe_extract_path.h"
 
 void FAST_FUNC data_extract_all(archive_handle_t *archive_handle)
 {
@@ -22,6 +23,11 @@ void FAST_FUNC data_extract_all(archive_handle_t *archive_handle)
 		archive_handle->tar__sctx[PAX_NEXT_FILE] = NULL;
 	}
 #endif
+
+	/* Refuse symlink/non-directory parents before mkdir, unlink or open. */
+	if (bb_archive_has_unsafe_parent(file_header->name))
+		bb_error_msg_and_die("refusing to extract through unsafe parent path: %s",
+				     file_header->name);
 
 	if (archive_handle->ah_flags & ARCHIVE_CREATE_LEADING_DIRS) {
 		char *slash = strrchr(file_header->name, '/');

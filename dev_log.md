@@ -1,3 +1,14 @@
+## 2026-11-07 23:24 CST — Block symlink-parent traversal during storage archive extraction
+
+- Baseline main HEAD: a6f284111241c28ba1577d12264d3288338e53eb. Scope: BusyBox archive extraction called by `/sbin/mtd_storage.sh` during root storage restore.
+- Finding: `func_restore()` executes `tar xjf $tbz -C /tmp/storage`, checks for `start_script.sh`, then copies the extracted tree into `/etc`. BusyBox `get_header_tar.c` strips unsafe member-name prefixes, but `data_extract_all()` does not reject symlink ancestors created by prior archive entries. A tar member `escape -> /etc` followed by `escape/passwd` can cause `ARCHIVE_UNLINK_OLD` plus file creation to target `/etc/passwd` rather than stay under the scratch tree.
+- Fix: new `archival/libarchive/safe_extract_path.h` rejects absolute names, `..` components and existing non-directory/symlink parents using `lstat()`. `data_extract_all()` calls the policy before directory creation, unlink and open. Missing parent directories remain allowed. Added standalone host regression `tests/safe_extract_path.c`; it tests normal and missing parents, file/symlink parents, absolute/parent traversal and invalid inputs.
+- CI: updated `.github/workflows/httpd-security.yml` path triggers, compiles/runs the policy test with GNU89 `-Wall -Wextra -Werror`, and asserts the production guard occurs before extraction side effects and storage restore fails closed when tar fails. Validation PENDING for the exact commit; do not claim the new test passed until its run finishes.
+- Scope limits: host regression/source-contract only planned; no full BusyBox MIPS build, firmware artifact, archive fuzzing or hardware validation. Valid symlink usage and archive restore compatibility need further review.
+- Next: verify exact Actions run, then audit archive/link semantics, NVRAM/image header length handling, privileged CGI dispatch, and broaden the whole-userland P1 inventory.
+
+---
+
 ## 2026-11-07 23:22 CST — Verify stale upload-artifact cleanup regression
 
 - Production code commit `5877544ea347ab728bd185012187ec09e2aeb76c` passed HTTPD Authentication and Security Regression run `42385963510` on exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385963510.
