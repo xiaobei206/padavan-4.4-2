@@ -24,7 +24,7 @@ main(void)
 	char directory[] = "/tmp/dnsmasq-file-test.XXXXXX";
 	char sentinel[256], destination[256], template[256], staged[256];
 	char fail_template[256], fail_path[256], lease_path[256];
-	char symlink_lease[256], hardlink_lease[256], fifo_lease[256];
+	char symlink_lease[256], hardlink_lease[256], fifo_lease[256], private_lease[256];
 	FILE *fp;
 	struct stat st;
 	int saved_errno;
@@ -38,6 +38,7 @@ main(void)
 	assert(snprintf(symlink_lease, sizeof(symlink_lease), "%s/symlink.leases", directory) > 0);
 	assert(snprintf(hardlink_lease, sizeof(hardlink_lease), "%s/hardlink.leases", directory) > 0);
 	assert(snprintf(fifo_lease, sizeof(fifo_lease), "%s/fifo.leases", directory) > 0);
+	assert(snprintf(private_lease, sizeof(private_lease), "%s/private.leases", directory) > 0);
 
 	fp = fopen(sentinel, "w");
 	assert(fp != NULL);
@@ -98,6 +99,16 @@ main(void)
 	assert((st.st_mode & 0777) == 0644);
 	read_exact(lease_path, "lease-record\n");
 
+	/* A stricter pre-existing mode must not be widened during validation. */
+	fp = fopen(private_lease, "w");
+	assert(fp != NULL);
+	assert(fputs("private-lease\n", fp) >= 0);
+	assert(fclose(fp) == 0);
+	assert(chmod(private_lease, 0600) == 0);
+	assert(dnsmasq_lease_file_ensure(private_lease) == 0);
+	assert(stat(private_lease, &st) == 0 && (st.st_mode & 0777) == 0600);
+	read_exact(private_lease, "private-lease\n");
+
 	/* Do not chmod a hard-linked victim or block while opening a FIFO. */
 	assert(link(sentinel, hardlink_lease) == 0);
 	assert(dnsmasq_file_is_safe_regular(hardlink_lease) == -1);
@@ -112,6 +123,7 @@ main(void)
 	assert(unlink(hardlink_lease) == 0);
 	assert(unlink(fifo_lease) == 0);
 	assert(unlink(symlink_lease) == 0);
+	assert(unlink(private_lease) == 0);
 	assert(unlink(lease_path) == 0);
 	assert(unlink(destination) == 0);
 	assert(unlink(sentinel) == 0);

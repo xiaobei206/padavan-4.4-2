@@ -144,7 +144,7 @@ dnsmasq_lease_file_ensure(const char *path)
 	int fd;
 	int saved_errno;
 	struct stat st;
-	const mode_t lease_mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+	mode_t lease_mode;
 
 	if (!path || !path[0]) {
 		errno = EINVAL;
@@ -167,6 +167,8 @@ dnsmasq_lease_file_ensure(const char *path)
 			(st.st_uid != geteuid() ? EPERM : EMLINK);
 		return -1;
 	}
+	/* Preserve a restrictive umask/mode while ensuring the owner can maintain leases. */
+	lease_mode = (st.st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) | S_IRUSR | S_IWUSR;
 	if (fchmod(fd, lease_mode) != 0) {
 		saved_errno = errno ? errno : EIO;
 		close(fd);
