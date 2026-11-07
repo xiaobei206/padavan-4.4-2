@@ -93,6 +93,14 @@ int main(void)
         fprintf(stderr, "allocator did not reserve consecutive PIDs\n");
         goto done;
     }
+    if (UDBIndex_setPos_forPid_(db->index,
+            (PID_TYPE)(sizeof(PID_TYPE) - 1), first) != 0 ||
+        !UDBIndex_isReservedPid_(db->index, first) ||
+        !UDBIndex_isReservedPid_(db->index, second)) {
+        fprintf(stderr, "index accepted a record offset before the data header\\n");
+        goto done;
+    }
+
     UDB_at_put_(db, first, Datum_FromCString_("first"));
     UDB_at_put_(db, second, Datum_FromCString_("second"));
     UDB_commitTransaction(db);

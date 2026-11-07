@@ -50,7 +50,9 @@ int UDBIndex_setPos_forPid_(UDBIndex *self, PID_TYPE pos, PID_TYPE pid)
 
 	if (!UDBIndex_hasStreams_(self) ||
 		!UDBIndex_offsetForPid_(pid, &offset) ||
-		pos > (PID_TYPE)LONG_MAX || (pid == 0 && pos != 0))
+		pos > (PID_TYPE)LONG_MAX ||
+		(pos != 0 && pos < (PID_TYPE)sizeof(PID_TYPE)) ||
+		(pid == 0 && pos != 0))
 		return 0;
 
 	old_pos = UDBIndex_posForPid_(self, pid);

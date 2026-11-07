@@ -1,3 +1,13 @@
+## 2026-11-07 10:08 CST — Reject PID mappings inside the data-file header
+
+- Baseline: main commit `8d0258b9f2a5d4a793705ab918e8deaa9e1473d4`; SkipDBv2 Regression run #501 passed.
+- Scope: `UDBIndex_setPos_forPid_()` in `udb/UDBIndexMap.c`.
+- The setter rejected offsets beyond `LONG_MAX` but accepted nonzero offsets smaller than `sizeof(PID_TYPE)`. Those bytes are occupied by the records file's leading `firstEmptyPos` field, so an invalid mapping could overwrite metadata and release a PID reservation.
+- Reject nonzero record offsets before the data header while preserving zero as the unmapped sentinel. Extend the existing index-layer regression to assert both reservations remain intact after rejection; add source-contract checks. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 10:06 CST — Reject record creation with invalid end offsets
 
 - Baseline: main commit `2ed8d3fb51c749fc7828fb15f652b44001719c28`; SkipDBv2 Regression run #500 passed.
