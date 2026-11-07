@@ -41,7 +41,7 @@ umask 077
 attempt=0
 tmp_dir=
 while [ "$attempt" -lt 32 ]; do
-	candidate_dir="$storage_dir/.ap_script_migrate.$.$attempt"
+	candidate_dir="$storage_dir/.ap_script_migrate.$$.$attempt"
 	if mkdir "$candidate_dir" 2>/dev/null; then
 		tmp_dir=$candidate_dir
 		break
