@@ -1,3 +1,14 @@
+## 2026-11-07 13:35 CST — Recover absorbing all-zero RandomGen state
+
+- Baseline: main commit `705ea49e1d3943ec002cd147a35b5674e9f0b2e4`; SkipDBv2 Regression run #547 passed source contracts, configure, the complete build, and all CTest cases.
+- Scope: MT19937 state recovery in `basekit/RandomGen.c` and the existing `random_gen_state_bounds_test`.
+- The Gaussian API already detects an all-zero MT state and reseeds it, but the public integer and floating-point generators did not. An all-zero state is absorbing in MT19937, so `RandomGen_randomInt()` and `RandomGen_randomDouble()` could return a constant zero stream indefinitely after zero-initialization or state corruption.
+- Reuse the existing state validator at the initial-index and twist-batch boundaries (`mti == 0` or `mti == N`). This catches a zero-initialized instance before its first output and recovers a zeroed state when the next batch begins, while avoiding a 624-word scan on every generated value. Restore the deterministic default seed `5489`, consistent with the existing Gaussian recovery path.
+- Add coverage for integer, floating-point, and twist-boundary recovery. Reuse the registered CTest target; no new files, external symbols, or CMake changes.
+- Static preflight: confirmed the helper retains one static definition plus a forward declaration, recovery occurs before indexing/twisting, all three tests compare against the deterministic default-seed sequence, and the existing test remains CMake-registered. No local compiler or CTest run is claimed; mainline Actions is the verification gate.
+
+---
+
 ## 2026-11-07 13:33 CST — Repair tagged BStream source-contract boundary
 
 - Baseline: main commit `354d78f6d391a7741408843a1abe14d0f12c65db`; run #546 passed dependency installation but stopped in the XY-C1 integration/source-contract step before CMake configure.

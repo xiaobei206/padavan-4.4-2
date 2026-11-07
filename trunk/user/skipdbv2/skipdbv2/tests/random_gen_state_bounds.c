@@ -29,6 +29,32 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 
+	/* A zero-initialized or externally-cleared MT state is absorbing. */
+	memset(actual->mt, 0, sizeof(actual->mt));
+	actual->mti = 0;
+	RandomGen_setSeed(expected, 5489UL);
+	if (!check(RandomGen_randomDouble(actual) ==
+		RandomGen_randomDouble(expected),
+		"all-zero generator state did not recover before floating-point sampling"))
+		goto failure;
+
+	memset(actual->mt, 0, sizeof(actual->mt));
+	actual->mti = 0;
+	RandomGen_setSeed(expected, 5489UL);
+	if (!check(RandomGen_randomInt(actual) ==
+		RandomGen_randomInt(expected),
+		"all-zero generator state did not recover before integer sampling"))
+		goto failure;
+
+	/* The same recovery must happen when the next twist batch is due. */
+	memset(actual->mt, 0, sizeof(actual->mt));
+	actual->mti = RANDOMGEN_N;
+	RandomGen_setSeed(expected, 5489UL);
+	if (!check(RandomGen_randomDouble(actual) ==
+		RandomGen_randomDouble(expected),
+		"all-zero generator state did not recover at a twist boundary"))
+		goto failure;
+
 	RandomGen_setSeed(actual, 5489UL);
 	RandomGen_setSeed(expected, 5489UL);
 	actual->mti = -1;

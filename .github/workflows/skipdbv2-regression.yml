@@ -2319,6 +2319,9 @@ jobs:
                   "if (++rejectedPairs >= RANDOMGEN_GAUSSIAN_MAX_REJECTIONS)",
                   "rejectedPairs = 0;",
 
+                  "/* All-zero MT state is absorbing; inspect only at batch boundaries to",
+                  "if ((self->mti == 0 || self->mti == N) &&",
+                  "!RandomGen_hasNonzeroState_(self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/random_gen_state_bounds.c": [
                   "#include <limits.h>",
@@ -2335,6 +2338,10 @@ jobs:
                   "actualGaussian = RandomGen_gaussian(actual, 5.0, 2.0);",
                   "nonzero degenerate generator state did not recover after bounded Gaussian rejection",
 
+                  "all-zero generator state did not recover before floating-point sampling",
+                  "all-zero generator state did not recover before integer sampling",
+                  "all-zero generator state did not recover at a twist boundary",
+                  "actual->mti = RANDOMGEN_N;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/random_gen_lifecycle.c": [
                   "RandomGen_randomDouble(NULL)",

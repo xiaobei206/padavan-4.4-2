@@ -137,11 +137,19 @@ static void init_by_array(RandomGen *self, unsigned long init_key[],int key_leng
 #endif
 
 /* generates a random number on [0,0xffffffff]-interval */
+/* All-zero MT state is absorbing; inspect only at batch boundaries to
+ * recover corrupted or zero-initialized instances without per-draw scans. */
+static int RandomGen_hasNonzeroState_(const RandomGen *self);
+
 static unsigned long genrand_int32(RandomGen *self)
 {
 	unsigned long y;
 	static unsigned long mag01[2]={0x0UL, MATRIX_A};
 	/* mag01[x] = x * MATRIX_A  for x=0,1 */
+
+	if ((self->mti == 0 || self->mti == N) &&
+		!RandomGen_hasNonzeroState_(self))
+		init_genrand(self, 5489UL);
 
 	if (self->mti < 0 || self->mti > N+1)
 		init_genrand(self, 5489UL);
