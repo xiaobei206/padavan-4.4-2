@@ -1,6 +1,8 @@
 #ifndef PADAVAN_FIREWALL_FILTER_POLICY_H
 #define PADAVAN_FIREWALL_FILTER_POLICY_H
 
+#include <string.h>
+
 /* URL patterns are embedded in a quoted iptables-restore rule. */
 static int
 firewall_url_filter_value_is_safe(const char *value)
