@@ -1,3 +1,13 @@
+## 2026-11-07 09:04 CST — Reject malformed UArray stack-range layouts
+
+- Baseline: main commit `d50b95ba0f2abd1d4262c0125d365c3b9d9e9579`; SkipDBv2 Regression run #477 passed.
+- Scope: `UArray_stackRange()` in `basekit/UArray.c`.
+- The stack-range constructor checked only `itemSize` and count geometry. A malformed public UArray whose `itemType` width disagreed with `itemSize` could still produce a typed view over invalid storage, allowing subsequent typed access beyond the backing bytes.
+- Reuse `UArray_hasValidItemLayout_()` before offset arithmetic; normalize malformed input to a safe empty byte-array view while preserving out-of-range behavior for otherwise valid arrays. Add malformed-layout and valid-slice regression cases to the existing test, and update the Actions source contract. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 08:47 CST — Repair UArray layout-contract call count
 
 - Baseline: main commit `3e71d7304d1fb52a1e09c9ea31fe390779f39d1a`; SkipDBv2 Regression run #476 stopped at source-contract validation before configure/build.

@@ -5,6 +5,42 @@
 #include <string.h>
 
 
+static int testStackRangeRejectsMismatchedItemLayout(void)
+{
+    uint8_t bytes[] = {0x11, 0x22};
+    UArray malformed = UArray_stackAllocedWithData_type_size_(
+        bytes, CTYPE_uint32_t, sizeof(bytes));
+    UArray valid = UArray_stackAllocedWithData_type_size_(
+        bytes, CTYPE_uint8_t, sizeof(bytes));
+    UArray view = UArray_stackAllocedEmptyUArray();
+    int okay = 0;
+
+    malformed.itemSize = sizeof(uint8_t);
+    view = UArray_stackRange(&malformed, 0, 2);
+    if (view.data != NULL || view.size != 0 ||
+        view.itemType != CTYPE_uint8_t || view.itemSize != sizeof(uint8_t) ||
+        !view.stackAllocated) {
+        fprintf(stderr, "UArray stack range accepted mismatched item layout\n");
+        goto done;
+    }
+
+    view = UArray_stackRange(&valid, 1, 1);
+    if (view.data != bytes + 1 || view.size != 1 ||
+        view.itemType != CTYPE_uint8_t || view.itemSize != sizeof(uint8_t) ||
+        !view.stackAllocated) {
+        fprintf(stderr, "UArray stack range changed valid slice semantics\n");
+        goto done;
+    }
+
+    okay = 1;
+done:
+    UArray_stackFree(&view);
+    UArray_stackFree(&valid);
+    UArray_stackFree(&malformed);
+    return okay;
+}
+
+
 static int testCopyRejectsMismatchedItemLayouts(void)
 {
     uint8_t shortSourceBytes[] = {0x11, 0x22};
@@ -240,6 +276,10 @@ int main(void)
 
     if (!testDuplicateIndexes()) {
         fprintf(stderr, "UArray_duplicateIndexes failed safety or duplication checks\n");
+        goto done;
+    }
+    if (!testStackRangeRejectsMismatchedItemLayout()) {
+        fprintf(stderr, "UArray stack-range layout validation failed\n");
         goto done;
     }
     if (!testCopyRejectsMismatchedItemLayouts()) {

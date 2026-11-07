@@ -839,12 +839,16 @@ UArray UArray_stackRange(const UArray *self, size_t start, size_t size)
 	s.stackAllocated = 1;
 #endif
 
-	if (self->itemSize == 0 ||
-		self->size > (size_t)-1 / self->itemSize ||
-		(start > self->size) ||
-		(size > self->size - start) ||
-		(self->size > 0 && NULL == self->data) ||
-		start > (size_t)-1 / self->itemSize) {
+	if (!UArray_hasValidItemLayout_(self)) {
+		memset(&s, 0, sizeof(UArray));
+		s.itemType = CTYPE_uint8_t;
+		s.itemSize = sizeof(uint8_t);
+#ifdef UARRAY_DEBUG
+		s.stackAllocated = 1;
+#endif
+		return s;
+	}
+	if (start > self->size || size > self->size - start) {
 		s.data = NULL;
 		s.size = 0;
 		return s;
