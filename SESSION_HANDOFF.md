@@ -1,20 +1,26 @@
 # Session Handoff — Padavan 4.4
 
-## Latest resumable checkpoint — HTTPD Shadowsocks dbconf authorization
+## Latest resumable checkpoint — HTTPD strict Basic authentication
 
-- Current production-code checkpoint: `7fc9b5d7fee3f5dcb15310456e657e567714d75b`; its parent is the intermediate commit `8756f91b4bda529e11c3f39f1a71cdb540a3f816`. The intermediate commit used a stale Git tree and produced an unintended tree; it was immediately repaired by this fast-forward commit. A live compare from the original intended base `71ff09d1e01d080b6b3b79e1ececa49ef3589bf5` to this checkpoint shows exactly two modified paths: `trunk/user/httpd/src/web_ex.c` and `.github/workflows/httpd-security.yml`.
-- Finding (P1): the conditional Shadowsocks `/dbconf?p=ss` route had `need_auth=0`. `do_dbconf()` accepts caller-selected database prefixes and serializes matching SkipDB records into executable JavaScript. The existing Shadowsocks page reads those records into forms including server password and SOCKS credentials, so the unauthenticated route disclosed credential-bearing configuration.
-- Fix: changed only the `dbconf` MIME route to `need_auth=1`. The existing `handle_request()` authentication gate now runs before the output callback, consistent with the authenticated Shadowsocks management page. Extended the HTTPD workflow with a source contract for both route policy and gate ordering.
-- Validation: HTTPD Authentication and Security Regression run `42381700507` **success** on exact SHA `7fc9b5d7fee3f5dcb15310456e657e567714d75b`; both the existing GNU89 C private-key policy test and new route/auth wiring contract passed. SkipDBv2 Regression run `42381700499` also completed **successfully** on the same SHA, including its integration contracts, configure, SkipDB targets, and regression tests. This is not an HTTPD target build.
-- Recovery note: intermediate commit `8756f91b4bda529e11c3f39f1a71cdb540a3f816` triggered HTTPD run `42381654753`, which failed at the C test compile because unrelated paths were missing from the stale tree. The final tree was restored from the actual `71ff...` base tree; the compare to that base confirms no unrelated source changes remain. The final SHA's HTTPD and SkipDB workflows both pass.
-- Not performed: full HTTPD MIPS cross-build, complete XY-C1 firmware image generation/inspection, fuzzing, and XY-C1 hardware validation.
+- Verified main immediately before this handoff update: `3989c878b702595fdba530d79da1b1e327225c1c`. Production implementation: `b905c4baabd87922075700397c54cdbe6edd03fd`; workflow-only shell repair: `3989c878b702595fdba530d79da1b1e327225c1c`. Fetch live main before every subsequent write.
+- Scope: HTTPD Basic Authorization parsing and Base64 validation; bounded to `trunk/user/httpd/src/{httpd.c,base64.c,httpd_basic_auth.h,tests/httpd_basic_auth.c}` and `.github/workflows/httpd-security.yml`.
+- P1 finding: `auth_check()` used legacy `b64_decode()`, which silently discarded bytes outside the Base64 alphabet and did not enforce quartet length, padding placement, or canonical unused pad bits. It then compared the result as a C string without rejecting embedded NUL bytes. Malformed credentials could be normalized into a different credential string instead of rejected.
+- Fix: added a dedicated strict RFC 4648 decoder for the HTTP Basic path; it validates the entire token and output capacity before writing, rejects non-alphabet bytes, missing/misplaced padding and non-zero unused pad bits, and leaves the legacy decoder behavior for unrelated callers. Added a bounded Basic-field parser with case-insensitive scheme handling, separator validation, trailing HTTP OWS/line-ending handling, encoded/decoded limits, and embedded-NUL/colon checks. `auth_check()` now uses this helper.
+- Regression: canonical padded/unpadded examples; invalid alphabet/padding; non-canonical pad bits; truncation; output-capacity/no-partial-write behavior; Basic scheme casing and OWS/CRLF; malformed scheme spacing; embedded NUL; and missing colon.
+- Commits: implementation `b905c4baabd87922075700397c54cdbe6edd03fd`; workflow shell correction `3989c878b702595fdba530d79da1b1e327225c1c`. First Actions attempt `42383463695` failed because newly added shell continuation lines contained doubled backslashes and the linker treated a literal backslash as an input file. The workflow-only correction fixed those lines.
+- Validation: HTTPD Authentication and Security Regression run `42383489924` completed **successfully** on exact SHA `3989c878b702595fdba530d79da1b1e327225c1c`. Both GNU89 `-Wall -Wextra -Werror` C test executables (private-key policy and strict Basic-auth decoder/parser) compiled and ran; source wiring checks passed. The failed predecessor run `42383463695` is retained and explained.
+- Validation boundary: L1 source/dependency/build integration review completed for this sub-scope; L2 focused host regression PASS. Full HTTPD MIPS cross-build, XY-C1 firmware image generation/inspection, protocol fuzzing and hardware validation remain NOT VERIFIED. HTTPD and the authentication subsystem remain AUDITING, not complete.
+- Startup branch review: five remote `refactor/*` branches were compared with main. Their unmerged deltas were old SkipDBv2/BaseKit-only work or empty/behind; none was an HTTPD checkpoint, so none was merged.
 
-### Next work
+### Next exact actions
 
-1. Continue the HTTPD P1 audit: strict Basic-auth syntax (legacy `b64_decode()` ignores non-alphabet bytes and does not validate canonical padding), global IP-only session semantics, logout/ACL behavior, and the complete MIME/CGI authorization matrix.
-2. Continue HTTPD protocol/lifecycle review: TLS post-handshake read/write WANT_READ/WANT_WRITE behavior, connection pool/FD limits, request timeout behavior, response writes, and multipart restore/upload bounds.
-3. Expand through privileged command/config generation, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file sharing, storage, and init/service lifecycle. Record each scope separately; do not resume routine SkipDBv2 refactoring.
-4. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` through the repository firmware validation workflow after the HTTPD code series before claiming target-build verification.
+1. Continue P1 HTTPD session/authorization review from `httpd.c`: trace `http_login_check()`, `http_login()`, `http_logout()`, `login_ip/login_timestamp/login_safe`, and the special `logout` path. Determine same-IP/NAT session-sharing behavior and timeout/ACL edge cases before changing semantics.
+2. Build and verify the complete conditional `mime_handlers[]` route authorization matrix in `web_ex.c`; map each handler to its page/API consumer. Then audit CGI/EJ dispatch, output escaping, and privileged command/configuration call chains.
+3. Continue TLS post-handshake read/write behavior, connection-pool/FD/timeouts, response writes, and multipart firmware/storage restore bounds.
+4. Broaden to privileged command/configuration, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file sharing, storage/hotplug, and init/service lifecycle. Keep the repository-wide roadmap authoritative; do not resume routine SkipDBv2 work.
+5. Run the supported `make XY-C1 TOOLCHAIN=mipsel-linux-musl` firmware validation path after the HTTPD series, then inspect the generated artifact. Until then, do not claim target-build or hardware verification.
+---
+
 ---
 
 **Purpose:** resume work across ChatGPT conversations. GitHub is the source of truth; re-check all values below against live repository state before acting.
