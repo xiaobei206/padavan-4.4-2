@@ -1,26 +1,21 @@
 # Session Handoff — Padavan 4.4
 
-## Latest resumable checkpoint — HTTPD strict Basic authentication
+## Latest resumable checkpoint — HTTPD management-session inactivity timeout
 
-- Verified main immediately before this handoff update: `3989c878b702595fdba530d79da1b1e327225c1c`. Production implementation: `b905c4baabd87922075700397c54cdbe6edd03fd`; workflow-only shell repair: `3989c878b702595fdba530d79da1b1e327225c1c`. Fetch live main before every subsequent write.
-- Scope: HTTPD Basic Authorization parsing and Base64 validation; bounded to `trunk/user/httpd/src/{httpd.c,base64.c,httpd_basic_auth.h,tests/httpd_basic_auth.c}` and `.github/workflows/httpd-security.yml`.
-- P1 finding: `auth_check()` used legacy `b64_decode()`, which silently discarded bytes outside the Base64 alphabet and did not enforce quartet length, padding placement, or canonical unused pad bits. It then compared the result as a C string without rejecting embedded NUL bytes. Malformed credentials could be normalized into a different credential string instead of rejected.
-- Fix: added a dedicated strict RFC 4648 decoder for the HTTP Basic path; it validates the entire token and output capacity before writing, rejects non-alphabet bytes, missing/misplaced padding and non-zero unused pad bits, and leaves the legacy decoder behavior for unrelated callers. Added a bounded Basic-field parser with case-insensitive scheme handling, separator validation, trailing HTTP OWS/line-ending handling, encoded/decoded limits, and embedded-NUL/colon checks. `auth_check()` now uses this helper.
-- Regression: canonical padded/unpadded examples; invalid alphabet/padding; non-canonical pad bits; truncation; output-capacity/no-partial-write behavior; Basic scheme casing and OWS/CRLF; malformed scheme spacing; embedded NUL; and missing colon.
-- Commits: implementation `b905c4baabd87922075700397c54cdbe6edd03fd`; workflow shell correction `3989c878b702595fdba530d79da1b1e327225c1c`. First Actions attempt `42383463695` failed because newly added shell continuation lines contained doubled backslashes and the linker treated a literal backslash as an input file. The workflow-only correction fixed those lines.
-- Validation: HTTPD Authentication and Security Regression run `42383489924` completed **successfully** on exact SHA `3989c878b702595fdba530d79da1b1e327225c1c`. Both GNU89 `-Wall -Wextra -Werror` C test executables (private-key policy and strict Basic-auth decoder/parser) compiled and ran; source wiring checks passed. The failed predecessor run `42383463695` is retained and explained.
-- Validation boundary: L1 source/dependency/build integration review completed for this sub-scope; L2 focused host regression PASS. Full HTTPD MIPS cross-build, XY-C1 firmware image generation/inspection, protocol fuzzing and hardware validation remain NOT VERIFIED. HTTPD and the authentication subsystem remain AUDITING, not complete.
-- Startup branch review: five remote `refactor/*` branches were compared with main. Their unmerged deltas were old SkipDBv2/BaseKit-only work or empty/behind; none was an HTTPD checkpoint, so none was merged.
+- Baseline main HEAD immediately before this bounded task: aea93c782f8a1064a91d0d81a5c8d3341286a44a. Existing strict Basic-auth and private-key/dbconf fixes remain on main; latest successful HTTPD Authentication and Security Regression run 42383489924 is for exact code SHA 3989c878b702595fdba530d79da1b1e327225c1c, not this later documentation-only HEAD.
+- Active scope: trunk/user/httpd/src/httpd.c, new httpd_login_policy.h and tests/httpd_login_policy.c, .github/workflows/httpd-security.yml, plus this handoff, roadmap and dev log.
+- Finding: the global login-owner timeout was measured from the first successful login. http_login_check() let the owner IP return state 3 before checking the deadline; successful subsequent protected requests did not refresh login_timestamp. Another IP could therefore expire/replace the ownership lock after 30 seconds even while the owner was active.
+- Implementation in this checkpoint: keep login_timestamp as the initial-login/NVRAM timestamp; use separate login_last_activity for the 30-second idle policy; refresh it only after a protected request's Basic credentials are accepted; clear it with session reset. The timeout calculation is factored into a private helper with host-test coverage for boundary conditions and unsigned uptime wraparound.
+- Validation boundary at checkpoint preparation: regression and source-wiring checks are added to the HTTPD Actions workflow. Wait for a run matching the new code commit; do not claim L2 PASS before it completes. No local compile is claimed; MIPS build, firmware image inspection, fuzzing and hardware validation remain NOT VERIFIED.
+- Remote checkpoint review against current baseline aea93c782f8a1064a91d0d81a5c8d3341286a44a: refactor/bstream-tag-wire (1 ahead / 424 behind), refactor/dbapi-result-20261105 (8 ahead / 505 behind), refactor/dynlib-lifecycle (0 ahead / 428 behind), refactor/sorting-boundaries (0 ahead / 424 behind), and refactor/uarray-character-ctype (2 ahead / 422 behind). All divergent deltas are old SkipDBv2-only work; none is a viable HTTPD checkpoint.
 
 ### Next exact actions
 
-1. Continue P1 HTTPD session/authorization review from `httpd.c`: trace `http_login_check()`, `http_login()`, `http_logout()`, `login_ip/login_timestamp/login_safe`, and the special `logout` path. Determine same-IP/NAT session-sharing behavior and timeout/ACL edge cases before changing semantics.
-2. Build and verify the complete conditional `mime_handlers[]` route authorization matrix in `web_ex.c`; map each handler to its page/API consumer. Then audit CGI/EJ dispatch, output escaping, and privileged command/configuration call chains.
-3. Continue TLS post-handshake read/write behavior, connection-pool/FD/timeouts, response writes, and multipart firmware/storage restore bounds.
-4. Broaden to privileged command/configuration, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file sharing, storage/hotplug, and init/service lifecycle. Keep the repository-wide roadmap authoritative; do not resume routine SkipDBv2 work.
-5. Run the supported `make XY-C1 TOOLCHAIN=mipsel-linux-musl` firmware validation path after the HTTPD series, then inspect the generated artifact. Until then, do not claim target-build or hardware verification.
----
-
+1. Verify the Actions run for the implementation SHA, inspect all job steps, then update this handoff/roadmap/dev log with the exact resulting main SHA and run URL/status.
+2. Continue the P1 HTTPD route audit from web_ex.c::mime_handlers[]: enumerate each conditional route and its caller/page consumer, especially apply.cgi, update.cgi, upgrade and restore handlers. Test the authorization matrix without changing existing contracts blindly.
+3. Trace logout/ACL and same-NAT behavior, then continue TLS post-handshake I/O, connection pool/FD handling, response writes, and multipart firmware/storage restore bounds.
+4. Broaden across privileged command/configuration paths, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file services, storage/hotplug and init/service lifecycle. Do not return to routine SkipDBv2 work absent a demonstrated blocker.
+5. Run make XY-C1 TOOLCHAIN=mipsel-linux-musl and inspect the full firmware artifact after the current HTTPD audit series. Until executed, L3/L4 remain NOT VERIFIED.
 ---
 
 **Purpose:** resume work across ChatGPT conversations. GitHub is the source of truth; re-check all values below against live repository state before acting.

@@ -1,3 +1,15 @@
+## 2026-11-07 23:12 CST — Correct HTTPD management-session inactivity timeout
+
+- Baseline main HEAD: aea93c782f8a1064a91d0d81a5c8d3341286a44a. One bounded module: HTTPD login-owner inactivity/timeout state.
+- Paths changed: trunk/user/httpd/src/httpd.c, new httpd_login_policy.h, new tests/httpd_login_policy.c, .github/workflows/httpd-security.yml, REFACTOR_ROADMAP.md, SESSION_HANDOFF.md, and this log.
+- Finding: the owner-IP branch in http_login_check() returned before timeout evaluation. login_timestamp was set at initial login only and not updated after successful subsequent protected requests, so another IP could clear the supposed 30-second timeout lock while the original management client remained active.
+- Fix: separate login_last_activity from the initial-login login_timestamp; initialize both at successful login, reset both at logout/expiry, check timeout against last activity, and refresh only after a protected request passes Basic authentication. This preserves the existing NVRAM/front-end timestamp meaning and existing auth requirements.
+- Regression: added a private helper test for no elapsed time, just-before/at/after the 30-second boundary, and unsigned uptime wraparound. The HTTPD Actions workflow now compiles/runs it and checks that timeout and refresh are wired to the production paths.
+- Validation: PENDING — workflow has not yet run for this change. No local compilation or test result is claimed. L1 review performed; L2 pending; L3 MIPS/firmware image and L4 hardware remain NOT VERIFIED.
+- Resulting code commit SHA and matching Actions run will be recorded in the follow-up checkpoint entry after GitHub returns them. Next: verify that exact run, then audit the conditional HTTPD MIME/CGI route authorization matrix.
+
+---
+
 ## 2026-11-07 22:52 CST — Strictly validate HTTPD Basic authentication credentials
 
 - Baseline main HEAD: `bf3aa06428749a33abefcb4a012a834460c65786`; production implementation commit: `b905c4baabd87922075700397c54cdbe6edd03fd`; follow-up CI correction: `3989c878b702595fdba530d79da1b1e327225c1c`; handoff/roadmap checkpoint commit: `bd0f4abd600d0e407bb9747d6ba006d40ed461ba`.

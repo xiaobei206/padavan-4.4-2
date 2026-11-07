@@ -47,6 +47,7 @@
 #include "common.h"
 #include "httpd_access_policy.h"
 #include "httpd_basic_auth.h"
+#include "httpd_login_policy.h"
 
 #define LOGIN_TIMEOUT		30
 #define SERVER_NAME		"httpd"
@@ -114,7 +115,8 @@ static int daemon_exit = 0;
 static int http_has_lang = 0;
 static int http_acl_mode = 0;
 static int login_safe = 0;		// the login from LAN/VPN
-static time_t login_timestamp = 0;	// the timestamp of the logined ip
+static time_t login_timestamp = 0;	// the timestamp of the initial login
+static unsigned long login_last_activity = 0;	// idle-timeout activity timestamp
 static uaddr login_ip;			// the logined ip
 static char login_mac[18] = {0};	// the logined mac
 static char auth_basic_data[MAX_AUTH_LEN];
@@ -490,6 +492,7 @@ http_login(const uaddr *ip_now)
 		login_safe = 1;
 
 	login_timestamp = uptime();
+	login_last_activity = (unsigned long)login_timestamp;
 
 	sprintf(s_lts, "%lu", login_timestamp);
 	nvram_set_temp("login_timestamp", s_lts);
@@ -521,6 +524,7 @@ reset_login_data(void)
 
 	login_safe = 0;
 	login_timestamp = 0;
+	login_last_activity = 0;
 
 	nvram_set_temp("login_timestamp", "");
 
@@ -557,7 +561,8 @@ http_login_check(const uaddr *ip_now)
 	if (is_uaddr_equal(&login_ip, ip_now))
 		return 3;
 
-	if ((unsigned long)(uptime() - login_timestamp) > LOGIN_TIMEOUT) {
+	if (httpd_login_session_expired((unsigned long)uptime(),
+					login_last_activity, LOGIN_TIMEOUT)) {
 		reset_login_data();
 		return 2;
 	}
@@ -1137,6 +1142,8 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 
 		if (login_state == 2)
 			http_login(&conn_ip);
+		else if (login_state == 3)
+			login_last_activity = (unsigned long)uptime();
 	}
 
 	if (method_id == HTTP_METHOD_POST) {

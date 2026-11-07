@@ -8,6 +8,8 @@ on:
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
       - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
+      - "trunk/user/httpd/src/httpd_login_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_login_policy.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
@@ -19,6 +21,8 @@ on:
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
       - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
+      - "trunk/user/httpd/src/httpd_login_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_login_policy.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
@@ -51,6 +55,11 @@ jobs:
             trunk/user/httpd/src/tests/httpd_basic_auth.c \
             -o /tmp/httpd_basic_auth
           /tmp/httpd_basic_auth
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_login_policy.c \
+            -o /tmp/httpd_login_policy
+          /tmp/httpd_login_policy
 
       - name: Verify HTTPD auth and route-access wiring
         run: |
@@ -109,6 +118,28 @@ jobs:
           assert "memchr(decoded," in basic
           assert "static const signed char b64_decode_table[256]" in base64
           assert "base64.o" in makefile
+
+          # Session ownership is a 30-second idle lock, not a fixed 30 seconds
+          # from first login. Preserve the initial-login timestamp for UI use.
+          login_policy = (root / "httpd_login_policy.h").read_text()
+          assert "static unsigned long login_last_activity = 0;" in httpd
+          login_start = httpd.index("http_login(const uaddr *ip_now)")
+          login_end = httpd.index(chr(10) + "static void" + chr(10) + "load_nvram_auth", login_start)
+          login = httpd[login_start:login_end]
+          assert "login_last_activity = (unsigned long)login_timestamp;" in login
+          reset_start = httpd.index("reset_login_data(void)")
+          reset_end = httpd.index(chr(10) + "static void" + chr(10) + "http_logout", reset_start)
+          assert "login_last_activity = 0;" in httpd[reset_start:reset_end]
+          check_start = httpd.index("http_login_check(const uaddr *ip_now)")
+          check_end = httpd.index(chr(10) + "static int" + chr(10) + "initialize_listen_socket", check_start)
+          check = httpd[check_start:check_end]
+          assert "httpd_login_session_expired((unsigned long)uptime()," in check
+          assert "login_last_activity, LOGIN_TIMEOUT)" in check
+          assert "unsigned long)(now - last_activity)" in login_policy
+          activity_refresh = request.index("login_last_activity = (unsigned long)uptime();")
+          auth_check = request.index("if (!auth_check(authorization))", auth_gate)
+          assert auth_check < activity_refresh
+          assert "else if (login_state == 3)" in request[auth_gate:activity_refresh]
           print("HTTPD strict Basic authentication and decoder wiring: OK")
 
           print("HTTPD private-key access policy and call-site wiring: OK")
