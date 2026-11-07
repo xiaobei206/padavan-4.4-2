@@ -682,7 +682,7 @@ include_vts_filter(FILE *fp, char *lan_ip, char *logaccept, int forward_chain)
 		srcaddrs[0] = 0;
 		
 		dstip = ip_conv("vts_ipaddr_x", i);
-		if (!is_valid_ipv4(dstip))
+		if (!firewall_ipv4_address_is_safe(dstip))
 			continue;
 		
 		if (forward_chain) {
@@ -747,7 +747,7 @@ include_vts_nat(FILE *fp)
 		srcaddrs[0] = 0;
 		
 		dstip = ip_conv("vts_ipaddr_x", i);
-		if (!is_valid_ipv4(dstip))
+		if (!firewall_ipv4_address_is_safe(dstip))
 			continue;
 		
 		srcip = iprange_ex_conv("vts_srcip_x", i);
@@ -1136,7 +1136,7 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 			if (ipv6_type == IPV6_6IN4) {
 				/* pass ICMP ping from 6in4 remote endpoint */
 				char *tun_remote = nvram_safe_get("ip6_6in4_remote");
-				if (is_valid_ipv4(tun_remote))
+				if (firewall_ipv4_address_is_safe(tun_remote))
 					fprintf(fp, "-A %s -p icmp --icmp-type %s -s %s -j %s\n", dtype, "echo-request", tun_remote, logaccept);
 			}
 #endif
@@ -1272,7 +1272,7 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 #else
 			/* Accept to exposed station (DMZ) */
 			dmz_ip = nvram_safe_get("dmz_ip");
-			if (is_valid_ipv4(dmz_ip))
+			if (firewall_ipv4_address_is_safe(dmz_ip))
 				fprintf(fp, "-A %s -d %s -j %s\n", dtype, dmz_ip, logaccept);
 			
 			/* Accept to Virtual Servers */
@@ -1891,10 +1891,10 @@ ipt_nat_rules(char *man_if, char *man_ip,
 			vpnc_if = IFNAME_CLIENT_PPP;
 	}
 
-	if (!is_valid_ipv4(wan_ip))
+	if (!firewall_ipv4_address_is_safe(wan_ip))
 		wan_ip = NULL;
 
-	if (!is_valid_ipv4(man_ip))
+	if (!firewall_ipv4_address_is_safe(man_ip))
 		man_ip = NULL;
 
 	if (!(fp=firewall_rule_file_open(ipt_file)))
@@ -1928,7 +1928,7 @@ ipt_nat_rules(char *man_if, char *man_ip,
 		int is_use_dmz;
 		
 		snprintf(dmz_ip, sizeof(dmz_ip), "%s", nvram_safe_get("dmz_ip"));
-		is_use_dmz = (is_valid_ipv4(dmz_ip)) ? 1 : 0;
+		is_use_dmz = (firewall_ipv4_address_is_safe(dmz_ip)) ? 1 : 0;
 		/* redirect all LAN clients' DNS queries (PREROUTING) */
 		if (wan_ip && nvram_match("redirect_all_dns", "1")) {
 			fprintf(fp, "-I %s -i %s -p tcp --dport 53 -j DNAT --to %s\n", "PREROUTING", lan_if, lan_ip);
@@ -2235,7 +2235,7 @@ ipt_nat_default(void)
 	if (is_nat_enabled) {
 		char *lan_if = IFNAME_BR;
 		char *lan_ip = nvram_safe_get("lan_ipaddr");
-		if (is_valid_ipv4(lan_ip)) {
+		if (firewall_ipv4_address_is_safe(lan_ip)) {
 			char lan_net[24] = {0};
 			ip2class(lan_ip, nvram_safe_get("lan_netmask"), lan_net, sizeof(lan_net));
 			
@@ -2278,6 +2278,10 @@ start_firewall_ex(void)
 		get_wan_ifname(wan_if);
 
 	snprintf(lan_ip, sizeof(lan_ip), "%s", nvram_safe_get("lan_ipaddr"));
+	if (!firewall_ipv4_address_is_safe(lan_ip)) {
+		logmessage(LOGNAME, "Invalid LAN IPv4 address for firewall; using 0.0.0.0");
+		strcpy(lan_ip, "0.0.0.0");
+	}
 	snprintf(man_ip, sizeof(man_ip), "%s", nvram_safe_get("wanx_ipaddr"));
 	snprintf(wan_ip, sizeof(wan_ip), "%s", get_wan_unit_value(unit, "ipaddr"));
 
