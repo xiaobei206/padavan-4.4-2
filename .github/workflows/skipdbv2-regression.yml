@@ -2588,6 +2588,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c": [
                   "static size_t UArray_pathItemSize_(CTYPE itemType)",
+                  "static size_t UArray_pathItemAlignment_(CTYPE itemType)",
+                  "UArrayPathUint64AlignmentProbe",
                   "static int UArray_hasValidPathStorage_(const UArray *self)",
                   "static int UArray_pathComponentBounds_(const UArray *self, size_t *componentStart, size_t *componentEnd)",
                   "UArray_pathComponentBounds_(self, &componentStart, &componentEnd)",
@@ -2603,6 +2605,8 @@ jobs:
                   "An empty component must not turn a plain path into a trailing-slash path.",
                   "self->size > (size_t)LONG_MAX",
                   "self->size > (size_t)-1 / expectedItemSize",
+                  "expectedItemAlignment",
+                  "((uintptr_t)self->data % expectedItemAlignment) != 0",
                   "if (NULL == self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_path_null.c": [
@@ -2630,6 +2634,10 @@ jobs:
                   "UArray path operations accepted zero-width item geometry",
                   "UArray path operations accepted unrepresentable size",
                   "UArray path operations accepted missing backing storage",
+                  "UArray path operations accepted misaligned backing storage",
+                  "UArray path queries accessed misaligned backing storage",
+                  "misaligned_storage.bytes + 1",
+                  "UArray path mutations changed misaligned or valid storage",
                   'UArray_newWithCString_("")',
                   "UArray_appendPath_(safe_path, empty_path)",
                   "appending an empty path added an unintended trailing separator",
@@ -4557,6 +4565,22 @@ jobs:
           )]
           if not path_extension_body or min(path_extension_order) < 0 or path_extension_order != sorted(path_extension_order):
               raise SystemExit("UArray_findPathExtension must trim trailing separators and search only the basename")
+
+          path_storage_start = uarray_path_source.find("static int UArray_hasValidPathStorage_(const UArray *self)")
+          path_storage_end = uarray_path_source.find("static int UArray_pathComponentBounds_(", path_storage_start)
+          path_storage_body = (
+              uarray_path_source[path_storage_start:path_storage_end]
+              if path_storage_start >= 0 and path_storage_end > path_storage_start
+              else ""
+          )
+          path_storage_order = [path_storage_body.find(token) for token in (
+              "expectedItemSize = UArray_pathItemSize_(self->itemType);",
+              "expectedItemAlignment = UArray_pathItemAlignment_(self->itemType);",
+              "if (expectedItemSize == 0 || expectedItemAlignment == 0 ||",
+              "((uintptr_t)self->data % expectedItemAlignment) != 0",
+          )]
+          if not path_storage_body or min(path_storage_order) < 0 or path_storage_order != sorted(path_storage_order):
+              raise SystemExit("UArray path storage must validate CTYPE alignment before typed path access")
 
           clip_component_start = uarray_path_source.find("void UArray_clipBeforeLastPathComponent(UArray *self)")
           clip_component_end = uarray_path_source.find("\nlong UArray_findLastPathComponent(", clip_component_start)

@@ -9,6 +9,29 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <limits.h>
+#include <stdint.h>
+
+#define UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(name, type) \
+	typedef struct { char leadingByte; type value; } name
+
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathUInt8AlignmentProbe, uint8_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathUInt16AlignmentProbe, uint16_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathUInt32AlignmentProbe, uint32_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathUInt64AlignmentProbe, uint64_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathInt8AlignmentProbe, int8_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathInt16AlignmentProbe, int16_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathInt32AlignmentProbe, int32_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathInt64AlignmentProbe, int64_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathFloat32AlignmentProbe, float32_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathFloat64AlignmentProbe, float64_t);
+UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_(UArrayPathUintptrAlignmentProbe, uintptr_t);
+
+#undef UARRAY_PATH_DECLARE_ALIGNMENT_PROBE_
+
+static size_t UArray_pathItemSize_(CTYPE itemType);
+static size_t UArray_pathItemAlignment_(CTYPE itemType);
+static int UArray_hasValidPathStorage_(const UArray *self);
+static int UArray_pathComponentBounds_(const UArray *self, size_t *componentStart, size_t *componentEnd);
 
 static size_t UArray_pathItemSize_(CTYPE itemType)
 {
@@ -29,16 +52,39 @@ static size_t UArray_pathItemSize_(CTYPE itemType)
 }
 
 
+static size_t UArray_pathItemAlignment_(CTYPE itemType)
+{
+	switch (itemType) {
+		case CTYPE_uint8_t: return offsetof(UArrayPathUInt8AlignmentProbe, value);
+		case CTYPE_uint16_t: return offsetof(UArrayPathUInt16AlignmentProbe, value);
+		case CTYPE_uint32_t: return offsetof(UArrayPathUInt32AlignmentProbe, value);
+		case CTYPE_uint64_t: return offsetof(UArrayPathUInt64AlignmentProbe, value);
+		case CTYPE_int8_t: return offsetof(UArrayPathInt8AlignmentProbe, value);
+		case CTYPE_int16_t: return offsetof(UArrayPathInt16AlignmentProbe, value);
+		case CTYPE_int32_t: return offsetof(UArrayPathInt32AlignmentProbe, value);
+		case CTYPE_int64_t: return offsetof(UArrayPathInt64AlignmentProbe, value);
+		case CTYPE_float32_t: return offsetof(UArrayPathFloat32AlignmentProbe, value);
+		case CTYPE_float64_t: return offsetof(UArrayPathFloat64AlignmentProbe, value);
+		case CTYPE_uintptr_t: return offsetof(UArrayPathUintptrAlignmentProbe, value);
+		default: return 0;
+	}
+}
+
+
 static int UArray_hasValidPathStorage_(const UArray *self)
 {
-	size_t expectedItemSize;
+	size_t expectedItemSize, expectedItemAlignment;
 	if (NULL == self)
 		return 0;
 	expectedItemSize = UArray_pathItemSize_(self->itemType);
-	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+	expectedItemAlignment = UArray_pathItemAlignment_(self->itemType);
+	if (expectedItemSize == 0 || expectedItemAlignment == 0 ||
+		self->itemSize != expectedItemSize ||
 		self->size > (size_t)-1 / expectedItemSize ||
 		self->size > (size_t)LONG_MAX ||
-		(self->size > 0 && NULL == self->data))
+		(self->size > 0 && NULL == self->data) ||
+		(self->data &&
+			((uintptr_t)self->data % expectedItemAlignment) != 0))
 		return 0;
 	return 1;
 }

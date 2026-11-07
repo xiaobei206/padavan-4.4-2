@@ -1,3 +1,14 @@
+## 2026-11-07 14:55 CST — Reject misaligned UArray path storage
+
+- Baseline: `cee9633ef50b18c87d97cec5155e3a11f2038008`; main's SkipDBv2 Regression run #568 completed successfully.
+- Scope: `UArray_hasValidPathStorage_` in `basekit/UArray_path.c`.
+- The path preflight checked CTYPE width, extent overflow, LONG_MAX bounds, and backing-storage presence, but not the natural alignment required by typed first/last-item access and typed searches. Offset borrowed views could therefore pass validation and reach undefined typed reads on strict-alignment targets.
+- Added static per-CTYPE alignment probes and reject misaligned data before path queries, conversions, mutations, or append operations. Extended the existing path regression with a one-byte-offset uint64 view; bytes are initialized and checked with memcpy/memcmp.
+- Extended the existing Actions source and regression contracts. The CTest target was already registered; no new files, public declarations, CMake source-list changes, or exported symbols.
+- Validation: source-contract ordering requires the alignment preflight before the shared path component scanner and all public entry points. Remote Actions remains the compiler/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:52 CST — Validate alignment in UArray distance vectors
 
 - Baseline: `23a6f0cbbbafa1d0c476624ccfec70cb31058508`; Datum byte-extent validation passed SkipDBv2 Regression run #570.

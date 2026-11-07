@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -221,6 +222,48 @@ int main(void)
 				"UArray path operations accepted missing backing storage"))
 				goto failure;
 		}
+	}
+
+	{
+		union {
+			uint64_t alignment;
+			unsigned char bytes[sizeof(uint64_t) + 1];
+		} misaligned_storage;
+		UArray misaligned;
+		uint64_t path_value = (uint64_t)'x';
+		unsigned char original_bytes[sizeof(uint64_t)];
+
+		memset(&misaligned_storage, 0, sizeof(misaligned_storage));
+		memcpy(misaligned_storage.bytes + 1, &path_value, sizeof(path_value));
+		memcpy(original_bytes, misaligned_storage.bytes + 1, sizeof(original_bytes));
+		memset(&misaligned, 0, sizeof(misaligned));
+		misaligned.data = misaligned_storage.bytes + 1;
+		misaligned.size = 1;
+		misaligned.itemType = CTYPE_uint64_t;
+		misaligned.itemSize = sizeof(uint64_t);
+		misaligned.encoding = CENCODING_ASCII;
+
+		if (!check(UArray_findLastPathComponent(&misaligned) == -1,
+			"UArray path operations accepted misaligned backing storage") ||
+			!check(UArray_lastPathComponent(&misaligned) == NULL &&
+				UArray_findPathExtension(&misaligned) == -1 &&
+				UArray_pathExtension(&misaligned) == NULL &&
+				UArray_fileName(&misaligned) == NULL &&
+				UArray_asOSPath(&misaligned) == NULL &&
+				UArray_asUnixPath(&misaligned) == NULL,
+				"UArray path queries accessed misaligned backing storage"))
+			goto failure;
+
+		UArray_removeLastPathComponent(&misaligned);
+		UArray_clipBeforeLastPathComponent(&misaligned);
+		UArray_removePathExtension(&misaligned);
+		UArray_appendPath_(&misaligned, safe_path);
+		UArray_appendPath_(safe_path, &misaligned);
+		if (!check(misaligned.size == 1 &&
+			memcmp(misaligned.data, original_bytes, sizeof(original_bytes)) == 0 &&
+			safe_path->size == 5 && memcmp(safe_path->data, "/safe", 5) == 0,
+			"UArray path mutations changed misaligned or valid storage"))
+			goto failure;
 	}
 
 	UArray_free(path);
