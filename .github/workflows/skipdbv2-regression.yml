@@ -245,7 +245,7 @@ jobs:
                   "PID mapping lookup changed the index cursor",
                   "JFile_setPosition_(db->index->file, 0)",
                   "UDBIndex_posForPid_(db->index, first)",
-                  "UDB_close(db);
+                  "UDB_close(db);",
                   "unwritten reservation was not reclaimed at commit",
                   "UDBIndex_nextPid(db->index) != first",
                   "UDBIndex_nextPid(db->index) != 3",

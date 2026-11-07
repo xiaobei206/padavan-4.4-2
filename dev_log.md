@@ -1,3 +1,12 @@
+## 2026-11-07 18:26 CST — Repair workflow source-contract syntax after run #624
+
+- Baseline: `3cdbd676241342f869ea301f9fb2b6db0a250e26`; run #624 stopped during the source-contract script parse, before configuration, compilation, or CTests.
+- The PID lookup regression source-contract list was missing its closing quote on the existing `UDB_close(db);` token, causing Python's “unterminated string literal” error.
+- Correct only the malformed workflow token and rerun the unchanged source/build/test gate. The PID lookup implementation and regression remain untouched in this repair.
+- No compiler or runtime result was produced by run #624.
+
+---
+
 ## 2026-11-07 18:25 CST — Preserve the UDB PID-index cursor during lookups
 
 - Baseline: `c0e91489cb7946d13bd50b21d421380814895e98`; SkipDBv2 Regression run #623 passed the source contracts, full build, and all 57 CTests.
