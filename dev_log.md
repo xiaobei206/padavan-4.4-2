@@ -1,3 +1,13 @@
+## 2026-11-07 12:40 CST — Remove unreachable legacy snprintf formatter
+
+- Baseline: main commit `e08721f1f5b68b941ae671a24bcbb77a70a1152b`; SkipDBv2 Regression run #527 passed source-contract preflight, configure, full build, and CTest.
+- Scope: `basekit/PortableSnprintf.c`.
+- This translation unit defined `HAVE_SNPRINTF`, `HAVE_VSNPRINTF`, and `HAVE_C99_VSNPRINTF` unconditionally before the fallback branch, so the roughly 700-line legacy formatter could never be compiled. Normal builds only emitted `dummy_snprintf()`; the standard APIs came from the host C library.
+- Remove the unreachable implementation and duplicate setup while preserving the object marker, the optional `TEST_SNPRINTF` libc smoke harness, and the existing source path. CMake uses a recursive basekit source glob, so no build-script or workflow source-contract changes are required.
+- No local C build or CTest is claimed; mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 12:23 CST — Reject absent numeric fields in PortableStrptime directives
 
 - Baseline: main commit `5656f3584628978f366ddafe2a65c3bd37cf0375`; SkipDBv2 Regression run #526 passed source contracts, configure, full build, and CTest.
