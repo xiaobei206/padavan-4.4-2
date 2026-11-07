@@ -698,6 +698,45 @@ static int UArray_hasValidItemLayout_(const UArray *self)
 	return 1;
 }
 
+/* Reject undefined floating-to-integer conversions before a scalar write. */
+static int UArray_doubleFitsItemType_(CTYPE itemType, double value)
+{
+	int bits;
+	int isSigned;
+
+	if (itemType == CTYPE_float32_t || itemType == CTYPE_float64_t)
+		return 1;
+	if (!isfinite(value))
+		return 0;
+
+	switch (itemType) {
+		case CTYPE_uint8_t: bits = 8; isSigned = 0; break;
+		case CTYPE_uint16_t: bits = 16; isSigned = 0; break;
+		case CTYPE_uint32_t: bits = 32; isSigned = 0; break;
+		case CTYPE_uint64_t: bits = 64; isSigned = 0; break;
+		case CTYPE_int8_t: bits = 8; isSigned = 1; break;
+		case CTYPE_int16_t: bits = 16; isSigned = 1; break;
+		case CTYPE_int32_t: bits = 32; isSigned = 1; break;
+		case CTYPE_int64_t: bits = 64; isSigned = 1; break;
+		case CTYPE_uintptr_t:
+			bits = (int)(sizeof(uintptr_t) * CHAR_BIT);
+			isSigned = 0;
+			break;
+		default:
+			return 0;
+	}
+
+	if (!isSigned)
+		return value > -1.0 && value < ldexp(1.0, bits);
+
+	{
+		double upperBound = ldexp(1.0, bits - 1);
+		if (bits == 64)
+			return value >= -upperBound && value < upperBound;
+		return value > -upperBound - 1.0 && value < upperBound;
+	}
+}
+
 void UArray_copy_(UArray *self, const UArray *other)
 {
 	if (NULL == self || NULL == other || self == other ||
@@ -1099,7 +1138,8 @@ switch (self->itemType)\
 
 void UArray_at_putLong_(UArray *self, size_t pos, long v)
 {
-	if (NULL == self || pos == (size_t)-1)
+	if (NULL == self || pos == (size_t)-1 ||
+		!UArray_hasValidItemLayout_(self))
 		return;
 	if (pos >= self->size)
 		UArray_setSize_(self, pos + 1);
@@ -1111,7 +1151,9 @@ void UArray_at_putLong_(UArray *self, size_t pos, long v)
 
 void UArray_at_putDouble_(UArray *self, size_t pos, double v)
 {
-	if (NULL == self || pos == (size_t)-1)
+	if (NULL == self || pos == (size_t)-1 ||
+		!UArray_hasValidItemLayout_(self) ||
+		!UArray_doubleFitsItemType_(self->itemType, v))
 		return;
 	if (pos >= self->size)
 		UArray_setSize_(self, pos + 1);

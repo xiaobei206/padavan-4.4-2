@@ -1,3 +1,17 @@
+## 2026-11-07 13:16 CST — Guard UArray scalar floating-point writes
+
+- Baseline: main commit `8deffc85c39ccb53aad535984c7568e1bfa5fd41`; SkipDBv2 Regression run #540 passed source contracts, configure, the full SkipDBv2 build, and all CTest regressions.
+- Scope: indexed scalar mutation in `basekit/UArray.c`, the existing `uarray_math_extrema_test`, and its Actions source contracts.
+- `UArray_at_putDouble_()` previously cast NaN, infinities, and out-of-range doubles directly into integer storage. Those conversions are undefined in C and could corrupt scalar writes. The setter now validates the receiver's complete item layout and checks the truncated-value range before growing or mutating the array.
+- Preserve valid C truncation semantics at signed/unsigned limits, including the exact `int64_t` minimum and the final representable `uint64_t) double below 2^64; retain non-finite writes for floating arrays. Apply the same layout guard to the adjacent long setter, and cover append through its existing delegation path.
+- Reuse the existing regression executable and CMake registration; extend its source contract. No new source files or exported symbols.
+
+### Validation
+- Static preflight: verified the conversion guard runs before `UArray_setSize_()` and before any element assignment; checked each supported integer width, `uintptr_t`, floating-type passthrough, malformed layout rejection, and unchanged hash/data on rejected writes.
+- No local compiler or CTest run is claimed. The updated mainline Actions workflow is the verification gate.
+
+---
+
 ## 2026-11-07 13:10 CST — Preserve Win32 truncate failure causes
 
 - Baseline: main commit `01cf7aa88f4b2f6a0137e9d4210d85a3a7f887ef`; Actions run #540 passed source contracts, configure, full build, and all CTest regressions.

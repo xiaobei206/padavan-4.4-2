@@ -181,6 +181,147 @@ cleanup:
     return result;
 }
 
+static int test_indexed_double_writes(void)
+{
+    const int8_t signedInitial = 7;
+    const uint8_t unsignedInitial = 9;
+    const int64_t wideSignedInitial = 11;
+    const uint64_t wideUnsignedInitial = 13;
+    const float32_t floatInitial = 1.5f;
+    UArray *signedValues = UArray_newWithData_type_size_copy_(
+        (void *)&signedInitial, CTYPE_int8_t, 1, 1);
+    UArray *unsignedValues = UArray_newWithData_type_size_copy_(
+        (void *)&unsignedInitial, CTYPE_uint8_t, 1, 1);
+    UArray *wideSigned = UArray_newWithData_type_size_copy_(
+        (void *)&wideSignedInitial, CTYPE_int64_t, 1, 1);
+    UArray *wideUnsigned = UArray_newWithData_type_size_copy_(
+        (void *)&wideUnsignedInitial, CTYPE_uint64_t, 1, 1);
+    UArray *floatValues = UArray_newWithData_type_size_copy_(
+        (void *)&floatInitial, CTYPE_float32_t, 1, 1);
+    UArray invalid;
+    int8_t original;
+    int result = EXIT_FAILURE;
+
+    if (!signedValues || !unsignedValues || !wideSigned ||
+        !wideUnsigned || !floatValues) {
+        fail("UArray indexed double-write allocation failed");
+        goto cleanup;
+    }
+
+    signedValues->hash = (uintptr_t)0x101;
+    UArray_at_putDouble_(signedValues, 0, NAN);
+    UArray_at_putDouble_(signedValues, 0, INFINITY);
+    UArray_at_putDouble_(signedValues, 0, -INFINITY);
+    UArray_at_putDouble_(signedValues, 0, 128.0);
+    UArray_at_putDouble_(signedValues, 0, -129.0);
+    UArray_appendDouble_(signedValues, DBL_MAX);
+    if (signedValues->size != 1 ||
+        ((int8_t *)signedValues->data)[0] != signedInitial ||
+        signedValues->hash != (uintptr_t)0x101) {
+        fail("UArray signed scalar write accepted a non-finite or out-of-range value");
+        goto cleanup;
+    }
+
+    UArray_at_putDouble_(signedValues, 0, 127.75);
+    UArray_at_putDouble_(signedValues, 2, -128.75);
+    if (signedValues->size != 3 ||
+        ((int8_t *)signedValues->data)[0] != INT8_MAX ||
+        ((int8_t *)signedValues->data)[1] != 0 ||
+        ((int8_t *)signedValues->data)[2] != INT8_MIN ||
+        signedValues->hash != 0) {
+        fail("UArray signed scalar write changed truncation or growth semantics");
+        goto cleanup;
+    }
+
+    unsignedValues->hash = (uintptr_t)0x202;
+    UArray_at_putDouble_(unsignedValues, 0, -1.0);
+    UArray_at_putDouble_(unsignedValues, 0, 256.0);
+    UArray_appendDouble_(unsignedValues, INFINITY);
+    if (unsignedValues->size != 1 ||
+        ((uint8_t *)unsignedValues->data)[0] != unsignedInitial ||
+        unsignedValues->hash != (uintptr_t)0x202) {
+        fail("UArray unsigned scalar write accepted a non-finite or out-of-range value");
+        goto cleanup;
+    }
+    UArray_at_putDouble_(unsignedValues, 0, -0.75);
+    UArray_at_putDouble_(unsignedValues, 2, 255.75);
+    if (unsignedValues->size != 3 ||
+        ((uint8_t *)unsignedValues->data)[0] != 0 ||
+        ((uint8_t *)unsignedValues->data)[1] != 0 ||
+        ((uint8_t *)unsignedValues->data)[2] != UINT8_MAX) {
+        fail("UArray unsigned scalar write changed truncation or growth semantics");
+        goto cleanup;
+    }
+
+    wideSigned->hash = (uintptr_t)0x303;
+    UArray_at_putDouble_(wideSigned, 0, ldexp(1.0, 63));
+    if (((int64_t *)wideSigned->data)[0] != wideSignedInitial ||
+        wideSigned->hash != (uintptr_t)0x303) {
+        fail("UArray int64 scalar write accepted the exclusive upper boundary");
+        goto cleanup;
+    }
+    UArray_at_putDouble_(wideSigned, 0, -ldexp(1.0, 63));
+    if (((int64_t *)wideSigned->data)[0] != INT64_MIN ||
+        wideSigned->hash != 0) {
+        fail("UArray int64 scalar write rejected its inclusive lower boundary");
+        goto cleanup;
+    }
+
+    wideUnsigned->hash = (uintptr_t)0x404;
+    UArray_at_putDouble_(wideUnsigned, 0, ldexp(1.0, 64));
+    if (((uint64_t *)wideUnsigned->data)[0] != wideUnsignedInitial ||
+        wideUnsigned->hash != (uintptr_t)0x404) {
+        fail("UArray uint64 scalar write accepted the exclusive upper boundary");
+        goto cleanup;
+    }
+    UArray_at_putDouble_(wideUnsigned, 0, ldexp(1.0, 64) - 2048.0);
+    if (((uint64_t *)wideUnsigned->data)[0] != UINT64_MAX - UINT64_C(2047) ||
+        wideUnsigned->hash != 0) {
+        fail("UArray uint64 scalar write rejected the largest exactly representable in-range value");
+        goto cleanup;
+    }
+
+    UArray_at_putDouble_(floatValues, 0, INFINITY);
+    if (!isinf(((float32_t *)floatValues->data)[0])) {
+        fail("UArray floating scalar writes no longer preserve non-finite values");
+        goto cleanup;
+    }
+
+    invalid = *signedValues;
+    invalid.itemSize = 0;
+    invalid.hash = (uintptr_t)0x505;
+    original = ((int8_t *)invalid.data)[0];
+    UArray_at_putDouble_(&invalid, 0, 1.0);
+    UArray_at_putLong_(&invalid, 0, 1);
+    if (invalid.hash != (uintptr_t)0x505 ||
+        ((int8_t *)invalid.data)[0] != original) {
+        fail("UArray scalar indexed writes accepted malformed item geometry");
+        goto cleanup;
+    }
+
+    invalid = *signedValues;
+    invalid.itemType = (CTYPE)9999;
+    invalid.hash = (uintptr_t)0x606;
+    original = ((int8_t *)invalid.data)[0];
+    UArray_at_putDouble_(&invalid, 0, 1.0);
+    UArray_at_putLong_(&invalid, 0, 1);
+    if (invalid.hash != (uintptr_t)0x606 ||
+        ((int8_t *)invalid.data)[0] != original) {
+        fail("UArray scalar indexed writes accepted an unsupported item type");
+        goto cleanup;
+    }
+
+    result = EXIT_SUCCESS;
+cleanup:
+    UArray_free(signedValues);
+    UArray_free(unsignedValues);
+    UArray_free(wideSigned);
+    UArray_free(wideUnsigned);
+    UArray_free(floatValues);
+    return result;
+}
+
+
 static int test_elementwise_mutations(void)
 {
     const int32_t initial[] = {2, 3, 4};
@@ -1477,6 +1618,8 @@ cleanup:
 int main(void)
 {
     if (test_scalar_mutations() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (test_indexed_double_writes() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_elementwise_mutations() != EXIT_SUCCESS)
         return EXIT_FAILURE;
