@@ -3943,8 +3943,8 @@ jobs:
                   "!UArray_hasValidItemLayout_(self)" not in copy_items_body or
                   "!UArray_hasValidItemLayout_(other)" not in copy_items_body):
               raise SystemExit("UArray typed copies must reject malformed source and destination layouts before typed access")
-          if uarray_source.count("UArray_hasValidItemLayout_(") != 7:
-              raise SystemExit("UArray layout validator must have one definition and six guarded call sites")
+          if uarray_source.count("UArray_hasValidItemLayout_(") != 9:
+              raise SystemExit("UArray layout validator must have one definition and eight guarded call sites")
           stack_range_start = uarray_source.find("UArray UArray_stackRange(const UArray *self, size_t start, size_t size)")
           stack_range_end = uarray_source.find("\n}", stack_range_start)
           stack_range_body = uarray_source[stack_range_start:stack_range_end] if stack_range_start >= 0 and stack_range_end > stack_range_start else ""

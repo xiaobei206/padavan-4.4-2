@@ -1,3 +1,11 @@
+## 2026-11-07 10:42 CST — Refresh UArray validator call-count contract
+
+- Baseline: main commit `80651a37a9b4f4017a6bd4d61a63da1974434ccf`; its Actions run failed in the source-contract step before configuration/build.
+- The new `UArray_at_putAll_()` preflight adds two valid calls to `UArray_hasValidItemLayout_()`. The existing Actions contract still hard-coded the previous total of seven (one definition plus six call sites), so the refactor was rejected despite both changed-file needle sets passing.
+- Update the in-place source contract to nine occurrences (one definition plus eight guarded call sites). No source, test, CMake, or file-path changes.
+
+---
+
 ## 2026-11-07 10:37 CST — Make UArray insertion preflight and alias handling transactional
 
 - Baseline: main commit `81ddf68ab344420dfb6dd28d6682c773196ac589`; SkipDBv2 Regression run #504 passed.
