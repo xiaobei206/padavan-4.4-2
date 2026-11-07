@@ -434,7 +434,7 @@ jobs:
                                              source.index("// 2. start to get every share"))]
           assert folder_block.index("samba_share_name_is_safe(folder_list[n])") < folder_block.index('fprintf(fp, "[%s]\\n", share)')
           assert folder_block.index("samba_mount_path_is_safe(follow_partition->mount_point)") < folder_block.index('fprintf(fp, "path = %s/%s\\n"')
-          assert folder_block.count("if (!samba_acl_user_is_safe(account_list[i]))") == 4
+          assert folder_block.count("if (!samba_service_account_is_safe(account_list[i]))") == 4
 
           # Anonymous SMB users must map to locked UID 99, never http_username (UID 0).
           guest_start = source.index("if (i_smb_mode == 1 || i_smb_mode == 3) {")
@@ -447,7 +447,7 @@ jobs:
           assert 'SYS_USER_NOBODY, "*", 16000' in accounts
           assert 'assert(strcmp(SAMBA_GUEST_ACCOUNT, "nobody") == 0);' in Path("trunk/user/rc/src/tests/samba_share_policy.c").read_text()
 
-          account_guard = source.index("if (!samba_acl_user_is_safe(nvram_safe_get(tmpuser)))")
+          account_guard = source.index("if (!samba_service_account_is_safe(nvram_safe_get(tmpuser)))")
           assert account_guard < source.index("_eval(smb_args, NULL, 0, NULL);", account_guard)
 
           # The FTP banner is emitted only after rejecting line controls/escapes.
