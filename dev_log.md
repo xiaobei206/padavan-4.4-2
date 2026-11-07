@@ -1,3 +1,11 @@
+## 2026-11-07 15:34 CST — Repair Date directive token quoting in CI source contract
+
+- Baseline: `63c2f096ceebdbec1c0fbb36456569c2f037d5f9`; run #578 stopped inside the Python source-contract script before configure/build.
+- The test-token contract wrapped a C macro containing double quotes in an unescaped Python double-quoted string, causing a Python `SyntaxError`.
+- Switch that single contract needle to a Python single-quoted string. The Date implementation and C regression are unchanged.
+- Rerun the full mainline contract, compiler, and CTest gates.
+
+---
 ## 2026-11-07 15:32 CST — Retry Date formatting when directives expand past the initial buffer
 
 - Baseline: `576b5cfd2e70351adf13f9745c29ae37859f6753`; mainline run #577 passed source contracts, configure, build, and CTest.
