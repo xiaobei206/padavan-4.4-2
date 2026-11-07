@@ -28,6 +28,7 @@
 
 #include <nvram_linux.h>
 #include <shutils.h>
+#include <router_account_policy.h>
 
 #include "disk_io_tools.h"
 #include "disk_initial.h"
@@ -44,22 +45,17 @@ static void nvram_commit_safe()
 static int
 is_valid_account_name(const char *name)
 {
-	const unsigned char *p;
-	size_t len;
+	return router_account_name_is_valid(name);
+}
 
+static int
+is_reserved_account_name(const char *name)
+{
 	if (!name || !*name)
-		return 0;
+		return 1;
 
-	len = strlen(name);
-	if (len > 31 || !strcmp(name, ".") || !strcmp(name, ".."))
-		return 0;
-
-	for (p = (const unsigned char *)name; *p; ++p) {
-		if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.')
-			return 0;
-	}
-
-	return 1;
+	return router_account_name_is_reserved(name, nvram_safe_get("http_username")) ||
+	       !strcmp(name, FTP_ANONYMOUS_USER);
 }
 
 static int
@@ -826,7 +822,7 @@ int add_account(const char *const account, const char *const password)
 	char **account_list = NULL;
 	char nvram_name[32];
 
-	if (!is_valid_account_name(account) || !strcmp(account, FTP_ANONYMOUS_USER))
+	if (!is_valid_account_name(account) || is_reserved_account_name(account))
 		return -1;
 	if (!is_valid_account_password(password))
 		return -1;
@@ -985,7 +981,7 @@ int mod_account(const char *const account, const char *const new_account, const 
 	if (!is_valid_account_name(account) || !strcmp(account, FTP_ANONYMOUS_USER))
 		return -1;
 	if (new_account && *new_account &&
-	    (!is_valid_account_name(new_account) || !strcmp(new_account, FTP_ANONYMOUS_USER)))
+	    (!is_valid_account_name(new_account) || is_reserved_account_name(new_account)))
 		return -1;
 	if (new_password && *new_password &&
 	    !is_valid_account_password(new_password))

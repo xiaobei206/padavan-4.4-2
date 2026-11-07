@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <string.h>
+#include "../../shared/src/include/router_account_policy.h"
 /*
  * This firmware maps http_username to UID 0 in /etc/passwd. Anonymous SMB
  * sessions therefore must use the existing locked, non-root nobody account.
@@ -89,23 +90,15 @@ samba_mount_path_is_safe(const char *path)
 static int
 samba_acl_user_is_safe(const char *name)
 {
-	const unsigned char *p;
-
-	if (!name || !*name ||
-	    !((*name >= 'a' && *name <= 'z') ||
-	      (*name >= 'A' && *name <= 'Z') ||
-	      (*name >= '0' && *name <= '9') || *name == '_'))
+	if (!router_account_name_is_valid(name) ||
+	    router_account_name_is_reserved(name, NULL) ||
+	    !strcmp(name, "anonymous"))
 		return 0;
 
-	for (p = (const unsigned char *)name; *p; ++p) {
-		if (!((*p >= 'a' && *p <= 'z') ||
-		      (*p >= 'A' && *p <= 'Z') ||
-		      (*p >= '0' && *p <= '9') ||
-		      *p == '_' || *p == '.' || *p == '-'))
-			return 0;
-	}
-
-	return 1;
+	/* Samba list tokens must not begin with an option-like character. */
+	return ((*name >= 'a' && *name <= 'z') ||
+		(*name >= 'A' && *name <= 'Z') ||
+		(*name >= '0' && *name <= '9') || *name == '_');
 }
 
 #endif /* PADAVAN_SAMBA_SHARE_POLICY_H */

@@ -38,6 +38,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <syslog.h>
+#include "router_account_policy.h"
 #include <utime.h>
 
 #include "nvram_linux.h"
@@ -229,8 +230,8 @@ void change_passwd_unix(char *user, char *pass)
 void recreate_passwd_unix(int force_create)
 {
 	FILE *fp1, *fp2;
-	int i, uid, sh_num;
-	char tmp[32], *rootnm, *usernm;
+	int i, j, uid, sh_num, duplicate;
+	char tmp[32], previous[32], *rootnm, *usernm;
 
 	rootnm = nvram_safe_get("http_username");
 	if (strlen(rootnm) < 1)
@@ -250,14 +251,31 @@ void recreate_passwd_unix(int force_create)
 		for (i=0; i<sh_num; i++) {
 			snprintf(tmp, sizeof(tmp), "acc_username%d", i);
 			usernm = nvram_safe_get(tmp);
-			if (*usernm && strcmp(usernm, "root") &&
-				       strcmp(usernm, rootnm) &&
-				       strcmp(usernm, SYS_USER_NOBODY) &&
-				       strcmp(usernm, "sshd")) {
-				fprintf(fp1, "%s:x:%d:%d:::\n", usernm, uid, uid);
-				fprintf(fp2, "%s:x:%d:\n", usernm, uid);
-				uid++;
+
+			/*
+			 * NVRAM may contain stale/imported values that bypass libdisk's
+			 * account API. Never interpolate malformed or reserved identities
+			 * into the privileged passwd/group databases.
+			 */
+			if (!router_account_name_is_valid(usernm) ||
+			    router_account_name_is_reserved(usernm, rootnm) ||
+			    !strcmp(usernm, "anonymous"))
+				continue;
+
+			duplicate = 0;
+			for (j = 0; j < i; ++j) {
+				snprintf(previous, sizeof(previous), "acc_username%d", j);
+				if (!strcmp(usernm, nvram_safe_get(previous))) {
+					duplicate = 1;
+					break;
+				}
 			}
+			if (duplicate)
+				continue;
+
+			fprintf(fp1, "%s:x:%d:%d:::\\n", usernm, uid, uid);
+			fprintf(fp2, "%s:x:%d:\\n", usernm, uid);
+			uid++;
 		}
 	}
 

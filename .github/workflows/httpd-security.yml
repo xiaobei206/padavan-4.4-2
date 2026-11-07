@@ -41,6 +41,9 @@ on:
       - "trunk/user/rc/src/tests/samba_share_policy.c"
       - "trunk/user/rc/src/ftp_share_policy.h"
       - "trunk/user/rc/src/tests/ftp_share_policy.c"
+      - "trunk/user/libdisk/src/disk_share.c"
+      - "trunk/user/shared/src/include/router_account_policy.h"
+      - "trunk/user/shared/src/tests/router_account_policy.c"
       - "trunk/user/rc/src/net_wan.c"
       - "trunk/user/rc/src/rc.h"
       - "trunk/user/rc/src/dhcp_lease_policy.h"
@@ -1161,4 +1164,65 @@ jobs:
           print("HTTPD strict Basic authentication and decoder wiring: OK")
 
           print("HTTPD private-key access policy and call-site wiring: OK")
+          PY
+
+      - name: Verify Samba and Unix account identity boundaries
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/shared/src/include \
+            trunk/user/shared/src/tests/router_account_policy.c \
+            -o /tmp/router_account_policy
+          /tmp/router_account_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src -I trunk/user/shared/src/include \
+            trunk/user/rc/src/tests/samba_share_policy.c \
+            -o /tmp/samba_share_policy
+          /tmp/samba_share_policy
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path(".")
+          policy = (root / "trunk/user/shared/src/include/router_account_policy.h").read_text()
+          libdisk = (root / "trunk/user/libdisk/src/disk_share.c").read_text()
+          shared = (root / "trunk/user/shared/src/shutils.c").read_text()
+          samba_policy = (root / "trunk/user/rc/src/samba_share_policy.h").read_text()
+          services = (root / "trunk/user/rc/src/services_stor.c").read_text()
+          workflow = (root / ".github/workflows/httpd-security.yml").read_text()
+
+          assert "router_account_name_is_valid" in policy
+          assert "router_account_name_is_reserved" in policy
+          assert '#include <router_account_policy.h>' in libdisk
+          assert "router_account_name_is_valid(name)" in libdisk
+          assert "is_reserved_account_name(account)" in libdisk
+          mod_start = libdisk.index("int mod_account(")
+          mod_end = libdisk.index("int add_folder(", mod_start)
+          assert "is_reserved_account_name(new_account)" in libdisk[mod_start:mod_end]
+          assert '#include "router_account_policy.h"' in shared
+          recreate_start = shared.index("recreate_passwd_unix(int force_create)")
+          recreate_end = shared.index("\nint\n_eval", recreate_start)
+          recreate = shared[recreate_start:recreate_end]
+          assert recreate.index("router_account_name_is_valid(usernm)") < recreate.index('fprintf(fp1, "%s:x:%d:%d')
+          assert "router_account_name_is_reserved(usernm, rootnm)" in recreate
+          assert 'strcmp(usernm, "anonymous")' in recreate
+          assert "duplicate" in recreate and "acc_username%d" in recreate
+          assert "router_account_name_is_reserved(name, NULL)" in samba_policy
+          assert 'strcmp(name, "anonymous")' in samba_policy
+          assert "samba_service_account_is_safe" in services
+          assert 'nvram_safe_get("http_username")' in services
+          assert "samba_service_account_is_safe(nvram_safe_get(tmpuser))" in services
+          for trigger in (
+              "trunk/user/libdisk/src/disk_share.c",
+              "trunk/user/shared/src/include/router_account_policy.h",
+              "trunk/user/shared/src/tests/router_account_policy.c",
+          ):
+              assert workflow.count('      - "' + trigger + '"') == 2
+          push = workflow.split("  pull_request:", 1)[0]
+          pr = workflow.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
+          assert all(path in push and path in pr for path in (
+              "trunk/user/libdisk/src/disk_share.c",
+              "trunk/user/shared/src/include/router_account_policy.h",
+              "trunk/user/shared/src/tests/router_account_policy.c",
+          ))
+          print("Samba storage-account and Unix passwd/group identity contracts: OK")
           PY

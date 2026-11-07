@@ -201,6 +201,13 @@ restart_ftpd(void)
 #endif
 
 #if defined (APP_SMBD)
+static int
+samba_service_account_is_safe(const char *name)
+{
+	return samba_acl_user_is_safe(name) &&
+	       !router_account_name_is_reserved(name, nvram_safe_get("http_username"));
+}
+
 int
 check_existed_share(const char *string)
 {
@@ -411,7 +418,7 @@ write_smb_conf(void)
 						fprintf(fp, "%s", "nobody");
 					}
 					for (i = 0; i < acc_num; ++i) {
-						if (!samba_acl_user_is_safe(account_list[i]))
+						if (!samba_service_account_is_safe(account_list[i]))
 							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
 						if (first == 1)
@@ -426,7 +433,7 @@ write_smb_conf(void)
 					fprintf(fp, "invalid users = ");
 					first = 1;
 					for (i = 0; i < acc_num; ++i) {
-						if (!samba_acl_user_is_safe(account_list[i]))
+						if (!samba_service_account_is_safe(account_list[i]))
 							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
 						if (right >= 1)
@@ -448,7 +455,7 @@ write_smb_conf(void)
 						fprintf(fp, "%s", "nobody");
 					}
 					for (i = 0; i < acc_num; ++i) {
-						if (!samba_acl_user_is_safe(account_list[i]))
+						if (!samba_service_account_is_safe(account_list[i]))
 							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
 						if (right < 1)
@@ -470,7 +477,7 @@ write_smb_conf(void)
 						fprintf(fp, "%s", "nobody");
 					}
 					for (i = 0; i < acc_num; ++i) {
-						if (!samba_acl_user_is_safe(account_list[i]))
+						if (!samba_service_account_is_safe(account_list[i]))
 							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
 						if (right < 2)
@@ -591,7 +598,7 @@ void run_samba(void)
 	for (i = 0; i < sh_num; i++) {
 		snprintf(tmpuser, sizeof(tmpuser), "acc_username%d", i);
 		snprintf(tmp2, sizeof(tmp2), "acc_password%d", i);
-		if (!samba_acl_user_is_safe(nvram_safe_get(tmpuser)))
+		if (!samba_service_account_is_safe(nvram_safe_get(tmpuser)))
 			continue;
 		{
 			char *smb_args[] = {
