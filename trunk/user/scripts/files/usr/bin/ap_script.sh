@@ -53,8 +53,28 @@ cat /tmp/ap2g5g.txt | grep -v '^#'  | grep -v "^$" > /tmp/ap2g5g
 fi
 killall sh_apauto.sh
 if [ -f /tmp/ap2g5g ] ; then
-cat >/tmp/sh_apauto.sh <<-\EOF
+ap_auto_dir=$(
+	umask 077
+	ap_auto_try=0
+	while [ "$ap_auto_try" -lt 16 ]; do
+		ap_auto_candidate="/home/root/.sh_apauto.$RANDOM.$ap_auto_try"
+		if mkdir "$ap_auto_candidate" 2>/dev/null; then
+			printf '%s\n' "$ap_auto_candidate"
+			break
+		fi
+		ap_auto_try=$((ap_auto_try + 1))
+	done
+)
+if [ -n "$ap_auto_dir" ]; then
+ap_auto_script="$ap_auto_dir/sh_apauto.sh"
+cat > "$ap_auto_script" <<-\EOF
 #!/bin/sh
+ap_auto_cleanup() {
+	rm -f "$0"
+	rmdir "${0%/*}" 2>/dev/null
+}
+trap ap_auto_cleanup EXIT
+trap 'exit 0' HUP INT TERM
 [ "$1" = "crontabs" ] && sleep 15
 logger -t "【AP 中继】" "连接守护启动"
 while [ -s /tmp/ap2g5g ]; do
@@ -123,7 +143,19 @@ radio5_apcli=`nvram get radio5_apcli`
   cat /tmp/ap2g5g.txt | grep -v '^#'  | grep -v "^$" > /tmp/ap2g5g
 done
 EOF
-  chmod 777 "/tmp/sh_apauto.sh"
-  [ -z "$(ps -w | grep sh_apauto.sh | grep -v grep)" ] && /tmp/sh_apauto.sh $1 &
+if chmod 700 "$ap_auto_script"; then
+	if [ -z "$(ps -w | grep sh_apauto.sh | grep -v grep)" ]; then
+		"$ap_auto_script" "$1" &
+	else
+		rm -f "$ap_auto_script"
+		rmdir "$ap_auto_dir" 2>/dev/null
+	fi
+else
+	rm -f "$ap_auto_script"
+	rmdir "$ap_auto_dir" 2>/dev/null
+fi
+else
+	logger -t "【AP 中继】" "无法创建安全的临时脚本目录"
+fi
 fi
 

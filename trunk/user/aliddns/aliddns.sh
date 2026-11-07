@@ -2,7 +2,9 @@
 #copyright by hiboy
 #source /etc/storage/init.sh
 #ACTION=$1
-export PATH='/etc/storage/bin:/tmp/script:/etc/storage/script:/opt/usr/sbin:/opt/usr/bin:/opt/sbin:/opt/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin'
+ALIDDNS_HELPER_DIR="/home/root/.aliddns"
+ALIDDNS_HELPER="$ALIDDNS_HELPER_DIR/_aliddns"
+export PATH="/etc/storage/bin:$ALIDDNS_HELPER_DIR:/tmp/script:/etc/storage/script:/opt/usr/sbin:/opt/usr/bin:/opt/sbin:/opt/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
 export LD_LIBRARY_PATH=/lib:/opt/lib
 ACTION=$1
 scriptfilepath=$(cd "$(dirname "$0")"; pwd)/$(basename $0)
@@ -54,10 +56,19 @@ aliddns_renum=`nvram get aliddns_renum`
 
 fi
 
-if [ ! -z "$(echo $scriptfilepath | grep -v "/tmp/script/" | grep aliddns)" ]  && [ ! -s /tmp/script/_aliddns ]; then
-	mkdir -p /tmp/script
-	{ echo '#!/bin/sh' ; echo $scriptfilepath '"$@"' '&' ; } > /tmp/script/_aliddns
-	chmod 777 /tmp/script/_aliddns
+if [ ! -z "$(echo $scriptfilepath | grep -v "/tmp/script/" | grep aliddns)" ] && [ ! -s "$ALIDDNS_HELPER" ]; then
+	if [ ! -d "$ALIDDNS_HELPER_DIR" ] && [ ! -e "$ALIDDNS_HELPER_DIR" ] && [ ! -L "$ALIDDNS_HELPER_DIR" ]; then
+		(umask 077; mkdir "$ALIDDNS_HELPER_DIR") 2>/dev/null
+	fi
+	if [ -d "$ALIDDNS_HELPER_DIR" ] && [ ! -L "$ALIDDNS_HELPER_DIR" ]; then
+		chmod 700 "$ALIDDNS_HELPER_DIR"
+		if [ ! -L "$ALIDDNS_HELPER" ]; then
+			(umask 077; printf '#!/bin/sh\n"%s" "$@" &\n' "$scriptfilepath" > "$ALIDDNS_HELPER") 2>/dev/null
+		fi
+		if [ -f "$ALIDDNS_HELPER" ] && [ ! -L "$ALIDDNS_HELPER" ]; then
+			chmod 700 "$ALIDDNS_HELPER"
+		fi
+	fi
 fi
 
 aliddns_restart () {
@@ -156,7 +167,7 @@ fi
 
 aliddns_close () {
 
-kill_ps "/tmp/script/_aliddns"
+kill_ps "$ALIDDNS_HELPER"
 kill_ps "_aliddns.sh"
 kill_ps "$scriptname"
 

@@ -10,6 +10,9 @@ on:
       - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/safe_extract_path.h"
       - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/tests/safe_extract_path.c"
       - "trunk/user/scripts/files/sbin/mtd_storage.sh"
+      - "trunk/user/scripts/files/sbin/dev_init.sh"
+      - "trunk/user/scripts/files/usr/bin/ap_script.sh"
+      - "trunk/user/aliddns/aliddns.sh"
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
       - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
@@ -36,6 +39,9 @@ on:
       - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/safe_extract_path.h"
       - "trunk/user/busybox/busybox-1.24.x/archival/libarchive/tests/safe_extract_path.c"
       - "trunk/user/scripts/files/sbin/mtd_storage.sh"
+      - "trunk/user/scripts/files/sbin/dev_init.sh"
+      - "trunk/user/scripts/files/usr/bin/ap_script.sh"
+      - "trunk/user/aliddns/aliddns.sh"
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
       - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
@@ -43,6 +49,8 @@ on:
       - "trunk/user/httpd/src/tests/httpd_login_policy.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
+      - "trunk/user/httpd/src/httpd_script_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_script_policy.c"
       - "trunk/user/httpd/src/variables.c"
       - "trunk/user/httpd/src/common.c"
       - "trunk/user/httpd/src/tests/httpd_service_id.c"
@@ -104,6 +112,52 @@ jobs:
             trunk/user/rc/src/tests/firewall_filter_policy.c \
             -o /tmp/firewall_filter_policy
           /tmp/firewall_filter_policy
+
+      - name: Check root-managed executable script staging
+        run: |
+          set -eu
+          sh -n trunk/user/scripts/files/usr/bin/ap_script.sh
+          sh -n trunk/user/aliddns/aliddns.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          ap = Path("trunk/user/scripts/files/usr/bin/ap_script.sh").read_text()
+          aliddns = Path("trunk/user/aliddns/aliddns.sh").read_text()
+          dev_init = Path("trunk/user/scripts/files/sbin/dev_init.sh").read_text()
+
+          # The AP daemon is staged with an atomic mkdir under the private /home/root tmpfs parent.
+          # The private 0700 parent prevents local replacement or modification.
+          assert 'ap_auto_candidate="/home/root/.sh_apauto.$RANDOM.$ap_auto_try"' in ap
+          assert 'if mkdir "$ap_auto_candidate" 2>/dev/null; then' in ap
+          assert "umask 077" in ap
+          assert 'ap_auto_script="$ap_auto_dir/sh_apauto.sh"' in ap
+          assert 'cat > "$ap_auto_script" <<-\\EOF' in ap
+          body_start_marker = 'cat > "$ap_auto_script" <<-\\EOF' + chr(10)
+          body_start = ap.index(body_start_marker) + len(body_start_marker)
+          body_end = ap.index(chr(10) + "EOF", body_start)
+          subprocess.run(["sh", "-n"], input=ap[body_start:body_end], text=True, check=True)
+          assert "trap ap_auto_cleanup EXIT" in ap
+          assert 'chmod 700 "$ap_auto_script"' in ap
+          assert 'chmod 777 "/tmp/sh_apauto.sh"' not in ap
+          assert 'cat >/tmp/sh_apauto.sh' not in ap
+          assert "/tmp/sh_apauto.sh" not in ap
+
+          # AliDDNS's launcher lives in a private tmpfs directory.
+          assert 'ALIDDNS_HELPER_DIR="/home/root/.aliddns"' in aliddns
+          assert 'ALIDDNS_HELPER="$ALIDDNS_HELPER_DIR/_aliddns"' in aliddns
+          assert 'export PATH="/etc/storage/bin:$ALIDDNS_HELPER_DIR:/tmp/script:' in aliddns
+          assert '(umask 077; mkdir "$ALIDDNS_HELPER_DIR")' in aliddns
+          assert 'chmod 700 "$ALIDDNS_HELPER_DIR"' in aliddns
+          assert "printf '#!/bin/sh" in aliddns
+          assert ' > "$ALIDDNS_HELPER")' in aliddns
+          assert 'chmod 700 "$ALIDDNS_HELPER"' in aliddns
+          assert 'kill_ps "$ALIDDNS_HELPER"' in aliddns
+          assert "/tmp/script/_aliddns" not in aliddns
+          assert "mount -t tmpfs tmpfs /home" in dev_init
+          assert "mkdir -p -m 700 /home/root" in dev_init
+          print("Root-managed AP and AliDDNS temporary executable staging: OK")
+          PY
 
       - name: Verify HTTPD auth and route-access wiring
         run: |
