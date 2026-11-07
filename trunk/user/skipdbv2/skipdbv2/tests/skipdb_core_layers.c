@@ -13,6 +13,51 @@ static int key_is(SkipDBRecord *record,const char *expected)
  Datum key;size_t size;if(!record)return 0;key=SkipDBRecord_keyDatum(record);size=strlen(expected)+1;
  return key.data!=NULL&&key.size==size&&memcmp(key.data,expected,size)==0;
 }
+
+static int test_record_level_rejects_invalid_receiver_metadata(void)
+{
+    SkipDBRecord *record = SkipDBRecord_new();
+    SkipDBPointer *original_pointers;
+    int invalid = 0;
+
+    if (NULL == record) {
+        fprintf(stderr, "record-level regression allocation failed\\n");
+        return 0;
+    }
+    SkipDBRecord_level_(record, 2);
+    if (record->level != 2 || NULL == record->pointers) {
+        fprintf(stderr, "record-level regression could not allocate pointer storage\\n");
+        SkipDBRecord_dealloc(record);
+        return 0;
+    }
+    original_pointers = record->pointers;
+
+    /* A negative old level must never be used as a pointer-array offset. */
+    record->level = -1;
+    SkipDBRecord_level_(record, 3);
+    if (record->level != -1 || record->pointers != original_pointers) {
+        fprintf(stderr, "negative existing record level was used for pointer growth\\n");
+        invalid = 1;
+    }
+    if (invalid) {
+        SkipDBRecord_dealloc(record);
+        return 0;
+    }
+
+    /* An out-of-range positive level is equally untrusted resize metadata. */
+    record->level = SKIPDB_MAX_LEVEL + 1;
+    SkipDBRecord_level_(record, 1);
+    if (record->level != SKIPDB_MAX_LEVEL + 1 ||
+        record->pointers != original_pointers) {
+        fprintf(stderr, "out-of-range existing record level was modified\\n");
+        invalid = 1;
+    }
+
+    /* Deallocation owns the allocation and is safe for either malformed level. */
+    SkipDBRecord_dealloc(record);
+    return !invalid;
+}
+
 static SkipDB *reentrant_callback_db = NULL;
 static int reentrant_callback_calls = 0;
 
@@ -26,6 +71,8 @@ static void reentrant_object_free(void *object)
 
 int main(void)
 {
+ if (!test_record_level_rejects_invalid_receiver_metadata())
+  return EXIT_FAILURE;
  SkipDB *source=NULL,*target=NULL;SkipDBCursor *cursor=NULL,*foreignCursor=NULL,*transferCursor=NULL;SkipDBRecord *record;
  Datum prefix=Datum_FromCString_("al");char sp[128],tp[128];int sl,tl,result=EXIT_FAILURE;
  source=SkipDB_new();target=SkipDB_new();

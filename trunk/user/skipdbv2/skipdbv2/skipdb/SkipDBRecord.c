@@ -196,6 +196,9 @@ void SkipDBRecord_level_(SkipDBRecord *self, int level)
 	if (NULL == self || level < 0 || level > SKIPDB_MAX_LEVEL)
 		return;
 	old_level = self->level;
+	/* An invalid old level cannot define a safe realloc growth range. */
+	if (old_level < 0 || old_level > SKIPDB_MAX_LEVEL)
+		return;
 	if (level == old_level)
 		return;
 	if (level == 0) {

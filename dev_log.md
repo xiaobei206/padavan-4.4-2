@@ -1,3 +1,14 @@
+## 2026-11-07 17:12 CST — Reject malformed existing SkipDB record levels before resize
+
+- Baseline: `1c45c3cce044c500bfbfa03c30b30f59459d772e`; mainline SkipDBv2 Regression run #601 passed the integration contracts, complete build, and all 57 CTests.
+- Scope: `SkipDBRecord_level_()` and the existing `skipdb_core_layers_test`.
+- The setter validated the requested level but trusted `self->level` as the old allocation extent. If a record's public metadata was corrupted to a negative level, growing the pointer array formed `new_pointers + old_level` before the allocation and passed a derived oversized length to `memset`, causing an out-of-bounds write.
+- Reject an existing level outside `[0, SKIPDB_MAX_LEVEL]` before equality checks, pointer arithmetic, or `realloc`. Leave both the malformed metadata and pointer ownership untouched; normal valid-level growth/shrink behavior remains unchanged.
+- Add regressions for negative and over-maximum existing levels. Extend the static source contract and a function-order check so the old-level guard must precede `realloc`. Reuse the current CTest target; no new files or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 17:07 CST — Detach array-heap storage before destructor callbacks
 
 - Baseline: `48e8c1d526a9c36a00624854be4de6854a36398b`; SkipDBv2 Regression run #601 passed XY-C1 integration contracts, complete build, and all 57 CTests.
