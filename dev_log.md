@@ -1,3 +1,13 @@
+## 2026-11-07 09:30 CST — Resolve DST when parsing local Date strings
+
+- Baseline: main commit `8e5d94a562ea0cd8e554fc4c7584eda6aad7fb16`; SkipDBv2 Regression run #485 passed.
+- Scope: `EmptyTM()` and `Date_fromString_format_()` in `basekit/Date.c`.
+- The parser seeded its `struct tm` from local midnight on January 1, 1970, then reset calendar fields but retained that template's `tm_isdst`. On a DST-observing timezone, parsing a summer local time could force standard time and shift the resulting instant by an hour.
+- Set `tm_isdst = -1` in the parsing template so `mktime()` resolves the correct seasonal offset for the parsed date. Extend the existing date test with an isolated POSIX DST timezone regression and update the workflow source contract. Existing CMake/CTest registration is unchanged; no new files.
+- No local C compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:25 CST — Recover Gaussian sampling from a degenerate RandomGen state
 
 - Baseline: main commit `99ec4482a505c627e05f900d8f8eb84dc7b4437d`; SkipDBv2 Regression run #484 passed.

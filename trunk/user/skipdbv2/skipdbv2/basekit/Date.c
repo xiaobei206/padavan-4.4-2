@@ -429,6 +429,8 @@ static struct tm EmptyTM(void)
 	t.tm_year = 0;
 	t.tm_wday = 0;
 	t.tm_yday = 0;
+	/* Let mktime resolve DST for the parsed date, not the epoch template. */
+	t.tm_isdst = -1;
 	return t;
 }
 

@@ -1,9 +1,80 @@
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "Date.h"
 
 #include <math.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#if !defined(_WIN32)
+static int test_parse_resolves_daylight_saving(void)
+{
+    const char *current_tz = getenv("TZ");
+    char *saved_tz = NULL;
+    int had_tz = current_tz != NULL;
+    Date parsed = {0};
+    struct tm expected = {0};
+    time_t expected_time;
+    int okay = 0;
+
+    if (had_tz) {
+        size_t length = strlen(current_tz) + 1;
+        saved_tz = (char *)malloc(length);
+        if (NULL == saved_tz) {
+            fprintf(stderr, "Date DST test could not save the current TZ value\n");
+            return 0;
+        }
+        memcpy(saved_tz, current_tz, length);
+    }
+
+    if (setenv("TZ", "EST5EDT,M3.2.0/2,M11.1.0/2", 1) != 0) {
+        fprintf(stderr, "Date DST test could not install its test timezone\n");
+        free(saved_tz);
+        return 0;
+    }
+    tzset();
+
+    expected.tm_year = 2024 - 1900;
+    expected.tm_mon = 6;
+    expected.tm_mday = 1;
+    expected.tm_hour = 12;
+    expected.tm_min = 34;
+    expected.tm_sec = 56;
+    expected.tm_isdst = -1;
+    expected_time = mktime(&expected);
+    Date_fromString_format_(&parsed, "2024-07-01 12:34:56",
+        "%Y-%m-%d %H:%M:%S");
+    if (expected_time == (time_t)-1 || expected.tm_isdst <= 0 ||
+        parsed.tv.tv_sec != expected_time || parsed.tv.tv_usec != 0) {
+        fprintf(stderr, "Date string parsing ignored active daylight saving time\n");
+        goto restore_timezone;
+    }
+    okay = 1;
+
+restore_timezone:
+    if (had_tz) {
+        if (setenv("TZ", saved_tz, 1) != 0) {
+            fprintf(stderr, "Date DST test could not restore the current TZ value\n");
+            okay = 0;
+        }
+    } else if (unsetenv("TZ") != 0) {
+        fprintf(stderr, "Date DST test could not clear its test timezone\n");
+        okay = 0;
+    }
+    tzset();
+    free(saved_tz);
+    return okay;
+}
+#else
+static int test_parse_resolves_daylight_saving(void)
+{
+    return 1;
+}
+#endif
 
 static int test_timezone_conversion(void)
 {
@@ -185,7 +256,8 @@ int main(void)
     double after;
 
     if (!test_timezone_conversion() || !test_calendar_year_bounds() ||
-        !test_date_compare_precision()) return EXIT_FAILURE;
+        !test_date_compare_precision() || !test_parse_resolves_daylight_saving())
+        return EXIT_FAILURE;
 
     {
         Date sample = {0};
