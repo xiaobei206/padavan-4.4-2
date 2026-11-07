@@ -1,3 +1,10 @@
+## 2026-11-08 05:19 CST — Confirm DNSMasq exact-head host CI PASS
+
+- Re-checked run [`42414963649`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42414963649), exact head `c59a43645cca746cb7c8c6496b55ff4324ae5870`: **COMPLETED SUCCESS**. Every step passed, including `Compile and run policy regression`, `Verify DNSMasq generated file trust boundaries`, firewall hooks/status reporting, root-managed script staging and HTTPD auth/route-access contracts.
+- The run validates the compiler correction to lease-file mode initialization. Earlier run `42414909753` failure is retained in historical notes; the corrected head is green, not a suppressed failure.
+- Current main at this documentation update was `bab623b9a559799f3544eea33933a308152e990a`; this commit only refreshes governance status. No firmware/MIPS build or router test was performed.
+- DNSMasq task is host-verified. Proceed to a bounded WAN/PPP/service lifecycle audit, especially DHCP event input validation, route application, and resolver update ordering.
+
 ## 2026-11-08 05:17 CST — Harden DNSMasq runtime file staging; record compiler follow-up
 
 ### Finding and implementation
