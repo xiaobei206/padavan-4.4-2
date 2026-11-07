@@ -24,6 +24,8 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include "rc.h"
 #include "firewall_filter_policy.h"
@@ -478,18 +480,38 @@ static void
 include_vpns_clients(FILE *fp)
 {
 	FILE *fpls;
+	int fd;
+	struct stat lease_stat;
 	char ifname[64] = {0};
 	char *dtype = IPT_CHAIN_NAME_VPN_LIST;
 
-	fpls = fopen(VPN_SERVER_LEASE_FILE, "r");
-	if (fpls) {
-		while(fscanf(fpls, "%63s %*s %*s %*s\n", ifname) > 0) {
-			if (ppp_ifindex(ifname) >= VPN_SERVER_PPP_UNIT)
-				fprintf(fp, "-A %s -i %s -j %s\n", dtype, ifname, "ACCEPT");
-		}
-		
-		fclose(fpls);
+	/* The lease file is root-managed state in shared /tmp. Never follow
+	 * symlinks or consume a file that another local user can modify. */
+	fd = open(VPN_SERVER_LEASE_FILE, O_RDONLY | O_NOFOLLOW);
+	if (fd < 0)
+		return;
+
+	if (fstat(fd, &lease_stat) != 0 ||
+	    !S_ISREG(lease_stat.st_mode) ||
+	    lease_stat.st_uid != 0 ||
+	    lease_stat.st_nlink != 1 ||
+	    (lease_stat.st_mode & 077) != 0) {
+		close(fd);
+		return;
 	}
+
+	fpls = fdopen(fd, "r");
+	if (!fpls) {
+		close(fd);
+		return;
+	}
+
+	while (fscanf(fpls, "%63s %*s %*s %*s\n", ifname) > 0) {
+		if (firewall_ppp_interface_is_safe(ifname, VPN_SERVER_PPP_UNIT))
+			fprintf(fp, "-A %s -i %s -j %s\n", dtype, ifname, "ACCEPT");
+	}
+
+	fclose(fpls);
 }
 
 static int
