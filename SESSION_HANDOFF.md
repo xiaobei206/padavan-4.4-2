@@ -8,11 +8,11 @@
 - Primary branch: main
 - Parent HEAD immediately before this governance bootstrap: 412eebb4d0c36f9cbaf43921b4ce1f2056665984
 - This governance bootstrap creates/updates the protocol, bootstrap prompt, roadmap, this handoff, and dev_log.md in one documentation commit. On startup, fetch live main HEAD to obtain the actual resulting commit SHA; do not assume the parent SHA is still current.
-- Previous latest relevant CI at the parent HEAD: SkipDBv2 Regression run 42376349424, conclusion success, head SHA 412eebb4d0c36f9cbaf43921b4ce1f2056665984. Earlier inspection reported all 57 CTests passed. This does not establish full firmware build or hardware validation.
+- Previous latest relevant CI at the pre-bootstrap parent HEAD: SkipDBv2 Regression run 42376349424, conclusion success, head SHA 412eebb4d0c36f9cbaf43921b4ce1f2056665984. Earlier inspection reported all 57 CTests passed. This does not establish full firmware build or hardware validation.
 
 ## Current task state
 
-- Governance bootstrap: in progress until the documentation commit is visible on main.
+- Governance bootstrap: COMPLETE; commit 84e2fb77973393dd2804b9feb2d94b2ce74933c4 was read back from main.
 - Production C source modifications in this bootstrap: none.
 - Existing mainline changes: untouched.
 - Existing dev_log.md history: preserve fully; prepend one new entry only.

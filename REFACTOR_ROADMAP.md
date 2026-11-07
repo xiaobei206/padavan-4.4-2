@@ -2,7 +2,8 @@
 
 **Repository:** xiaobei206/padavan-4.4-2  
 **Primary branch:** main  
-**Initial baseline before this governance bootstrap:** 412eebb4d0c36f9cbaf43921b4ce1f2056665984  
+**Initial baseline before this governance bootstrap:** 412eebb4d0c36f9cbaf43921b4ce1f2056665984
+**Governance bootstrap commit:** 84e2fb77973393dd2804b9feb2d94b2ce74933c4 (verified on main)  
 **Roadmap status:** INITIAL / INVENTORY INCOMPLETE
 
 ## Purpose and status semantics
