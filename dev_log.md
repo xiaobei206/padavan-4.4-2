@@ -1,3 +1,13 @@
+## 2026-11-07 15:56 CST — Preserve the argv NULL sentinel in MainArgs
+
+- Baseline: `4ef5aafca2a92b3b5832b11d7974f8a8125928ab`; SkipDBv2 Regression run #583 passed source contracts, configure, full build, and CTest.
+- Scope: `MainArgs_argc_argv_()` ownership/allocation semantics and the existing `main_args_lifecycle_test`.
+- The setter deep-copied exactly `argc` entries but did not reserve the conventional `argv[argc] == NULL` terminator. It also represented `argc == 0` as a NULL vector, so callers could not safely use the normal C argv termination convention.
+- Allocate an overflow-checked `argc + 1` pointer array for every valid replacement, including an empty vector. `io_calloc` initializes the trailing sentinel; the existing transactional copy/publish/free sequence remains unchanged. Document the invariant in the public header.
+- Extend the existing lifecycle regression to require the sentinel after initial assignment, replacement, and empty assignment. Extend Actions source/header/runtime contracts. Existing CMake target reused; no new files, exports, or build-list changes.
+- Remote Actions remains the compiler/CTest gate; no local build is claimed.
+
+---
 ## 2026-11-07 15:53 CST — Snapshot UArray format strings that alias the destination
 
 - Baseline: `47751ce1ef0306ec1613215a5da4214380afc7ba`; mainline run #582 passed source contracts, configure, full build, and CTest.

@@ -26,7 +26,8 @@ int main(void)
     if (args->argc != 3 || NULL == args->argv ||
         strcmp(args->argv[0], "padavan") != 0 ||
         strcmp(args->argv[1], "--database") != 0 ||
-        strcmp(args->argv[2], "skipdb.db") != 0) {
+        strcmp(args->argv[2], "skipdb.db") != 0 ||
+        args->argv[args->argc] != NULL) {
         fprintf(stderr, "MainArgs did not copy its initial arguments\n");
         MainArgs_free(args);
         return EXIT_FAILURE;
@@ -62,7 +63,8 @@ int main(void)
     MainArgs_argc_argv_(args, 2, replacement);
     if (args->argc != 2 || MainArgs_argCount(args) != 2 ||
         strcmp(MainArgs_argAt_(args, 0), "skipdb") != 0 ||
-        strcmp(MainArgs_argAt_(args, 1), "--version") != 0) {
+        strcmp(MainArgs_argAt_(args, 1), "--version") != 0 ||
+        args->argv[args->argc] != NULL) {
         fprintf(stderr, "MainArgs replacement failed\n");
         MainArgs_free(args);
         return EXIT_FAILURE;
@@ -79,8 +81,8 @@ int main(void)
     }
 
     MainArgs_argc_argv_(args, 0, NULL);
-    if (args->argc != 0 || args->argv != NULL) {
-        fprintf(stderr, "empty MainArgs replacement did not clear the state\n");
+    if (args->argc != 0 || NULL == args->argv || args->argv[0] != NULL) {
+        fprintf(stderr, "empty MainArgs replacement did not retain a NULL sentinel\n");
         MainArgs_free(args);
         return EXIT_FAILURE;
     }

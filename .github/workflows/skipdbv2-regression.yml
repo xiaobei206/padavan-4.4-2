@@ -1234,6 +1234,8 @@ jobs:
                   "const char *MainArgs_argumentAt_(const MainArgs *self, size_t index)",
                   "index >= (size_t)self->argc",
                   "if (NULL == self || argc < 0 || (argc > 0 && NULL == argv)",
+                  "(size_t)argc >= (size_t)-1 / sizeof(*newArgv)",
+                  "io_calloc((size_t)argc + 1, sizeof(*newArgv))",
                   "if (NULL == argument)",
                   "if (NULL == copy)",
                   "oldArgv = self->argv;",
@@ -1241,7 +1243,8 @@ jobs:
                   "MainArgs_freeArguments_(oldArgv, oldArgc);",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/MainArgs.h": [
-                  "invalid input or allocation failure leaves self unchanged",
+                  "Deep-copies argv and always stores argv[argc] == NULL (also when argc is zero).",
+                  "Invalid input or allocation failure leaves self unchanged.",
                   "BASEKIT_API int MainArgs_argCount_(const MainArgs *self);",
                   "BASEKIT_API const char *MainArgs_argumentAt_(const MainArgs *self, size_t index);",
                   "#define MainArgs_argCount(self) MainArgs_argCount_(self)",
@@ -1256,6 +1259,9 @@ jobs:
                   "MainArgs_argc_argv_(args, -1, replacement)",
                   "MainArgs_argc_argv_(args, 1, NULL)",
                   "MainArgs_argc_argv_(args, 1, null_argument)",
+                  "args->argv[args->argc] != NULL",
+                  "args->argv[0] != NULL",
+                  "empty MainArgs replacement did not retain a NULL sentinel",
                   "MainArgs retained borrowed argument storage",
                   "MainArgs lifecycle test passed",
               ],
@@ -5683,8 +5689,10 @@ jobs:
           if (not setter or allocate < 0 or validate < 0 or copy < 0 or publish < 0 or
                   release_old < 0 or not (allocate < validate < copy < publish < release_old)):
               raise SystemExit("MainArgs replacement must validate/copy completely before publishing and releasing old state")
-          if ("argc < 0" not in setter or "(size_t)argc > (size_t)-1 / sizeof(*newArgv)" not in setter):
-              raise SystemExit("MainArgs replacement must reject negative and overflowing argument counts")
+          if ("argc < 0" not in setter or
+                  "(size_t)argc >= (size_t)-1 / sizeof(*newArgv)" not in setter or
+                  "io_calloc((size_t)argc + 1, sizeof(*newArgv))" not in setter):
+              raise SystemExit("MainArgs replacement must reserve an overflow-checked NULL sentinel slot")
           accessor_count_start = main_args_source.find("int MainArgs_argCount_(const MainArgs *self)")
           accessor_at_start = main_args_source.find("const char *MainArgs_argumentAt_(const MainArgs *self, size_t index)")
           accessor_at = main_args_source[accessor_at_start:] if accessor_at_start >= 0 else ""
@@ -5706,7 +5714,10 @@ jobs:
                          "MainArgs_argc_argv_(args, -1, replacement)",
                          "MainArgs_argc_argv_(args, 1, NULL)",
                          "MainArgs_argc_argv_(args, 1, null_argument)",
-                         "MainArgs retained borrowed argument storage"):
+                         "MainArgs retained borrowed argument storage",
+                         "args->argv[args->argc] != NULL",
+                         "args->argv[0] != NULL",
+                         "empty MainArgs replacement did not retain a NULL sentinel"):
               if needle not in main_args_test:
                   raise SystemExit("MainArgs lifecycle regression case missing: " + needle)
 

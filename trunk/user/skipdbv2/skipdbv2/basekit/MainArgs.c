@@ -50,13 +50,14 @@ void MainArgs_argc_argv_(MainArgs *self, int argc, const char **argv)
     int i;
 
     if (NULL == self || argc < 0 || (argc > 0 && NULL == argv) ||
-        (size_t)argc > (size_t)-1 / sizeof(*newArgv))
+        (size_t)argc >= (size_t)-1 / sizeof(*newArgv))
+        return;
+
+    newArgv = (const char **)io_calloc((size_t)argc + 1, sizeof(*newArgv));
+    if (NULL == newArgv)
         return;
 
     if (argc > 0) {
-        newArgv = (const char **)io_calloc((size_t)argc, sizeof(*newArgv));
-        if (NULL == newArgv)
-            return;
 
         for (i = 0; i < argc; ++i) {
             const char *argument = argv[i];
