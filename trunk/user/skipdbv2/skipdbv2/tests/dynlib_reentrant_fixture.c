@@ -10,6 +10,7 @@ typedef struct
     void *library;
     void (*closeLibrary)(void *);
     int callbackCalls;
+    int callbackReturned;
 } ReentrantFreeState;
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
@@ -26,4 +27,16 @@ TEST_PLUGIN_EXPORT void __skipdb_dynlib_reentrant_free__(void *argument)
     state->callbackCalls++;
     if (state->closeLibrary)
         state->closeLibrary(state->library);
+    state->callbackReturned = 1;
+}
+
+TEST_PLUGIN_EXPORT void __skipdb_dynlib_reentrant_init__(void *argument)
+{
+    ReentrantFreeState *state = (ReentrantFreeState *)argument;
+    if (NULL == state)
+        return;
+    state->callbackCalls++;
+    if (state->closeLibrary)
+        state->closeLibrary(state->library);
+    state->callbackReturned = 1;
 }

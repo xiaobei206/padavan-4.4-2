@@ -1,3 +1,13 @@
+## 2026-11-07 20:33 CST — Defer DynLib unload until init callbacks return
+
+- Baseline: `b7f2ea43c11738302e5ae91e4a567f56e2ef6b98`; main SkipDBv2 Regression run #659 passed.
+- Scope: the `DynLib_open()` / `DynLib_close()` initializer lifecycle.
+- An init callback may receive its owning `DynLib` through `initArg` and call `DynLib_close()`. The old path unloaded the shared object while its initializer was still executing, so the callback could return into unmapped code.
+- Track the active init callback and defer close requests until it returns; drain the request before `DynLib_open()` returns. Extend the existing reentrant fixture and lifecycle test to verify callback completion and the final closed state.
+- Reuse existing source, fixture, CTest target, and workflow contracts. No new files or CMake targets. No local firmware build is claimed; remote Actions is the validation gate.
+
+---
+
 ## 2026-11-07 20:16 CST — Match escaped-percent contract to the actual branch
 
 - Failed head: `84a3053d3282d53f7ae7a78a3371eff101a898dd`; run #658 passed workflow-script parsing, then failed the static source contract before configuration or compilation.
