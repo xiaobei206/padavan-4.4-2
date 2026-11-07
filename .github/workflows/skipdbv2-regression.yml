@@ -2589,7 +2589,7 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_path.c": [
                   "static size_t UArray_pathItemSize_(CTYPE itemType)",
                   "static size_t UArray_pathItemAlignment_(CTYPE itemType)",
-                  "UArrayPathUint64AlignmentProbe",
+                  "UArrayPathUInt64AlignmentProbe",
                   "static int UArray_hasValidPathStorage_(const UArray *self)",
                   "static int UArray_pathComponentBounds_(const UArray *self, size_t *componentStart, size_t *componentEnd)",
                   "UArray_pathComponentBounds_(self, &componentStart, &componentEnd)",

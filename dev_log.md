@@ -1,3 +1,12 @@
+## 2026-11-07 15:00 CST — Repair UArray path alignment CI source contract
+
+- Baseline: `244450e4c451a94b2fed96a0643775504f561b73`; SkipDBv2 Regression run #569 stopped in the XY-C1 source-contract step before configure/build.
+- Failure cause: the workflow contract spelled the static probe as `UArrayPathUint64AlignmentProbe`, while the implementation's identifier is `UArrayPathUInt64AlignmentProbe`. The implementation and regression fixture were not reached by compilation; this was a source-contract token mismatch.
+- Corrected only the workflow token to match the actual static probe identifier. No C source, test logic, CMake registration, or public interface changed.
+- Validation: compared the exact identifier against `UArray_path.c`; remote Actions remains the authoritative compiler and CTest gate.
+
+---
+
 ## 2026-11-07 14:55 CST — Reject misaligned UArray path storage
 
 - Baseline: `cee9633ef50b18c87d97cec5155e3a11f2038008`; main's SkipDBv2 Regression run #568 completed successfully.
