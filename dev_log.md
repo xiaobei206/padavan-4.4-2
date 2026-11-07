@@ -1,3 +1,13 @@
+## 2026-11-07 10:06 CST — Reject record creation with invalid end offsets
+
+- Baseline: main commit `2ed8d3fb51c749fc7828fb15f652b44001719c28`; SkipDBv2 Regression run #500 passed.
+- Scope: `UDBRecords_newRecord()` in `udb/UDBRecordsCursor.c`.
+- The helper checked that the record stream was open but not that its cached end offset was valid. When `maxPos < 0`, `UDBRecord_setPosToEnd()` correctly declined to update the cursor, yet `UDBRecords_newRecord()` still returned the shared record object at its previous position as though new-record creation succeeded.
+- Reject invalid end metadata before returning the cursor. Extend the existing record-storage regression to verify that a rejected request preserves the old cursor and that normal EOF creation still succeeds. Add source-contract checks; existing CMake/CTest wiring is unchanged.
+- No local C compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 10:04 CST — Reject tagged pointers wider than intptr_t
 
 - Baseline: main commit `55a299d93bd842bb5f6404cba0f708dd0e7a4abf`; SkipDBv2 Regression run #499 passed.

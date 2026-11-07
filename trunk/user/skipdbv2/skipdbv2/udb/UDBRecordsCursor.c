@@ -17,7 +17,7 @@ UDBRecord *UDBRecords_firstRecord(UDBRecords *self)
 UDBRecord *UDBRecords_newRecord(UDBRecords *self)
 {
 	if (NULL == self || NULL == self->record || NULL == self->file ||
-		NULL == self->file->file)
+		NULL == self->file->file || self->file->maxPos < 0)
 		return NULL;
 	UDBRecord_setPosToEnd(self->record);
 	return self->record;

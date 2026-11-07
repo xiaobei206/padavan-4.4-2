@@ -466,6 +466,8 @@ jobs:
                   "int UDBRecords_truncate_(UDBRecords *self, off_t size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsCursor.c": [
+                  "UDBRecord *UDBRecords_newRecord(UDBRecords *self)",
+                  "NULL == self->file->file || self->file->maxPos < 0",
                   "UDBRecord *UDBRecords_recordAtPos_(UDBRecords *self, PID_TYPE pos)",
                   "pos < (PID_TYPE)sizeof(PID_TYPE)",
                   "UDBRecord *UDBRecords_nextRecord(UDBRecords *self)",
@@ -678,6 +680,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_record_storage.c": [
                   "UDBRecord_saveWithDatum_(record, input)",
+                  "UDBRecords_newRecord accepted a negative maxPos",
+                  "UDBRecords_newRecord failed at a valid EOF",
                   "record save accepted a non-append position",
                   "UDBRecords_recordAtPos_(db->records, (PID_TYPE)0)",
                   "record reader accepted offset-zero metadata as a physical row",

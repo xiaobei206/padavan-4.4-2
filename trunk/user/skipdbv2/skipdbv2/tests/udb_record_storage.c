@@ -621,6 +621,28 @@ int main(void)
         goto done;
     }
 
+    /* Invalid EOF metadata must not hand out the previous shared cursor. */
+    {
+        PID_TYPE saved_record_pos = db->records->record->pos;
+        long saved_file_pos = db->records->file->pos;
+        long saved_max_pos = db->records->file->maxPos;
+
+        db->records->file->maxPos = -1;
+        if (UDBRecords_newRecord(db->records) != NULL ||
+            db->records->record->pos != saved_record_pos ||
+            db->records->file->pos != saved_file_pos) {
+            db->records->file->maxPos = saved_max_pos;
+            fprintf(stderr, "UDBRecords_newRecord accepted a negative maxPos\n");
+            goto done;
+        }
+        db->records->file->maxPos = saved_max_pos;
+        if (UDBRecords_newRecord(db->records) != db->records->record ||
+            db->records->record->pos != (PID_TYPE)saved_max_pos) {
+            fprintf(stderr, "UDBRecords_newRecord failed at a valid EOF\n");
+            goto done;
+        }
+    }
+
     result = EXIT_SUCCESS;
     puts("udb record storage test passed");
 
