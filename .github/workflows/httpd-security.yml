@@ -391,6 +391,27 @@ jobs:
           auth_check = request.index("if (!auth_check(authorization))", auth_gate)
           assert auth_check < activity_refresh
           assert "else if (login_state == 3)" in request[auth_gate:activity_refresh]
+          # SystemCmd is a root shell feature restricted by get_login_safe().
+          # Reject untrusted submissions before they can populate the process-global
+          # pending-command buffer, and discard any stale value at the execution gate.
+          command_start = web.index('if (!strcmp(value, " SystemCmd "))')
+          command_end = web.index('else if (!strcmp(value, " ClearLog "))', command_start)
+          command_submit = web[command_start:command_end]
+          command_guard = command_submit.index("if (!get_login_safe())")
+          command_clear = command_submit.index("SystemCmd[0] = '\\\\0';", command_guard)
+          command_deny = command_submit.index("websError(wp, 403", command_guard)
+          command_capture = command_submit.index('websGetVar(wp, "SystemCmd", "")')
+          command_copy = command_submit.index("strncpy(SystemCmd, cmd_str, cmd_len);")
+          assert command_guard < command_clear < command_deny < command_capture < command_copy
+          script_start = web.index('sys_script(char *name)')
+          script_end = web.index('static int\\nwrite_file_dos2unix', script_start)
+          sys_script = web[script_start:script_end]
+          syscmd_start = sys_script.index('if (strcmp(name,"syscmd.sh")==0)')
+          syscmd_end = sys_script.index('else if (strcmp(name, "syslog.sh")==0)', syscmd_start)
+          syscmd = sys_script[syscmd_start:syscmd_end]
+          assert 'if (SystemCmd[0] && get_login_safe())' in syscmd
+          assert syscmd.index("SystemCmd[0] = '\\\\0';", syscmd.index("} else {")) > syscmd.index("} else {")
+          print("HTTPD SystemCmd trusted-session queue and stale-command guard: OK")
           print("HTTPD strict Basic authentication and decoder wiring: OK")
 
           print("HTTPD private-key access policy and call-site wiring: OK")

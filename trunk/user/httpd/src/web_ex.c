@@ -244,6 +244,8 @@ sys_script(char *name)
 			doSystem("%s >/tmp/syscmd.log 2>&1\n", SystemCmd);
 			SystemCmd[0] = '\0';
 		} else {
+			/* Never carry a command submitted by an untrusted session into a later login. */
+			SystemCmd[0] = '\0';
 			system("echo -n > /tmp/syscmd.log\n");
 		}
 	}
@@ -3934,8 +3936,17 @@ apply_cgi(const char *url, webs_t wp)
 	if (!strcmp(value, " SystemCmd "))
 	{
 		size_t cmd_len;
-		char *cmd_str = websGetVar(wp, "SystemCmd", "");
-		
+		char *cmd_str;
+
+		/* The console is intentionally restricted to trusted LAN/HTTPS sessions.
+		 * Enforce that policy before accepting a command into the process-global queue. */
+		if (!get_login_safe()) {
+			SystemCmd[0] = '\0';
+			websError(wp, 403, "System command execution is restricted to trusted sessions.\n");
+			return 0;
+		}
+
+		cmd_str = websGetVar(wp, "SystemCmd", "");
 		cmd_len = MIN(sizeof(SystemCmd)-1, strlen(cmd_str));
 		strncpy(SystemCmd, cmd_str, cmd_len);
 		SystemCmd[cmd_len] = '\0';
