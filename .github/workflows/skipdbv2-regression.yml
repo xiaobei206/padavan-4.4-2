@@ -1070,7 +1070,10 @@ jobs:
                   "ADD_EXECUTABLE(dynlib_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/dynlib_lifecycle.c",
                   "TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})",
-                  "add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test)",
+                  "ADD_LIBRARY(dynlib_reentrant_fixture SHARED",
+                         "${PROJECT_SOURCE_DIR}/tests/dynlib_reentrant_fixture.c",
+                         "ADD_DEPENDENCIES(dynlib_lifecycle_test dynlib_reentrant_fixture)",
+                         "add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test $<TARGET_FILE:dynlib_reentrant_fixture>)",
 
                   "ADD_EXECUTABLE(phash_compact_test",
                   "${PROJECT_SOURCE_DIR}/tests/phash_compact.c",
@@ -1172,6 +1175,8 @@ jobs:
                   "Sorting boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/DynLib.c": [
+                  "self->handle = NULL;",
+                  "Detach before invoking plugin code",
                   "static const char *dlerror(void)",
                   "SetLastError(ERROR_SUCCESS);\n        return \"Windows dynamic loader operation failed\";",
                   "SetLastError(ERROR_SUCCESS);\n    return message;",
@@ -1188,7 +1193,16 @@ jobs:
                   "BASEKIT_API void DynLib_updateError(DynLib *self);",
                   "BASEKIT_API unsigned char DynLib_hasError(DynLib *self);",
               ],
+              "trunk/user/skipdbv2/skipdbv2/tests/dynlib_reentrant_fixture.c": [
+                  "__skipdb_dynlib_reentrant_free__",
+                  "state->callbackCalls++",
+                  "state->closeLibrary(state->library)",
+              ],
               "trunk/user/skipdbv2/skipdbv2/tests/dynlib_lifecycle.c": [
+                  "ReentrantFreeState",
+                  "close_library_from_plugin",
+                  "recursive close invoked the plugin free callback more than once",
+                  "reentrant fixture path was not supplied",
                   "DynLib_updateError(library);",
                   "loader error state was not consumed after update",
                   "DynLib_free(NULL);",

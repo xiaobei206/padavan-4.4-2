@@ -259,32 +259,42 @@ unsigned char DynLib_isOpen(DynLib *self)
 
 void DynLib_close(DynLib *self)
 {
-    void *function;
+    void *function = NULL;
     void *handle;
     int callbackFailed = 0;
 
     if (NULL == self || NULL == self->handle)
         return;
+    handle = self->handle;
     if (self->freeFuncName && self->freeFuncName[0]) {
         function = DynLib_pointerForSymbolName_(self, self->freeFuncName);
-        if (function) {
-            if (self->freeArg)
-                (*(DynLibOneArgFunction *)function)(self->freeArg);
-            else
-                (*(DynLibNoArgFunction *)function)();
-        } else {
+        if (NULL == function)
             callbackFailed = 1;
-        }
     }
 
-    handle = self->handle;
+    /*
+     * Detach before invoking plugin code. A free callback may re-enter
+     * DynLib_close(); the nested call must not invoke the callback again
+     * or unload the library while its callback is still executing.
+     */
+    self->handle = NULL;
+    if (function) {
+        if (self->freeArg)
+            (*(DynLibOneArgFunction *)function)(self->freeArg);
+        else
+            (*(DynLibNoArgFunction *)function)();
+    }
+
     DynLib_clearLoaderError_();
     if (0 == dlclose(handle)) {
-        self->handle = NULL;
         if (!callbackFailed)
             DynLib_setError_(self, NULL);
-    } else if (!DynLib_captureLoaderError_(self)) {
-        DynLib_setError_(self, "library could not be closed");
+    } else {
+        /* Restore the handle if close failed and the callback did not reopen. */
+        if (NULL == self->handle)
+            self->handle = handle;
+        if (!DynLib_captureLoaderError_(self))
+            DynLib_setError_(self, "library could not be closed");
     }
 }
 

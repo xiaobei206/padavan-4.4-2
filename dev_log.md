@@ -1,3 +1,14 @@
+## 2026-11-07 14:25 CST — Prevent recursive DynLib free-callback unload
+
+- Baseline: `51cba03394b7bd86a0bdc28f91b0de5df37026ea`; UArray pointer-alignment regression passed SkipDBv2 Regression run #560.
+- Scope: `DynLib_close` callback/loader-handle lifecycle.
+- The old close path invoked the plugin free callback while `self->handle` still referenced the open library. If the callback re-entered `DynLib_close(self)`, the same callback was resolved and invoked recursively, potentially unbounded, and a nested close could unload code that was still executing.
+- Snapshot the original handle, resolve the callback, then detach `self->handle` before executing plugin code. Reentrant close now observes the detached/closing state and is a no-op; the outer call performs the single OS close. If `dlclose` fails, restore the original handle only when the callback did not reopen the object.
+- Added a test-only shared-library fixture and extended `dynlib_lifecycle_test` to invoke a callback that recursively calls `DynLib_close`; CMake now builds the fixture and passes its target path to the test. Updated the workflow's source and CMake contracts for the new fixture.
+- Validation: source-level review confirms callback lookup happens while the handle is open, detachment precedes callback invocation, and the outer close owns the final `dlclose`. Remote CI remains the compile/runtime gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:19 CST — Reject misaligned UArray pointer arrays
 
 - Baseline: `3b8e9d8315e4bc2143c14ee769b9520e645cde91`; core CTYPE alignment passed SkipDBv2 Regression run #558.

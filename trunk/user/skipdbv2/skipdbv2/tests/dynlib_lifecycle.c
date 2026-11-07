@@ -3,6 +3,18 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef struct
+{
+    void *library;
+    void (*closeLibrary)(void *);
+    int callbackCalls;
+} ReentrantFreeState;
+
+static void close_library_from_plugin(void *library)
+{
+    DynLib_close((DynLib *)library);
+}
+
 #if defined(__WIN32__) || defined(WIN32) || defined(_WIN32) || defined(_MSC_VER)
 #define TEST_LIBRARY "kernel32.dll"
 #define TEST_SYMBOL "GetCurrentProcess"
@@ -18,7 +30,7 @@
     } \
 } while (0)
 
-int main(void)
+int main(int argc, char **argv)
 {
     DynLib *library;
     void *originalHandle;
@@ -115,6 +127,27 @@ int main(void)
     DynLib_setPath_(library, TEST_LIBRARY);
     DynLib_open(library);
     CHECK(DynLib_isOpen(library), "second system library load failed");
+    DynLib_free(library);
+
+    CHECK(argc > 1, "reentrant fixture path was not supplied");
+    library = DynLib_new();
+    CHECK(NULL != library, "reentrant fixture constructor failed");
+    {
+        ReentrantFreeState state;
+        memset(&state, 0, sizeof(state));
+        state.library = library;
+        state.closeLibrary = close_library_from_plugin;
+        DynLib_setPath_(library, argv[1]);
+        DynLib_setFreeFuncName_(library, "__skipdb_dynlib_reentrant_free__");
+        DynLib_setFreeArg_(library, &state);
+        DynLib_open(library);
+        CHECK(DynLib_isOpen(library), "reentrant fixture load failed");
+        DynLib_close(library);
+        CHECK(state.callbackCalls == 1,
+              "recursive close invoked the plugin free callback more than once");
+        CHECK(!DynLib_isOpen(library),
+              "recursive close left the original loader handle open");
+    }
     DynLib_free(library);
 
     puts("DynLib lifecycle test passed");

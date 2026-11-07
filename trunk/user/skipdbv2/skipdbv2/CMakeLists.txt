@@ -387,10 +387,14 @@ if(SKIPDB_BUILD_TESTS)
     TARGET_LINK_LIBRARIES(datum_boundaries_test skipdb m)
     add_test(NAME datum_boundaries_test COMMAND datum_boundaries_test)
 
+    ADD_LIBRARY(dynlib_reentrant_fixture SHARED
+        ${PROJECT_SOURCE_DIR}/tests/dynlib_reentrant_fixture.c)
+
     ADD_EXECUTABLE(dynlib_lifecycle_test
         ${PROJECT_SOURCE_DIR}/tests/dynlib_lifecycle.c)
     TARGET_LINK_LIBRARIES(dynlib_lifecycle_test skipdb m ${CMAKE_DL_LIBS})
-    add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test)
+    ADD_DEPENDENCIES(dynlib_lifecycle_test dynlib_reentrant_fixture)
+    add_test(NAME dynlib_lifecycle_test COMMAND dynlib_lifecycle_test $<TARGET_FILE:dynlib_reentrant_fixture>)
 
     ADD_EXECUTABLE(shash_compact_test
         ${PROJECT_SOURCE_DIR}/tests/shash_compact.c)
