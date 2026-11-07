@@ -1,3 +1,11 @@
+## 2026-11-07 16:40 CST — Accept Date_second's guarded zero fallback in the accessor contract
+
+- Baseline: `10b77b183a6d4033e93669eba40fcdbb76cd611d`; SkipDBv2 Regression run #596 passed the XY-C1 inventory and earlier Date contracts, then stopped in the Date accessor source-order assertion.
+- `Date_second()` correctly checks the reentrant conversion and returns `0.0` when conversion fails. The contract matcher found the start of the `if (!Date_localTime_(...))` guard, which is textually just before the call itself, and mistakenly treated that guard position as the fallback result.
+- Keep the accessor check strict: when no ternary `: 0` fallback exists, require `return 0.0;` after the explicit local-time failure guard. No production C or test changes.
+
+---
+
 ## 2026-11-07 16:39 CST — Count the isolated Symbian localtime call, not its comment
 
 - Baseline: `5ad3f6c9d8eb8c1ab64e1bab2678e82e26ba3b4d`; SkipDBv2 Regression run #595 passed the main source needles and failed the focused Date parsing/formatting contract before configure/build.

@@ -5344,7 +5344,8 @@ jobs:
               helper_call = body.find("Date_localTime_(self, &t, &calendar)")
               neutral_result = body.find(": 0")
               if neutral_result < 0:
-                  neutral_result = body.find("if (!Date_localTime_(self, &t, &calendar))")
+                  null_guard = body.find("if (!Date_localTime_(self, &t, &calendar))")
+                  neutral_result = body.find("return 0.0;", null_guard)
               if not body or helper_call < 0 or neutral_result < 0 or neutral_result < helper_call:
                   raise SystemExit("Date component accessor must handle invalid receivers/localtime results: " + signature)
           calendar_helper_start = date_source.find("static int Date_calendarToTime_(struct tm *calendar, time_t *timestamp)")
