@@ -378,8 +378,10 @@ if(SKIPDB_BUILD_TESTS)
     add_test(NAME portable_gettimeofday_test COMMAND portable_gettimeofday_test)
 
     ADD_EXECUTABLE(main_args_lifecycle_test
-        ${PROJECT_SOURCE_DIR}/tests/main_args_lifecycle.c)
-    TARGET_LINK_LIBRARIES(main_args_lifecycle_test skipdb m)
+        ${PROJECT_SOURCE_DIR}/tests/main_args_lifecycle.c
+        ${PROJECT_SOURCE_DIR}/basekit/MainArgs.c
+        ${PROJECT_SOURCE_DIR}/basekit/Common.c)
+    TARGET_COMPILE_DEFINITIONS(main_args_lifecycle_test PRIVATE IO_CHECK_ALLOC)
     add_test(NAME main_args_lifecycle_test COMMAND main_args_lifecycle_test)
 
     ADD_EXECUTABLE(datum_boundaries_test

@@ -1,8 +1,35 @@
 #include "MainArgs.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+
+static int testCorruptArgcCleanup(int corruptArgc)
+{
+    const char *owned[] = { "first", "second", "third" };
+    MainArgs *args = MainArgs_new();
+
+    if (NULL == args) {
+        fprintf(stderr, "MainArgs corrupt-count fixture allocation failed\n");
+        return 0;
+    }
+    MainArgs_argc_argv_(args, 3, owned);
+    if (args->argc != 3 || NULL == args->argv || args->argv[3] != NULL) {
+        fprintf(stderr, "MainArgs corrupt-count fixture setup failed\n");
+        MainArgs_free(args);
+        return 0;
+    }
+
+    args->argc = corruptArgc;
+    MainArgs_free(args);
+    if (io_allocatedBytes() != 0 || io_allocs() != io_frees()) {
+        fprintf(stderr, "MainArgs teardown trusted corrupt argc and leaked allocations\n");
+        return 0;
+    }
+    return 1;
+}
 
 int main(void)
 {
@@ -89,6 +116,9 @@ int main(void)
 
     MainArgs_free(NULL);
     MainArgs_free(args);
+    if (!testCorruptArgcCleanup(-1) ||
+        !testCorruptArgcCleanup(INT_MAX))
+        return EXIT_FAILURE;
     puts("MainArgs lifecycle test passed");
     return EXIT_SUCCESS;
 }

@@ -3,12 +3,13 @@
 #include <string.h>
 #include "MainArgs.h"
 
-static void MainArgs_freeArguments_(const char **argv, int argc)
+static void MainArgs_freeArguments_(const char **argv)
 {
-    int i;
+    size_t i;
     if (NULL == argv)
         return;
-    for (i = 0; i < argc; ++i)
+    /* The NULL sentinel belongs to the owned vector; argc is caller-visible. */
+    for (i = 0; NULL != argv[i]; ++i)
         io_free((void *)argv[i]);
     io_free((void *)argv);
 }
@@ -22,7 +23,7 @@ void MainArgs_free(MainArgs *self)
 {
     if (NULL == self)
         return;
-    MainArgs_freeArguments_(self->argv, self->argc);
+    MainArgs_freeArguments_(self->argv);
     io_free(self);
 }
 
@@ -46,7 +47,6 @@ void MainArgs_argc_argv_(MainArgs *self, int argc, const char **argv)
 {
     const char **newArgv = NULL;
     const char **oldArgv;
-    int oldArgc;
     int i;
 
     if (NULL == self || argc < 0 || (argc > 0 && NULL == argv) ||
@@ -64,17 +64,17 @@ void MainArgs_argc_argv_(MainArgs *self, int argc, const char **argv)
             size_t length;
             char *copy;
             if (NULL == argument) {
-                MainArgs_freeArguments_(newArgv, argc);
+                MainArgs_freeArguments_(newArgv);
                 return;
             }
             length = strlen(argument);
             if (length == (size_t)-1) {
-                MainArgs_freeArguments_(newArgv, argc);
+                MainArgs_freeArguments_(newArgv);
                 return;
             }
             copy = (char *)io_malloc(length + 1);
             if (NULL == copy) {
-                MainArgs_freeArguments_(newArgv, argc);
+                MainArgs_freeArguments_(newArgv);
                 return;
             }
             memcpy(copy, argument, length + 1);
@@ -84,8 +84,7 @@ void MainArgs_argc_argv_(MainArgs *self, int argc, const char **argv)
 
     /* Publish only a complete replacement; failed copies leave self unchanged. */
     oldArgv = self->argv;
-    oldArgc = self->argc;
     self->argv = newArgv;
     self->argc = argc;
-    MainArgs_freeArguments_(oldArgv, oldArgc);
+    MainArgs_freeArguments_(oldArgv);
 }

@@ -1199,6 +1199,9 @@ jobs:
                   "add_test(NAME portable_gettimeofday_test COMMAND portable_gettimeofday_test)",
                   "ADD_EXECUTABLE(main_args_lifecycle_test",
                   "${PROJECT_SOURCE_DIR}/tests/main_args_lifecycle.c",
+                  "basekit/MainArgs.c",
+                  "basekit/Common.c",
+                  "IO_CHECK_ALLOC)",
                   "add_test(NAME main_args_lifecycle_test COMMAND main_args_lifecycle_test)",
                   "ADD_EXECUTABLE(datum_boundaries_test",
                   "${PROJECT_SOURCE_DIR}/tests/datum_boundaries.c",
@@ -1354,7 +1357,7 @@ jobs:
                   "DynLib lifecycle test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/MainArgs.c": [
-                  "static void MainArgs_freeArguments_",
+                  "static void MainArgs_freeArguments_(const char **argv)",
                   "int MainArgs_argCount_(const MainArgs *self)",
                   "const char *MainArgs_argumentAt_(const MainArgs *self, size_t index)",
                   "index >= (size_t)self->argc",
@@ -1365,7 +1368,8 @@ jobs:
                   "if (NULL == copy)",
                   "oldArgv = self->argv;",
                   "self->argv = newArgv;",
-                  "MainArgs_freeArguments_(oldArgv, oldArgc);",
+                  "while (NULL != argv[i])",
+                  "MainArgs_freeArguments_(oldArgv);",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/MainArgs.h": [
                   "Deep-copies argv and always stores argv[argc] == NULL (also when argc is zero).",
@@ -1378,6 +1382,8 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/main_args_lifecycle.c": [
                   "MainArgs_argCount(args)",
                   "MainArgs_argAt_(args, -1)",
+                  "testCorruptArgcCleanup(INT_MAX)",
+                  "io_allocatedBytes()",
                   "MainArgs_argCount(NULL)",
                   "MainArgs_argAt_(&malformed, 0)",
                   "MainArgs checked accessors accepted invalid receiver or index",

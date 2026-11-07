@@ -1,3 +1,13 @@
+## 2026-11-07 20:05 CST — Bound MainArgs teardown by its owned argv sentinel
+
+- Baseline: `b329b69d538c28e579cfce18ceba9a9b6831b1ca`; latest mainline SkipDBv2 Regression run #653 passed.
+- Scope: `MainArgs_freeArguments_()` and the existing `main_args_lifecycle_test`.
+- The owned argument vector is zero-allocated with a terminating NULL slot, but cleanup trusted the public, caller-visible `argc`. A negative count leaked all copied strings; an oversized count could walk beyond the vector and free unrelated memory.
+- Make the vector's NULL sentinel the sole cleanup boundary, including partial-copy rollback and replacement of an existing value. Extend the lifecycle test to corrupt `argc` to both -1 and `INT_MAX`, and compile it with the tracked allocator to verify all allocations are released.
+- Reuse existing source, test, and CMake targets; update the existing Actions source contracts. No new files or exported symbols. No local compiler/CTest result is claimed; remote Actions is the validation gate.
+
+---
+
 ## 2026-11-07 19:41 CST — Keep regression workflow under the Actions file-size boundary
 
 - Baseline: `0b64cf993d17adba15e64a2c42d34a779cd055fe`; runs #650–#652 failed before creating any jobs or logs after the workflow contract additions.
