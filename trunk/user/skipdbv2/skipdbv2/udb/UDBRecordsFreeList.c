@@ -83,10 +83,13 @@ int UDBRecords_firstEmptyRecordPos_(UDBRecords *self, PID_TYPE pos)
 	long old_file_pos, old_max_pos;
 
 	if (NULL == self || NULL == self->file || self->file->file == NULL ||
-		self->file->log == NULL || pos > (PID_TYPE)LONG_MAX)
+		self->file->log == NULL || self->file->maxPos < 0 ||
+		(self->file->maxPos > 0 &&
+		 (size_t)self->file->maxPos < sizeof(PID_TYPE)) ||
+		pos > (PID_TYPE)LONG_MAX)
 		return 0;
-	if (pos != 0 && (self->file->maxPos < 0 ||
-		!UDBRecords_isValidEmptyPosition_(pos, (size_t)self->file->maxPos)))
+	if (pos != 0 &&
+		!UDBRecords_isValidEmptyPosition_(pos, (size_t)self->file->maxPos))
 		return 0;
 
 	old_empty = self->firstEmptyPos;

@@ -771,12 +771,35 @@ int main(void)
         long saved_file_pos = db->records->file->pos;
         long saved_max_pos = db->records->file->maxPos;
 
+        size_t log_before_invalid_extent = JFile_logSize(db->records->file);
+        PID_TYPE saved_first_empty = db->records->firstEmptyPos;
+
         db->records->file->maxPos = -1;
         if (UDBRecords_newRecord(db->records) != NULL ||
             db->records->record->pos != saved_record_pos ||
             db->records->file->pos != saved_file_pos) {
             db->records->file->maxPos = saved_max_pos;
             fprintf(stderr, "UDBRecords_newRecord accepted a negative maxPos\n");
+            goto done;
+        }
+        if (UDBRecords_firstEmptyRecordPos_(db->records, 0) ||
+            JFile_logSize(db->records->file) != log_before_invalid_extent ||
+            db->records->file->pos != saved_file_pos ||
+            db->records->file->maxPos != -1 ||
+            db->records->firstEmptyPos != saved_first_empty) {
+            db->records->file->maxPos = saved_max_pos;
+            fprintf(stderr, "UDBRecords_firstEmptyRecordPos_ accepted a negative maxPos\n");
+            goto done;
+        }
+        db->records->file->maxPos = (long)sizeof(PID_TYPE) - 1;
+        log_before_invalid_extent = JFile_logSize(db->records->file);
+        if (UDBRecords_firstEmptyRecordPos_(db->records, 0) ||
+            JFile_logSize(db->records->file) != log_before_invalid_extent ||
+            db->records->file->pos != saved_file_pos ||
+            db->records->file->maxPos != (long)sizeof(PID_TYPE) - 1 ||
+            db->records->firstEmptyPos != saved_first_empty) {
+            db->records->file->maxPos = saved_max_pos;
+            fprintf(stderr, "UDBRecords_firstEmptyRecordPos_ accepted a truncated metadata extent\n");
             goto done;
         }
         db->records->file->maxPos = saved_max_pos;

@@ -829,6 +829,8 @@ jobs:
                   "free-list metadata read changed the record cursor",
                   "free-list metadata write changed the record cursor",
                   "UDBRecords_newRecord accepted a negative maxPos",
+                  "UDBRecords_firstEmptyRecordPos_ accepted a negative maxPos",
+                  "UDBRecords_firstEmptyRecordPos_ accepted a truncated metadata extent",
                   "UDBRecords_newRecord failed at a valid EOF",
                   "record save accepted a non-append position",
                   "UDBRecords_recordAtPos_(db->records, (PID_TYPE)0)",
@@ -3524,6 +3526,11 @@ jobs:
               records_free_source[free_set_start:free_set_end]
               if free_set_start >= 0 and free_set_end > free_set_start else ""
           )
+          free_set_extent_guard = free_set_body.find("self->file->maxPos < 0")
+          free_set_partial_header_guard = free_set_body.find(
+              "(size_t)self->file->maxPos < sizeof(PID_TYPE)"
+          )
+          free_set_first_mutation = free_set_body.find("self->firstEmptyPos = pos;")
           if (
               not free_get_body or
               free_get_body.find("old_file_pos = self->file->pos;") < 0 or
@@ -3535,6 +3542,11 @@ jobs:
               free_get_body.find("self->file->maxPos = old_max_pos;") <
                   free_get_body.find("self->firstEmptyPos = pos;") or
               not free_set_body or
+               free_set_extent_guard < 0 or
+               free_set_partial_header_guard < 0 or
+               free_set_first_mutation < 0 or
+               free_set_extent_guard > free_set_first_mutation or
+               free_set_partial_header_guard > free_set_first_mutation or
               free_set_body.find("JFile_fwrite(self->file,") < 0 or
               free_set_body.rfind("self->file->pos = old_file_pos;") <
                   free_set_body.find("if (JFile_fwrite(self->file,") or

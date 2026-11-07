@@ -1,3 +1,13 @@
+## 2026-11-07 18:59 CST — Reject free-list metadata writes on invalid file extents
+
+- Baseline: `52d6fdef7b95662d9e116afd228188b9baff83da`; latest completed SkipDBv2 Regression run #631 passed.
+- Scope: `UDBRecords_firstEmptyRecordPos_()` in `UDBRecordsFreeList.c`.
+- The setter let `pos == 0` bypass file-extent validation. After a stream extent became negative or represented a truncated metadata prefix, it could still enqueue a write over the reserved first-empty metadata word.
+- Reject negative extents and nonempty files shorter than `sizeof(PID_TYPE)` before touching cursor state, in-memory free-list state, or the journal. Preserve valid zero-length-file initialization and validate nonzero free-list offsets against the checked extent.
+- Extend the existing `udb_record_storage_test` to prove invalid extents leave the journal, logical cursor, and free-list pointer unchanged; strengthen static and dynamic workflow contracts. No new files or CMake changes; no local build is claimed.
+
+---
+
 ## 2026-11-07 18:56 CST — Enforce List backing-slot geometry
 
 - Baseline: `be8165380da6b6f824cffccd63c69de3d10222d6`; SkipDBv2 Regression run #630 passed integration/source contracts, full build, and all 57 CTests.
