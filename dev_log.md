@@ -1,8 +1,18 @@
+## 2026-11-07 23:31 CST — Verify expanded archive-path policy regression
+
+- Follow-up code commit `a0e700bb6e61fbb7c11623821563449ed3d0ffa9` passed HTTPD Authentication and Security Regression run `42386675924` against the exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42386675924.
+- Both CI steps passed: GNU89 `-Wall -Wextra -Werror` compiled and ran the HTTPD private-key, Basic-auth and login-timeout tests plus the new archive-path test; source-wiring verified the safety call precedes directory creation/unlink/open and the storage restore checks tar failure before acceptance/copy.
+- The new regression covers symlink and regular-file parents, `..`, absolute/invalid input, and a symlink or regular file at the leaf when the archive entry is a directory. Existing real directories and missing directories remain accepted.
+- L1 source review and L2 focused host CI PASS for these policy changes. Full BusyBox/XY-C1 MIPS build, firmware artifact inspection, archive fuzzing, and hardware validation remain NOT VERIFIED. HTTPD/archive restore remains AUDITING.
+- Next: review valid archive compatibility and restore/link limits, then continue privileged CGI command/configuration dispatch and the broader userland security ledger.
+
+---
+
 ## 2026-11-07 23:25 CST — Also protect directory-entry metadata from symlink leaves
 
 - Parent commit `71bfeb3093cd3cdfc6c60352bd011814661dcdf8` passed HTTPD Authentication and Security Regression run `42386491809`, including the initial parent-path policy test. During final source review, found an adjacent case not covered by that initial test: a directory member whose leaf already names a symlink can skip `ARCHIVE_UNLINK_OLD` removal and reach `chown`/`chmod` through the symlink.
 - Strengthened the shared policy to `bb_archive_path_has_unsafe_component(path, check_leaf)`. All entries check parents; directory entries additionally validate the final target, rejecting an existing symlink or non-directory leaf while allowing existing real directories and missing directory paths. Production call remains before mkdir/unlink/open. Expanded unit cases for directory-target symlink/file cases and safe/missing directories.
-- Local host check: `cc -std=gnu89 -Wall -Wextra -Werror` compiled the expanded `safe_extract_path.c` test, and the executable passed (`PASS: BusyBox archive path policy (parents and directory leaf)`). GitHub Actions for this follow-up is pending and must be checked on exact SHA.
+- Local host check: `cc -std=gnu89 -Wall -Wextra -Werror` compiled the expanded `safe_extract_path.c` test, and the executable passed (`PASS: BusyBox archive path policy (parents and directory leaf)`). GitHub Actions run `42386675924` also passed on exact SHA `a0e700bb6e61fbb7c11623821563449ed3d0ffa9`; both C regression and source-wiring steps succeeded.
 - No target build or full archive fuzzing claimed. L3 MIPS/firmware artifact and L4 hardware remain NOT VERIFIED.
 
 ---
