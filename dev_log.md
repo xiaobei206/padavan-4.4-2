@@ -1,3 +1,13 @@
+## 2026-11-07 17:52 CST — Snapshot UArray copies that alias the trailing terminator
+
+- Baseline: `9c8058e133fcd525380fdc77416ced290865694e`; SkipDBv2 Regression run #614 passed the source contracts, full build, and all 57 CTests.
+- Scope: `UArray_copyData_()` overlap detection and the existing UArray stream-I/O regression target.
+- The copy helper excluded empty destinations and used a strict `< selfBytes` bound for source starts inside the current buffer. A valid borrowed one-byte view of the trailing NUL therefore bypassed the snapshot; resizing could invalidate the source before the copy.
+- Include the logical end position in the overlap test and do not gate it on a nonzero logical byte count. This safely snapshots a trailing-terminator alias for both populated and empty arrays before `UArray_setSize_()` runs.
+- Extend the existing `uarray_stream_io_test` with populated/empty terminator-view cases and add a workflow source-order contract requiring inclusive-tail detection and snapshot-before-resize. No new files, declarations, or CMake target changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the build/runtime gate.
+
+---
 ## 2026-11-07 17:50 CST — Repair workflow contract quoting
 
 - CI run #613 stopped in the early XY-C1 integration-contract step, before compilation: the new assertion needle in the Python source-contract list was missing its closing quote.

@@ -855,11 +855,16 @@ void UArray_copyData_(UArray *self, const UArray *other)
 		newSize * self->itemSize == (size_t)-1)
 		return;
 
-	if (selfBytes > 0 && sourceBytes > 0 && self->data && other->data) {
+	/*
+	 * Include the trailing NUL in the owned storage span. A borrowed source
+	 * may start at self->data + selfBytes (also when selfBytes is zero), and
+	 * resizing before snapshotting would invalidate that source pointer.
+	 */
+	if (sourceBytes > 0 && self->data && other->data) {
 		selfStart = (uintptr_t)self->data;
 		sourceStart = (uintptr_t)other->data;
 		overlaps = (sourceStart >= selfStart &&
-			sourceStart - selfStart < selfBytes) ||
+			sourceStart - selfStart <= selfBytes) ||
 			(selfStart >= sourceStart &&
 			selfStart - sourceStart < sourceBytes);
 	}

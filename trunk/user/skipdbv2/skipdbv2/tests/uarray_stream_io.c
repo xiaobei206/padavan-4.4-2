@@ -695,8 +695,62 @@ done:
 	return okay;
 }
 
+static int testCopyDataSnapshotsTrailingNulAliases(void)
+{
+	UArray *target = NULL;
+	UArray alias;
+	int okay = 0;
+
+	target = newByteArray();
+	if (NULL == target) {
+		fprintf(stderr, "UArray copyData alias fixture allocation failed\n");
+		goto done;
+	}
+	UArray_setSize_(target, 3);
+	if (target->size != 3 || NULL == target->data) {
+		fprintf(stderr, "UArray copyData alias fixture could not allocate bytes\n");
+		goto done;
+	}
+	memcpy(target->data, "abc", 3);
+	/* A one-byte borrowed view of the terminator overlaps owned storage. */
+	alias = UArray_stackAllocedWithData_type_size_(
+		target->data + target->size, CTYPE_uint8_t, 1);
+	UArray_copyData_(target, &alias);
+	if (target->size != 1 || NULL == target->data ||
+		target->data[0] != 0 || target->data[1] != 0) {
+		fprintf(stderr, "UArray copyData missed an alias at the trailing terminator\n");
+		goto done;
+	}
+	UArray_free(target);
+	target = NULL;
+
+	/* The empty array's only allocated byte is its trailing terminator. */
+	target = newByteArray();
+	if (NULL == target || NULL == target->data) {
+		fprintf(stderr, "UArray empty copyData alias fixture allocation failed\n");
+		goto done;
+	}
+	alias = UArray_stackAllocedWithData_type_size_(
+		target->data, CTYPE_uint8_t, 1);
+	UArray_copyData_(target, &alias);
+	if (target->size != 1 || NULL == target->data ||
+		target->data[0] != 0 || target->data[1] != 0) {
+		fprintf(stderr, "UArray copyData missed an alias in an empty buffer\n");
+		goto done;
+	}
+	okay = 1;
+
+done:
+	UArray_free(target);
+	return okay;
+}
+
 int main(void)
 {
+	if (!testCopyDataSnapshotsTrailingNulAliases()) {
+		fprintf(stderr, "UArray copyData trailing-NUL alias regression failed\n");
+		return EXIT_FAILURE;
+	}
 	if (!testFreadInvalidatesCachedHashOnFullOverwrite()) {
 		fprintf(stderr, "UArray direct fread did not invalidate its cached hash\\n");
 		return EXIT_FAILURE;

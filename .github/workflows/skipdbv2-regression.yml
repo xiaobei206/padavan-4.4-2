@@ -2518,6 +2518,10 @@ jobs:
                   "itemsRead > (size_t)-1 / self->itemSize - oldSize",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stream_io.c": [
+                  "static int testCopyDataSnapshotsTrailingNulAliases(void)",
+                  "UArray copyData missed an alias at the trailing terminator",
+                  "UArray copyData missed an alias in an empty buffer",
+                  "UArray copyData trailing-NUL alias regression failed",
                   "static int testRejectsUnrepresentableBufferExtent(void)",
                   "UArray_fread_ accepted a SIZE_MAX byte extent or attempted I/O",
                   "UArray stream readers consumed input for a SIZE_MAX byte extent",
@@ -4620,6 +4624,33 @@ jobs:
               raise SystemExit("UArray typed copies must reject malformed source and destination layouts before typed access")
           if uarray_source.count("UArray_hasValidItemLayout_(") != 11:
               raise SystemExit("UArray layout validator must have one definition and ten guarded call sites")
+
+          copy_data_end = uarray_source.find(
+              chr(10) + "void UArray_convertToItemType_", copy_data_start
+          )
+          copy_data_body = (
+              uarray_source[copy_data_start:copy_data_end]
+              if copy_data_start >= 0 and copy_data_end > copy_data_start
+              else ""
+          )
+          copy_data_storage_guard = copy_data_body.find(
+              "if (sourceBytes > 0 && self->data && other->data)"
+          )
+          copy_data_tail_inclusive = copy_data_body.find(
+              "sourceStart - selfStart <= selfBytes"
+          )
+          copy_data_snapshot = copy_data_body.find("snapshot = io_malloc(sourceBytes)")
+          copy_data_resize = copy_data_body.find("UArray_setSize_(self, newSize);")
+          if (
+              not copy_data_body or
+              min(copy_data_storage_guard, copy_data_tail_inclusive,
+                  copy_data_snapshot, copy_data_resize) < 0 or
+              "selfBytes > 0 && sourceBytes > 0" in copy_data_body or
+              not (copy_data_storage_guard < copy_data_tail_inclusive <
+                   copy_data_snapshot < copy_data_resize)
+          ):
+              raise SystemExit("UArray_copyData_ must snapshot sources starting at the trailing terminator, including empty arrays, before resizing")
+
           raw_put_start = uarray_source.find("#define UARRAY_RAWAT_PUT_")
           raw_put_end = uarray_source.find("\n}", raw_put_start)
           raw_put_body = uarray_source[raw_put_start:raw_put_end] if raw_put_start >= 0 and raw_put_end > raw_put_start else ""
