@@ -227,6 +227,43 @@ fail:
     return -1;
 }
 
+static int run_null_list_callback_case(void)
+{
+    static const char list_item[] = "list alpha value\n\0";
+    int sockets[2] = {-1, -1};
+    int result;
+    dbclient client;
+
+    memset(&client, 0, sizeof(client));
+    client.remote_fd = -1;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0)
+        return -1;
+    client.remote_fd = sockets[0];
+
+    if (setnonblock(client.remote_fd) != 0 ||
+        write_frame(sockets[1], list_item, sizeof(list_item) - 1) != 0)
+        goto fail;
+
+    result = dbapi_parse_list_result(&client, "alpha", NULL, NULL);
+    if (result != -1) {
+        fprintf(stderr, "dbapi parser accepted a NULL list callback\n");
+        goto fail;
+    }
+
+    free(client.buf);
+    close(client.remote_fd);
+    close(sockets[1]);
+    return 0;
+
+fail:
+    free(client.buf);
+    if (client.remote_fd >= 0)
+        close(client.remote_fd);
+    if (sockets[1] >= 0)
+        close(sockets[1]);
+    return -1;
+}
+
 int main(void)
 {
     static const char list_value_is_end[] = "list alpha __end__\n\0";
@@ -262,7 +299,8 @@ int main(void)
         goto done;
     }
 
-    if (run_invalid_request_field_case() != 0 ||
+    if (run_null_list_callback_case() != 0 ||
+        run_invalid_request_field_case() != 0 ||
         run_error_frame_case() != 0 ||
         run_bulk_error_frame_case() != 0 ||
         run_bulk_status_case("set alpha ok\n", 0) != 0 ||

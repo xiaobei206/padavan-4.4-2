@@ -67,6 +67,9 @@ int dbapi_parse_list_result(dbclient *client, char* prefix, void* o, fn_db_parse
     skipdb_ipc_frame_view frame;
     size_t value_len;
 
+    if (NULL == client || NULL == prefix || NULL == fn)
+        return -1;
+
     for (;;) {
         n1 = read_util(client, HEADER_PREFIX, 110);
         if (n1 < 0)

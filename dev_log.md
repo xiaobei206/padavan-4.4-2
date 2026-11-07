@@ -1,3 +1,13 @@
+## 2026-11-07 09:40 CST — Reject missing DBAPI list callbacks before parsing
+
+- Baseline: main commit `e4abcfeb795752e0deb8738e821a3048a11d25f2`; SkipDBv2 Regression run #489 passed.
+- Scope: `mgr/dbapi_result.c` list-result argument validation and the existing `dbapi_protocol.c` regression.
+- The list parser dereferenced its callback for the first item without checking whether the function pointer was NULL; malformed internal calls could crash the CLI instead of returning a normal argument error.
+- Reject NULL client, prefix, or callback before consuming any response bytes. Add a focused NULL-callback regression and enforce both the guard and test in the Actions source contract. The existing CMake/CTest target already covers this test file; no new files.
+- No local C compilation or CTest run is claimed; CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:35 CST — Harden the legacy array-heap container
 
 - Baseline: main commit `50eb8be552cd66893429b25131c3f0bc6dd435e5`; SkipDBv2 Regression run #488 passed.

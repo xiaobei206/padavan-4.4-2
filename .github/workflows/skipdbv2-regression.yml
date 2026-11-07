@@ -5826,6 +5826,14 @@ jobs:
               raise SystemExit("DBAPI list parser remains in the CLI facade")
           if "int dbapi_parse_list_result(" not in dbapi_result_text:
               raise SystemExit("DBAPI result module lost list-result ownership")
+          if "if (NULL == client || NULL == prefix || NULL == fn)" not in dbapi_result_text:
+              raise SystemExit("DBAPI list parser must reject null inputs before reading frames")
+          dbapi_list_test_text = Path("trunk/user/skipdbv2/skipdbv2/tests/dbapi_protocol.c").read_text()
+          for needle in ("static int run_null_list_callback_case(void)",
+                         'dbapi_parse_list_result(&client, "alpha", NULL, NULL)',
+                         "dbapi parser accepted a NULL list callback"):
+              if needle not in dbapi_list_test_text:
+                  raise SystemExit("DBAPI null-callback regression missing: " + needle)
           if "static int ignore_result(" in dbapi_cli_text:
               raise SystemExit("DBAPI write-response parser remains in the CLI facade")
 
