@@ -147,8 +147,9 @@ static unsigned long genrand_int32(RandomGen *self)
 	static unsigned long mag01[2]={0x0UL, MATRIX_A};
 	/* mag01[x] = x * MATRIX_A  for x=0,1 */
 
-	if ((self->mti == 0 || self->mti == N) &&
-		!RandomGen_hasNonzeroState_(self))
+	/* A call cannot begin at index zero; that is only a transient post-twist state. */
+	if (self->mti == 0 ||
+		(self->mti == N && !RandomGen_hasNonzeroState_(self)))
 		init_genrand(self, 5489UL);
 
 	if (self->mti < 0 || self->mti > N+1)

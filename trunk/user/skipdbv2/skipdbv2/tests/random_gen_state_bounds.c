@@ -13,8 +13,41 @@ static int check(int condition, const char *message)
 	return 0;
 }
 
+
+static int testZeroIndexWithNonzeroStateReseeds(void)
+{
+	RandomGen *damaged = RandomGen_new();
+	RandomGen *reference = RandomGen_new();
+	unsigned long actual, expected;
+
+	if (NULL == damaged || NULL == reference) {
+		RandomGen_free(damaged);
+		RandomGen_free(reference);
+		fprintf(stderr, "RandomGen zero-index recovery fixture allocation failed\n");
+		return 0;
+	}
+
+	RandomGen_setSeed(damaged, 1234UL);
+	RandomGen_setSeed(reference, 5489UL);
+	/* Keep valid nonzero MT words but corrupt the index to an impossible call-entry state. */
+	damaged->mti = 0;
+	actual = RandomGen_randomInt(damaged);
+	expected = RandomGen_randomInt(reference);
+
+	RandomGen_free(damaged);
+	RandomGen_free(reference);
+	if (actual != expected) {
+		fprintf(stderr, "RandomGen did not reseed a nonzero state with mti == 0\n");
+		return 0;
+	}
+	return 1;
+}
+
 int main(void)
 {
+	if (!testZeroIndexWithNonzeroStateReseeds())
+		return EXIT_FAILURE;
+
 	RandomGen *actual = RandomGen_new();
 	RandomGen *expected = RandomGen_new();
 	int value;

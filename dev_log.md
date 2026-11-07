@@ -1,3 +1,13 @@
+## 2026-11-07 19:25 CST — Recover RandomGen from an impossible zero index
+
+- Baseline: `c6e4948bc4187189f4d417db1b006ac5409cd6d3`; latest main CI run #645 passed the integration/source contracts, full build, and all 57 CTests.
+- Scope: MT19937 state validation in `RandomGen.c`.
+- The generator treated `mti == 0` as acceptable whenever any MT word was nonzero. But the index is zero only transiently after the internal twist, and the same call consumes that word before returning. A corrupted object entering the next call at index zero skipped the twist and emitted a state word out of sequence.
+- Reseed on every call-entry `mti == 0`, retain the existing all-zero-state recovery at the normal block boundary, and add a deterministic regression comparing the recovery output with a fresh generator seeded to the documented fallback seed.
+- Existing files only; update source-contract checks. No local build/CTest result is claimed.
+
+---
+
 ## 2026-11-07 19:21 CST — Update BStream read-alias CI contract
 
 - Failed head: `79e4fdeb3aca3ad5c209d1efc80f0b8f69f091da`; Actions run #644 reached source-contract validation and failed before configure/build.
