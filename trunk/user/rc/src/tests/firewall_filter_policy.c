@@ -5,6 +5,18 @@
 int
 main(void)
 {
+	assert(firewall_ppp_interface_is_safe("ppp10", 10));
+	assert(firewall_ppp_interface_is_safe("ppp59", 10));
+	assert(firewall_ppp_interface_is_safe("ppp65535", 10));
+	assert(!firewall_ppp_interface_is_safe(NULL, 10));
+	assert(!firewall_ppp_interface_is_safe("ppp", 10));
+	assert(!firewall_ppp_interface_is_safe("ppp9", 10));
+	assert(!firewall_ppp_interface_is_safe("ppp10+", 10));
+	assert(!firewall_ppp_interface_is_safe("ppp10x", 10));
+	assert(!firewall_ppp_interface_is_safe("ppp10\n-A INPUT -j ACCEPT", 10));
+	assert(!firewall_ppp_interface_is_safe("ppp65536", 10));
+	assert(!firewall_ppp_interface_is_safe("ppp999999999999", 10));
+
 	assert(firewall_ipv4_address_is_safe("192.168.1.1"));
 	assert(firewall_ipv4_address_is_safe("0.0.0.0"));
 	assert(!firewall_ipv4_address_is_safe(NULL));
