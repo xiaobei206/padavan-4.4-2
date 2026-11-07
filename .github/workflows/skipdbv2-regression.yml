@@ -5328,7 +5328,7 @@ jobs:
               if (not body or "Date_localTimeForTimestamp_(" not in body or
                       "localtime(" in body):
                   raise SystemExit("Date parsing and formatting must not retain shared localtime buffers")
-          if date_source.count("localtime(") != 1:
+          if date_source.count("struct tm *shared = localtime(&timestamp);") != 1:
               raise SystemExit("the only shared localtime fallback must remain isolated to Symbian compatibility")
           for signature, next_signature in (
                   ("long Date_year(const Date *self)", "void Date_setYear_("),

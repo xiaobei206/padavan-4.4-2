@@ -1,3 +1,11 @@
+## 2026-11-07 16:39 CST — Count the isolated Symbian localtime call, not its comment
+
+- Baseline: `5ad3f6c9d8eb8c1ab64e1bab2678e82e26ba3b4d`; SkipDBv2 Regression run #595 passed the main source needles and failed the focused Date parsing/formatting contract before configure/build.
+- The new assertion counted every `localtime(` substring in Date.c, so it counted both the intentional Symbian compatibility call and the explanatory comment describing the legacy API. The function-level checks already ensure parsing and formatting do not call it.
+- Narrow the count to the exact Symbian fallback statement, `struct tm *shared = localtime(&timestamp);`. No production C logic, tests, CMake targets, or source lists changed.
+
+---
+
 ## 2026-11-07 16:38 CST — Replace the active Date parsing template with reentrant conversion
 
 - Baseline: `21caba8bf10a2912114d771d10b10adc17a95435`; SkipDBv2 Regression run #594 reached the focused Date source contract and rejected the still-active `EmptyTM()` implementation.
