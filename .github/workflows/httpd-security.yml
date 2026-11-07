@@ -340,6 +340,18 @@ jobs:
           assert safe_value < value_length < value_append < rule_write
           assert "*p < 0x20" in firewall_policy and "*p == 0x7f" in firewall_policy
           print("Firewall URL pattern config-injection guard: OK")
+
+          # filter_lw_icmp_x is copied from NVRAM into --icmp-type tokens.
+          # Validate each token before writing any part of it to restore rules.
+          lw_start = firewall.index("include_lw_filter(FILE *fp,")
+          lw_end = firewall.index("include_vts_filter(FILE *fp", lw_start)
+          lw_filter = firewall[lw_start:lw_end]
+          icmp_guard = lw_filter.index("if (!firewall_icmp_type_is_safe(icmp_ptr))")
+          icmp_rule = lw_filter.index('fprintf(fp, "-A %s -o %s -p icmp --icmp-type %s')
+          assert icmp_guard < icmp_rule
+          assert "firewall_icmp_type_is_safe" in firewall_policy
+          assert 'firewall_icmp_type_is_safe("8\\nCOMMIT")' in firewall_test
+          print("Firewall ICMP type rule-token validation: OK")
           # Session ownership is a 30-second idle lock, not a fixed 30 seconds
           # from first login. Preserve the initial-login timestamp for UI use.
           login_policy = (root / "httpd_login_policy.h").read_text()
