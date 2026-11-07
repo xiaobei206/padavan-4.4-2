@@ -1,3 +1,11 @@
+## 2026-11-07 11:42 CST — Align Date local-time guard contract with checked conversion
+
+- Baseline: main commit `0bceac25cbceed7a73f156ae0e09807feff196cd`; run #513 reached the Date entry-point contract and rejected its obsolete exact guard string.
+- `Date_fromLocalTime_()` now validates the receiver and calendar pointer in a combined guard with the checked conversion. Update the source contract to match the guard's new boundary without weakening its ordering check.
+- No C implementation, test, CMake, or file-path changes.
+
+---
+
 ## 2026-11-07 11:40 CST — Refresh Date parser source contract for checked conversion
 
 - Baseline: main commit `c030c221549bc98a8d20786302b3fb7f882b83b6`; run #511 failed in the static source-contract step on the old `io_strptime` guard.

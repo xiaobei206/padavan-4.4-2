@@ -4890,7 +4890,7 @@ jobs:
           for signature, next_signature, guard, operation in (
                   ("void Date_copy_(Date *self, const Date *other)", "void Date_free(", "if (NULL == self || NULL == other || self == other)", "memcpy("),
                   ("int Date_compare(const Date *self, const Date *other)", "double Date_SecondsFrom1970ToNow(", "if (NULL == self || NULL == other)", "self->tv.tv_sec != other->tv.tv_sec"),
-                  ("void Date_fromLocalTime_(Date *self, struct tm *t)", "void Date_fromTime_(", "if (NULL == self || NULL == t)", "Date_calendarToTime_(t, &timestamp)"),
+                  ("void Date_fromLocalTime_(Date *self, struct tm *t)", "void Date_fromTime_(", "if (NULL == self || NULL == t ||", "Date_calendarToTime_(t, &timestamp)"),
                   ("void Date_fromString_format_(Date *self, const char *s, const char *format)", "// durations", "if (NULL == self || NULL == s || NULL == format)", "io_strptime("),
                   ("Duration *Date_newDurationBySubtractingDate_(const Date *self, const Date *other)", "void Date_addDuration_(", "if (NULL == self || NULL == other)", "Date_secondsSince_(self, other)")):
               start = date_source.find(signature)
