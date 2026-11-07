@@ -40,6 +40,7 @@ int JFile_hardSyncFileDescriptor_(JFile *self, int fd)
 		result = fsync(fd);
 	} while (result == -1 && errno == EINTR);
 #endif
+	return result;
 }
 
 void JFile_syncFileWritesToDisk(JFile *self)

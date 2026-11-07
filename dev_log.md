@@ -1,3 +1,13 @@
+## 2026-11-07 09:49 CST — Return the durability barrier result
+
+- Baseline: main commit `b250e2433620df062a002b5a1be6cdf24e11215b`; SkipDBv2 Regression run #492 passed.
+- Scope: `JFile_hardSyncFileDescriptor_()` in `jfile/JFileSync.c`.
+- The helper retried interrupted `fsync()`/`F_FULLFSYNC` calls but fell off the end of a non-void function instead of returning the final status. Callers relied on that undefined return value to decide whether to close persistence streams and abort a transaction.
+- Return `result` explicitly, add a valid-descriptor regression to the existing journal test, and enforce function-scoped return ordering in the Actions contract. Existing test target and headers already cover the helper; no new files.
+- No local C compilation or CTest run is claimed; mainline CI is the validation gate.
+
+---
+
 ## 2026-11-07 09:47 CST — Preserve absolute IPC deadlines across EINTR
 
 - Baseline: main commit `1f15eb00a065392db5904d7b1032fc385b485e70`; SkipDBv2 Regression run #491 passed.

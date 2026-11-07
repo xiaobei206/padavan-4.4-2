@@ -86,6 +86,10 @@ int main(void)
 		fprintf(stderr, "journal fixture failed to open\n");
 		goto done;
 	}
+	if (JFile_hardSyncFileDescriptor_(file, fileno(file->file)) != 0) {
+		fprintf(stderr, "valid sync descriptor did not report success\n");
+		goto done;
+	}
 	if (!file_is_private_owned_regular(file->path) ||
 		!file_is_private_owned_regular(file->logPath)) {
 		fprintf(stderr, "managed data or journal file is not private and owned\n");

@@ -524,6 +524,7 @@ jobs:
                   "void JFile_syncLogWritesToDisk(JFile *self)",
                   "static void JFile_closeFailedStream_(FILE **stream)",
                   "while (result == -1 && errno == EINTR)",
+                  "return result;",
                   "errno = EBADF;",
                   "errno = EINVAL;",
                   "JFile_closeFailedStream_(&self->file)",
@@ -537,6 +538,8 @@ jobs:
                   '#include "JFileInternal.h"',
                   "JFile_hardSyncFileDescriptor_(file, -1)",
                   "errno != EBADF",
+                  "JFile_hardSyncFileDescriptor_(file, fileno(file->file)) != 0",
+                  "valid sync descriptor did not report success",
                   "symlink(path, link_path)",
                   "link(path, link_path)",
                   "link(file->logPath, link_path)",
@@ -2883,6 +2886,15 @@ jobs:
                   if needle not in content:
                       raise SystemExit(f"missing XY-C1 integration contract: {path}: {needle}")
               print(f"OK: {path}")
+
+          sync_source = Path("trunk/user/skipdbv2/skipdbv2/jfile/JFileSync.c").read_text()
+          sync_start = sync_source.find("int JFile_hardSyncFileDescriptor_(JFile *self, int fd)")
+          sync_end = sync_source.find("\n}", sync_start)
+          sync_body = sync_source[sync_start:sync_end] if sync_start >= 0 and sync_end > sync_start else ""
+          sync_retry = sync_body.rfind("while (result == -1 && errno == EINTR);")
+          sync_return = sync_body.find("return result;", sync_retry)
+          if not sync_body or sync_retry < 0 or sync_return < sync_retry:
+              raise SystemExit("JFile hard-sync helper must return the fsync/F_FULLFSYNC result after EINTR retries")
 
           line_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c").read_text()
           line_start = line_source.find("int UArray_readLineFromCStream_(UArray *self, FILE *stream)")
