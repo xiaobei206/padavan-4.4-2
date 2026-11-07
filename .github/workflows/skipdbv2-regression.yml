@@ -1375,6 +1375,8 @@ jobs:
                   "static int BStream_sourceOverlapsStream_(const UArray *streamArray,",
                   "sourceStart - streamStart <= streamBytes",
                   "BStream_sourceOverlapsStream_(self->ba, bytes, length)",
+                  "BStream_sourceOverlapsStream_(self->ba, v, (size_t)size)",
+                  "binary stream read destination overlaps stream storage",
                   "BStream_sourceOverlapsStream_(self->ba, ba->data, length)",
                   "BStream_sourceOverlapsStream_(self->ba, data, length)",
                   "BStream_viewOverlapsStream_(self->ba, ba)",
@@ -1423,12 +1425,16 @@ jobs:
                   "BStream tag writer accepted an out-of-range array flag",
                   "BStream tag writer rejected field-width maximum",
                   "extern void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned int a);",
+                  "extern void BStream_readNumber_size_(BStream *self, unsigned char *v, int size);",
                   "extern intptr_t BStream_readTaggedPointer(BStream *self);",
                   "static int testBStreamTaggedPointerWidth(void)",
                   "out-of-range tagged pointer was silently truncated",
                   "native-width tagged pointer was rejected",
                   "static int testBStreamAliasedWrites(void)",
                   "BStream plain byte append lost an aliased tail terminator",
+                  "static int testBStreamReadNumberAliasing(void)",
+                  "BStream read overwrote its own backing storage through an aliased destination",
+                  "BStream latched read error modified aliased stream storage",
                   "BStream empty-stream append lost its terminator source",
                   "BStream plain array write lost an aliased tail terminator",
                   "BStream tagged write lost an aliased tail terminator",
@@ -3383,6 +3389,19 @@ jobs:
                   data_error_guard > data_bounds):
               raise SystemExit("BStream slice reads must stop before bounds checks or cursor movement after a latched error")
 
+          number_start = bstream_source.find("void BStream_readNumber_size_(BStream *self, unsigned char *v, int size)")
+          number_end = bstream_source.find("\\nuint32_t BStream_readUint32(", number_start)
+          number_body = bstream_source[number_start:number_end] if number_start >= 0 and number_end > number_start else ""
+          number_alias_guard = number_body.find("if (size > 0 && BStream_sourceOverlapsStream_(self->ba, v, (size_t)size))")
+          number_alias_error = number_body.find("binary stream read destination overlaps stream storage", number_alias_guard)
+          number_copy = number_body.find("memcpy(v, b + self->index, (size_t)size)")
+          number_alias_end = number_body.find("\\n\\t}", number_alias_guard)
+          number_alias_body = number_body[number_alias_guard:number_alias_end] if number_alias_guard >= 0 and number_alias_end > number_alias_guard else ""
+          if (not number_body or min(number_alias_guard, number_alias_error, number_copy) < 0 or
+                  not (number_alias_guard < number_alias_error < number_copy) or
+                  not number_alias_body or "memset(v, 0" in number_alias_body):
+              raise SystemExit("BStream numeric reads must reject aliased output storage before memcpy without zeroing stream bytes")
+
 
           array_helper_start = bstream_source.find(
               "static int BStream_canReadArray_(BStream *self, const UArray *destination,"
@@ -3439,6 +3458,12 @@ jobs:
           ):
               raise SystemExit("BStream array-read preflight must validate typed item widths before backing-alias calculations")
           bstream_layout_test = Path("trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c").read_text()
+          bstream_number_test = bstream_layout_test
+          for needle in ("static int testBStreamReadNumberAliasing(void)",
+                         "BStream read overwrote its own backing storage through an aliased destination",
+                         "BStream latched read error modified aliased stream storage"):
+              if needle not in bstream_number_test:
+                  raise SystemExit("BStream numeric-read alias regression missing: " + needle)
           for needle in ("testBStreamArrayLayoutValidation()",
                          "BStream_readUArray_(stream, &malformedDestination)",
                          "BStream_readTaggedUArray_(stream, &malformedDestination)",

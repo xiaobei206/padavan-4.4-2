@@ -446,6 +446,11 @@ void BStream_readNumber_size_(BStream *self, unsigned char *v, int size)
 		memset(v, 0, (size_t)size);
 		return;
 	}
+	if (size > 0 && BStream_sourceOverlapsStream_(self->ba, v, (size_t)size)) {
+		if (UArray_size(self->errorBa) == 0)
+			BStream_error_(self, "binary stream read destination overlaps stream storage");
+		return;
+	}
 	if (UArray_size(self->errorBa) != 0) {
 		memset(v, 0, (size_t)size);
 		return;

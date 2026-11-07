@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 extern int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int a);
+extern void BStream_readNumber_size_(BStream *self, unsigned char *v, int size);
 
 extern intptr_t BStream_readTaggedPointer(BStream *self);
 
@@ -798,6 +799,49 @@ static int testBStreamTaggedPointerWidth(void)
 }
 #endif
 
+static int testBStreamReadNumberAliasing(void)
+{
+    const unsigned char payload[] = {0x10, 0x20, 0x30, 0x40};
+    unsigned char original[sizeof(payload) + 1];
+    BStream *stream = BStream_new();
+    const char *error;
+
+    if (NULL == stream)
+        return fail("BStream read-alias fixture allocation failed");
+    BStream_writeData_length_(stream, payload, sizeof(payload));
+    if (stream->ba->size != sizeof(payload) || NULL == stream->ba->data) {
+        BStream_free(stream);
+        return fail("BStream read-alias fixture setup failed");
+    }
+    memcpy(original, stream->ba->data, sizeof(original));
+    stream->index = 0;
+
+    /* Reject overlap without zeroing the caller's buffer: it is stream data. */
+    BStream_readNumber_size_(stream, stream->ba->data + 1, 2);
+    error = BStream_errorString(stream);
+    if (NULL == error ||
+        strcmp(error, "binary stream read destination overlaps stream storage") != 0 ||
+        stream->index != 0 ||
+        memcmp(stream->ba->data, original, sizeof(original)) != 0) {
+        BStream_free(stream);
+        return fail("BStream read overwrote its own backing storage through an aliased destination");
+    }
+
+    /* A latched read error must not let a second aliased read zero stream data. */
+    BStream_readNumber_size_(stream, stream->ba->data + 1, 2);
+    error = BStream_errorString(stream);
+    if (NULL == error ||
+        strcmp(error, "binary stream read destination overlaps stream storage") != 0 ||
+        stream->index != 0 ||
+        memcmp(stream->ba->data, original, sizeof(original)) != 0) {
+        BStream_free(stream);
+        return fail("BStream latched read error modified aliased stream storage");
+    }
+
+    BStream_free(stream);
+    return EXIT_SUCCESS;
+}
+
 int main(void)
 {
 	unsigned int arrayFlag, type, byteCount;
@@ -848,6 +892,8 @@ int main(void)
 	if (testBStreamArrayLayoutValidation() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamAliasedWrites() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (testBStreamReadNumberAliasing() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 #if !defined(__SYMBIAN32__)
 	if (testBStreamTaggedPointerWidth() != EXIT_SUCCESS)

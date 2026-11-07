@@ -1,3 +1,13 @@
+## 2026-11-07 15:38 CST — Reject numeric-read destinations that alias BStream storage
+
+- Baseline: `af336c118844f99de94318e83c5f4e18124f0850`; mainline run #579 passed source contracts, configure, full build, and CTest.
+- Scope: `BStream_readNumber_size_()` in `basekit/BStream.c` and the existing `bstream_tag_boundaries_test`.
+- The numeric reader copied bytes with `memcpy()` into a caller-provided destination without checking whether that destination overlapped the stream's own backing allocation. Overlapping ranges make the copy undefined; the subsequent error/zero-fill path could also corrupt bytes that are still the stream's input.
+- Reuse the existing byte-range overlap helper before the latched-error branch and before `memcpy()`. Reject an aliased destination, preserve an earlier latched error, leave the cursor unchanged, and never zero-fill the aliased buffer because it is stream storage.
+- Add a regression that aliases the destination into the stream buffer, checks the first rejection preserves all bytes and cursor state, then repeats the call with the error latched to prove the second call cannot zero stream data. Declare the existing internal function explicitly in the test translation unit and extend the current Actions source/order contracts.
+- Existing `bstream_tag_boundaries_test` CMake registration is reused; no new files, exported APIs, or build-list changes. No local build is claimed; Actions is the compiler/CTest gate.
+
+---
 ## 2026-11-07 15:34 CST — Repair Date directive token quoting in CI source contract
 
 - Baseline: `63c2f096ceebdbec1c0fbb36456569c2f037d5f9`; run #578 stopped inside the Python source-contract script before configure/build.
