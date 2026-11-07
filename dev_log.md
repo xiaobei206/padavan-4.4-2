@@ -1,3 +1,11 @@
+## 2026-11-07 20:16 CST — Match escaped-percent contract to the actual branch
+
+- Failed head: `84a3053d3282d53f7ae7a78a3371eff101a898dd`; run #658 passed workflow-script parsing, then failed the static source contract before configuration or compilation.
+- The formatter correctly introduces the escape handler as `if (*format == '%')`, followed by `else if` for the other directives. The new contract mistakenly expected the escape handler itself to be an `else if`.
+- Correct the single source-token assertion. No production source or regression test changes.
+
+---
+
 ## 2026-11-07 20:15 CST — Repair escaped-percent source-contract quoting
 
 - Failed head: `4764f40d2af8748d41396c0fc84d67e15567e506`; run #657 failed while parsing the Python source-contract script, before any firmware contract check or C build.

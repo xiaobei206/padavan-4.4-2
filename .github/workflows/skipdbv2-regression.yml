@@ -1989,7 +1989,7 @@ jobs:
                   "memcpy(formatCopy, format, formatLength + 1);",
                   "format = formatCopy;",
                   "io_free(formatCopy);",
-                  "else if (*format == '%')",
+                  "if (*format == '%')",
                   "snprintf(NULL, 0, \"%f\", d)",
                   "formattedSize = (size_t)formattedLength + 1;",
                   "snprintf(formatted, formattedSize, \"%f\", d)",
