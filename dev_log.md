@@ -1,3 +1,11 @@
+## 2026-11-07 11:40 CST — Refresh Date parser source contract for checked conversion
+
+- Baseline: main commit `c030c221549bc98a8d20786302b3fb7f882b83b6`; run #511 failed in the static source-contract step on the old `io_strptime` guard.
+- The parser now checks both parse success and `Date_calendarToTime_()` before committing the timestamp. Replace the obsolete exact-line needle and add static assertions for the shared mktime error boundary and its regression case.
+- No C implementation, test, CMake, or file-path changes.
+
+---
+
 ## 2026-11-07 11:38 CST — Correct Date helper source-contract boundary
 
 - Baseline: main commit `32938d6d2f9c6e41aba802d74f8b916cc2499e67`; run #510 confirmed the preceding Date setter contract mismatch.
