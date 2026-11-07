@@ -1,3 +1,13 @@
+## 2026-11-07 23:14 CST — Verify HTTPD idle-timeout regression and finalize checkpoint
+
+- Baseline main HEAD before this documentation-only follow-up: cfd8da8ffa51f29795920f90b68777630a9c81bc (implementation commit; parent aea93c782f8a1064a91d0d81a5c8d3341286a44a).
+- GitHub Actions HTTPD Authentication and Security Regression run 42385373380 completed SUCCESS against exact head SHA cfd8da8ffa51f29795920f90b68777630a9c81bc: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385373380
+- The job compiled and ran the private-key policy, strict Basic-auth, and session-timeout policy regression executables with GNU89 -Wall -Wextra -Werror, then passed source wiring/auth-route assertions. A separate local build/run of the new session helper regression also passed.
+- Updated SESSION_HANDOFF.md and REFACTOR_ROADMAP.md to reflect the exact CI evidence and remaining validation boundary; updated the prior code entry in this log with implementation SHA and run result. This follow-up changes documentation only; no new tests or firmware build were run.
+- Validation boundary: L1 PASS, L2 focused host regression PASS. L3 MIPS/firmware image and L4 hardware validation NOT VERIFIED. Next: systematically audit the conditional HTTPD MIME/CGI authorization matrix, then broaden the repository-wide audit.
+
+---
+
 ## 2026-11-07 23:12 CST — Correct HTTPD management-session inactivity timeout
 
 - Baseline main HEAD: aea93c782f8a1064a91d0d81a5c8d3341286a44a. One bounded module: HTTPD login-owner inactivity/timeout state.
@@ -5,8 +15,8 @@
 - Finding: the owner-IP branch in http_login_check() returned before timeout evaluation. login_timestamp was set at initial login only and not updated after successful subsequent protected requests, so another IP could clear the supposed 30-second timeout lock while the original management client remained active.
 - Fix: separate login_last_activity from the initial-login login_timestamp; initialize both at successful login, reset both at logout/expiry, check timeout against last activity, and refresh only after a protected request passes Basic authentication. This preserves the existing NVRAM/front-end timestamp meaning and existing auth requirements.
 - Regression: added a private helper test for no elapsed time, just-before/at/after the 30-second boundary, and unsigned uptime wraparound. The HTTPD Actions workflow now compiles/runs it and checks that timeout and refresh are wired to the production paths.
-- Validation: PENDING — workflow has not yet run for this change. No local compilation or test result is claimed. L1 review performed; L2 pending; L3 MIPS/firmware image and L4 hardware remain NOT VERIFIED.
-- Resulting code commit SHA and matching Actions run will be recorded in the follow-up checkpoint entry after GitHub returns them. Next: verify that exact run, then audit the conditional HTTPD MIME/CGI route authorization matrix.
+- Validation: GitHub Actions run 42385373380 passed on exact code SHA cfd8da8ffa51f29795920f90b68777630a9c81bc (https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385373380). All three GNU89 -Wall -Wextra -Werror C regressions (private-key policy, strict Basic auth, and session timeout policy) compiled and ran; production source-wiring checks passed. A local equivalent build/run of the new session-helper regression also passed.
+- Implementation commit: cfd8da8ffa51f29795920f90b68777630a9c81bc (parent aea93c782f8a1064a91d0d81a5c8d3341286a44a). L1 PASS and L2 focused host regression PASS. Full MIPS HTTPD/XY-C1 build, firmware artifact validation, fuzzing and hardware validation remain NOT VERIFIED. Next: audit the conditional HTTPD MIME/CGI route authorization matrix.
 
 ---
 
