@@ -252,13 +252,15 @@ jobs:
           )
           assert len(restore_calls) == 11, len(restore_calls)
           assert not re.search(r'^\s*doSystem\("(?:ip6tables-restore|iptables-restore)', firewall, re.M)
+          # Normalize whitespace because the staged hook calls are intentionally multiline.
+          firewall_compact = re.sub(r"\\s+", " ", firewall)
           for call in (
               'firewall_log_command_failure("Shadowsocks firewall hook", doSystem("sh %s", shadowsocks_staged));',
-              'firewall_log_command_failure("Persistent post-firewall hook", doSystem("%s", int_iptables_script));',
-              'firewall_log_command_failure("Optware iptables update hook", doSystem("%s update", opt_iptables_script));',
+              'firewall_log_command_failure("Persistent post-firewall hook", doSystem("%s", int_iptables_staged));',
+              'firewall_log_command_failure("Optware iptables update hook", doSystem("%s update", opt_iptables_staged));',
               'firewall_log_command_failure("Adbyby iptables restore", doSystem("iptables-restore -n %s", adbyby_iptables));'
           ):
-              assert call in firewall
+              assert call in firewall_compact
           assert firewall.count("firewall_log_command_failure(") == 15
           print("Firewall restore and extension command failures are reported: OK")
           PY
