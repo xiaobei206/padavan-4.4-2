@@ -1,3 +1,13 @@
+## 2026-11-07 11:46 CST — Stop futile SHash growth for unplaceable full-hash collisions
+
+- Baseline: main commit `33c777ccb424b99ff736f8006f3c5fc96c6d3b27`; SkipDBv2 Regression run #514 passed.
+- Scope: `basekit/SHash.c`, the existing `tests/shash_compact.c` fixture, and its existing Actions source contract.
+- A failed insertion with two resident keys sharing the incoming key's full hash recursively grew the cuckoo table through every size up to (2^{20}), although the two candidate slots are a deterministic function of that full hash and therefore remain the same relative to every table size. The third key can never be placed.
+- Detect the two occupied candidate slots and confirm both residents have the identical full hash before calling `SHash_grow()`. This preserves the existing table and its entries while avoiding futile repeated allocations. Extend the constant-hash regression through `SHash_at_put_()`. Existing CMake/CTest target reused; no new files.
+- No local C build or CTest run is claimed; mainline CI is the validation gate.
+
+---
+
 ## 2026-11-07 11:42 CST — Align Date local-time guard contract with checked conversion
 
 - Baseline: main commit `0bceac25cbceed7a73f156ae0e09807feff196cd`; run #513 reached the Date entry-point contract and rejected its obsolete exact guard string.

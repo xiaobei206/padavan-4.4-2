@@ -226,6 +226,40 @@ done:
 	return okay;
 }
 
+static int shashFullHashCollisionDoesNotGrow(void)
+{
+	SHash *hash = SHash_new();
+	int keys[3] = {11, 22, 33};
+	int values[3] = {101, 202, 303};
+	SHashRecord *originalRecords;
+	unsigned int originalBalance;
+	int okay = 0;
+
+	if (NULL == hash)
+		return 0;
+	SHash_setKeysEqualCallback(hash, keys_equal);
+	SHash_setHashForKeyCallback(hash, constant_hash_key);
+	SHash_at_put_(hash, &keys[0], &values[0]);
+	SHash_at_put_(hash, &keys[1], &values[1]);
+	if (hash->tableSize != 2 || hash->numKeys != 2)
+		goto done;
+
+	originalRecords = hash->records;
+	originalBalance = hash->balance;
+	SHash_at_put_(hash, &keys[2], &values[2]);
+	okay = hash->records == originalRecords &&
+		hash->tableSize == 2 && hash->numKeys == 2 &&
+		hash->balance == originalBalance &&
+		SHash_at_(hash, &keys[0]) == &values[0] &&
+		SHash_at_(hash, &keys[1]) == &values[1] &&
+		SHash_at_(hash, &keys[2]) == NULL;
+
+done:
+	SHash_free(hash);
+	return okay;
+}
+
+
 static int shashCopyPreservesSharedBacking(void)
 {
 	SHash *source = SHash_new();
@@ -270,6 +304,9 @@ int main(void)
 
 	if (!check(shashCuckooFailurePreservesState(),
 		"SHash cuckoo failure altered the original table or input record"))
+		return EXIT_FAILURE;
+	if (!check(shashFullHashCollisionDoesNotGrow(),
+		"SHash full-hash collisions triggered futile table growth"))
 		return EXIT_FAILURE;
 	if (!check(shashCopyPreservesSharedBacking(),
 		"SHash shallow aliases must not free the source backing allocation"))
