@@ -1727,7 +1727,7 @@ jobs:
                   "if (written != 0 || capacity >= maximumCapacity)",
                   "if (capacity > maximumCapacity / 2)",
                   "UArray_size(u) < capacity",
-                  "written = strftime(buffer, capacity, format, tm);",
+                  "written = strftime(buffer, capacity, format, &calendar);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c": [
                   "Date_fromTime_(&fromTime, preciseTime)",
@@ -5511,7 +5511,7 @@ jobs:
           date_alloc = date_string_body.find("u = UArray_new();")
           array_size = date_string_body.find("UArray_setSize_(u, capacity);")
           storage_check = date_string_body.find("if (NULL == buffer || UArray_size(u) < capacity)")
-          format_call = date_string_body.find("written = strftime(buffer, capacity, format, tm);")
+          format_call = date_string_body.find("written = strftime(buffer, capacity, format, &calendar);")
           retry_guard = date_string_body.find("if (written != 0 || capacity >= maximumCapacity)")
           maximum_capacity = date_string_body.find("maximumCapacity = 1024 + formatLength * 64;")
           growth_guard = date_string_body.find("if (capacity > maximumCapacity / 2)")

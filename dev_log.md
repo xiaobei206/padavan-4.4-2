@@ -1,3 +1,11 @@
+## 2026-11-07 16:37 CST — Align Date formatting contract with local calendar storage
+
+- Baseline: `6e67144049dac0ddfd1bdf9d00e14cc597bf4730`; SkipDBv2 Regression run #593 stopped in the XY-C1 source-contract stage before configure/build.
+- The production formatter now passes its stack-owned `calendar` to `strftime()`, but both the static integration needle and the focused Date formatting contract still described the former shared `tm` pointer.
+- Update both contract expressions to require `&calendar`. No C source or test behavior changed; the next Actions run remains the compile/CTest gate.
+
+---
+
 ## 2026-11-07 16:36 CST — Update Date local-calendar NULL guard contract
 
 - Baseline: `4e71b2e311bdd5040acdc1e6b394442b95e241dd`; SkipDBv2 Regression run #592 passed the file/path inventory but stopped in the XY-C1 source-contract stage before configure/build.
