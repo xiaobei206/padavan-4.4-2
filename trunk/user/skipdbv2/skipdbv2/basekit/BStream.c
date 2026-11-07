@@ -795,9 +795,7 @@ void BStream_writeTaggedCString_(BStream *self, const char *s)
 
 void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 {
-	UArray *snapshot = NULL;
-	const uint8_t *bytes;
-	size_t length, streamBytes;
+	size_t length;
 	if (NULL == self || NULL == self->ba || NULL == self->errorBa ||
 		NULL == ba || ba->itemSize == 0 ||
 		ba->itemSize != CTYPE_size(ba->itemType) ||
@@ -811,25 +809,8 @@ void BStream_writeTaggedUArray_(BStream *self, UArray *ba)
 		return;
 	}
 	length = UArray_sizeInBytes(ba);
-	streamBytes = UArray_sizeInBytes(self->ba);
-	if (length > 0 && streamBytes > 0) {
-		uintptr_t sourceStart = (uintptr_t)ba->data;
-		uintptr_t streamStart = (uintptr_t)self->ba->data;
-		int overlaps = (sourceStart >= streamStart ?
-			sourceStart - streamStart < streamBytes :
-			streamStart - sourceStart < length);
-		if (overlaps) {
-			snapshot = UArray_clone(ba);
-			if (NULL == snapshot) {
-				BStream_error_(self, "unable to snapshot tagged array");
-				return;
-			}
-			ba = snapshot;
-		}
-	}
-	bytes = UArray_bytes(ba);
-	BStream_writeTaggedData_length_(self, bytes, length);
-	UArray_free(snapshot);
+	/* The raw-byte writer owns framing, overlap snapshots, and rollback. */
+	BStream_writeTaggedData_length_(self, UArray_bytes(ba), length);
 }
 
 

@@ -1,3 +1,14 @@
+## 2026-11-07 18:20 CST — Centralize tagged-array alias snapshots in BStream
+
+- Baseline: `3bd47426de801b9eb5d0eaad0829cb8e404a9beb`; SkipDBv2 Regression run #621 passed the source contracts, complete build, and all 57 CTests.
+- Scope: `BStream_writeTaggedUArray_()` in the BaseKit binary-stream module.
+- The tagged UArray wrapper duplicated overlap detection and cloned the array before handing it to `BStream_writeTaggedData_length_()`, which already owns the full framing operation, inclusive trailing-terminator overlap snapshot, and rollback path. The duplicate range logic used a strict end bound and could drift from the shared helper.
+- Keep source/stream CTYPE and extent validation in the wrapper, then delegate the byte view directly to the shared writer. This removes the redundant clone/range implementation and leaves alias detection and rollback with one owner.
+- Retain the existing `testBStreamAliasedWrites()` trailing-terminator regression and extend the dynamic workflow contract to require delegation and forbid duplicate wrapper snapshots.
+- No local compiler/CTest result is claimed; GitHub Actions remains the validation gate.
+
+---
+
 ## 2026-11-07 18:17 CST — Restore single-owner stream readiness validation
 
 - Baseline: `6c2ae64a76df92f82f4233d217bd505c4faf55cf`; run #620 stopped at the source-contract gate before configuration, compilation, or CTests.

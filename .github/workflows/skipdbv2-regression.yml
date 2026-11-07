@@ -3914,6 +3914,14 @@ jobs:
               tagged_source_layout > tagged_bytes or tagged_stream_layout > tagged_bytes
           ):
               raise SystemExit("tagged BStream array writes must validate source and stream CTYPE widths before byte sizing")
+          if (
+              "BStream_writeTaggedData_length_(self, UArray_bytes(ba), length)" not in tagged_write_body or
+              "UArray_clone(ba)" in tagged_write_body or
+              "BStream_sourceOverlapsStream_" in tagged_write_body
+          ):
+              raise SystemExit(
+                  "tagged UArray framing must delegate alias snapshots and rollback to the shared raw-byte writer"
+              )
 
           set_array_start = bstream_source.find("void BStream_setUArray_(BStream *self, UArray *ba)")
           set_data_start = bstream_source.find("\nvoid BStream_setData_length_", set_array_start)
