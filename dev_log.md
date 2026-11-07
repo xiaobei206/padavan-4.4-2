@@ -1,3 +1,21 @@
+## 2026-11-08 06:26 CST — Fail closed on invalid FTP share modes and stop root workers
+
+### Finding and implementation
+- **Source/test/workflow checkpoint:** `c258be09506ef66523924d3ed618bf6d5d3c7ae5`; exact-head GitHub Actions [run 42420569075](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42420569075) completed SUCCESS.
+- `trunk/user/rc/src/services_stor.c::write_vsftpd_conf()` consumed `st_ftp_mode` without checking it. The UI exposes only 1, 2, 3 and 4, but invalid values entered the fallback branch that explicitly enabled anonymous login. Added `ftp_share_policy.h::ftp_share_mode_normalize()`: supported modes are unchanged, while zero/negative/out-of-range values fail closed to mode 2 (local authentication enabled, anonymous login disabled).
+- The generated `vsftpd.conf` had `nopriv_user=root`, negating the purpose of the daemon's totally unprivileged worker identity. It now uses `nobody`, an existing firmware account emitted as UID/GID 99 with `/bin/false` and locked in shadow; the bundled vsftpd default also names `nobody`. This is a material improvement over root, but upstream documentation recommends a dedicated service account rather than sharing `nobody`, so that remains a follow-up.
+- Inspected the semantics of `allow_writable_root=YES` in `trunk/user/vsftpd/src/secutil.c`: this custom tunable bypasses refusal to chroot when the chroot root is writable by the unprivileged account. It was deliberately left unchanged pending actual removable-media permission/runtime compatibility evidence. FTP anonymous-write modes and `anon_umask=000` / `local_umask=000` remain open rather than being changed blindly.
+- Added `trunk/user/rc/src/tests/ftp_share_policy.c`, covering all four supported modes plus 0, -1, 5, `INT_MIN` and `INT_MAX`. Updated `.github/workflows/httpd-security.yml` to compile/run the regression with `cc -std=gnu89 -Wall -Wextra -Werror`, assert production wiring and the non-root identity, and include the two new paths in both push and pull-request filters. The event path lists contain 59 identical entries.
+
+### Verification and limits
+- Exact-head Actions run [42420569075](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42420569075) is **SUCCESS** on source/test/workflow SHA `c258be09506ef66523924d3ed618bf6d5d3c7ae5`. The complete job finished successfully, including policy compilation/execution, the FTP/Samba source contract and all existing HTTPD/DNS/DHCP/PPP/firewall regressions.
+- A standalone local GNU89 `-Wall -Wextra -Werror` harness for the normalization policy compiled and ran successfully. Source-contract review confirms supported mode values normalize before mode-specific config generation and the generated nopriv user is non-root.
+- **Not run:** production MIPS RC build, firmware/TRX build or inspection, live vsftpd/Samba runtime, removable-filesystem permissions or physical-router testing. This does not close the FTP/Samba module.
+- Remote checkpoint branches compared with the tested SHA: BStreamTag 1/571 ahead/behind; DBAPI result 8/652; dynlib lifecycle 0/575; sorting 0/571; UArray character 2/569. Ahead-only changes remain in SkipDBv2/build/test/workflow/dev-log scope; none was merged.
+
+### Next bounded task
+- Continue FTP/Samba account/password lifecycle, anonymous-write/chroot/umask compatibility and the dedicated unprivileged service identity decision. Then rotate to USB/storage/hotplug and init/service lifecycle. Firewall cross-table rollback and IPv6 semantic parity remain separate open tasks; routine SkipDBv2-only development stays paused.
+
 ## 2026-11-08 06:23 CST — Validate FTP/Samba generated-configuration tokens
 
 ### Finding and implementation
