@@ -98,7 +98,7 @@ jobs:
           assert migrate < launch
           assert "if [ -x /etc/storage/ap_script.sh ]; then" in source
           assert "sha256sum" in helper and 'mkdir "$candidate_dir"' in helper
-          assert 'candidate_dir="$storage_dir/.ap_script_migrate.$.$attempt"' in helper
+          assert 'candidate_dir="$storage_dir/.ap_script_migrate.' + "$" * 2 + '.$attempt"' in helper
           assert "$(mktemp" not in helper
           print("AP stock-only migration autostart and target-BusyBox integration: OK")
           PY
