@@ -1,3 +1,11 @@
+## 2026-11-07 13:31 CST — Stabilize UArray scalar dispatch source contracts
+
+- Baseline: main commit `781ed26360155963e42174e4c60de31ac0c9aaaa`; run #543 failed during the XY-C1 source-contract phase before configure/build. Its new UArray source-contract entries assumed space indentation, while the C switch uses tabs.
+- Replace the two formatting-sensitive full-line needles with stable case-label fragments. The behavioral contract remains enforced separately by the Python check for 11 `break;` arms, no early `return;`, and post-dispatch `UArray_changed(self)` in both setters.
+- No C implementation or regression test changed. This workflow-only correction triggers another source-contract/build/CTest run.
+
+---
+
 ## 2026-11-07 13:29 CST — Correct UArray source-contract newline escapes
 
 - Baseline: main commit `fa29af2957460c923ff7f000ff88144bb4d24cb2`. Preflight of run #543 found that the new Python source-contract searches were double-escaped; they would search for a literal backslash-n instead of the macro/function closing-line boundary.
