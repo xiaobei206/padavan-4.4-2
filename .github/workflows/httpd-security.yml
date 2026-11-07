@@ -32,6 +32,7 @@ on:
       - "trunk/user/httpd/src/httpd_access_policy.h"
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
       - "trunk/user/rc/src/firewall_ex.c"
+      - "trunk/user/rc/src/vpn_server.c"
       - "trunk/user/rc/src/firewall_filter_policy.h"
       - "trunk/user/rc/src/tests/firewall_filter_policy.c"
       - "trunk/user/rc/src/firewall_rule_file.h"
@@ -67,6 +68,7 @@ on:
       - "trunk/user/httpd/src/httpd_access_policy.h"
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
       - "trunk/user/rc/src/firewall_ex.c"
+      - "trunk/user/rc/src/vpn_server.c"
       - "trunk/user/rc/src/firewall_filter_policy.h"
       - "trunk/user/rc/src/tests/firewall_filter_policy.c"
       - "trunk/user/rc/src/firewall_rule_file.h"
@@ -219,6 +221,7 @@ jobs:
           storage_script = Path("trunk/user/scripts/files/sbin/mtd_storage.sh").read_text()
           firewall_root = Path("trunk/user/rc/src")
           firewall = (firewall_root / "firewall_ex.c").read_text()
+          vpn_server = (firewall_root / "vpn_server.c").read_text()
           firewall_policy = (firewall_root / "firewall_filter_policy.h").read_text()
           firewall_test = (firewall_root / "tests/firewall_filter_policy.c").read_text()
           firewall_rule_file = (firewall_root / "firewall_rule_file.h").read_text()
@@ -533,6 +536,43 @@ jobs:
           assert "if (!firewall_ipv4_address_is_safe(man_ip))" in firewall
           assert "if (!firewall_ipv4_address_is_safe(dmz_ip))" in firewall
           print("Firewall strict IPv4 restore-token validation and LAN fallback: OK")
+          # VPN leases are root-managed policy input in shared /tmp. Require a
+          # private, no-follow file and exact PPP interface tokens before rules.
+          vpn_clients_start = firewall.index("include_vpns_clients(FILE *fp)")
+          vpn_clients_end = firewall.index(chr(10) + "}", vpn_clients_start)
+          vpn_clients = firewall[vpn_clients_start:vpn_clients_end]
+          assert "open(VPN_SERVER_LEASE_FILE, O_RDONLY | O_NOFOLLOW)" in vpn_clients
+          assert "lease_stat.st_uid != 0" in vpn_clients
+          assert "lease_stat.st_nlink != 1" in vpn_clients
+          assert "(lease_stat.st_mode & 077) != 0" in vpn_clients
+          assert "firewall_ppp_interface_is_safe(ifname, VPN_SERVER_PPP_UNIT)" in vpn_clients
+          assert "ppp_ifindex(ifname)" not in vpn_clients
+
+          lease_open_start = vpn_server.index("open_vpns_lease_file_append(void)")
+          lease_open_end = vpn_server.index(chr(10) + "static int", lease_open_start)
+          lease_open = vpn_server[lease_open_start:lease_open_end]
+          assert "O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW" in lease_open
+          assert "fstat(fd, &st)" in lease_open and "S_ISREG(st.st_mode)" in lease_open
+          assert "st.st_uid != 0" in lease_open and "st.st_nlink != 1" in lease_open
+          assert "fchmod(fd, S_IRUSR | S_IWUSR)" in lease_open
+          assert 'fdopen(fd, "a")' in lease_open
+
+          ipup_start = vpn_server.index("ipup_vpns_main(int argc, char **argv)")
+          ipdown_start = vpn_server.index("ipdown_vpns_main(int argc, char **argv)", ipup_start)
+          ipup = vpn_server[ipup_start:ipdown_start]
+          ipdown = vpn_server[ipdown_start:]
+          assert "fp = open_vpns_lease_file_append();" in ipup
+          assert 'fopen(VPN_SERVER_LEASE_FILE, "a+")' not in ipup
+          assert 'char clients_l2[] = "/tmp/.vpns.leases.XXXXXX";' in ipdown
+          assert "open(clients_l1, O_RDONLY | O_NOFOLLOW)" in ipdown
+          assert "mkstemp(clients_l2)" in ipdown
+          assert "fchmod(temp_fd, S_IRUSR | S_IWUSR)" in ipdown
+          assert 'fdopen(temp_fd, "w")' in ipdown
+          assert "rename(clients_l2, clients_l1)" in ipdown
+          assert 'fopen(clients_l2, "w")' not in ipdown
+          assert 'firewall_ppp_interface_is_safe("ppp10+", 10)' in firewall_test
+          assert 'firewall_ppp_interface_is_safe("ppp65536", 10)' in firewall_test
+          print("VPN lease file private descriptor and strict PPP token checks: OK")
           assert "mkstemp(path)" in firewall_rule_file
           assert 'fdopen(fd, "w")' in firewall_rule_file
           assert "fchmod(fd, S_IRUSR | S_IWUSR)" in firewall_rule_file
