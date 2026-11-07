@@ -1,3 +1,13 @@
+## 2026-11-07 15:32 CST — Retry Date formatting when directives expand past the initial buffer
+
+- Baseline: `576b5cfd2e70351adf13f9745c29ae37859f6753`; mainline run #577 passed source contracts, configure, build, and CTest.
+- Scope: `Date_asString()` in `basekit/Date.c` and the already registered `date_string_bounds_test`.
+- The existing allocation was sized from format-string bytes plus 1024, but `strftime()` output can be substantially longer than its input directives. On a long repeated `%Y-%m-%d` format, `strftime()` returned zero for insufficient capacity and the API silently returned an empty string.
+- Retry `strftime()` with geometrically growing UArray capacity, checking each allocation and bounding retries to a saturating 64x format-length ceiling. Preserve the existing empty-result behavior when formatting still returns zero; no exported symbols or CMake targets changed.
+- Extend the existing test with 1,500 repeated date directives and verify every expanded token against a single-token result. Extend the Actions source/runtime contracts. No new files or public API changes.
+- Static review confirms size arithmetic is guarded, buffer capacity is revalidated after each resize, and the final UArray size comes from the formatter's reported byte count. No local build is claimed; remote Actions is the compiler/CTest gate.
+
+---
 ## 2026-11-07 15:29 CST — Repair adjacent SkipDB source-contract entries
 
 - Baseline: `5f3e2fa7d3a2e5de4381afe028e3e1c0a02e6dc3`; run #576 stopped in the XY-C1 source-contract phase before configure/build.

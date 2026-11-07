@@ -572,7 +572,7 @@ UArray *Date_asString(const Date *self, const char *format)
 	UArray *u;
 	time_t t;
 	struct tm *tm;
-	size_t formatLength, capacity, written;
+	size_t formatLength, capacity, maximumCapacity, written;
 	char *buffer;
 
 	if (NULL == self || NULL == format)
@@ -587,24 +587,37 @@ UArray *Date_asString(const Date *self, const char *format)
 	if (formatLength > (size_t)-1 - 1024)
 		return NULL;
 	capacity = 1024 + formatLength;
+	if (formatLength > ((size_t)-1 - 1024) / 64)
+		maximumCapacity = (size_t)-1;
+	else
+		maximumCapacity = 1024 + formatLength * 64;
 
 	u = UArray_new();
 	if (NULL == u)
 		return NULL;
-	UArray_setSize_(u, capacity);
-	buffer = (char *)UArray_bytes(u);
-	if (NULL == buffer || UArray_size(u) < capacity) {
-		UArray_free(u);
-		return NULL;
+
+	/* strftime expands directives beyond their source format width. Retry with
+	 * a larger buffer when its zero return indicates a truncated expansion. */
+	for (;;) {
+		UArray_setSize_(u, capacity);
+		buffer = (char *)UArray_bytes(u);
+		if (NULL == buffer || UArray_size(u) < capacity) {
+			UArray_free(u);
+			return NULL;
+		}
+		buffer[0] = '\0';
+		written = strftime(buffer, capacity, format, tm);
+		if (written != 0 || capacity >= maximumCapacity)
+			break;
+		if (capacity > maximumCapacity / 2)
+			capacity = maximumCapacity;
+		else
+			capacity *= 2;
 	}
 
-	/* Keep a valid terminator if strftime cannot represent the result. */
-	buffer[0] = '\0';
-	written = strftime(buffer, capacity, format, tm);
-	if (written == 0) {
+	/* Keep a valid empty result if the bounded formatter still returns zero. */
+	if (written == 0)
 		buffer[0] = '\0';
-		written = 0;
-	}
 	UArray_setSize_(u, written);
 	if (UArray_size(u) != written) {
 		UArray_free(u);
