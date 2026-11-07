@@ -1,3 +1,11 @@
+## 2026-11-07 09:17 CST — Repair IPC parser source-contract delimiter
+
+- Baseline: main commit `45e1a75f8eea3af4598cd05c3e6bbb9bfd581bae`; SkipDBv2 Regression run #480 failed during source-contract preflight, before configuration or compilation.
+- The new IPC parser guard-order contract searched for a literal backslash-plus-\n sequence because its function-boundary delimiter was escaped twice. The contract therefore failed to extract the function body even though the parser's guard order was correct.
+- Correct the workflow delimiter to Python's newline escape so the preflight checks the intended function body. This is a CI-only correction; no new files and no C behavior changes.
+
+---
+
 ## 2026-11-07 09:16 CST — Clear IPC envelope views on invalid input
 
 - Baseline: main commit `27ec1a6a99d3b91adcc5ed9bad1e7dc50f30e789`; SkipDBv2 Regression run #479 passed.

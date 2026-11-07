@@ -5728,7 +5728,7 @@ jobs:
 
           ipc_protocol_source = Path("trunk/user/skipdbv2/skipdbv2/mgr/ipc_protocol.c").read_text()
           ipc_parser_start = ipc_protocol_source.find("int skipdb_ipc_parse_envelope(char *body, size_t body_len,")
-          ipc_parser_end = ipc_protocol_source.find("\\n}", ipc_parser_start)
+          ipc_parser_end = ipc_protocol_source.find("\n}", ipc_parser_start)
           ipc_parser_body = ipc_protocol_source[ipc_parser_start:ipc_parser_end] if ipc_parser_start >= 0 and ipc_parser_end > ipc_parser_start else ""
           null_frame_guard = ipc_parser_body.find("if (NULL == frame)")
           clear_output = ipc_parser_body.find("memset(frame, 0, sizeof(*frame));")
