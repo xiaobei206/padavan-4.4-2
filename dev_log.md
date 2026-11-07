@@ -1,3 +1,12 @@
+## 2026-11-08 04:27 CST — Exact-head host verification of add-on firewall hook isolation
+
+- Final code/test checkpoint: `6949cdf53ba9ba682c169b30eee2fab77949b04b`; implementation commit `699639f7e94eba48ea2f54cbad3c52d227ca1eec`; exact-head Actions run `42410980863` SUCCESS. All job steps passed.
+- Test iteration notes: earlier exact-head runs first caught a test harness `set -u` mismatch with the legacy Adbyby script, then a fixture line that did not match Adbyby's intentional `ADBYBY` grep filter. Both were corrected. The last test-only commit also explicitly exports the simulated iptables-save failure to the child stub. Treat run `42410980863` on `6949cdf53ba9ba682c169b30eee2fab77949b04b` as the authoritative final result.
+- Source fix: root-executed Shadowsocks `/tmp/shadowsocks_iptables.save` is now validated by no-follow descriptor open, owner/type/link/mode/size checks and copied to a unique 0600 file under `/home/root` before execution. The tracked subtree had no producer for that exact filename; invalid input fails closed.
+- Source fix: Adbyby no longer writes `/tmp/adbyby.save`; it writes a private snapshot to `/home/root/.adbyby.save` using restrictive umask, unique intermediate files, explicit 0600 and atomic rename. Firewall restore consumer uses the same path. Failed capture preserves the previous snapshot.
+- Host coverage: GNU89 C test and actual Adbyby snapshot shell test pass via exact-head Actions. Existing route/auth, firewall filter/file, AP storage migration and root-temp-script staging tests in the same workflow also passed.
+- Limitations: no full RC build, MIPS target build or image, no router run/live iptables restore/hardware test. Persistent `/etc/storage/post_iptables_script.sh` and external `/opt/bin/update_iptables.sh` still need writer/deployment provenance and exit-contract audit; firewall restore error handling/rollback and IPv6 parity remain open. Whole userland audit is not complete.
+
 ## 2026-11-08 04:20 CST — Isolate optional add-on firewall restore inputs
 
 - Source/test/workflow commit: `699639f7e94eba48ea2f54cbad3c52d227ca1eec`; baseline: `918c07bcde23d1b698ba1fcf5aecec5b9e73525a`. Exact-head Actions run `42410593918` is running against the source commit.
