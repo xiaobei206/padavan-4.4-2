@@ -275,6 +275,20 @@ int main(void)
         return fail("UArray overflowing bit storage geometry was not rejected");
     }
 
+    {
+        UArray overflowBits;
+        uint8_t sentinel = 0xff;
+
+        memset(&overflowBits, 0, sizeof(overflowBits));
+        overflowBits.data = &sentinel;
+        overflowBits.size = ((size_t)-1 / 8) + 1;
+        overflowBits.itemSize = 1;
+        if (UArray_bitCount(&overflowBits) != 0) {
+            UArray_free(array);
+            return fail("UArray bit count accepted an overflowing result size");
+        }
+    }
+
     UArray_free(array);
     puts("UArray bit access test passed");
     return EXIT_SUCCESS;

@@ -1775,6 +1775,7 @@ jobs:
                   "byteCount > ((size_t)-1 - 1) / 8",
                   "bitCount = byteCount * 8;",
                   "out->size != bitCount || (bitCount > 0 && NULL == out->data)",
+                  "byteCount > (size_t)-1 / 8",
                   "total += map[self->data[i]];",
                   "bytePosition = i / 8;",
                   "bitPosition = i % 8;",
@@ -1888,6 +1889,13 @@ jobs:
                   "single-item byte reversal accessed bytes outside the item",
                   "UArray reverse item byte order test passed",
               ],
+          bit_count_start = uarray_math_source.find("size_t UArray_bitCount(UArray *self)")
+          bit_count_end = uarray_math_source.find("\\n}", bit_count_start)
+          bit_count_body = uarray_math_source[bit_count_start:bit_count_end] if bit_count_start >= 0 and bit_count_end > bit_count_start else ""
+          bit_count_guard = bit_count_body.find("byteCount > (size_t)-1 / 8")
+          bit_count_loop = bit_count_body.find("for (i = 0; i < byteCount; ++i)")
+          if not bit_count_body or min(bit_count_guard, bit_count_loop) < 0 or bit_count_guard >= bit_count_loop:
+              raise SystemExit("UArray_bitCount must reject a result-size overflow before reading backing bytes")
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_bit_access.c": [
                   "UArray_setBit_at_(array, 1, 8);",
                   "UArray bit setter used the wrong bit after a byte boundary",
@@ -1897,6 +1905,8 @@ jobs:
                   "UArray invalid bit index was not rejected",
                   "UArray bit mutation did not invalidate the cached hash",
                   "UArray bit count did not count set bits",
+                  "overflowBits.size = ((size_t)-1 / 8) + 1;",
+                  "UArray bit count accepted an overflowing result size",
                   "UArray bit string reader returned incorrect bits",
                   "UArray bit summaries accepted NULL storage",
                   "malformedSummariesRejected = malformedBitCount == 0 && NULL == invalidBits;",

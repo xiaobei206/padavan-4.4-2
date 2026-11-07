@@ -1,3 +1,13 @@
+## 2026-11-07 11:51 CST — Guard UArray bit-count result overflow
+
+- Baseline: main commit `52101f5e858b0d8869aa6e60c6b2822237ff5a23`; SkipDBv2 Regression run #516 passed.
+- Scope: `basekit/UArray_math.c` bit-count path, the existing `tests/uarray_bit_access.c` regression, and its existing Actions source contract.
+- `UArray_bitCount()` accumulated up to eight set bits per byte into `size_t` without first proving that `byteCount * 8` is representable. A malformed but multiplication-valid UArray geometry could overflow the returned count and drive the scan beyond its representable result range.
+- Reject `byteCount > SIZE_MAX / 8` before scanning; add a sentinel-backed regression that reaches the overflowing geometry without allocating or reading a huge buffer. Existing CMake/CTest target reused; no new files.
+- No local C build or CTest run is claimed; mainline CI is the validation gate.
+
+---
+
 ## 2026-11-07 11:48 CST — Stop futile PHash growth for identical pointer hashes
 
 - Baseline: main commit `514102b8d054386a9f283ed0b163a499f438484b`; SkipDBv2 Regression run #515 passed after the SHash collision guard.

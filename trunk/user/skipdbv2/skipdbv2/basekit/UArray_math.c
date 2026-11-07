@@ -636,7 +636,8 @@ size_t UArray_bitCount(UArray *self)
 
 	size_t i, byteCount, total = 0;
 
-	if (!UArray_hasValidBitStorage_(self, &byteCount))
+	if (!UArray_hasValidBitStorage_(self, &byteCount) ||
+		byteCount > (size_t)-1 / 8)
 		return 0;
 	for (i = 0; i < byteCount; ++i)
 		total += map[self->data[i]];
