@@ -1,3 +1,22 @@
+## 2026-11-08 07:22 CST — Fail closed on Samba config generation and validate global config inputs
+
+### Finding and implementation
+- **Base main SHA:** `0f44a88f2944c3795360a24370ef3dbd44460f0d`. This resumes the Samba ACL/configuration work explicitly left open by the previous a389e3 handoff; no SkipDBv2 branch changes were merged.
+- Audited the actual Samba service path: `write_smb_conf_header()` always regenerates `/etc/smb.conf`; `write_smb_conf()` emits dynamic partition/folder ACLs; `run_samba()` already checks the writer's return value before updating daemons. `/etc/storage/smb.conf` was not referenced by these generators, the inspected RC dispatch path, or `mtd_storage.sh`; no supported merge/override precedence was found, so no unsafe include was added. The existing file, when present, is not loaded by the inspected service path.
+- Reviewed libdisk permission values: 0=deny, 1=read, 2=write, 3=read/write. Missing permission files produce 0; malformed/lookup errors produce -1. Samba's write list intentionally overlaps read list for writers; Samba 3.6 gives write-list membership precedence, so the overlap is not itself an authorization defect. The relevant Samba 3.6 behavior is documented by its smb.conf manual.
+- **Confirmed defect:** `write_smb_conf()` returned success unconditionally at `confpage`, including when disk discovery returned NULL, account-list validation failed, a later append-open failed, or stream close reported an I/O error. This defeated `run_samba()`'s fail-closed check and could reload an incomplete configuration after a prior truncation.
+- **Fix:** propagate failure for required disk/account discovery, append open, and stream close; check the close before reopening for append; return the actual writer result. Add explicit tested helpers for ACL right-to-read/right-to-write semantics and use them at guest/user list emission. Document the intentional Samba 3.6 read/write-list overlap. Added a shared config-value policy and apply it before emitting NVRAM workgroup and hostname values in the global section, rejecting control bytes, DEL, backslash and percent substitution.
+- **Changed paths:** `trunk/user/rc/src/samba_config_value_policy.h`, `trunk/user/rc/src/samba_share_policy.h`, `trunk/user/rc/src/services_ex.c`, `trunk/user/rc/src/services_stor.c`, `trunk/user/rc/src/tests/samba_share_policy.c`, `.github/workflows/httpd-security.yml`; plus `REFACTOR_ROADMAP.md`, `SESSION_HANDOFF.md`, and `dev_log.md`.
+
+### Validation and limits
+- L1 source review: PASS for the scoped generator/ACL/config-loading paths.
+- L2 host regressions and exact-head GitHub Actions: PENDING until the commit's workflow completes. The focused C policy test compiles under GNU89 `-Wall -Wextra -Werror`; workflow source contracts cover NVRAM validation order, ACL mapping, failure propagation, and both path filters.
+- Full production RC/MIPS compilation, Samba 3.6 patch application to a fresh upstream tree, firmware/TRX build, live SMB authentication/ACL/permission inheritance tests, filesystem compatibility, and physical-router validation: NOT RUN.
+- **Remaining:** Samba account lifecycle for non-APP_SMBD36 variants, guest media permission compatibility and filesystem ACL inheritance, external smbpasswd callers, FTP dedicated identity/chroot/umask/write behavior, and NFS export policy (including no_root_squash) remain open. HTTPD/CGI/authentication, firewall rollback/IPv6 parity, USB/storage/hotplug and init/service lifecycle remain separate repository-wide risks.
+
+### Next bounded task
+- Continue FTP/Samba residuals only if necessary to close the file-service audit; then rotate to USB/storage/hotplug and init/service lifecycle. Keep P1 HTTPD/CGI/auth and firewall rollback/IPv6 parity in the top-level ledger; do not return to routine SkipDBv2-only work.
+
 ## 2026-11-08 07:18 CST — Unlink Samba password input before forking the child
 
 ### Review correction

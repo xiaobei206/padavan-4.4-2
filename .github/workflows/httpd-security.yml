@@ -41,6 +41,7 @@ on:
       - "trunk/user/rc/src/tests/samba_passdb_policy.c"
       - "trunk/user/samba36/patches/111-owrt_smbpasswd.patch"
       - "trunk/user/rc/src/samba_share_policy.h"
+      - "trunk/user/rc/src/samba_config_value_policy.h"
       - "trunk/user/rc/src/tests/samba_share_policy.c"
       - "trunk/user/rc/src/ftp_share_policy.h"
       - "trunk/user/rc/src/tests/ftp_share_policy.c"
@@ -108,6 +109,7 @@ on:
       - "trunk/user/rc/src/tests/samba_passdb_policy.c"
       - "trunk/user/samba36/patches/111-owrt_smbpasswd.patch"
       - "trunk/user/rc/src/samba_share_policy.h"
+      - "trunk/user/rc/src/samba_config_value_policy.h"
       - "trunk/user/rc/src/tests/samba_share_policy.c"
       - "trunk/user/rc/src/ftp_share_policy.h"
       - "trunk/user/rc/src/tests/ftp_share_policy.c"
@@ -416,6 +418,17 @@ jobs:
           passdb_test = Path("trunk/user/rc/src/tests/samba_passdb_policy.c").read_text()
           passdb_patch = Path("trunk/user/samba36/patches/111-owrt_smbpasswd.patch").read_text()
           accounts = Path("trunk/user/shared/src/shutils.c").read_text()
+          config_policy = Path("trunk/user/rc/src/samba_config_value_policy.h").read_text()
+          service_config = Path("trunk/user/rc/src/services_ex.c").read_text()
+          share_test = Path("trunk/user/rc/src/tests/samba_share_policy.c").read_text()
+          assert "samba_config_value_is_safe" in config_policy
+          assert '#include "samba_config_value_policy.h"' in service_config
+          config_header = service_config[service_config.index("write_smb_conf_header(void)"):
+                                         service_config.index(chr(10) + "void" + chr(10) + "stop_nmbd")]
+          assert config_header.index("samba_config_value_is_safe(p_workgroup)") < config_header.index('fprintf(fp, "workgroup = %s')
+          assert config_header.index("samba_config_value_is_safe(p_computer_name)") < config_header.index('fprintf(fp, "netbios name = %s')
+          assert "samba_acl_right_can_read(1)" in share_test
+          assert "samba_acl_right_can_write(2)" in share_test
           assert '#include "samba_share_policy.h"' in source
           assert '#include "ftp_share_policy.h"' in source
           assert '#include "samba_passdb_policy.h"' in source
@@ -494,6 +507,25 @@ jobs:
           assert "strdup(password)" not in passdb_patch
           assert "pw = argv[2]" not in passdb_patch
           assert 'doSystem("rm -f %s", "/etc/samba/*")' not in run_body
+
+          # A failed disk/account discovery, append open, or stream close must
+          # abort configuration generation instead of returning false success.
+          writer_start = source.index("write_smb_conf(void)")
+          writer_end = source.index("static void" + chr(10) + "clean_smbd_trash", writer_start)
+          writer = source[writer_start:writer_end]
+          assert "if (!disks_info)" in writer
+          assert "disks_info = read_disk_data();" in writer
+          assert "if (get_account_list(&acc_num, &account_list) < 0)" in writer
+          assert 'fp = fopen(SAMBA_CONF, "a");' in writer
+          assert "result = -1;" in writer and writer.count("result = -1;") >= 4
+          assert "if (fp && fclose(fp) != 0)" in writer
+          assert "return result;" in writer
+          assert "samba_acl_right_can_read(guest_right)" in writer
+          assert "samba_acl_right_can_write(guest_right)" in writer
+          assert "samba_acl_right_can_read(right)" in writer
+          assert "samba_acl_right_can_write(right)" in writer
+          assert "samba_config_value_is_safe(p_workgroup)" in service_config
+          assert "samba_config_value_is_safe(p_computer_name)" in service_config
 
           # The FTP banner is emitted only after rejecting line controls/escapes.
           banner_guard = source.index("if (!samba_conf_text_is_safe(banner_product)")

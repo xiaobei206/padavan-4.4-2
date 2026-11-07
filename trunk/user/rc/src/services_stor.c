@@ -376,7 +376,7 @@ int
 write_smb_conf(void)
 {
 	FILE *fp;
-	int i_maxuser, i_smb_mode;
+	int i_maxuser, i_smb_mode, result = 0;
 	disk_info_t *follow_disk, *disks_info = NULL;
 	partition_info_t *follow_partition;
 
@@ -432,8 +432,10 @@ write_smb_conf(void)
 	fprintf(fp, "\n");
 
 	disks_info = read_disk_data();
-	if (!disks_info)
+	if (!disks_info) {
+		result = -1;
 		goto confpage;
+	}
 
 	/* share */
 	if (i_smb_mode == 1) {
@@ -492,6 +494,7 @@ write_smb_conf(void)
 		// get the account list
 		if (get_account_list(&acc_num, &account_list) < 0) {
 			free_2_dimension_list(&acc_num, &account_list);
+			result = -1;
 			goto confpage;
 		}
 		
@@ -522,8 +525,13 @@ write_smb_conf(void)
 					guest_right = get_permission(SMB_GUEST_USER, follow_partition->mount_point, folder_list[n], "cifs");
 					snprintf(share, sizeof(share), "%s", folder_list[n]);
 					
-					fclose(fp);
-					
+					if (fclose(fp) != 0) {
+						fp = NULL;
+						result = -1;
+						goto confpage;
+					}
+					fp = NULL;
+
 					if(check_existed_share(share)){
 						i = 1;
 						memset(share, 0, 256);
@@ -534,8 +542,11 @@ write_smb_conf(void)
 						}
 					}
 					
-					if((fp = fopen(SAMBA_CONF, "a")) == NULL)
+					fp = fopen(SAMBA_CONF, "a");
+					if (fp == NULL) {
+						result = -1;
 						goto confpage;
+					}
 					fprintf(fp, "[%s]\n", share);
 					fprintf(fp, "comment = %s\n", folder_list[n]);
 					fprintf(fp, "path = %s/%s\n", follow_partition->mount_point, folder_list[n]);
@@ -545,7 +556,7 @@ write_smb_conf(void)
 					
 					fprintf(fp, "valid users = ");
 					first = 1;
-					if (guest_right >= 1) {
+					if (samba_acl_right_can_read(guest_right)) {
 						first = 0;
 						fprintf(fp, "%s", "nobody");
 					}
@@ -568,7 +579,7 @@ write_smb_conf(void)
 						if (!samba_service_account_is_safe(account_list[i]))
 							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
-						if (right >= 1)
+						if (samba_acl_right_can_read(right))
 							continue;
 						
 						if (first == 1)
@@ -580,9 +591,13 @@ write_smb_conf(void)
 					}
 					fprintf(fp, "\n");
 					
+					/*
+					 * A write-list member may also be in read list: Samba 3.6
+					 * gives write-list membership precedence for that user.
+					 */
 					fprintf(fp, "read list = ");
 					first = 1;
-					if (guest_right >= 1) {
+					if (samba_acl_right_can_read(guest_right)) {
 						first = 0;
 						fprintf(fp, "%s", "nobody");
 					}
@@ -590,7 +605,7 @@ write_smb_conf(void)
 						if (!samba_service_account_is_safe(account_list[i]))
 							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
-						if (right < 1)
+						if (!samba_acl_right_can_read(right))
 							continue;
 						
 						if (first == 1)
@@ -604,7 +619,7 @@ write_smb_conf(void)
 					
 					fprintf(fp, "write list = ");
 					first = 1;
-					if (guest_right >= 2) {
+					if (samba_acl_right_can_write(guest_right)) {
 						first = 0;
 						fprintf(fp, "%s", "nobody");
 					}
@@ -612,7 +627,7 @@ write_smb_conf(void)
 						if (!samba_service_account_is_safe(account_list[i]))
 							continue;
 						right = get_permission(account_list[i], follow_partition->mount_point, folder_list[n], "cifs");
-						if (right < 2)
+						if (!samba_acl_right_can_write(right))
 							continue;
 						
 						if (first == 1)
@@ -633,10 +648,10 @@ write_smb_conf(void)
 	}
 
 confpage:
-	if (fp)
-		fclose(fp);
+	if (fp && fclose(fp) != 0)
+		result = -1;
 	free_disk_data(disks_info);
-	return 0;
+	return result;
 }
 
 static void

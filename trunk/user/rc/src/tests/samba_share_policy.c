@@ -8,6 +8,12 @@ int main(void)
 	assert(strcmp(SAMBA_GUEST_ACCOUNT, "nobody") == 0);
 	assert(strcmp(SAMBA_GUEST_ACCOUNT, "admin") != 0);
 
+	assert(samba_config_value_is_safe("Padavan AX-3000"));
+	assert(samba_config_value_is_safe(""));
+	assert(!samba_config_value_is_safe(NULL));
+	assert(!samba_config_value_is_safe("Workgroup\r\nsecurity = SHARE"));
+	assert(!samba_config_value_is_safe("router\\name"));
+	assert(!samba_config_value_is_safe("%U"));
 	assert(samba_conf_text_is_safe("Padavan AX-3000"));
 	assert(samba_conf_text_is_safe("/media/USB Disk"));
 	assert(samba_conf_text_is_safe(""));
@@ -50,6 +56,20 @@ int main(void)
 	assert(!samba_mount_path_is_safe("/media/disk\\payload"));
 	assert(!samba_mount_path_is_safe("/media/disk%U"));
 	assert(!samba_mount_path_is_safe("/media/disk\npath"));
+
+	/* ACL rights from libdisk: 0=deny, 1=read, 2=write, 3=read/write. */
+	assert(!samba_acl_right_can_read(-1));
+	assert(!samba_acl_right_can_read(0));
+	assert(samba_acl_right_can_read(1));
+	assert(samba_acl_right_can_read(2));
+	assert(samba_acl_right_can_read(3));
+	assert(!samba_acl_right_can_read(4));
+	assert(!samba_acl_right_can_write(-1));
+	assert(!samba_acl_right_can_write(0));
+	assert(!samba_acl_right_can_write(1));
+	assert(samba_acl_right_can_write(2));
+	assert(samba_acl_right_can_write(3));
+	assert(!samba_acl_right_can_write(4));
 
 	assert(samba_acl_user_is_safe("admin"));
 	assert(samba_acl_user_is_safe("_svc-1.2"));

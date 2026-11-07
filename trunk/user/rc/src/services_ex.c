@@ -34,6 +34,7 @@
 
 #include "rc.h"
 #include "dnsmasq_file.h"
+#include "samba_config_value_policy.h"
 
 #define DHCPD_STATIC_MAX	64
 #define DHCPD_MULTIMAC_MAX	8
@@ -621,6 +622,12 @@ write_smb_conf_header(void)
 	i_wins_enable = nvram_get_int("wins_enable");
 	p_workgroup = nvram_safe_get("st_samba_workgroup");
 	p_computer_name = get_our_hostname();
+
+	/* NVRAM/hostname data must not inject additional smb.conf directives. */
+	if (!samba_config_value_is_safe(p_workgroup))
+		p_workgroup = "";
+	if (!samba_config_value_is_safe(p_computer_name) || !*p_computer_name)
+		p_computer_name = "Padavan";
 
 	if (!(fp = fopen(SAMBA_CONF, "w")))
 		return NULL;

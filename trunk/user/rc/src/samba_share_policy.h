@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <string.h>
 #include "../../shared/src/include/router_account_policy.h"
+#include "samba_config_value_policy.h"
 /*
  * This firmware maps http_username to UID 0 in /etc/passwd. Anonymous SMB
  * sessions therefore must use the existing locked, non-root nobody account.
@@ -19,17 +20,7 @@
 static int
 samba_conf_text_is_safe(const char *value)
 {
-	const unsigned char *p;
-
-	if (!value)
-		return 0;
-
-	for (p = (const unsigned char *)value; *p; ++p) {
-		if (*p < 0x20 || *p == 0x7f || *p == '\\' || *p == '%')
-			return 0;
-	}
-
-	return 1;
+	return samba_config_value_is_safe(value);
 }
 
 /* A share label is also a path component supplied to generated config. */
@@ -84,6 +75,23 @@ samba_mount_path_is_safe(const char *path)
 	}
 
 	return 1;
+}
+
+/*
+ * Disk-share rights are 0=none, 1=read, 2=write, 3=read/write.
+ * Reject out-of-range and get_permission() error values rather than
+ * accidentally treating them as grants.
+ */
+static int
+samba_acl_right_can_read(int right)
+{
+	return right >= 1 && right <= 3;
+}
+
+static int
+samba_acl_right_can_write(int right)
+{
+	return right >= 2 && right <= 3;
 }
 
 /* User names are emitted as comma-separated Samba ACL tokens and argv. */
