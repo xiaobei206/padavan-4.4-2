@@ -1,21 +1,18 @@
 # Session Handoff — Padavan 4.4
 
-## Latest resumable checkpoint — HTTPD management-session inactivity timeout
+## Latest resumable checkpoint — HTTPD MIME authorization matrix regression
 
-- Verified main immediately before this documentation checkpoint: cfd8da8ffa51f29795920f90b68777630a9c81bc. Implementation commit cfd8da8ffa51f29795920f90b68777630a9c81bc (parent aea93c782f8a1064a91d0d81a5c8d3341286a44a); current main HEAD must be re-fetched before the next source write. Prior strict Basic-auth/private-key/dbconf fixes remain on main.
-- Active scope: trunk/user/httpd/src/httpd.c, new httpd_login_policy.h and tests/httpd_login_policy.c, .github/workflows/httpd-security.yml, plus this handoff, roadmap and dev log.
-- Finding: the global login-owner timeout was measured from the first successful login. http_login_check() let the owner IP return state 3 before checking the deadline; successful subsequent protected requests did not refresh login_timestamp. Another IP could therefore expire/replace the ownership lock after 30 seconds even while the owner was active.
-- Implementation in this checkpoint: keep login_timestamp as the initial-login/NVRAM timestamp; use separate login_last_activity for the 30-second idle policy; refresh it only after a protected request's Basic credentials are accepted; clear it with session reset. The timeout calculation is factored into a private helper with host-test coverage for boundary conditions and unsigned uptime wraparound.
-- Validation: HTTPD Authentication and Security Regression run 42385373380 completed SUCCESS on exact implementation SHA cfd8da8ffa51f29795920f90b68777630a9c81bc (https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385373380). Job 128441510900 passed all steps: private-key policy, strict Basic-auth and session-policy C tests compiled/ran with GNU89 -Wall -Wextra -Werror; source wiring and route-access assertions passed. Local equivalent session-helper regression also compiled and ran. L1 PASS for this bounded change; L2 focused host regression PASS. Full MIPS firmware build, artifact inspection, fuzzing and hardware validation remain NOT VERIFIED.
-- Remote checkpoint review against current baseline aea93c782f8a1064a91d0d81a5c8d3341286a44a: refactor/bstream-tag-wire (1 ahead / 424 behind), refactor/dbapi-result-20261105 (8 ahead / 505 behind), refactor/dynlib-lifecycle (0 ahead / 428 behind), refactor/sorting-boundaries (0 ahead / 424 behind), and refactor/uarray-character-ctype (2 ahead / 422 behind). All divergent deltas are old SkipDBv2-only work; none is a viable HTTPD checkpoint.
+- Baseline main HEAD before this bounded follow-up: `8fd0a842b9599876b753c2b5b6deda4bd4feecf7` (docs-only follow-up after the idle-timeout implementation). The completed session inactivity fix is `cfd8da8ffa51f29795920f90b68777630a9c81bc`; its matching HTTPD Actions run `42385373380` passed.
+- Active task: strengthen `.github/workflows/httpd-security.yml` with a source-level regression matrix for the known `mime_handlers[]` routes. Expected public cached assets remain `need_auth=0`; dynamic pages, dynamic JS fallback, configuration/download exports, update/apply CGI, firmware/storage upgrade/restore and feature-gated handlers must stay `need_auth=1` with their intended callbacks.
+- Source review found the existing `handle_request()` auth gate runs before POST input processing and output callbacks for `need_auth` routes; localhost's auth bypass is an explicit legacy contract in `http_login_check()` and is unchanged. The already-fixed Shadowsocks `dbconf` route is included. This round adds test coverage, not a claim that the complete HTTPD attack surface is audited.
+- Code/workflow change validation state: PENDING until an Actions run matches the new source commit SHA. No production source changes are planned in this route-matrix test-only round. MIPS firmware build, artifact inspection and hardware validation remain NOT VERIFIED.
 
 ### Next exact actions
 
-1. Fetch live main and reconcile the resulting docs-only checkpoint SHA. The implementation SHA and matching successful run are verified above; do not treat the docs-only follow-up as a new test run.
-2. Continue the P1 HTTPD route audit from web_ex.c::mime_handlers[]: enumerate each conditional route and its caller/page consumer, especially apply.cgi, update.cgi, upgrade and restore handlers. Test the authorization matrix without changing existing contracts blindly.
-3. Trace logout/ACL and same-NAT behavior, then continue TLS post-handshake I/O, connection pool/FD handling, response writes, and multipart firmware/storage restore bounds.
-4. Broaden across privileged command/configuration paths, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file services, storage/hotplug and init/service lifecycle. Do not return to routine SkipDBv2 work absent a demonstrated blocker.
-5. Run make XY-C1 TOOLCHAIN=mipsel-linux-musl and inspect the full firmware artifact after the current HTTPD audit series. Until executed, L3/L4 remain NOT VERIFIED.
+1. Verify the new HTTPD Actions run against the exact implementation SHA; on failure inspect job logs and correct the contract rather than weakening it.
+2. Once matrix checks pass, add the exact commit/run evidence to this file, the roadmap and `dev_log.md`; retain HTTPD status as AUDITING, not complete.
+3. Audit source behind upgrade/restore, `do_apply_cgi`, `do_update_cgi`, and file exports. Then continue TLS I/O/connection lifecycle and expand to firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file-sharing and init/service lifecycle.
+4. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` and inspect the full firmware artifact after the HTTPD review series; until actually executed, L3/L4 remain NOT VERIFIED.
 ---
 
 **Purpose:** resume work across ChatGPT conversations. GitHub is the source of truth; re-check all values below against live repository state before acting.

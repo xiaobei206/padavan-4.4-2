@@ -1,3 +1,13 @@
+## 2026-11-07 23:16 CST — Add HTTPD MIME authorization matrix regression
+
+- Baseline main HEAD: 8fd0a842b9599876b753c2b5b6deda4bd4feecf7. Bounded P1 continuation of the unfinished HTTPD route/auth audit.
+- Source reviewed: `trunk/user/httpd/src/web_ex.c::mime_handlers[]` and `trunk/user/httpd/src/httpd.c::handle_request()`. The request path checks `need_auth` before invoking input/output callbacks; the prior `dbconf` exception is now auth-gated. Existing localhost bypass and public asset exceptions are preserved as compatibility contracts.
+- Change: extend `.github/workflows/httpd-security.yml` with a regex-based source table parser that verifies callback plus `need_auth` for explicit cached public assets and all known dynamic pages, dynamic-JS fallback, config/storage/log exports, feature-gated exports/APIs, apply/update CGI, firmware upgrade and both restore routes. Also assert that public cached JavaScript routes precede the protected `**.js` fallback. The contract parses feature-gated entries independent of the active firmware configuration.
+- Validation: PENDING — run URL/ID and result will be recorded after matching the Actions run to this exact code SHA. No local workflow execution, target build or firmware/hardware validation is claimed. Handler internals, complete CGI/EJ dataflow and the full HTTPD surface remain unaudited.
+- Next: verify this exact run; then audit `do_upgrade_fw_cgi`, `do_restore_nv_cgi`, `do_restore_st_cgi`, `do_apply_cgi`, `do_update_cgi` and sensitive file exports.
+
+---
+
 ## 2026-11-07 23:14 CST — Verify HTTPD idle-timeout regression and finalize checkpoint
 
 - Baseline main HEAD before this documentation-only follow-up: cfd8da8ffa51f29795920f90b68777630a9c81bc (implementation commit; parent aea93c782f8a1064a91d0d81a5c8d3341286a44a).

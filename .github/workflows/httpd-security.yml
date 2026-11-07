@@ -65,6 +65,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           root = Path("trunk/user/httpd/src")
           httpd = (root / "httpd.c").read_text()
@@ -119,6 +120,92 @@ jobs:
           assert "static const signed char b64_decode_table[256]" in base64
           assert "base64.o" in makefile
 
+
+          # Assert the complete known HTTPD MIME auth boundary in source,
+          # including feature-gated handlers. This parses the table rather
+          # than depending on formatting or preprocessor configuration.
+          table_start = web.index("struct mime_handler mime_handlers[] = {")
+          table_end = web.index(chr(10) + "};", table_start)
+          route_table = web[table_start:table_end]
+          route_pattern = re.compile(
+              r'^\\s*\\{\\s*"([^"]+)"\\s*,.*,\\s*(do_[A-Za-z_]\\w*)\\s*,\\s*([01])\\s*\\},'
+          )
+          routes = []
+          for route_line in route_table.splitlines():
+              match = route_pattern.match(route_line)
+              if match:
+                  routes.append((match.group(1), match.group(2), int(match.group(3))))
+          assert routes, "failed to parse the HTTPD MIME route table"
+
+          def expect_route(pattern, callback, need_auth):
+              found = [route for route in routes if route[0] == pattern]
+              assert len(found) == 1, f"expected exactly one route for {pattern}: {found}"
+              assert found[0][1:] == (callback, need_auth), (
+                  f"unexpected route policy for {pattern}: {found[0]}"
+              )
+
+          # These explicit cached assets are intentionally public and must
+          # precede the protected dynamic-JavaScript catch-all.
+          public_assets = {
+              "jquery.js": "do_file",
+              "**bootstrap.min.js": "do_file",
+              "**engage.itoggle.min.js": "do_file",
+              "**highcharts.js": "do_file",
+              "**highcharts_theme.js": "do_file",
+              "**formcontrol.js": "do_file",
+              "itoggle.js": "do_file",
+              "modem_isp.js": "do_file",
+              "client_function.js": "do_file",
+              "disk_functions.js": "do_file",
+              "md5.js": "do_file",
+              "**.css": "do_file",
+              "**.woff": "do_file",
+              "**.woff2": "do_file",
+              "**.png": "do_file",
+              "**.gif": "do_file",
+              "**.jpg": "do_file",
+              "**.ico": "do_file",
+              "**.svg": "do_file",
+          }
+          for pattern, callback in public_assets.items():
+              expect_route(pattern, callback, 0)
+
+          dynamic_js_indices = [i for i, route in enumerate(routes) if route[0] == "**.js"]
+          assert len(dynamic_js_indices) == 1, "expected one protected dynamic-JS catch-all"
+          for pattern in (
+              "jquery.js", "**bootstrap.min.js", "**engage.itoggle.min.js",
+              "**highcharts.js", "**highcharts_theme.js", "**formcontrol.js",
+              "itoggle.js", "modem_isp.js", "client_function.js",
+              "disk_functions.js", "md5.js",
+          ):
+              explicit_index = next(i for i, route in enumerate(routes) if route[0] == pattern)
+              assert explicit_index < dynamic_js_indices[0], (
+                  f"public JavaScript route {pattern} is shadowed by the dynamic-JS route"
+              )
+
+          # Every dynamic page, export, config mutation, firmware/storage
+          # upload/restore endpoint and feature-gated API must require auth.
+          protected_routes = {
+              "**.htm*": "do_ej",
+              "**.asp*": "do_ej",
+              "**.js": "do_ej",
+              "Settings_**.CFG": "do_nvram_file",
+              "Storage_**.TBZ": "do_storage_file",
+              "syslog.txt": "do_syslog_file",
+              "scutclient.log": "do_scutclient_log_file",
+              "mentohust.log": "do_mentohust_log_file",
+              "client.ovpn": "do_export_ovpn_client",
+              "applydb.cgi*": "do_applydb_cgi",
+              "dbconf": "do_dbconf",
+              "update.cgi*": "do_update_cgi",
+              "apply.cgi*": "do_apply_cgi",
+              "upgrade.cgi*": "do_upgrade_fw_cgi",
+              "restore_nv.cgi*": "do_restore_nv_cgi",
+              "restore_st.cgi*": "do_restore_st_cgi",
+          }
+          for pattern, callback in protected_routes.items():
+              expect_route(pattern, callback, 1)
+          print("HTTPD MIME authorization matrix: OK")
           # Session ownership is a 30-second idle lock, not a fixed 30 seconds
           # from first login. Preserve the initial-login timestamp for UI use.
           login_policy = (root / "httpd_login_policy.h").read_text()
