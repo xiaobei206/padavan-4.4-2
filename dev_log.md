@@ -1,3 +1,11 @@
+## 2026-11-07 19:36 CST — Repair SHash teardown CI contract indentation
+
+- Baseline: `12c6e9493175c90acfb928bbf7fc3172d445bb9e`; run #648 stopped in the Python-based firmware/source-contract step with an `IndentationError` before configuration, compilation, or CTests.
+- Cause: the newly added `SHash_free()` source-contract block left the following compaction-contract statement over-indented. Correct that single line to the surrounding Python block indentation; no production C or test behavior changed.
+- Re-run the main workflow to verify the strict source contract and all build/test stages.
+
+---
+
 ## 2026-11-07 19:35 CST — Validate SHash backing storage before teardown
 
 - Baseline: `7ab39ac305831b584354ef380914b3584ffb91f3`; main CI run #647 passed all source/integration contracts, the full build, and all 57 CTests.

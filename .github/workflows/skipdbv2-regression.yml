@@ -6695,7 +6695,7 @@ jobs:
           free_release = free_body.find("io_free(self->records);")
           if not free_body or free_guard < 0 or free_release < 0 or free_guard > free_release:
               raise SystemExit("SHash_free must validate backing storage before releasing it")
-                    compact_start = shash_source.find("void SHash_compact(SHash *self)")
+          compact_start = shash_source.find("void SHash_compact(SHash *self)")
           compact_end = shash_source.find("void SHash_copy_(", compact_start)
           compact_body = shash_source[compact_start:compact_end] if compact_start >= 0 and compact_end > compact_start else ""
           compact_tokens = ("SHash_tableInit_(&candidate, log2tableSize)",
