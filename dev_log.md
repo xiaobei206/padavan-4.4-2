@@ -1,3 +1,11 @@
+## 2026-11-07 16:35 CST — Align Date leap-year source contract with caller-owned calendar
+
+- Baseline: `e3bc72ce0d503882bc8591ef347b43ddeac3ae63`; SkipDBv2 Regression run #591 stopped in the XY-C1 source-contract stage before CMake configure/build.
+- The Date refactor correctly replaced the shared `tm` pointer with a stack-owned `calendar`, but the earlier static XY-C1 contract still required the old `tm->tm_year` expression. The dynamic Date contract had already been updated to the new storage.
+- Change the single stale Date.c source needle to `calendar.tm_year`. No C implementation, test, CMake registration, or build target changed; the next run is the compile/CTest gate.
+
+---
+
 ## 2026-11-07 16:34 CST — Use caller-owned calendar storage for Date local-time conversion
 
 - Baseline: `8a97b71efe4b30de934e0b1f130ee6c1061ac2fb`; SkipDBv2 Regression run #590 passed source contracts, configure, full build, and all 57 CTests.

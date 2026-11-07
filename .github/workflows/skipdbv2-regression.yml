@@ -1678,7 +1678,7 @@ jobs:
                   "!Date_tmYearFromCalendarYear_(v, &tmYear)",
                   "calendar.tm_year = tmYear;",
                   "long long year;",
-                  "year = (long long)tm->tm_year + 1900LL;",
+                  "year = (long long)calendar.tm_year + 1900LL;",
                   "year % 400LL == 0LL",
                   "#include <errno.h>",
                   "static int Date_calendarToTime_(struct tm *calendar, time_t *timestamp)",
