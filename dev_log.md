@@ -1,3 +1,11 @@
+## 2026-11-07 09:22 CST — Repair Datum source-contract delimiter
+
+- Baseline: main commit `957c317e258783144fa0b2b647254f12167dfd46`; SkipDBv2 Regression run #482 failed in source-contract preflight before CMake configuration or compilation.
+- The new `Datum_FromUArray_()` guard-order contract had the same double-escaped Python newline delimiter issue as a previous contract. Its function-body extraction returned empty and incorrectly failed the preflight.
+- Correct the workflow delimiter to the Python newline escape; the production guard and regression assertions remain unchanged. No new files.
+
+---
+
 ## 2026-11-07 09:20 CST — Reject malformed UArray layouts in Datum conversion
 
 - Baseline: main commit `e6d63bc90e0d8a99b7e34c8926f02002be1b53f8`; SkipDBv2 Regression run #481 passed.

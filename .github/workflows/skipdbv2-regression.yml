@@ -5001,7 +5001,7 @@ jobs:
           datum_test = Path("trunk/user/skipdbv2/skipdbv2/tests/datum_boundaries.c").read_text()
           datum_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
           from_uarray_start = datum_source.find("Datum Datum_FromUArray_(UArray *ba)")
-          from_uarray_end = datum_source.find("\\n}", from_uarray_start)
+          from_uarray_end = datum_source.find("\n}", from_uarray_start)
           from_uarray_body = datum_source[from_uarray_start:from_uarray_end] if from_uarray_start >= 0 and from_uarray_end > from_uarray_start else ""
           layout_guard = from_uarray_body.find("CTYPE_size(ba->itemType) != ba->itemSize")
           byte_view = from_uarray_body.find("UArray_bytes(ba)")
