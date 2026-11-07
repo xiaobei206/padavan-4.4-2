@@ -94,13 +94,19 @@ Datum Datum_FromPid_(PID_TYPE pid)
 Datum Datum_FromUArray_(UArray *ba)
 {
 	Datum d;
+	size_t byteCount;
 	if (NULL == ba || ba->itemSize == 0 ||
 		CTYPE_size(ba->itemType) != ba->itemSize ||
 		ba->size > (size_t)-1 / ba->itemSize ||
 		(ba->size > 0 && NULL == ba->data))
 		return Datum_Empty();
+
+	byteCount = ba->size * ba->itemSize;
+	if (byteCount == (size_t)-1)
+		return Datum_Empty();
+
 	d.data = (unsigned char *)UArray_bytes(ba);
-	d.size = UArray_sizeInBytes(ba);
+	d.size = byteCount;
 	return d;
 }
 

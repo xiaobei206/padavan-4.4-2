@@ -53,6 +53,17 @@
 
 ---
 
+## 2026-11-07 14:32 CST — Reject impossible UArray extents at the Datum boundary
+
+- Baseline: `4b531381b1dc5a19ed766bac3be67d5334725410`; SkipDBv2 Regression run #565 passed the source contracts, configure, full build, and CTest.
+- Scope: `Datum_FromUArray_` and the existing `datum_boundaries_test`.
+- The adapter checked multiplication overflow but accepted an exact `SIZE_MAX` byte extent. A forged public UArray view could therefore be exposed as a Datum span even though UArray's storage contract cannot represent that extent with its trailing terminator.
+- Compute the byte count only after the division-based overflow guard, reject the exact sentinel before obtaining the raw byte view, and reuse the checked count for the returned Datum. Extend the existing boundary test with a forged one-byte-item UArray extent; restore the fixture metadata before freeing it.
+- Extend the existing Actions source and regression contracts. The CTest target was already registered; no new files, public declarations, or CMake changes.
+- Validation: source-contract ordering now requires CTYPE validation, overflow validation, multiplication, sentinel rejection, and only then raw-byte exposure. Remote CI remains the compiler/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:29 CST — Repair DynLib fixture CMake contract gate
 
 - Baseline: `5f571bc7b3109649b292bbba49b4b5a173b69880`; run #561 failed only in the XY-C1 integration-contract step before CMake configure/build.

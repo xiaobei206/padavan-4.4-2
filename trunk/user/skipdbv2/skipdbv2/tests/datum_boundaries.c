@@ -190,6 +190,17 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 	array->itemSize /= 2;
+	{
+		size_t originalSize = array->size;
+		array->size = (size_t)-1;
+		arrayDatum = Datum_FromUArray_(array);
+		array->size = originalSize;
+		if (!check(arrayDatum.data == NULL && arrayDatum.size == 0,
+			"Datum conversion accepted an impossible SIZE_MAX UArray byte extent")) {
+			UArray_free(array);
+			return EXIT_FAILURE;
+		}
+	}
 	UArray_free(array);
 
 	if (!check(Datum_hash(&malformed) == 0 &&

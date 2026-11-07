@@ -1249,6 +1249,10 @@ jobs:
                   "static int Datum_hasValidStorage_(const Datum *self)",
                   "static int Datum_compareStorageState_(const Datum *self, const Datum *other, int *handled)",
                   "CTYPE_size(ba->itemType) != ba->itemSize",
+                  "ba->size > (size_t)-1 / ba->itemSize",
+                  "byteCount = ba->size * ba->itemSize;",
+                  "if (byteCount == (size_t)-1)",
+                  "d.size = byteCount;",
                   "int state = Datum_compareStorageState_(self, other, &handled);",
                   "if (!Datum_hasValidStorage_(self) || !Datum_hasValidStorage_(other))",
                   "if (self->data != data || self->size != size)",
@@ -1259,6 +1263,7 @@ jobs:
                   "malformed Datum must not match its own prefix or suffix",
                   "Datum conversion changed valid UArray byte spans",
                   "Datum conversion accepted a mismatched UArray item width",
+                  "Datum conversion accepted an impossible SIZE_MAX UArray byte extent",
                   "Datum boundary test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/SHash_inline.h": [
@@ -5527,9 +5532,14 @@ jobs:
           from_uarray_end = datum_source.find("\n}", from_uarray_start)
           from_uarray_body = datum_source[from_uarray_start:from_uarray_end] if from_uarray_start >= 0 and from_uarray_end > from_uarray_start else ""
           layout_guard = from_uarray_body.find("CTYPE_size(ba->itemType) != ba->itemSize")
+          overflow_guard = from_uarray_body.find("ba->size > (size_t)-1 / ba->itemSize")
+          byte_count = from_uarray_body.find("byteCount = ba->size * ba->itemSize;")
+          extent_guard = from_uarray_body.find("if (byteCount == (size_t)-1)")
           byte_view = from_uarray_body.find("UArray_bytes(ba)")
-          if not from_uarray_body or layout_guard < 0 or byte_view < 0 or layout_guard > byte_view:
-              raise SystemExit("Datum UArray conversion must validate CTYPE width before exposing raw bytes")
+          if (not from_uarray_body or min(layout_guard, overflow_guard, byte_count, extent_guard, byte_view) < 0 or
+                  not layout_guard < overflow_guard < byte_count < extent_guard < byte_view or
+                  "d.size = byteCount;" not in from_uarray_body):
+              raise SystemExit("Datum UArray conversion must reject overflow and impossible byte extents before exposing raw bytes")
           storage_helper = datum_source.find("static int Datum_compareStorageState_(")
           compare_start = datum_source.find("int Datum_compare_(")
           compare_length_start = datum_source.find("int Datum_compare_length_(")
@@ -5552,6 +5562,7 @@ jobs:
           for needle in ("Datum_compare_(&malformed, &alpha) < 0",
                          "Datum_compare_(&alpha, &malformed) > 0",
                          "Datum_beginsWith_(&malformed, &malformed) == 0",
+                         "Datum conversion accepted an impossible SIZE_MAX UArray byte extent",
                          "Datum boundary test passed"):
               if needle not in datum_test:
                   raise SystemExit("Datum boundary regression case missing: " + needle)
