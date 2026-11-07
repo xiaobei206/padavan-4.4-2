@@ -1,3 +1,13 @@
+## 2026-11-07 19:14 CST — Keep next-PID preview ahead of active reservations
+
+- Baseline: `c7066d819c5ff66873d11663229438d233ba403e`; SkipDBv2 Regression run #641 passed source contracts, configuration, full build, and all 57 CTests.
+- Scope: `UDBIndex_nextPid()` in `UDBIndexFreeList.c`.
+- During an active transaction, the allocator tracks newly reserved IDs in `self->maxPid`, while index mappings remain journaled and file EOF does not advance. The preview path used only EOF, so it could return a PID already reserved by an earlier allocation in that same transaction.
+- Mirror the allocator's `maxPid`-aware fallback with overflow and offset checks, preserving free-hole priority. Extend `udb_index_layers.c` to check preview results after reserving PID 1 and then PID 2; strengthen existing Actions source and ordering contracts.
+- Existing source/test/workflow files only; no CMake changes or new declarations. No local build/CTest result is claimed.
+
+---
+
 ## 2026-11-07 19:12 CST — Correct newline escape in UArray source contract
 
 - Failed head: `c0a947efbb97e3ebd221d4bd164eff92ab804c2d`; Actions run #640 still stopped in the source-contract checker before compilation.

@@ -201,11 +201,24 @@ int main(void)
 
     UDB_beginTransaction(db);
     first = UDB_allocPid(db);
+    if (!UDB_isOpen(db) || first != 1 ||
+        !UDBIndex_isReservedPid_(db->index, first)) {
+        fprintf(stderr, "allocator did not reserve the first PID\n");
+        goto done;
+    }
+    if (UDBIndex_nextPid(db->index) != 2) {
+        fprintf(stderr, "PID preview reused the first in-transaction reservation\n");
+        goto done;
+    }
+
     second = UDB_allocPid(db);
-    if (!UDB_isOpen(db) || first != 1 || second != 2 ||
-        !UDBIndex_isReservedPid_(db->index, first) ||
+    if (!UDB_isOpen(db) || second != 2 ||
         !UDBIndex_isReservedPid_(db->index, second)) {
-        fprintf(stderr, "allocator did not reserve consecutive PIDs\n");
+        fprintf(stderr, "allocator did not reserve the second PID\n");
+        goto done;
+    }
+    if (UDBIndex_nextPid(db->index) != 3) {
+        fprintf(stderr, "PID preview reused multiple in-transaction reservations\n");
         goto done;
     }
     /* A failed hole insertion must not change the reservation or journal. */

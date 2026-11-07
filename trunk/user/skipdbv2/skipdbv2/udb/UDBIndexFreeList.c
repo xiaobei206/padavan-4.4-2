@@ -145,7 +145,7 @@ int UDBIndex_findHoles(UDBIndex *self)
 
 PID_TYPE UDBIndex_nextPid(UDBIndex *self)
 {
-	PID_TYPE hole;
+	PID_TYPE hole, max;
 	size_t offset;
 	long end_pos;
 
@@ -162,7 +162,15 @@ PID_TYPE UDBIndex_nextPid(UDBIndex *self)
 	if (end_pos < 0 ||
 		end_pos % (long)sizeof(UDBIndexEntry) != 0)
 		return 0;
-	hole = (PID_TYPE)(end_pos / (long)sizeof(UDBIndexEntry));
+	max = (PID_TYPE)(end_pos / (long)sizeof(UDBIndexEntry));
+	/* Journaled mappings do not move EOF before commit; honour reservations. */
+	if (max <= self->maxPid) {
+		if (self->maxPid == (PID_TYPE)-1)
+			return 0;
+		hole = self->maxPid + 1;
+	} else {
+		hole = max;
+	}
 	if (!UDBIndex_offsetForPid_(hole, &offset))
 		return 0;
 	return hole;
