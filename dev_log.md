@@ -1,3 +1,13 @@
+## 2026-11-07 13:10 CST — Preserve Win32 truncate failure causes
+
+- Baseline: main commit `01cf7aa88f4b2f6a0137e9d4210d85a3a7f887ef`; Actions run #540 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: Windows implementation in `basekit/PortableTruncate.c` and its existing Actions source contract.
+- Win32 `CreateFileA`, `SetFilePointer`, `SetEndOfFile`, and `CloseHandle` failures previously returned `-1` without setting POSIX `errno`, leaving callers with stale or unrelated error details.
+- Map common Win32 file, access, handle, memory, parameter, and disk-full failures to stable errno values; preserve `GetLastError()` before closing the handle and also report close failures.
+- The existing source path is unchanged. The Windows-only branch is not locally cross-built; mainline CI checks the error-path contract and Linux build/regressions.
+
+---
+
 ## 2026-11-07 13:08 CST — Preserve Date interval precision at large timestamps
 
 - Baseline: main commit `6ea543e8997971d94527d99cb702814652a9e57a`; Actions run #539 passed source contracts, configure, full build, and all CTest regressions.
