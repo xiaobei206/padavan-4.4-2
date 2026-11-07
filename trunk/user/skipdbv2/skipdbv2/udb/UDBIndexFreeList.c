@@ -48,12 +48,26 @@ void UDBIndex_removeHole_(UDBIndex *self, PID_TYPE pid)
 	}
 }
 
-/* Add exactly one reusable PID to the free stack, checking allocation. */
+/* Add exactly one reusable PID without losing an existing hole on OOM. */
 static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)
 {
+	long existing;
+	size_t i;
+
 	if (!UDBIndex_isValid_(self) || pid == 0)
 		return 0;
-	UDBIndex_removeHole_(self, pid);
+
+	/* Keep the first existing occurrence; deduplication requires no allocation. */
+	existing = List_indexOf_(self->holes, (void *)pid);
+	if (existing >= 0) {
+		size_t first = (size_t)existing;
+		for (i = self->holes->size; i > first + 1; --i) {
+			if (self->holes->items[i - 1] == (void *)pid)
+				List_removeIndex_(self->holes, i - 1);
+		}
+		return 1;
+	}
+
 	return UDBIndex_pushAndVerify_(self->holes, (void *)pid);
 }
 
@@ -61,8 +75,11 @@ int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)
 {
 	if (!UDBIndex_isValid_(self) || pid == 0)
 		return 0;
+	/* Ownership transfers only after the reusable slot is secured. */
+	if (!UDBIndex_pushHole_(self, pid))
+		return 0;
 	UDBIndex_unreservePid_(self, pid);
-	return UDBIndex_pushHole_(self, pid);
+	return 1;
 }
 
 void UDBIndex_forgetPid_(UDBIndex *self, PID_TYPE pid)

@@ -1,3 +1,13 @@
+## 2026-11-07 10:10 CST — Preserve PID ownership when free-list insertion fails
+
+- Baseline: main commit `b967358bf153983474948e930bf94ed9f033eece`; SkipDBv2 Regression run #502 passed.
+- Scope: PID reservation and reusable-hole transitions in `udb/UDBIndexFreeList.c`.
+- `UDBIndex_releasePid_()` removed the reservation before attempting a potentially allocating free-list insertion. If the list could not grow, the function returned failure after losing both ownership states. Hole normalization also removed existing entries before allocating their replacement.
+- Secure/deduplicate an existing hole without allocation, insert before unreserving, and leave the reservation intact if insertion fails. Add a focused failed-insertion regression by temporarily making the existing list fail its storage-validity guard, plus source contracts enforcing the handoff order. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 10:08 CST — Reject PID mappings inside the data-file header
 
 - Baseline: main commit `8d0258b9f2a5d4a793705ab918e8deaa9e1473d4`; SkipDBv2 Regression run #501 passed.

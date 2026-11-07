@@ -189,7 +189,9 @@ jobs:
                   "UDBIndex_pushAndVerify_(self->reserved, (void *)pid)",
                   "UDBIndex_pushAndVerify_(self->holes, (void *)pid)",
                   "static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)",
+                  "List_indexOf_(self->holes, (void *)pid)",
                   "int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)",
+                  "if (!UDBIndex_pushHole_(self, pid))",
                   "int UDBIndex_prepareCommit(UDBIndex *self)",
                   "int UDBIndex_findHoles(UDBIndex *self)",
                   "PID_TYPE UDBIndex_allocPid(UDBIndex *self)",
@@ -217,6 +219,7 @@ jobs:
                   "allocator returned a PID whose index slot exceeds LONG_MAX",
                   "UDBIndex_setPos_forPid_(db->index, 1, (PID_TYPE)-1)",
                   "index accepted a record offset before the data header",
+                  "failed PID release discarded its reservation",
                   "overflow PID offset was accepted",
                   "UDBIndex_setPos_forPid_(db->index, 1, 2)",
                   "unreserved PID mapping changed index state",
@@ -5518,6 +5521,15 @@ jobs:
                   "if (now >= timeout)" not in interrupted or "break;" not in interrupted):
                   raise SystemExit(f"IPC {direction} EINTR retry can exceed its absolute deadline")
 
+
+          pid_free_list = Path("trunk/user/skipdbv2/skipdbv2/udb/UDBIndexFreeList.c").read_text()
+          release_start = pid_free_list.find("int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)")
+          release_end = pid_free_list.find(chr(10) + "void UDBIndex_forgetPid_", release_start)
+          release_body = pid_free_list[release_start:release_end] if release_start >= 0 and release_end > release_start else ""
+          if (release_body.find("UDBIndex_pushHole_(self, pid)") < 0 or
+              release_body.find("UDBIndex_unreservePid_(self, pid)") <
+              release_body.find("UDBIndex_pushHole_(self, pid)")):
+              raise SystemExit("PID reservation must be released only after hole insertion succeeds")
 
           udb_record_core = Path("trunk/user/skipdbv2/skipdbv2/udb/UDBRecord.c").read_text()
           for moved_definition in (

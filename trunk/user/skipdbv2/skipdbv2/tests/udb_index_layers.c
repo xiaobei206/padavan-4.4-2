@@ -93,6 +93,19 @@ int main(void)
         fprintf(stderr, "allocator did not reserve consecutive PIDs\n");
         goto done;
     }
+    /* A failed hole insertion must not drop the allocator reservation. */
+    {
+        size_t saved_holes_size = db->index->holes->size;
+        db->index->holes->size = (size_t)-1;
+        if (UDBIndex_setPos_forPid_(db->index, 0, first) != 0 ||
+            !List_contains_(db->index->reserved, (void *)first)) {
+            db->index->holes->size = saved_holes_size;
+            fprintf(stderr, "failed PID release discarded its reservation\\n");
+            goto done;
+        }
+        db->index->holes->size = saved_holes_size;
+    }
+
     if (UDBIndex_setPos_forPid_(db->index,
             (PID_TYPE)(sizeof(PID_TYPE) - 1), first) != 0 ||
         !UDBIndex_isReservedPid_(db->index, first) ||
