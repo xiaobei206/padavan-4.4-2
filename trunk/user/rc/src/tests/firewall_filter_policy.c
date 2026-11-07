@@ -13,6 +13,8 @@ main(void)
 	assert(!firewall_ppp_interface_is_safe("ppp9", 10));
 	assert(!firewall_ppp_interface_is_safe("ppp10+", 10));
 	assert(!firewall_ppp_interface_is_safe("ppp10x", 10));
+	assert(!firewall_ppp_interface_is_safe("ppp010", 10));
+	assert(!firewall_ppp_interface_is_safe("ppp00000000000010", 10));
 	assert(!firewall_ppp_interface_is_safe("ppp10\n-A INPUT -j ACCEPT", 10));
 	assert(!firewall_ppp_interface_is_safe("ppp65536", 10));
 	assert(!firewall_ppp_interface_is_safe("ppp999999999999", 10));
