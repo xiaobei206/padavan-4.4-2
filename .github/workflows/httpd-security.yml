@@ -1,0 +1,68 @@
+name: HTTPD Security Regression
+
+on:
+  push:
+    paths:
+      - ".github/workflows/httpd-security.yml"
+      - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/httpd.h"
+      - "trunk/user/httpd/src/web_ex.c"
+      - "trunk/user/httpd/src/httpd_access_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
+  pull_request:
+    paths:
+      - ".github/workflows/httpd-security.yml"
+      - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/httpd.h"
+      - "trunk/user/httpd/src/web_ex.c"
+      - "trunk/user/httpd/src/httpd_access_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  httpd-security:
+    name: Private-key disclosure policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compile and run policy regression
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_private_key_policy.c \
+            -o /tmp/httpd_private_key_policy
+          /tmp/httpd_private_key_policy
+
+      - name: Verify HTTPD access-control wiring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("trunk/user/httpd/src")
+          httpd = (root / "httpd.c").read_text()
+          web = (root / "web_ex.c").read_text()
+
+          getter_start = httpd.index("get_login_private_key_access(void)")
+          getter_end = httpd.index("\nstatic void\nhttp_login", getter_start)
+          getter = httpd[getter_start:getter_end]
+          assert "httpd_private_key_access_allowed(login_ip.len != 0, login_safe)" in getter
+          assert "http_is_ssl" not in getter
+
+          dump_start = web.index("static int\ndump_file(")
+          dump_end = web.index("static int\nej_dump", dump_start)
+          dump = web[dump_start:dump_end]
+          assert 'get_login_private_key_access()' in dump
+          assert 'strcmp(extensions, ".key") == 0' in dump
+
+          # Preserve the existing HTTPS allowance for unrelated remote-admin
+          # operations; the private-key policy is intentionally narrower.
+          assert "if (http_is_ssl)\n\t\treturn 1;" in httpd
+          print("HTTPD private-key access policy and call-site wiring: OK")
+          PY
