@@ -37,6 +37,10 @@ on:
       - "trunk/user/rc/src/tests/firewall_filter_policy.c"
       - "trunk/user/rc/src/firewall_rule_file.h"
       - "trunk/user/rc/src/tests/firewall_rule_file.c"
+      - "trunk/user/rc/src/firewall_hook_file.h"
+      - "trunk/user/rc/src/tests/firewall_hook_file.c"
+      - "trunk/user/adbyby/adbyby.sh"
+      - "trunk/user/adbyby/tests/firewall_snapshot.sh"
   pull_request:
     paths:
       - ".github/workflows/httpd-security.yml"
@@ -73,6 +77,10 @@ on:
       - "trunk/user/rc/src/tests/firewall_filter_policy.c"
       - "trunk/user/rc/src/firewall_rule_file.h"
       - "trunk/user/rc/src/tests/firewall_rule_file.c"
+      - "trunk/user/rc/src/firewall_hook_file.h"
+      - "trunk/user/rc/src/tests/firewall_hook_file.c"
+      - "trunk/user/adbyby/adbyby.sh"
+      - "trunk/user/adbyby/tests/firewall_snapshot.sh"
   workflow_dispatch:
 
 permissions:
@@ -153,6 +161,45 @@ jobs:
             trunk/user/rc/src/tests/firewall_rule_file.c \
             -o /tmp/firewall_rule_file
           /tmp/firewall_rule_file
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/firewall_hook_file.c \
+            -o /tmp/firewall_hook_file
+          /tmp/firewall_hook_file
+
+      - name: Verify add-on firewall hook staging
+        run: |
+          set -eu
+          sh -n trunk/user/adbyby/adbyby.sh
+          sh -n trunk/user/adbyby/tests/firewall_snapshot.sh
+          sh trunk/user/adbyby/tests/firewall_snapshot.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          firewall = Path("trunk/user/rc/src/firewall_ex.c").read_text()
+          helper = Path("trunk/user/rc/src/firewall_hook_file.h").read_text()
+          helper_test = Path("trunk/user/rc/src/tests/firewall_hook_file.c").read_text()
+          adbyby = Path("trunk/user/adbyby/adbyby.sh").read_text()
+          dev_init = Path("trunk/user/scripts/files/sbin/dev_init.sh").read_text()
+          dispatch = firewall[firewall.index("start_firewall_ex(void)"):]
+          assert '#include "firewall_hook_file.h"' in firewall
+          assert "O_NOFOLLOW" in helper and "st_uid != geteuid()" in helper
+          assert "st_nlink != 1" in helper and "FIREWALL_HOOK_FILE_MAX_BYTES" in helper
+          assert "firewall_hook_file_stage(" in dispatch
+          assert 'doSystem("sh %s", shadowsocks_staged);' in dispatch
+          assert 'doSystem("sh %s", shadowsocks_iptables_script);' not in dispatch
+          assert "firewall_hook_file_remove(shadowsocks_staged);" in dispatch
+          assert '"/tmp/shadowsocks_iptables.save"' in dispatch
+          assert '"/home/root/.adbyby.save"' in dispatch
+          assert '"/tmp/adbyby.save"' not in dispatch
+          assert "symlink(src,linkp)" in helper_test
+          assert "S_IWGRP | S_IWOTH" in helper
+          assert "save_adbyby_rule_snapshot" in adbyby
+          assert 'final_file="$save_dir/.adbyby.save"' in adbyby
+          assert 'umask 077' in adbyby and 'mv -f "$next_file" "$final_file"' in adbyby
+          assert "/tmp/adbyby.save" not in adbyby
+          assert "mkdir -p -m 700 /home/root" in dev_init
+          print("Add-on firewall hook provenance, private staging and snapshot contracts: OK")
+          PY
 
       - name: Check root-managed executable script staging
         run: |

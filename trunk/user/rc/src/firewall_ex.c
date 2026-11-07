@@ -30,6 +30,9 @@
 #include "rc.h"
 #include "firewall_filter_policy.h"
 #include "firewall_rule_file.h"
+#if defined (APP_SHADOWSOCKS)
+#include "firewall_hook_file.h"
+#endif
 
 #define foreach_x(x)		for (i=0; i<nvram_get_int(x); i++)
 
@@ -2279,6 +2282,9 @@ void
 start_firewall_ex(void)
 {
 	int unit, wan_proto, i_tcp_mss, i_use_man, i_rp;
+#if defined (APP_SHADOWSOCKS)
+	char shadowsocks_staged[256] = {0};
+#endif
 	char logaccept[16], logdrop[16];
 	char wan_if[16], man_if[16], lan_if[16];
 	char wan_ip[16], man_ip[16], lan_ip[16], lan_net[24] = {0};
@@ -2288,7 +2294,7 @@ start_firewall_ex(void)
 	const char *shadowsocks_iptables_script = "/tmp/shadowsocks_iptables.save";
 #endif
 #if defined (APP_ADBYBY)
-	const char *adbyby_iptables = "/tmp/adbyby.save";
+	const char *adbyby_iptables = "/home/root/.adbyby.save";
 #endif
 	unit = 0;
 
@@ -2360,8 +2366,13 @@ start_firewall_ex(void)
 #endif
 
 #if defined (APP_SHADOWSOCKS)
-	if (check_if_file_exist(shadowsocks_iptables_script))
-		doSystem("sh %s", shadowsocks_iptables_script);
+	/* /tmp is shared-writable: execute only a validated private snapshot. */
+	if (firewall_hook_file_stage(shadowsocks_iptables_script, "/home/root",
+				     ".firewall-hook-", shadowsocks_staged,
+				     sizeof(shadowsocks_staged)) == 0) {
+		doSystem("sh %s", shadowsocks_staged);
+		firewall_hook_file_remove(shadowsocks_staged);
+	}
 #endif
 #if defined (APP_ADBYBY)
 	if (check_if_file_exist(adbyby_iptables))

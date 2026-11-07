@@ -257,6 +257,33 @@ del_dns()
 }
 
 
+save_adbyby_rule_snapshot()
+(
+	# /home/root is a 0700 tmpfs directory created by dev_init.sh.
+	save_dir="${1:-/home/root}"
+	[ -d "$save_dir" ] && [ ! -L "$save_dir" ] || return 1
+	umask 077
+	raw_file="$save_dir/.adbyby-save.raw.$$"
+	next_file="$save_dir/.adbyby-save.next.$$"
+	final_file="$save_dir/.adbyby.save"
+	( set -C; : > "$raw_file" ) 2>/dev/null || return 1
+	if ! iptables-save > "$raw_file"; then
+		rm -f "$raw_file" "$next_file"; return 1
+	fi
+	if ! grep -E "ADBYBY|^\\*|^COMMIT" "$raw_file" >/dev/null; then
+		rm -f "$raw_file" "$next_file"; return 1
+	fi
+	( set -C; : > "$next_file" ) 2>/dev/null || { rm -f "$raw_file"; return 1; }
+	if ! grep -E "ADBYBY|^\\*|^COMMIT" "$raw_file" | sed -e "s/^-A \\(OUTPUT\\|PREROUTING\\)/-I \\1 1/" > "$next_file"; then
+		rm -f "$raw_file" "$next_file"; return 1
+	fi
+	if [ ! -s "$next_file" ] || ! chmod 600 "$next_file" ||
+	   ! mv -f "$next_file" "$final_file"; then
+		rm -f "$raw_file" "$next_file"; return 1
+	fi
+	rm -f "$raw_file"
+)
+
 add_rule()
 {
 	$ipt_n -N ADBYBY
@@ -271,11 +298,10 @@ add_rule()
 	ip_rule
 	logger -t "adbyby" "添加8118透明代理端口。"
 	$ipt_n -I PREROUTING -p tcp --dport 80 -j ADBYBY
-	iptables-save | grep -E "ADBYBY|^\*|^COMMIT" | sed -e "s/^-A \(OUTPUT\|PREROUTING\)/-I \1 1/" > /tmp/adbyby.save
-	if [ -f "/tmp/adbyby.save" ]; then
-	logger -t "adbyby" "保存adbyby防火墙规则成功！"
+	if save_adbyby_rule_snapshot; then
+		logger -t "adbyby" "保存adbyby防火墙规则成功！"
 	else
-	logger -t "adbyby" "保存adbyby防火墙规则失败！可能会造成重启后过滤广告失效，需要手动关闭再打开ADBYBY！"
+		logger -t "adbyby" "保存adbyby防火墙规则失败！可能会造成重启后过滤广告失效，需要手动关闭再打开ADBYBY！"
 	fi
 }
 
