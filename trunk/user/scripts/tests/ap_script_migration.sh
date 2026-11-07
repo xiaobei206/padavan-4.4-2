@@ -6,7 +6,7 @@ bin_dir="$tests_dir/../files/usr/bin"
 helper="$bin_dir/ap_script_migrate.sh"
 template="$bin_dir/ap_script.sh"
 fixture="$tests_dir/fixtures/ap_script_legacy_stock.sh"
-work=$(mktemp -d "\${TMPDIR:-/tmp}/ap-script-migration.XXXXXX")
+work=$(mktemp -d "/tmp/ap-script-migration.XXXXXX")
 trap 'rm -rf "$work"' 0 HUP INT TERM
 
 [ -x "$helper" ]

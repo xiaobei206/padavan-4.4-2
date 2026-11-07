@@ -4,7 +4,6 @@
 # symlinked, or otherwise unknown persistent scripts are deliberately kept.
 #
 LEGACY_SHA256=8d94a244022c46b6f5e921065fd6b6cadcaa58134a034f8332a8fc12b5af3251
-LEGACY_MD5=4cbed2e1966388cc19868b9c5d0bb69c
 
 if [ "$#" -ne 2 ]; then
 	exit 2
@@ -28,12 +27,8 @@ if command -v sha256sum >/dev/null 2>&1; then
 	digest_line=$(sha256sum "$stored_script" 2>/dev/null) || exit 0
 	digest=$(printf '%s\n' "$digest_line" | cut -d ' ' -f 1)
 	[ "$digest" = "$LEGACY_SHA256" ] || exit 0
-elif command -v md5sum >/dev/null 2>&1; then
-	digest_line=$(md5sum "$stored_script" 2>/dev/null) || exit 0
-	digest=$(printf '%s\n' "$digest_line" | cut -d ' ' -f 1)
-	[ "$digest" = "$LEGACY_MD5" ] || exit 0
 else
-	logger -t "AP script migration" "checksum applet unavailable; preserving persistent script" 2>/dev/null || :
+	logger -t "AP script migration" "sha256sum unavailable; preserving persistent script" 2>/dev/null || :
 	exit 0
 fi
 
