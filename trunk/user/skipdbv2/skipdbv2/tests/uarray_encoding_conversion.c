@@ -52,6 +52,43 @@ static int preserves_embedded_nul_as_utf8(void *bytes, CTYPE type,
     return result;
 }
 
+
+static int preserves_embedded_nul_as_utf16_utf32(void *bytes, CTYPE type,
+    CENCODING encoding, size_t count)
+{
+    static const uint16_t expected16[] = {'A', 0, 'B'};
+    static const uint32_t expected32[] = {'A', 0, 'B'};
+    UArray *source = UArray_newWithData_type_encoding_size_copy_(
+        bytes, type, encoding, count, 1);
+    UArray *converted16 = NULL;
+    UArray *converted32 = NULL;
+    int result = 0;
+
+    if (NULL == source)
+        return 0;
+    converted16 = UArray_asUTF16(source);
+    converted32 = UArray_asUTF32(source);
+    result = converted16 != NULL &&
+        converted16->encoding == CENCODING_UTF16 &&
+        converted16->itemType == CTYPE_uint16_t &&
+        converted16->itemSize == sizeof(uint16_t) &&
+        converted16->size == sizeof(expected16) / sizeof(expected16[0]) &&
+        converted16->data != NULL &&
+        memcmp(converted16->data, expected16, sizeof(expected16)) == 0 &&
+        converted32 != NULL &&
+        converted32->encoding == CENCODING_UTF32 &&
+        converted32->itemType == CTYPE_uint32_t &&
+        converted32->itemSize == sizeof(uint32_t) &&
+        converted32->size == sizeof(expected32) / sizeof(expected32[0]) &&
+        converted32->data != NULL &&
+        memcmp(converted32->data, expected32, sizeof(expected32)) == 0;
+
+    UArray_free(converted32);
+    UArray_free(converted16);
+    UArray_free(source);
+    return result;
+}
+
 int main(void)
 {
 	static const unsigned char ascii_bytes[] = {0x41, 0x42};
@@ -167,8 +204,14 @@ int main(void)
 			!preserves_embedded_nul_as_utf8(embedded_utf16, CTYPE_uint16_t,
 				CENCODING_UTF16, sizeof(embedded_utf16) / sizeof(embedded_utf16[0])) ||
 			!preserves_embedded_nul_as_utf8(embedded_utf32, CTYPE_uint32_t,
+				CENCODING_UTF32, sizeof(embedded_utf32) / sizeof(embedded_utf32[0])) ||
+			!preserves_embedded_nul_as_utf16_utf32(embedded_utf8, CTYPE_uint8_t,
+				CENCODING_UTF8, sizeof(embedded_utf8)) ||
+			!preserves_embedded_nul_as_utf16_utf32(embedded_utf16, CTYPE_uint16_t,
+				CENCODING_UTF16, sizeof(embedded_utf16) / sizeof(embedded_utf16[0])) ||
+			!preserves_embedded_nul_as_utf16_utf32(embedded_utf32, CTYPE_uint32_t,
 				CENCODING_UTF32, sizeof(embedded_utf32) / sizeof(embedded_utf32[0]))) {
-			fprintf(stderr, "UTF-8 conversion truncated data after an embedded NUL\n");
+			fprintf(stderr, "UTF-16/UTF-32 conversion truncated data after an embedded NUL\n");
 			goto done;
 		}
 	}

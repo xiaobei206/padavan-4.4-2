@@ -2110,10 +2110,7 @@ jobs:
                   "if (self->encoding == CENCODING_UTF16 || self->encoding == CENCODING_UTF32)",
                   "targetStart - (UTF8 *)out->data",
                   "outLength = self->size;",
-                  "static int UArray_truncateAfterConvertToEncoding_(UArray *self)",
-                  "if (self->size > (size_t)LONG_MAX)",
-                  "return self->size == (size_t)newSize;",
-                  "if (!UArray_truncateAfterConvertToEncoding_(out))",
+                  "UArray is length-delimited; embedded U+0000 is data, not a terminator.",
                   "if (NULL == a)",
                   "if (self->encoding != CENCODING_UTF16) {",
                   "targetStart - (UTF16 *)out->data",
@@ -4687,14 +4684,8 @@ jobs:
                   "targetStart - (UTF8 *)out->data" not in utf8_body or
                   "outLength = self->size;" not in utf8_body):
               raise SystemExit("UArray UTF-8 conversion must retain the complete length-delimited source or converted span")
-          truncate_start = encoding_source.find("static int UArray_truncateAfterConvertToEncoding_(UArray *self)")
-          truncate_end = encoding_source.find("\nint UArray_convertToFixedSizeType", truncate_start)
-          truncate_body = encoding_source[truncate_start:truncate_end] if truncate_start >= 0 and truncate_end > truncate_start else ""
-          if (not truncate_body or "if (self->size > (size_t)LONG_MAX)" not in truncate_body or
-                  "if (newSize == -1)" not in truncate_body or
-                  "UArray_setSize_(self, (size_t)newSize);" not in truncate_body or
-                  "return self->size == (size_t)newSize;" not in truncate_body):
-              raise SystemExit("UArray conversion truncation must propagate failed resize and bound its search index")
+          if "UArray_truncateAfterConvertToEncoding_" in encoding_source:
+              raise SystemExit("length-delimited UTF-16/UTF-32 conversions must preserve embedded U+0000")
           utf16_start = encoding_source.find("UArray *UArray_asUTF16(const UArray *self)")
           utf16_end = encoding_source.find("UArray *UArray_asUTF32(const UArray *self)", utf16_start)
           utf16_body = encoding_source[utf16_start:utf16_end] if utf16_start >= 0 and utf16_end > utf16_start else ""
@@ -4704,9 +4695,11 @@ jobs:
           if (not utf16_body or "targetStart - (UTF16 *)out->data" not in utf16_body or
                   "UArray_setSize_(out, convertedSize);" not in utf16_body or
                   "if (out->size != convertedSize)" not in utf16_body or
+                  "UArray is length-delimited; embedded U+0000 is data, not a terminator." not in utf16_body or
                   not utf32_body or "targetStart - (UTF32 *)out->data" not in utf32_body or
                   "UArray_setSize_(out, convertedSize);" not in utf32_body or
-                  "if (out->size != convertedSize)" not in utf32_body):
+                  "if (out->size != convertedSize)" not in utf32_body or
+                  "UArray is length-delimited; embedded U+0000 is data, not a terminator." not in utf32_body):
               raise SystemExit("UTF-16/UTF-32 conversion must size the output from the converter cursor and verify the resize")
           fixed_start = encoding_source.find("int UArray_convertToFixedSizeType(UArray *self)")
           fixed_end = encoding_source.find("\nint UArray_isMultibyte", fixed_start)
@@ -4747,7 +4740,8 @@ jobs:
           encoding_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_encoding_conversion.c").read_text()
           for needle in ("UArray_convertToFixedSizeType(NULL)", "0x00a2", "0x20ac",
                          "0x1f4a9", "preserves_embedded_nul_as_utf8",
-                         "UTF-8 conversion truncated data after an embedded NUL",
+                         "preserves_embedded_nul_as_utf16_utf32",
+                         "UTF-16/UTF-32 conversion truncated data after an embedded NUL",
                          "invalid UTF-8 conversion reported success or changed the source",
                          "UArray multibyte detection accepted a wide item type over byte storage"):
               if needle not in encoding_test:

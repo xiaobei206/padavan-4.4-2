@@ -88,26 +88,7 @@ int UArray_maxCharSize(const UArray *self)
 	return self->itemSize <= INT_MAX ? (int)self->itemSize : -1;
 }
 
-static int UArray_truncateAfterConvertToEncoding_(UArray *self)
-{
-	long newSize;
-	if (NULL == self)
-		return 0;
-	if (self->encoding == CENCODING_NUMBER)
-		return 1;
-	if (self->size > (size_t)LONG_MAX)
-		return 0;
-	{
-		UArray tmp = UArray_stackAllocedWithData_type_size_("\0", CTYPE_uint8_t, 1);
-		newSize = UArray_find_(self, &tmp);
-	}
-	if (newSize == -1)
-		return 1;
-	if (newSize < 0 || (size_t)newSize > self->size)
-		return 0;
-	UArray_setSize_(self, (size_t)newSize);
-	return self->size == (size_t)newSize;
-}
+
 int UArray_convertToFixedSizeType(UArray *self)
 {
 	int maxCharSize;
@@ -409,15 +390,12 @@ UArray *UArray_asUTF16(const UArray *self)
 	}
 	if (self->encoding != CENCODING_UTF16) {
 		size_t convertedSize = (size_t)(targetStart - (UTF16 *)out->data);
+		/* UArray is length-delimited; embedded U+0000 is data, not a terminator. */
 		UArray_setSize_(out, convertedSize);
 		if (out->size != convertedSize) {
 			UArray_free(out);
 			return NULL;
 		}
-	}
-	if (!UArray_truncateAfterConvertToEncoding_(out)) {
-		UArray_free(out);
-		return NULL;
 	}
 	return out;
 }
@@ -492,15 +470,12 @@ UArray *UArray_asUTF32(const UArray *self)
 	}
 	if (self->encoding != CENCODING_UTF32) {
 		size_t convertedSize = (size_t)(targetStart - (UTF32 *)out->data);
+		/* UArray is length-delimited; embedded U+0000 is data, not a terminator. */
 		UArray_setSize_(out, convertedSize);
 		if (out->size != convertedSize) {
 			UArray_free(out);
 			return NULL;
 		}
-	}
-	if (!UArray_truncateAfterConvertToEncoding_(out)) {
-		UArray_free(out);
-		return NULL;
 	}
 	return out;
 }

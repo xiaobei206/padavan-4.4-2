@@ -1,3 +1,13 @@
+## 2026-11-07 12:10 CST — Preserve embedded NUL across UTF-16/UTF-32 conversions
+
+- Baseline: main commit `8789c433a53345b74b46d5493de577bf50672397`; SkipDBv2 Regression run #518 passed source contracts, configure, full build, and CTest.
+- Scope: `UArray_asUTF16()` / `UArray_asUTF32()` in `basekit/UArray_utf.c`, their existing encoding-conversion regression, and the existing Actions source contract.
+- Both conversion paths treated UArray's length-delimited content as a NUL-terminated string after conversion. The post-conversion scan truncated at the first U+0000, silently discarding all following UTF-16/UTF-32 elements even though the converter cursor had already established the exact output length.
+- Remove the obsolete NUL-scan helper and retain the converter-derived element count. Extend the existing regression across UTF-8, UTF-16, and UTF-32 inputs to verify both target encodings preserve the complete `A\0B` sequence. Keep source-contract checks aligned with the length-delimited invariant.
+- Existing CMake/CTest target reused; no new files or CMake changes. No local C build or CTest run is claimed; mainline CI is the compile/runtime gate.
+
+---
+
 ## 2026-11-07 11:52 CST — Repair UArray bit-count Actions contract placement
 
 - Baseline: main commit `15a34fe809d5b35d7c0cff0aaa8614ca0f301e99`; run #517 failed before configure because a Python ordering assertion had been inserted inside the workflow's source-contract dictionary.
