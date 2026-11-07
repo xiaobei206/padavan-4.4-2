@@ -196,9 +196,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'M':
-						if (*buf == 0 || isspace((unsigned char)*buf))
-								break;
-
 						i = readndigits(&buf, 2);
 						if (i < 0 || i > 59)
 								return NULL;
@@ -208,9 +205,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'S':
-						if (*buf == 0 || isspace((unsigned char)*buf))
-								break;
-
 						i = readndigits(&buf, 2);
 						if (i < 0 || i > 60) // Earlier 61 was also allowed.
 								return NULL;
@@ -277,9 +271,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'Y':
-						if (*buf == 0 || isspace((unsigned char)*buf))
-								break;
-
 						if (!isdigit((unsigned char)*buf))
 								return NULL;
 
@@ -292,9 +283,6 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						break;
 
 				case 'y':
-						if (*buf == 0 || isspace((unsigned char)*buf))
-								break;
-
 						if (!isdigit((unsigned char)*buf))
 								return NULL;
 

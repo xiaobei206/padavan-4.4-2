@@ -1,3 +1,13 @@
+## 2026-11-07 12:23 CST — Reject absent numeric fields in PortableStrptime directives
+
+- Baseline: main commit `5656f3584628978f366ddafe2a65c3bd37cf0375`; SkipDBv2 Regression run #526 passed source contracts, configure, full build, and CTest.
+- Scope: numeric `%M`, `%S`, `%Y`, and `%y` parsing in `basekit/PortableStrptime.c`, using the existing `portable_strptime_bounds` test.
+- These directives treated an empty or whitespace-only input field as an optional success and left the corresponding `struct tm` field untouched. A truncated timestamp such as a format ending in `%M` could therefore be reported as parsed despite the required numeric field never appearing.
+- Remove the silent-skip branches. Existing digit/range checks now reject missing and whitespace-only fields consistently; add regression coverage for all four directives.
+- Reuse the existing CMake/CTest target and workflow contract blocks. No new files and no local build/CTest claim.
+
+---
+
 ## 2026-11-07 12:20 CST — Correct Date_fromTime_ source-contract delimiter
 
 - Baseline: main commit `97d3fa3005cf11f0f22983bcac661597e43ed260`; SkipDBv2 Regression run #525 stopped in source-contract preflight.

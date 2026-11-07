@@ -21,6 +21,8 @@ int main(void)
     char hour[] = "12";
     char format[] = "%Y-%m-%d";
     char month_format[] = "%M";
+    char second_format[] = "%S";
+    char full_year_format[] = "%Y";
     char hour_format[] = "%H";
     char yday_format[] = "%j";
     char yday_empty[] = "";
@@ -74,6 +76,14 @@ int main(void)
     memset(&invalid, 0, sizeof(invalid));
     if (io_strptime(truncated, format, &invalid) != NULL ||
         io_strptime(empty, hour_format, &invalid) != NULL ||
+        io_strptime(empty, month_format, &invalid) != NULL ||
+        io_strptime(yday_space, month_format, &invalid) != NULL ||
+        io_strptime(empty, second_format, &invalid) != NULL ||
+        io_strptime(yday_space, second_format, &invalid) != NULL ||
+        io_strptime(empty, full_year_format, &invalid) != NULL ||
+        io_strptime(yday_space, full_year_format, &invalid) != NULL ||
+        io_strptime(empty, year_format, &invalid) != NULL ||
+        io_strptime(yday_space, year_format, &invalid) != NULL ||
         io_strptime(alpha, month_format, &invalid) != NULL ||
         io_strptime(high_byte, hour_format, &invalid) != NULL ||
         io_strptime(hour, high_byte_format, &invalid) != NULL) {
