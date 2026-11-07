@@ -1,3 +1,13 @@
+## 2026-11-07 10:04 CST — Reject tagged pointers wider than intptr_t
+
+- Baseline: main commit `55a299d93bd842bb5f6404cba0f708dd0e7a4abf`; SkipDBv2 Regression run #499 passed.
+- Scope: tagged pointer decoding in `basekit/BStream.c`.
+- The 8-byte pointer-tag path cast an `int64_t` directly to `intptr_t`. On 32-bit builds, values outside the platform's signed pointer-width range were silently truncated, producing a different pointer value without setting the stream error.
+- Decode into a temporary, preserve existing read errors, and reject out-of-range values before the cast. Add an architecture-sensitive regression to the existing BStream boundary test and enforce the guard in the Actions source contract. Existing CMake/CTest target is unchanged; no new files.
+- No local compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 10:02 CST — Preserve cached headers when the record stream is closed
 
 - Baseline: main commit `faa375bd8bf8d92ae35284fbf2d5fceff25978fc`; SkipDBv2 Regression run #498 passed.

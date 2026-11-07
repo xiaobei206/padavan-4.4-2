@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+
+extern intptr_t BStream_readTaggedPointer(BStream *self);
 
 /* Internal writer is exercised here to test raw wire-field range checks. */
 extern void BStream_writeTag(BStream *self, unsigned int t, unsigned int b, unsigned int a);
@@ -612,6 +615,56 @@ static int testBStreamTagWriterFieldBounds(void)
 }
 
 
+#if !defined(__SYMBIAN32__)
+static int testBStreamTaggedPointerWidth(void)
+{
+	BStream *stream = BStream_new();
+	unsigned char wire[1 + sizeof(int64_t)];
+	int64_t encoded;
+	intptr_t decoded;
+	const char *error;
+
+	if (NULL == stream)
+		return fail("BStream tagged pointer fixture allocation failed");
+
+	encoded = INT64_C(1234567);
+	wire[0] = (unsigned char)((BSTREAM_POINTER << 5) | sizeof(encoded));
+	memcpy(wire + 1, &encoded, sizeof(encoded));
+	BStream_setData_length_(stream, wire, sizeof(wire));
+	decoded = BStream_readTaggedPointer(stream);
+	error = BStream_errorString(stream);
+	if (decoded != (intptr_t)encoded ||
+		(NULL != error && error[0] != '\0')) {
+		BStream_free(stream);
+		return fail("in-range tagged pointer was decoded incorrectly");
+	}
+
+	if (sizeof(intptr_t) < sizeof(int64_t)) {
+		encoded = (int64_t)INTPTR_MAX + INT64_C(1);
+	} else {
+		encoded = INT64_MAX;
+	}
+	memcpy(wire + 1, &encoded, sizeof(encoded));
+	BStream_setData_length_(stream, wire, sizeof(wire));
+	decoded = BStream_readTaggedPointer(stream);
+	error = BStream_errorString(stream);
+	if (sizeof(intptr_t) < sizeof(int64_t)) {
+		if (decoded != 0 || NULL == error || error[0] == '\0' ||
+			strcmp(error, "tagged pointer exceeds platform width") != 0) {
+			BStream_free(stream);
+			return fail("out-of-range tagged pointer was silently truncated");
+		}
+	} else if (decoded != (intptr_t)encoded ||
+		(NULL != error && error[0] != '\0')) {
+		BStream_free(stream);
+		return fail("native-width tagged pointer was rejected");
+	}
+
+	BStream_free(stream);
+	return EXIT_SUCCESS;
+}
+#endif
+
 int main(void)
 {
 	unsigned int arrayFlag, type, byteCount;
@@ -661,6 +714,10 @@ int main(void)
 		return EXIT_FAILURE;
 	if (testBStreamAliasedWrites() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
+#if !defined(__SYMBIAN32__)
+	if (testBStreamTaggedPointerWidth() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+#endif
 	puts("BStreamTag boundaries test passed");
 	return EXIT_SUCCESS;
 }

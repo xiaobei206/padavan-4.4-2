@@ -16,6 +16,7 @@ license
 #include <stdlib.h>
 #include <math.h>
 #include <limits.h>
+#include <stdint.h>
 
 #define BSTREAM_IS_BIG_ENDIAN 1
 
@@ -961,7 +962,15 @@ intptr_t BStream_readTaggedPointer(BStream *self)
 #if !defined(__SYMBIAN32__)
 	if (t.byteCount == 8)
 	{
-		return (intptr_t)BStream_readInt64(self);
+		int64_t value = BStream_readInt64(self);
+		if (UArray_size(self->errorBa) != 0)
+			return 0;
+		if (sizeof(intptr_t) < sizeof(value) &&
+			(value > (int64_t)INTPTR_MAX || value < (int64_t)INTPTR_MIN)) {
+			BStream_error_(self, "tagged pointer exceeds platform width");
+			return 0;
+		}
+		return (intptr_t)value;
 	}
 #endif
 
