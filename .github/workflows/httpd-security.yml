@@ -1202,7 +1202,7 @@ jobs:
           recreate_start = shared.index("recreate_passwd_unix(int force_create)")
           recreate_end = shared.index("\nint\n_eval", recreate_start)
           recreate = shared[recreate_start:recreate_end]
-          assert recreate.index("router_account_name_is_valid(usernm)") < recreate.index('fprintf(fp1, "%s:x:%d:%d')
+          assert recreate.index("router_account_name_is_valid(usernm)") < recreate.index("usernm, uid, uid)")
           assert "router_account_name_is_reserved(usernm, rootnm)" in recreate
           assert 'strcmp(usernm, "anonymous")' in recreate
           assert "duplicate" in recreate and "acc_username%d" in recreate
