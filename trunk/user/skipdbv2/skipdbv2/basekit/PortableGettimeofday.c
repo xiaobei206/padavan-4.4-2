@@ -15,6 +15,8 @@
 			{
 				TIME_ZONE_INFORMATION zoneInfo;
 				struct _timeb timeb;
+				DWORD zoneStatus;
+				LONG bias;
 				int status;
 
 				if (NULL == tv)
@@ -34,9 +36,15 @@
 
 				if (tz)
 				{
-					if (GetTimeZoneInformation(&zoneInfo) != TIME_ZONE_ID_INVALID)
+					zoneStatus = GetTimeZoneInformation(&zoneInfo);
+					if (zoneStatus != TIME_ZONE_ID_INVALID)
 					{
-						tz->tz_minuteswest = zoneInfo.Bias;
+						bias = zoneInfo.Bias;
+						if (zoneStatus == TIME_ZONE_ID_STANDARD)
+							bias += zoneInfo.StandardBias;
+						else if (zoneStatus == TIME_ZONE_ID_DAYLIGHT)
+							bias += zoneInfo.DaylightBias;
+						tz->tz_minuteswest = (int)bias;
 						tz->tz_dsttime = 0;
 					}
 					else

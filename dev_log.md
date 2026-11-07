@@ -1,3 +1,13 @@
+## 2026-11-07 09:23 CST — Include active DST bias in Windows timezone offsets
+
+- Baseline: main commit `737d63b496a45e427cf64f339aab7b408a6638e5`; SkipDBv2 Regression run #483 passed.
+- Scope: Windows adapter in `basekit/PortableGettimeofday.c`.
+- The adapter reported only `TIME_ZONE_INFORMATION.Bias`, omitting `StandardBias` or `DaylightBias` when Windows reported the current seasonal mode. Callers requesting `struct timezone` therefore received the base-zone offset instead of the active local offset during adjusted time.
+- Apply the bias corresponding to `TIME_ZONE_ID_STANDARD` or `TIME_ZONE_ID_DAYLIGHT`, retaining the base bias for `TIME_ZONE_ID_UNKNOWN`. Extend the existing Actions source contract; no new files or test/CMake changes. The Windows branch cannot be executed by the Linux runner.
+- No local Windows or C compilation is claimed; mainline CI remains the available validation gate.
+
+---
+
 ## 2026-11-07 09:22 CST — Repair Datum source-contract delimiter
 
 - Baseline: main commit `957c317e258783144fa0b2b647254f12167dfd46`; SkipDBv2 Regression run #482 failed in source-contract preflight before CMake configuration or compilation.

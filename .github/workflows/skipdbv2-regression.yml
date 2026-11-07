@@ -1383,6 +1383,12 @@ jobs:
                   "if (NULL == tv)",
                   "status = (int)_ftime_s(&timeb);",
                   "errno = status;",
+                  "zoneStatus = GetTimeZoneInformation(&zoneInfo);",
+                  "zoneStatus == TIME_ZONE_ID_STANDARD",
+                  "bias += zoneInfo.StandardBias;",
+                  "zoneStatus == TIME_ZONE_ID_DAYLIGHT",
+                  "bias += zoneInfo.DaylightBias;",
+                  "tz->tz_minuteswest = (int)bias;",
                   "if (gettimeofday(&tv, &tz) != 0)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PortableGettimeofday.h": [
@@ -4953,6 +4959,12 @@ jobs:
                   "if (NULL == tv)" not in windows_impl or
                   "status = (int)_ftime_s(&timeb);" not in windows_impl or
                   "if (status != 0)" not in windows_impl or "return -1;" not in windows_impl or
+                  "zoneStatus = GetTimeZoneInformation(&zoneInfo);" not in windows_impl or
+                  "zoneStatus == TIME_ZONE_ID_STANDARD" not in windows_impl or
+                  "bias += zoneInfo.StandardBias;" not in windows_impl or
+                  "zoneStatus == TIME_ZONE_ID_DAYLIGHT" not in windows_impl or
+                  "bias += zoneInfo.DaylightBias;" not in windows_impl or
+                  "tz->tz_minuteswest = (int)bias;" not in windows_impl or
                   "if (gettimeofday(&tv, &tz) != 0)" not in gettimeofday_source):
               raise SystemExit("PortableGettimeofday must expose a status-returning Windows adapter and propagate clock-read failures")
           gettimeofday_test = Path("trunk/user/skipdbv2/skipdbv2/tests/portable_gettimeofday.c").read_text()
