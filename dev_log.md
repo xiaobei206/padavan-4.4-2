@@ -1,3 +1,12 @@
+## 2026-11-07 15:06 CST — Make path alignment CI anchors newline-safe
+
+- Baseline: `6b3d50451b21b87a49ecb9b492c97b7f7bd17ad2`; run #571 reached the regression-contract step, where the source-range assertion still failed.
+- Failure cause: the YAML-embedded Python string contained a double-escaped newline, so its search literal represented the two characters `\\n` rather than the source file's line break. The previous function-definition anchors were therefore not found.
+- Replaced both escaped-newline literals with explicit `chr(10)` concatenation. This preserves exact function-definition matching without depending on nested YAML/Python/JavaScript escape interpretation.
+- No C implementation or test logic changed. Remote Actions remains the compiler/CTest gate.
+
+---
+
 ## 2026-11-07 15:03 CST — Fix path alignment contract function-boundary anchors
 
 - Baseline: `0b29e3d0061ce8d6ee2ce66c688439b868af375a`; run #570 passed the file-content contracts but failed the newly added ordering assertion before CMake configure.
