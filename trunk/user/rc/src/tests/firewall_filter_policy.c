@@ -5,6 +5,16 @@
 int
 main(void)
 {
+	assert(firewall_ipv4_address_is_safe("192.168.1.1"));
+	assert(firewall_ipv4_address_is_safe("0.0.0.0"));
+	assert(!firewall_ipv4_address_is_safe(NULL));
+	assert(!firewall_ipv4_address_is_safe(""));
+	assert(!firewall_ipv4_address_is_safe("192.168.1.1\n-A INPUT -j ACCEPT"));
+	assert(!firewall_ipv4_address_is_safe("192.168.1.1 -j ACCEPT"));
+	assert(!firewall_ipv4_address_is_safe("192.168.1.999"));
+	assert(!firewall_ipv4_address_is_safe("192.168.1"));
+	assert(!firewall_ipv4_address_is_safe("192.168.1.1\rCOMMIT"));
+
 	assert(firewall_url_filter_value_is_safe("example.com"));
 	assert(firewall_url_filter_value_is_safe("www.example.com/path?q=1&x=two"));
 	assert(firewall_url_filter_value_is_safe("video-site.example/channel-1"));
