@@ -7,10 +7,13 @@ typedef struct {
   int length;
 } array;
 
+/* Initialize an uninitialized array; failure leaves it empty. */
 int array_init(array* arr, int size);
+/* Return the inserted zero-based index, or -1 without changing contents. */
 int array_push(array* arr, void* data);
+/* Increase capacity; failed reallocations preserve the existing allocation. */
 int array_grow(array* arr, int size);
+/* Release stored elements when a callback is supplied, then reset to empty. */
 void array_free(array* arr, void (*free_element)(void*));
 
 #endif
-

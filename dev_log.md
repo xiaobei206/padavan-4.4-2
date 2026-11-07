@@ -1,3 +1,13 @@
+## 2026-11-07 09:35 CST — Harden the legacy array-heap container
+
+- Baseline: main commit `50eb8be552cd66893429b25131c3f0bc6dd435e5`; SkipDBv2 Regression run #488 passed.
+- Scope: `mgr/array-heap.c` and its existing public header.
+- The container wrote before ensuring capacity, assigned `realloc()` directly to the owning pointer, used an invalid `-1` pointer-allocation check, stored pointers through `size_t`, and lacked null/state/overflow guards.
+- Store elements as `void *`, grow before a full-capacity write, use a temporary realloc result, reject invalid capacities and integer overflow, and make cleanup null-safe/idempotent. Add a focused regression target and Actions source-contract checks; no change to active daemon behavior or new production files.
+- No local compilation or CTest run is claimed; CI is the validation gate.
+
+---
+
 ## 2026-11-07 09:33 CST — Report deterministic errors for invalid IPC socket paths
 
 - Baseline: main commit `fbcb6aca8b763677dc7dde1ba71602a4a3625f3d`; SkipDBv2 Regression run #487 passed.

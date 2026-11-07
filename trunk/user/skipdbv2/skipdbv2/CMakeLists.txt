@@ -114,6 +114,11 @@ TARGET_LINK_LIBRARIES(skbus m ${LIBEV_LIBRARIES})
 option(SKIPDB_BUILD_TESTS "Build SkipDB regression tests" OFF)
 if(SKIPDB_BUILD_TESTS)
     enable_testing()
+    ADD_EXECUTABLE(array_heap_test
+        ${PROJECT_SOURCE_DIR}/tests/array_heap.c
+        ${PROJECT_SOURCE_DIR}/mgr/array-heap.c)
+    add_test(NAME array_heap_test COMMAND array_heap_test)
+
     ADD_EXECUTABLE(udb_reserved_pid_test
         ${PROJECT_SOURCE_DIR}/tests/udb_reserved_pid.c)
     TARGET_LINK_LIBRARIES(udb_reserved_pid_test skipdb m)
