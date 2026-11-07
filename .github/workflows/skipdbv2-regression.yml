@@ -3824,8 +3824,8 @@ jobs:
                   "!UArray_hasValidItemLayout_(self)" not in copy_items_body or
                   "!UArray_hasValidItemLayout_(other)" not in copy_items_body):
               raise SystemExit("UArray typed copies must reject malformed source and destination layouts before typed access")
-          if uarray_source.count("UArray_hasValidItemLayout_(") != 4:
-              raise SystemExit("UArray typed-copy validator must have one definition and three guarded call sites")
+          if uarray_source.count("UArray_hasValidItemLayout_(") != 6:
+              raise SystemExit("UArray layout validator must have one definition and five guarded call sites")
           copy_layout_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c").read_text()
           for needle in ("testCopyRejectsMismatchedItemLayouts()",
                          "UArray_copyItems_(&target, &malformedSource)",

@@ -1,3 +1,11 @@
+## 2026-11-07 08:47 CST — Repair UArray layout-contract call count
+
+- Baseline: main commit `3e71d7304d1fb52a1e09c9ea31fe390779f39d1a`; SkipDBv2 Regression run #476 stopped at source-contract validation before configure/build.
+- The `UArray_sort()` and `UArray_sortBy_()` layout guards correctly added two calls to `UArray_hasValidItemLayout_()`, but the existing exact-count contract still expected one definition plus three earlier callers.
+- Update the contract to expect one definition and five guarded callers (six total occurrences). No additional C or test changes, new files, or CMake changes.
+
+---
+
 ## 2026-11-07 08:46 CST — Validate UArray layout before sorting
 
 - Baseline: main commit `2b2df6aa6252c894b66d79f6c3d6d6e250e20277`; SkipDBv2 Regression run #475 passed source contracts, configure, full build, and all regression tests.
