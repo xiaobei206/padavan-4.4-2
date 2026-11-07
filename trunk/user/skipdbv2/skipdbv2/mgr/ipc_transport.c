@@ -102,22 +102,29 @@ int skipdb_ipc_ensure_buffer(char **buffer, int *capacity, int requested,
     return 0;
 }
 
-int skipdb_ipc_valid_protocol_field(const char *text, int allow_empty,
-    size_t max_length)
+int skipdb_ipc_valid_protocol_field_n(const char *text, size_t length,
+    int allow_empty, size_t max_length)
 {
     const unsigned char *p = (const unsigned char *)text;
-    size_t length;
+    size_t index;
 
-    if (NULL == text)
+    if (NULL == text || (!allow_empty && length == 0) ||
+        length > max_length)
         return 0;
-    length = strlen(text);
-    if ((!allow_empty && length == 0) || length > max_length)
-        return 0;
-    for (; *p; ++p) {
-        if (*p <= 0x20 || *p == 0x7f)
+    for (index = 0; index < length; ++index) {
+        if (p[index] <= 0x20 || p[index] == 0x7f)
             return 0;
     }
     return 1;
+}
+
+int skipdb_ipc_valid_protocol_field(const char *text, int allow_empty,
+    size_t max_length)
+{
+    if (NULL == text)
+        return 0;
+    return skipdb_ipc_valid_protocol_field_n(text, strlen(text),
+        allow_empty, max_length);
 }
 
 int skipdb_ipc_read_exact(int fd, char *buffer, int length,

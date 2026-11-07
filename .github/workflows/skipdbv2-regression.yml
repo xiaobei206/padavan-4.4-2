@@ -846,6 +846,8 @@ jobs:
                   "skipdb_ipc_set_nonblock(fd)",
                   "skipdb_ipc_ensure_buffer(&client->buf, &client->buf_max,",
                   "skipdb_ipc_valid_protocol_field(text, allow_empty,",
+                  "skipdb_ipc_valid_protocol_field_n(p1, nkey, 0,",
+                  "static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[])",
                   "skipdb_ipc_write_exact(client->remote_fd, client->buf, len, 20)",
                   "#include \"ipc_request.h\"",
                   "skipdb_ipc_format_request(",
@@ -943,11 +945,16 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_transport.h": [
                   "int skipdb_ipc_connect_unix(const char *sock_path);",
+                  "int skipdb_ipc_valid_protocol_field_n(const char *text, size_t length,",
                   "int skipdb_ipc_read_exact(int fd, char *buffer, int length,",
                   "int skipdb_ipc_write_exact(int fd, const char *buffer, int length,",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_transport.c": [
                   "static int skipdb_ipc_set_cloexec_(int fd)",
+                  "int skipdb_ipc_valid_protocol_field_n(const char *text, size_t length,",
+                  "for (index = 0; index < length; ++index)",
+                  "if (p[index] <= 0x20 || p[index] == 0x7f)",
+                  "return skipdb_ipc_valid_protocol_field_n(text, strlen(text),",
                   "errno = EINVAL;",
                   "errno = ENAMETOOLONG;",
                   "SOCK_CLOEXEC",
@@ -967,6 +974,9 @@ jobs:
                   "(flags & FD_CLOEXEC) == 0",
                   "Unix socket descriptor is not close-on-exec",
                   "test_validation_and_buffer",
+                  "skipdb_ipc_valid_protocol_field_n(raw_token,",
+                  "raw_bad_token",
+                  "raw_nul_token",
                   "test_unix_connect",
                   "test_nonblocking_and_write",
                   "skipdb_ipc_write_exact(sockets[0], NULL, 0, 50)",
@@ -6966,6 +6976,58 @@ jobs:
 
           if cmake_text.count("mgr/ipc_protocol.c") < 5:
               raise SystemExit("IPC protocol parser is not linked by both CLIs and every protocol test")
+
+          ipc_transport_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/mgr/ipc_transport.c"
+          ).read_text()
+          field_n_start = ipc_transport_source.find(
+              "int skipdb_ipc_valid_protocol_field_n(const char *text, size_t length,"
+          )
+          field_n_end = ipc_transport_source.find(
+              chr(10) + "int skipdb_ipc_valid_protocol_field(", field_n_start
+          )
+          field_n_body = (
+              ipc_transport_source[field_n_start:field_n_end]
+              if field_n_start >= 0 and field_n_end > field_n_start
+              else ""
+          )
+          field_n_null_guard = field_n_body.find("NULL == text")
+          field_n_length_guard = field_n_body.find("length > max_length")
+          field_n_loop = field_n_body.find("for (index = 0; index < length; ++index)")
+          field_n_byte_guard = field_n_body.find("if (p[index] <= 0x20 || p[index] == 0x7f)")
+          if (
+              not field_n_body or
+              min(field_n_null_guard, field_n_length_guard, field_n_loop, field_n_byte_guard) < 0 or
+              not (field_n_null_guard < field_n_length_guard < field_n_loop < field_n_byte_guard)
+          ):
+              raise SystemExit("length-aware IPC token validation must bound a raw slice before scanning it")
+          if "return skipdb_ipc_valid_protocol_field_n(text, strlen(text)," not in ipc_transport_source:
+              raise SystemExit("string and length-aware IPC protocol-field validation must share one implementation")
+
+          dbus_source_text = Path(
+              "trunk/user/skipdbv2/skipdbv2/mgr/dbus.c"
+          ).read_text()
+          bulk_key_start = dbus_source_text.find(
+              "static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[])"
+          )
+          bulk_key_end = dbus_source_text.find(chr(10) + "static void help", bulk_key_start)
+          bulk_key_body = (
+              dbus_source_text[bulk_key_start:bulk_key_end]
+              if bulk_key_start >= 0 and bulk_key_end > bulk_key_start
+              else ""
+          )
+          env_separator = bulk_key_body.find("p2 = strchr(p1, '=');")
+          env_key_length = bulk_key_body.find("nkey = (size_t)(p2 - p1);")
+          env_key_validation = bulk_key_body.find(
+              "skipdb_ipc_valid_protocol_field_n(p1, nkey, 0,"
+          )
+          env_key_copy = bulk_key_body.find("memcpy(client->buf + n2, p1, nkey);")
+          if (
+              not bulk_key_body or
+              min(env_separator, env_key_length, env_key_validation, env_key_copy) < 0 or
+              not (env_separator < env_key_length < env_key_validation < env_key_copy)
+          ):
+              raise SystemExit("dbus environment-derived keys must be validated as a bounded token before request framing")
 
           if cmake_text.count("mgr/dbus_result.c") != 2:
               raise SystemExit("DBus result module is not linked by the CLI and protocol regression")

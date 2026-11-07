@@ -105,6 +105,11 @@ static int bulk_key(dbclient* client, char* command, char* prefix, char* envp[])
         if (NULL == p2)
             return -1;
         nkey = (size_t)(p2 - p1);
+        /* Environment names may contain spaces/control bytes even when a
+         * shell would not normally create them; never split one into a new key. */
+        if (!skipdb_ipc_valid_protocol_field_n(p1, nkey, 0,
+                (size_t)READ_MAX - HEADER_PREFIX - 16))
+            return -1;
         n2 = snprintf(client->buf, (size_t)client->buf_max + 1,
             "%s ", client->command);
         if (n2 < 0 || (size_t)n2 != nc + 1)

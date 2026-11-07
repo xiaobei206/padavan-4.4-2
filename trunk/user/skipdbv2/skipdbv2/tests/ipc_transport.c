@@ -14,8 +14,23 @@
 static int test_validation_and_buffer(void)
 {
     char *buffer = NULL;
+    char raw_token[] = {'a', 'l', 'p', 'h', 'a'};
+    char raw_bad_token[] = {'b', 'a', 'd', ' ', 'k', 'e', 'y'};
+    char raw_nul_token[] = {'a', 'l', 'p', 'h', 'a', '\0', 'x'};
     int capacity = 0;
     int ok = 1;
+
+    /* The length-aware API must validate slices that are not NUL-terminated. */
+    ok = ok && skipdb_ipc_valid_protocol_field_n(raw_token,
+        sizeof(raw_token), 0, 16);
+    ok = ok && !skipdb_ipc_valid_protocol_field_n(raw_bad_token,
+        sizeof(raw_bad_token), 0, 16);
+    ok = ok && !skipdb_ipc_valid_protocol_field_n(raw_nul_token,
+        sizeof(raw_nul_token), 0, 16);
+    ok = ok && skipdb_ipc_valid_protocol_field_n("", 0, 1, 0);
+    ok = ok && !skipdb_ipc_valid_protocol_field_n("", 0, 0, 16);
+    ok = ok && !skipdb_ipc_valid_protocol_field_n("abcd", 4, 0, 3);
+    ok = ok && !skipdb_ipc_valid_protocol_field_n(NULL, 0, 1, 16);
 
     ok = ok && skipdb_ipc_valid_protocol_field("alpha", 0, 16);
     ok = ok && skipdb_ipc_valid_protocol_field("", 1, 0);

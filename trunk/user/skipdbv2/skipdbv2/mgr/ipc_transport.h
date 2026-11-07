@@ -10,6 +10,8 @@ int skipdb_ipc_ensure_buffer(char **buffer, int *capacity, int requested,
     int minimum_capacity, int maximum_capacity);
 int skipdb_ipc_valid_protocol_field(const char *text, int allow_empty,
     size_t max_length);
+int skipdb_ipc_valid_protocol_field_n(const char *text, size_t length,
+    int allow_empty, size_t max_length);
 
 /*
  * Exact reads preserve the legacy client error codes:

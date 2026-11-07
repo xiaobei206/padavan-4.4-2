@@ -1,3 +1,13 @@
+## 2026-11-07 17:45 CST — Validate length-delimited IPC keys before framing
+
+- Baseline: `ff01036bacfde1078e3287806bdbba23cbbc8152`; SkipDBv2 Regression run #610 passed the strict source contracts, full build, and all 57 CTests.
+- Scope: shared IPC protocol-field validation and the `dbus` environment-backed bulk writer.
+- `dbus bulk_key()` copied environment-variable names directly into the space-delimited request key. Environment entries can contain spaces/control bytes even if typical shell assignment syntax cannot create them; the receiver then parses the malformed key as a different key plus payload, risking writes to an unintended setting.
+- Add a length-aware validator that scans exactly the supplied slice (including NUL/control rejection) and make the existing NUL-terminated helper delegate to it. Validate the complete environment-derived key before copying/framing it.
+- Extend existing IPC transport cases to cover non-NUL-terminated valid slices, embedded whitespace/NUL, empty-field policy, and length bounds. Update source contracts to verify both validator ordering and validation-before-copy; all files already participate in existing CMake targets, so no target/file additions are needed.
+- No local compiler/CTest result is claimed; GitHub Actions is the compiler/runtime gate.
+
+---
 ## 2026-11-07 17:35 CST — Preflight PID-hole capacity before clearing index mappings
 
 - Baseline: `28479b7674e71529c2e0020277284b669a755e7b`; mainline SkipDBv2 Regression run #609 passed the source contracts, complete build, and all 57 CTests.
