@@ -1,3 +1,14 @@
+## 2026-11-07 17:07 CST — Detach array-heap storage before destructor callbacks
+
+- Baseline: `48e8c1d526a9c36a00624854be4de6854a36398b`; SkipDBv2 Regression run #601 passed XY-C1 integration contracts, complete build, and all 57 CTests.
+- Scope: the ownership/lifecycle path in `mgr/array-heap.c:array_free()`, its existing `array_heap_test`, and the API comment.
+- `array_free()` called element destructors while the array still exposed its owned backing store. A destructor that recursively freed or reinitialized the same array could re-enter the old element walk, double-release the original storage, or have the outer call free newly created storage.
+- Snapshot the old backing pointer and valid callback count, reset the public struct before the first callback, run callbacks only over the detached storage, then free that old allocation exactly once. Recursive frees now see an empty array; callback-time reinitialization remains owned by the caller.
+- Add a regression whose first destructor recursively frees and reinitializes the array; assert the original callbacks run once and the new allocation survives the outer free. Reuse the existing `array_heap_test` CMake/CTest target; no new files or symbols.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 17:04 CST — Reject UArray trailing-terminator ownership aliases
 
 - Baseline: `4d221738e60d90f07ccd2e05223fe37531520896`; `SkipDBv2 Regression` run #600 passed the XY-C1 integration contracts, complete build, and all 57 CTests.

@@ -20,6 +20,78 @@ static int check(int condition, const char *message)
   return 0;
 }
 
+
+static array *reentrant_free_target;
+static size_t reentrant_free_calls;
+static int reentrant_free_saw_empty;
+static int reentrant_free_init_result;
+static int reentrant_free_push_result;
+static void *reentrant_free_replacement;
+
+static void reinitialize_during_array_free(void *element)
+{
+  if (NULL == element)
+    return;
+
+  ++reentrant_free_calls;
+  if (reentrant_free_calls == 1) {
+    reentrant_free_saw_empty =
+        reentrant_free_target->data == NULL &&
+        reentrant_free_target->index == 0 &&
+        reentrant_free_target->length == 0;
+
+    /* A nested free must see the detached empty array. */
+    array_free(reentrant_free_target, reinitialize_during_array_free);
+    reentrant_free_init_result = array_init(reentrant_free_target, 1);
+    if (reentrant_free_init_result == 0)
+      reentrant_free_push_result =
+          array_push(reentrant_free_target, reentrant_free_replacement);
+  }
+}
+
+static int test_free_callback_reentrancy(void)
+{
+  array values = { NULL, 0, 0 };
+  int first = 11;
+  int second = 22;
+  int replacement = 33;
+  int okay = 0;
+
+  reentrant_free_target = &values;
+  reentrant_free_calls = 0;
+  reentrant_free_saw_empty = 0;
+  reentrant_free_init_result = -1;
+  reentrant_free_push_result = -1;
+  reentrant_free_replacement = &replacement;
+
+  if (array_init(&values, 2) != 0 ||
+      array_push(&values, &first) != 0 ||
+      array_push(&values, &second) != 1) {
+    fprintf(stderr, "array-heap reentrant-free fixture initialization failed\n");
+    goto done;
+  }
+
+  array_free(&values, reinitialize_during_array_free);
+  if (!check(reentrant_free_calls == 2,
+      "array_free did not invoke each detached element callback exactly once") ||
+      !check(reentrant_free_saw_empty,
+      "array_free callback observed the original array before detachment") ||
+      !check(reentrant_free_init_result == 0 && reentrant_free_push_result == 0,
+      "array_free callback could not reinitialize and reuse the array") ||
+      !check(values.data != NULL && values.index == 1 && values.length == 1 &&
+          ((void **)values.data)[0] == &replacement,
+      "outer array_free destroyed storage created by its callback"))
+    goto done;
+
+  okay = 1;
+
+done:
+  reentrant_free_target = NULL;
+  array_free(&values, NULL);
+  reentrant_free_replacement = NULL;
+  return okay;
+}
+
 int main(void)
 {
   array values;
@@ -72,6 +144,9 @@ int main(void)
     return EXIT_FAILURE;
   array_free(&values, count_free);
   array_free(NULL, count_free);
+
+  if (!test_free_callback_reentrancy())
+    return EXIT_FAILURE;
 
   saturated.data = sentinel_items;
   saturated.index = INT_MAX;

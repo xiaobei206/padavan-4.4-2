@@ -70,6 +70,7 @@ int array_grow(array* arr, int size)
 void array_free(array* arr, void (*free_element)(void*))
 {
   void **items;
+  int item_count = 0;
   int i;
 
   if (NULL == arr)
@@ -77,15 +78,18 @@ void array_free(array* arr, void (*free_element)(void*))
 
   items = (void **)arr->data;
   if (items != NULL && free_element != NULL &&
-      arr->index > 0 && arr->index <= arr->length) {
-    for (i = 0; i < arr->index; ++i) {
-      if (items[i] != NULL)
-        free_element(items[i]);
-    }
-  }
+      arr->index > 0 && arr->index <= arr->length)
+    item_count = arr->index;
 
-  free(arr->data);
+  /* Detach before callbacks so recursive frees and reuse are safe. */
   arr->data = NULL;
   arr->index = 0;
   arr->length = 0;
+
+  for (i = 0; items != NULL && i < item_count; ++i) {
+    if (items[i] != NULL)
+      free_element(items[i]);
+  }
+
+  free(items);
 }

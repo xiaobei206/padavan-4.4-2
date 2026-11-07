@@ -13,7 +13,7 @@ int array_init(array* arr, int size);
 int array_push(array* arr, void* data);
 /* Increase capacity; failed reallocations preserve the existing allocation. */
 int array_grow(array* arr, int size);
-/* Release stored elements when a callback is supplied, then reset to empty. */
+/* Detach/reset before callbacks, then release the old backing allocation. */
 void array_free(array* arr, void (*free_element)(void*));
 
 #endif

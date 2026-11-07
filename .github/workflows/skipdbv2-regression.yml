@@ -929,6 +929,7 @@ jobs:
                   "int array_push(array* arr, void* data);",
                   "int array_grow(array* arr, int size);",
                   "void array_free(array* arr, void (*free_element)(void*));",
+                  "Detach/reset before callbacks, then release the old backing allocation.",
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/array-heap.c": [
                   "static int array_has_valid_state_(const array *arr)",
@@ -936,11 +937,23 @@ jobs:
                   "if (arr->index == arr->length)",
                   "arr->index = index + 1;",
                   "arr->index = 0;",
+                  "int item_count = 0;",
+                  "item_count = arr->index;",
+                  "arr->data = NULL;",
+                  "arr->length = 0;",
+                  "for (i = 0; items != NULL && i < item_count; ++i)",
+                  "free_element(items[i]);",
+                  "free(items);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/array_heap.c": [
                   "push must grow before writing at full capacity",
                   "successful grow must preserve existing elements",
                   "capacity overflow must fail before writing or incrementing index",
+                  "test_free_callback_reentrancy()",
+                  "reinitialize_during_array_free",
+                  "array_free callback observed the original array before detachment",
+                  "array_free callback could not reinitialize and reuse the array",
+                  "outer array_free destroyed storage created by its callback",
                   "array-heap regression test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/CMakeLists.txt": [
@@ -4704,6 +4717,22 @@ jobs:
                          "List_asStackAllocatedUArray(&malformed_source)"):
               if needle not in list_storage_test:
                   raise SystemExit("List storage-boundary regression coverage missing: " + needle)
+          array_heap_source = Path("trunk/user/skipdbv2/skipdbv2/mgr/array-heap.c").read_text()
+          array_free_start = array_heap_source.find("void array_free(array* arr, void (*free_element)(void*))")
+          array_free_end = array_heap_source.find("\n}", array_free_start)
+          array_free_body = (array_heap_source[array_free_start:array_free_end]
+                             if array_free_start >= 0 and array_free_end > array_free_start else "")
+          detach_data = array_free_body.find("arr->data = NULL;")
+          detach_index = array_free_body.find("arr->index = 0;")
+          detach_length = array_free_body.find("arr->length = 0;")
+          first_callback = array_free_body.find("free_element(items[i]);")
+          release_old_storage = array_free_body.find("free(items);")
+          if (not array_free_body or min(detach_data, detach_index, detach_length) < 0 or
+                  first_callback < 0 or release_old_storage < 0 or
+                  max(detach_data, detach_index, detach_length) > first_callback or
+                  first_callback > release_old_storage):
+              raise SystemExit("array_free must detach all public state before destructor callbacks and release only the detached allocation")
+
           list_storage_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
           for needle in ("ADD_EXECUTABLE(list_storage_bounds_test",
                          "${PROJECT_SOURCE_DIR}/tests/list_storage_bounds.c",
