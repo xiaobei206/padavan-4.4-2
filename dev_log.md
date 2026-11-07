@@ -1,3 +1,11 @@
+## 2026-11-07 20:15 CST — Repair escaped-percent source-contract quoting
+
+- Failed head: `4764f40d2af8748d41396c0fc84d67e15567e506`; run #657 failed while parsing the Python source-contract script, before any firmware contract check or C build.
+- The added test-source needle had two backslashes before its embedded quotes; Python therefore terminated the string literal early. Reduce this to the single escape used by the surrounding contract entries.
+- Workflow-only CI syntax repair. The UArray implementation and test changes are unchanged.
+
+---
+
 ## 2026-11-07 20:14 CST — Complete UArray percent escaping and execute alias regression
 
 - Baseline: `f8ecb05f3a7d8163139e8db2ae39414439b25196`; SkipDBv2 Regression run #656 passed all XY-C1 contracts, CMake configuration, the full target build, and all CTests.

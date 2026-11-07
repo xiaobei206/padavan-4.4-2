@@ -2006,7 +2006,7 @@ jobs:
                   "UArray_newWithCString_(\"value %i\")",
                   "UArray_fromFormat_(aliased_format, format, 7)",
                   "aliased format string was invalidated during append",
-                  "UArray_newWithFormat_(\\"100%% complete\\")",
+                  "UArray_newWithFormat_(\"100%% complete\")",
                   "literal percent escape failed",
                   "UArray floating formatter truncated DBL_MAX output",
                   "trailing format marker was not preserved safely",
