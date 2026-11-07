@@ -392,15 +392,13 @@ sys_script(char *name)
 }
 
 static int
-write_file_dos2unix(const char* value, const char* file_path)
+write_file_dos2unix_fp(const char* value, FILE *fp)
 {
-	FILE *fp;
-	int i_len;
+	int i_len, result = 0;
 	char *v1, *v2, *v3;
 	char buf[MAX_FILE_LINE_SIZE];
 
-	fp = fopen(file_path, "w");
-	if (!fp)
+	if (!value || !fp)
 		return -1;
 
 	v1 = (char *)value;
@@ -409,30 +407,47 @@ write_file_dos2unix(const char* value, const char* file_path)
 		i_len = v2 - v1;
 		if (i_len > (MAX_FILE_LINE_SIZE - 2))
 		    i_len = (MAX_FILE_LINE_SIZE - 2);
-		strncpy(buf, v1, i_len);
+		memcpy(buf, v1, i_len);
 		buf[i_len  ] = '\n';
 		buf[i_len+1] = '\0';
-		fputs(buf, fp);
+		if (fputs(buf, fp) == EOF) {
+			result = -1;
+			break;
+		}
 		v1 = v2 + 2;
 	}
-	if (v1 < v3) {
-		fputs(v1, fp);
-		if (*(v3-1) != '\n')
-			fputs("\n", fp);
+	if (result == 0 && v1 < v3) {
+		if (fputs(v1, fp) == EOF ||
+		    (*(v3-1) != '\n' && fputs("\n", fp) == EOF))
+			result = -1;
 	}
 
-	fclose(fp);
+	if (fclose(fp) != 0)
+		result = -1;
 
-	return 0;
+	return result;
+}
+
+static int
+write_file_dos2unix(const char* value, const char* file_path)
+{
+	FILE *fp;
+
+	fp = fopen(file_path, "w");
+	if (!fp)
+		return -1;
+
+	return write_file_dos2unix_fp(value, fp);
 }
 
 static int
 write_textarea_to_file(const char* value, const char* dir_name, const char* file_name)
 {
-	int file_type, ret, path_len;
+	int file_type, ret, path_len, temp_fd;
+	FILE *temp_fp;
 	const unsigned char *p;
 	char *extensions;
-	char temp_path[64];
+	char temp_path[] = "/tmp/httpd-upload-XXXXXX";
 	char real_path[128];
 
 	if (!value || !dir_name || !*dir_name || !file_name || !*file_name ||
@@ -461,9 +476,6 @@ write_textarea_to_file(const char* value, const char* dir_name, const char* file
 	if (!httpd_script_file_write_allowed(file_type, get_login_safe()))
 		return 0;
 
-	path_len = snprintf(temp_path, sizeof(temp_path), "%s/.%s", "/tmp", file_name);
-	if (path_len < 0 || path_len >= (int)sizeof(temp_path))
-		return 0;
 	path_len = snprintf(real_path, sizeof(real_path), "%s/%s", dir_name, file_name);
 	if (path_len < 0 || path_len >= (int)sizeof(real_path))
 		return 0;
@@ -485,9 +497,22 @@ write_textarea_to_file(const char* value, const char* dir_name, const char* file
 			return 0;
 	}
 
-	unlink(temp_path);
-	if (write_file_dos2unix(value, temp_path) != 0)
+	/* mkstemp creates a unique 0600 file atomically; never reopen a shared
+	 * predictable /tmp pathname after unlink, where a symlink could race us.
+	 */
+	temp_fd = mkstemp(temp_path);
+	if (temp_fd < 0)
 		return 0;
+	temp_fp = fdopen(temp_fd, "w");
+	if (!temp_fp) {
+		close(temp_fd);
+		unlink(temp_path);
+		return 0;
+	}
+	if (write_file_dos2unix_fp(value, temp_fp) != 0) {
+		unlink(temp_path);
+		return 0;
+	}
 
 	ret = 0;
 	if (compare_text_files(real_path, temp_path) != 0) {

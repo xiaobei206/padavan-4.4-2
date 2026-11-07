@@ -460,6 +460,15 @@ jobs:
           temp_write = write_helper.index("unlink(temp_path);")
           assert script_write_gate < temp_write
           assert "file_type = HTTPD_FILE_TYPE_SCRIPT;" in write_helper
+          # The staging file must be created atomically and written through
+          # the returned descriptor; reopening a predictable /tmp path lets
+          # an unprivileged local process win an unlink/fopen symlink race.
+          assert 'char temp_path[] = "/tmp/httpd-upload-XXXXXX";' in write_helper
+          temp_create = write_helper.index("temp_fd = mkstemp(temp_path);")
+          temp_open = write_helper.index('temp_fp = fdopen(temp_fd, "w");')
+          temp_write = write_helper.index("write_file_dos2unix_fp(value, temp_fp)")
+          assert script_write_gate < temp_create < temp_open < temp_write
+          assert 'snprintf(temp_path, sizeof(temp_path), "%s/.%s", "/tmp", file_name)' not in write_helper
           assert "HTTPD_FILE_TYPE_SCRIPT 1" in script_policy
           assert "HTTPD_FILE_TYPE_SCRIPT, 0" in script_policy_test
           assert "HTTPD_FILE_TYPE_SCRIPT, 1" in script_policy_test
