@@ -2,7 +2,7 @@
 
 - Final source review after the first Samba config commit found one remaining direct `guest_right >= 1` branch on the `guest ok` directive. It was logically equivalent for the validated libdisk range but bypassed the new explicit helper and weakened the source-contract guarantee. Replaced it with `samba_acl_right_can_read(guest_right)`; the workflow now rejects remaining raw guest/user right-threshold comparisons inside the config writer.
 - This is a consistency/verification follow-up, not a newly discovered privilege escalation. It keeps ACL error values (`-1`) and out-of-range values fail-closed across every guest/user grant emission.
-- Exact-head host/Actions result: PENDING for this follow-up commit. The preceding code commit `70da64b461dd17d431d8da1ee693c8b1eb26ddb7` has its own workflow run in progress; that result must not be attributed to this newer head.
+- **Final code/test SHA:** `389f62001b607d70c0f4ba3906a830d4c0000ed0`. Exact-head GitHub Actions run [42425408455](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42425408455) completed **SUCCESS**; all 16 recorded steps succeeded, including GNU89 Samba policy compilation/execution and source-contract checks. The preceding code commit `70da64b461dd17d431d8da1ee693c8b1eb26ddb7` separately passed run [42425349410](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42425349410). L1 source review PASS; L2 exact-head host CI PASS.
 
 ## 2026-11-08 07:22 CST — Fail closed on Samba config generation and validate global config inputs
 
@@ -16,7 +16,7 @@
 
 ### Validation and limits
 - L1 source review: PASS for the scoped generator/ACL/config-loading paths.
-- L2 host regressions and exact-head GitHub Actions: PENDING until the commit's workflow completes. The focused C policy test compiles under GNU89 `-Wall -Wextra -Werror`; workflow source contracts cover NVRAM validation order, ACL mapping, failure propagation, and both path filters.
+- L1 source review PASS. L2 focused host policy regression and exact-head Actions PASS on code/test SHA `70da64b461dd17d431d8da1ee693c8b1eb26ddb7`, run [42425349410](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42425349410). The final guest ACL-predicate follow-up is verified separately on SHA `389f62001b607d70c0f4ba3906a830d4c0000ed0`, run [42425408455](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42425408455).
 - Full production RC/MIPS compilation, Samba 3.6 patch application to a fresh upstream tree, firmware/TRX build, live SMB authentication/ACL/permission inheritance tests, filesystem compatibility, and physical-router validation: NOT RUN.
 - **Remaining:** Samba account lifecycle for non-APP_SMBD36 variants, guest media permission compatibility and filesystem ACL inheritance, external smbpasswd callers, FTP dedicated identity/chroot/umask/write behavior, and NFS export policy (including no_root_squash) remain open. HTTPD/CGI/authentication, firewall rollback/IPv6 parity, USB/storage/hotplug and init/service lifecycle remain separate repository-wide risks.
 
