@@ -17,13 +17,20 @@ firewall_ipv4_address_is_safe(const char *value)
 static int
 firewall_ppp_interface_is_safe(const char *value, unsigned int min_unit)
 {
-	const unsigned char *p;
+ 	const unsigned char *p;
+	size_t len;
 	unsigned int unit = 0;
 
-	if (!value || strncmp(value, "ppp", 3) != 0)
+	if (!value)
+		return 0;
+
+	len = strlen(value);
+	if (len < 4 || len >= 16 || strncmp(value, "ppp", 3) != 0)
 		return 0;
 
 	p = (const unsigned char *)value + 3;
+	if (p[0] == '0' && p[1] != '\0')
+		return 0;
 	if (!*p)
 		return 0;
 
