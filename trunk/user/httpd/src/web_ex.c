@@ -1357,11 +1357,10 @@ update_variables_ex(int eid, webs_t wp, int argc, char **argv)
 	sid_list = websGetVar(wp, "sid_list", "");
 
 	while ((serviceId = svc_pop_list(sid_list, ';')) != NULL) {
-		sid = 0;
-		while (GetServiceId(sid) != NULL) {
-			if (!strcmp(GetServiceId(sid), serviceId))
-				break;
-			sid++;
+		sid = LookupServiceId(serviceId);
+		if (sid < 0) {
+			sid_list = sid_list+strlen(serviceId)+1;
+			continue;
 		}
 		
 		if (!strcmp(action_mode, "  Save  ") || !strcmp(action_mode, " Apply ")) {
@@ -4082,11 +4081,10 @@ apply_cgi(const char *url, webs_t wp)
 		
 		sid_list = websGetVar(wp, "sid_list", "");
 		while ((serviceId = svc_pop_list(sid_list, ';')) != NULL) {
-			sid = 0;
-			while (GetServiceId(sid) != NULL) {
-				if (!strcmp(GetServiceId(sid), serviceId))
-					break;
-				++sid;
+			sid = LookupServiceId(serviceId);
+			if (sid < 0) {
+				sid_list = sid_list+strlen(serviceId)+1;
+				continue;
 			}
 			
 			if (!strcmp(value, "  Save  ") || !strcmp(value, " Apply "))

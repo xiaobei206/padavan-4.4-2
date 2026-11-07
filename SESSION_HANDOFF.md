@@ -1,18 +1,19 @@
 # Session Handoff — Padavan 4.4
 
-## Latest resumable checkpoint — Reject symlink parents and unsafe directory targets during archive restore
+## Latest resumable checkpoint — Guard unknown `sid_list` values in HTTPD CGI handlers
 
-- Baseline main HEAD before this bounded follow-up: `71bfeb3093cd3cdfc6c60352bd011814661dcdf8`. The first archive-parent guard is commit `71bfeb3093cd3cdfc6c60352bd011814661dcdf8`, validated by Actions run `42386491809` on that exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42386491809.
-- Review of the passing implementation identified an adjacent extraction case: a tar directory entry whose own name already refers to a symlink could bypass the parent-only check, because `ARCHIVE_UNLINK_OLD` skips directory entries and later `chown`/`chmod` may follow the existing symlink. This is now handled by an explicit `check_leaf` policy for directory entries. Non-directory entries can still replace their own leaf after the existing unlink policy, but no entry can traverse symlink/non-directory parents.
-- The host regression now separately covers a symlink leaf when treated as a directory entry, a regular-file leaf as a directory entry, an existing real directory, missing directory path, symlink parents, `..`, absolute paths and invalid input. The shared BusyBox check remains before leading-directory creation, unlink or open.
-- Follow-up HTTPD Authentication and Security Regression run `42386675924` completed SUCCESS against exact SHA `a0e700bb6e61fbb7c11623821563449ed3d0ffa9`: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42386675924. Its `Compile and run policy regression` and `Verify HTTPD auth and route-access wiring` steps passed, including the expanded leaf-policy test and production source-order/restore-contract assertions. Full BusyBox MIPS build, firmware artifact, archive fuzzing and hardware validation remain NOT VERIFIED.
+- Baseline main HEAD before this bounded change: `5fa70fcb0547851704001274ec1ba6792cc4d83c`. Existing archive-path hardening is host-verified by Actions run `42386675924` on exact source SHA `a0e700bb6e61fbb7c11623821563449ed3d0ffa9`; no MIPS firmware build has been run.
+- P1 finding in `trunk/user/httpd/src/web_ex.c`: both `update_variables_ex()` and `apply_cgi()` take the POST-controlled `sid_list` field and scan `GetServiceId(sid)` until the sentinel. An unknown service token leaves `sid` at that sentinel; the handler then passes it into `GetVariables()` consumers, `validate_asp_apply()` or `validate_cgi()`, where code dereferences `v->name`. The existing `LookupServiceId()` helper safely returns `-1` for unknown IDs but these two web handlers weren't using it. A malformed, authenticated management POST could therefore crash the HTTPD process.
+- Fix in this checkpoint: both loops call `LookupServiceId(serviceId)`; when it returns `< 0`, they advance the `sid_list` pointer and continue without invoking any validator or group operation. Known service IDs retain their existing behavior.
+- Added `tests/httpd_service_id.c`, which links the production `common.c` and verifies known IDs, unknown/empty IDs, sentinel access and `GetVariables()` sentinel behavior. The Actions workflow compiles/runs the new GNU89 `-Wall -Wextra -Werror` test and checks lookup/invalid-guard/continue ordering in both production call sites. CI is PENDING for this exact implementation SHA.
+- Remaining: audit the handler command/config dataflow, `sys_script()`/`SystemCmd`, EJ output escaping and TLS/connection lifecycle. Whole-userland audit remains incomplete. L3 MIPS/firmware artifact and L4 hardware validation remain NOT VERIFIED.
 
 ### Next exact actions
 
-1. Completed: run `42386675924` passed against exact SHA `a0e700bb6e61fbb7c11623821563449ed3d0ffa9`; C regression and source-contract steps succeeded. Continue with archive-format compatibility and root restore bounds.
-2. Audit tar hardlink/symlink semantics and `mtd_storage.sh` restore rollback/limits; test compatibility against archives created by Padavan itself.
-3. Continue the `do_apply_cgi`/`do_update_cgi` EJ handler and configuration/command dataflow audit, then HTTPS connection lifecycle. Broaden the same process across firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file-sharing and init/service lifecycle.
-4. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` and inspect the full firmware artifact after source rounds; until executed, L3/L4 remain NOT VERIFIED.
+1. Verify the HTTPD Authentication and Security Regression run against this exact implementation SHA; inspect the C test and source-wiring steps.
+2. Continue `apply_cgi()`/`update_variables_ex()` review for script dispatch, command execution, NVRAM group mutation and output encoding. Then audit `do_update_cgi()` and TLS I/O/connection lifecycle.
+3. Broaden the audit into firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, FTP/Samba/NFS, storage/hotplug and init/service lifecycle; do not fall back to routine SkipDBv2 work without a demonstrated blocker.
+4. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` and inspect the full firmware artifact after the source audit series. Until executed, L3/L4 remain NOT VERIFIED.
 ---
 
 **Purpose:** resume work across ChatGPT conversations. GitHub is the source of truth; re-check all values below against live repository state before acting.

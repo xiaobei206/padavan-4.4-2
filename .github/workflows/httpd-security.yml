@@ -17,6 +17,8 @@ on:
       - "trunk/user/httpd/src/tests/httpd_login_policy.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
+      - "trunk/user/httpd/src/common.c"
+      - "trunk/user/httpd/src/tests/httpd_service_id.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
   pull_request:
@@ -35,6 +37,8 @@ on:
       - "trunk/user/httpd/src/tests/httpd_login_policy.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
+      - "trunk/user/httpd/src/common.c"
+      - "trunk/user/httpd/src/tests/httpd_service_id.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
       - "trunk/user/httpd/src/tests/httpd_private_key_policy.c"
   workflow_dispatch:
@@ -71,6 +75,12 @@ jobs:
             -o /tmp/httpd_login_policy
           /tmp/httpd_login_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/common.c \
+            trunk/user/httpd/src/tests/httpd_service_id.c \
+            -o /tmp/httpd_service_id
+          /tmp/httpd_service_id
+          cc -std=gnu89 -Wall -Wextra -Werror \
             trunk/user/busybox/busybox-1.24.x/archival/libarchive/tests/safe_extract_path.c \
             -o /tmp/busybox_safe_extract_path
           /tmp/busybox_safe_extract_path
@@ -84,6 +94,8 @@ jobs:
           root = Path("trunk/user/httpd/src")
           httpd = (root / "httpd.c").read_text()
           web = (root / "web_ex.c").read_text()
+          common = (root / "common.c").read_text()
+          service_id_test = (root / "tests/httpd_service_id.c").read_text()
           upload = (root / "upload.c").read_text()
           archive_root = Path("trunk/user/busybox/busybox-1.24.x/archival/libarchive")
           data_extract = (archive_root / "data_extract_all.c").read_text()
@@ -225,6 +237,38 @@ jobs:
           for pattern, callback in protected_routes.items():
               expect_route(pattern, callback, 1)
           print("HTTPD MIME authorization matrix: OK")
+
+          # User-controlled sid_list values must resolve to a real service
+          # before any validator/group operation can dereference GetVariables().
+          assert "int LookupServiceId(char *serviceId)" in common
+          lookup_start = common.index("int LookupServiceId(char *serviceId)")
+          lookup_end = common.index("const char *GetServiceId", lookup_start)
+          lookup = common[lookup_start:lookup_end]
+          assert "return (-1)" in lookup and "svcLinks[sid].serviceId==NULL" in lookup
+          assert 'LookupServiceId("not-a-service") == -1' in service_id_test
+          update_start = web.index("update_variables_ex(int eid, webs_t wp")
+          update_end = web.index(chr(10) + "static ", update_start + 1)
+          update_handler = web[update_start:update_end]
+          assert update_handler.count("sid = LookupServiceId(serviceId);") == 1
+          update_lookup = update_handler.index("sid = LookupServiceId(serviceId);")
+          update_invalid = update_handler.index("if (sid < 0)", update_lookup)
+          update_continue = update_handler.index("continue;", update_invalid)
+          update_validate = update_handler.index("validate_asp_apply(wp, sid)")
+          assert update_lookup < update_invalid < update_continue < update_validate
+          assert "sid_list = sid_list+strlen(serviceId)+1;" in update_handler[update_invalid:update_continue]
+          assert "while (GetServiceId(sid) != NULL)" not in update_handler
+          apply_start = web.index("apply_cgi(const char *url, webs_t wp)")
+          apply_end = web.index(chr(10) + "static ", apply_start + 1)
+          apply_handler = web[apply_start:apply_end]
+          assert apply_handler.count("sid = LookupServiceId(serviceId);") == 1
+          apply_lookup = apply_handler.index("sid = LookupServiceId(serviceId);")
+          apply_invalid = apply_handler.index("if (sid < 0)", apply_lookup)
+          apply_continue = apply_handler.index("continue;", apply_invalid)
+          apply_validate = apply_handler.index("validate_cgi(wp, sid)")
+          assert apply_lookup < apply_invalid < apply_continue < apply_validate
+          assert "sid_list = sid_list+strlen(serviceId)+1;" in apply_handler[apply_invalid:apply_continue]
+          assert "while (GetServiceId(sid) != NULL)" not in apply_handler
+          print("HTTPD sid_list service-ID validation: OK")
 
           # Upload handlers run their output/restore callbacks even when the
           # input callback fails, so stale artifacts must be removed before

@@ -1,3 +1,14 @@
+## 2026-11-07 23:36 CST — Reject unknown service IDs in HTTPD CGI POST handlers
+
+- Baseline main HEAD: 5fa70fcb0547851704001274ec1ba6792cc4d83c. Scope: `trunk/user/httpd/src/web_ex.c::{update_variables_ex,apply_cgi}` and existing `common.c::LookupServiceId()`.
+- Finding: POST-controlled `sid_list` parsing used an open-ended `GetServiceId(sid)` loop in both handlers. Unknown IDs left `sid` at the service-table NULL sentinel and still reached `GetVariables(sid)`, `validate_asp_apply()` or `validate_cgi()`, whose loops dereference `v->name`. This could terminate HTTPD on a malformed authenticated management request; this is not described as unauthenticated remote code execution.
+- Fix: both paths now call the existing safe `LookupServiceId(serviceId)`. Negative results advance the list and continue before validators, variable lookups or group mutation. Known IDs follow the old path unchanged.
+- Regression: new `trunk/user/httpd/src/tests/httpd_service_id.c` links production `common.c` and tests known IDs, unknown/empty IDs and sentinel behavior. Workflow path triggers, GNU89 `-Wall -Wextra -Werror` compilation/run and Python source-contract assertions were added for both production call sites.
+- Validation: PENDING matching Actions for this implementation SHA. No local compilation or target build is claimed in this entry. Full MIPS firmware artifact and hardware remain NOT VERIFIED.
+- Next: inspect the exact workflow result, then continue CGI command/configuration dataflow and broader userland modules.
+
+---
+
 ## 2026-11-07 23:32 CST — Sync whole-repository risk ledger with archive-policy CI result
 
 - Updated the P1 table row and top status in `REFACTOR_ROADMAP.md` to include BusyBox `data_extract_all.c`, the new path policy, and the storage restore script, with exact successful host CI runs `42385963510` and `42386675924`.
