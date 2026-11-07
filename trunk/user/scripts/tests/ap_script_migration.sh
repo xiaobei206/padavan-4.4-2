@@ -34,7 +34,9 @@ cmp "$work/custom/before" "$work/custom/ap_script.sh"
 
 # A symlink is never followed or replaced, even when its target is the old stock file.
 mkdir "$work/symlink"
-ln -s "$fixture" "$work/symlink/ap_script.sh"
+cp "$fixture" "$work/symlink/target"
+chmod 755 "$work/symlink/target"
+ln -s "$work/symlink/target" "$work/symlink/ap_script.sh"
 "$helper" "$work/symlink/ap_script.sh" "$template"
 [ -L "$work/symlink/ap_script.sh" ]
 

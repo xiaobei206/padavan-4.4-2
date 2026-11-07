@@ -21,8 +21,8 @@ if [ ! -f "$rom_script" ] || [ -L "$rom_script" ]; then
 	exit 0
 fi
 
-# BusyBox configurations differ. Prefer SHA-256, accept MD5 only as a
-# compatibility fallback, and do nothing when neither applet is available.
+# Some BusyBox builds omit SHA256SUM. Without a strong digest, leave the
+# persistent script untouched rather than risk overwriting user customizations.
 if command -v sha256sum >/dev/null 2>&1; then
 	digest_line=$(sha256sum "$stored_script" 2>/dev/null) || exit 0
 	digest=$(printf '%s\n' "$digest_line" | cut -d ' ' -f 1)
