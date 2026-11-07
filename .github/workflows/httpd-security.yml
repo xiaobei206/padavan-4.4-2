@@ -412,6 +412,24 @@ jobs:
           assert 'if (SystemCmd[0] && get_login_safe())' in syscmd
           assert syscmd.index("SystemCmd[0] =", syscmd.index("} else {")) > syscmd.index("} else {")
           print("HTTPD SystemCmd trusted-session queue and stale-command guard: OK")
+
+          # The generic sys_script fallback executes /tmp/<name> through _eval
+          # as root. action_script is POST-controlled on authenticated CGI routes,
+          # so the generic fallback must additionally require a trusted session.
+          # Fixed named handlers above retain their existing policy.
+          fallback_start = sys_script.rfind("\\n\\telse\\n\\t{")
+          assert fallback_start >= 0, "generic sys_script fallback not found"
+          fallback = sys_script[fallback_start:]
+          trusted_gate = fallback.index("if (!get_login_safe())")
+          argv_parse = fallback.index("strtok(name_copy")
+          eval_dispatch = fallback.index("_eval(script_argv")
+          assert trusted_gate < argv_parse < eval_dispatch
+          assert 'snprintf(scmd, sizeof(scmd), "/tmp/%s", token)' in fallback
+          assert 'script = websGetVar(wp, "action_script", "");' in update_handler
+          assert "sys_script(script);" in update_handler
+          assert 'script = websGetVar(wp, "action_script","");' in apply_handler
+          assert "sys_script(script);" in apply_handler
+          print("HTTPD generic /tmp script trusted-session guard: OK")
           print("HTTPD strict Basic authentication and decoder wiring: OK")
 
           print("HTTPD private-key access policy and call-site wiring: OK")
