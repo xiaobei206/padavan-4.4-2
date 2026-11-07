@@ -1,3 +1,19 @@
+## 2026-11-08 06:09 CST — Validate firewall interface names before restore-token generation
+
+### Finding and implementation
+- **Source/test/workflow checkpoint:** `54fdde79391504ff34e67dcbe2a2e5a53436609b` on `main`; exact-head Actions run [`42419220664`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42419220664) completed **SUCCESS**.
+- In `trunk/user/rc/src/firewall_ex.c::start_firewall_ex()`, runtime MAN/WAN interface names are inserted into bare `-i`/`-o` arguments in IPv4/IPv6 restore rule files. No common raw-token validation was applied at the generation boundary. This round treated it as an input-integrity hardening gap; it did not establish that a remote attacker can directly control those runtime values.
+- Added `firewall_interface_name_is_safe()` to `firewall_filter_policy.h`. It accepts 1–15 ASCII bytes, requires an alphanumeric first character, accepts alphanumeric/underscore/dot/colon/hyphen thereafter, and retains only a final `+` wildcard for iptables interface-prefix matching. Control bytes, whitespace, separators, option-like prefixes and overlong names are rejected.
+- `start_firewall_ex()` validates nonempty MAN and configured WAN values before copying them into fixed-size arrays, checks the WAN fallback and LAN interface before table generation, and validates MAN again when `i_use_man` makes it active. Invalid names are logged without echoing raw input and the rebuild returns before any rule-table writer can run.
+- Added host regression cases in `trunk/user/rc/src/tests/firewall_filter_policy.c` for common wired/PPP/Wi-Fi names, interface alias and trailing-wildcard compatibility, null/empty/overlong inputs, option-like first characters, slash/semicolon/space payloads and a CR/LF-style restore-line injection payload. The workflow adds source-contract assertions proving the source guards precede `ipt_raw_rules()`; changed source/test files were already covered by both workflow event path filters.
+
+### Validation and limits
+- Exact-head Actions run [42419220664](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42419220664) completed SUCCESS. The GNU89 `-Wall -Wextra -Werror` policy regression compiled and ran, and all source-contract / existing regression steps passed.
+- **L1 static/source-contract and focused L2 host validation: PASS.** Production `firewall_ex.c` MIPS compilation, firmware/TRX build and validation, live `iptables-restore`/`ip6tables-restore` exercise and physical-router testing were **NOT RUN**.
+- Firewall remains P1 **AUDITING**. Alternative add-on restore producers, interface provenance beyond this guard, restore-failure recovery, cross-table rollback and independent IPv4/IPv6 semantic parity remain open. Do not infer remote exploitability or whole-module closure from this bounded fix.
+- Remote SkipDBv2 checkpoint branches were compared against the tested source SHA: BStreamTag 1/566 ahead/behind; DBAPI result 8/647; dynlib lifecycle 0/570; sorting 0/566; UArray character 2/564. Ahead-only deltas remain SkipDBv2/CMake/test/workflow/dev-log work; none was merged.
+- **Next bounded module:** audit FTP/Samba/Aidisk authentication, path normalization, permissions, privileged shell calls, share management and lifecycle; then USB/storage/hotplug and init/service management. Keep firewall rollback and IPv6 parity tracked as separate open work, and do not restrict future rounds to SkipDBv2.
+
 ## 2026-11-08 05:52 CST — Isolate HTTPD privileged upload and storage-restore staging
 
 ### Findings and implementation
