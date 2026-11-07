@@ -62,6 +62,10 @@ int main(void)
 	assert(!samba_acl_user_is_safe("user name"));
 	assert(!samba_acl_user_is_safe("user\nread only = no"));
 	assert(!samba_acl_user_is_safe("user%U"));
+	assert(!samba_acl_user_is_safe("root"));
+	assert(!samba_acl_user_is_safe("nobody"));
+	assert(!samba_acl_user_is_safe("sshd"));
+	assert(!samba_acl_user_is_safe("anonymous"));
 	assert(!samba_acl_user_is_safe("用户"));
 
 	puts("Samba share configuration token policy: PASS");
