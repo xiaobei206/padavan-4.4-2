@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/mount.h>
 #include <net/ethernet.h>
 
@@ -38,6 +39,7 @@
 
 #include "rc.h"
 #include "samba_share_policy.h"
+#include "samba_passdb_policy.h"
 #include "ftp_share_policy.h"
 #include "switch.h"
 
@@ -207,6 +209,134 @@ samba_service_account_is_safe(const char *name)
 	return samba_acl_user_is_safe(name) &&
 	       !router_account_name_is_reserved(name, nvram_safe_get("http_username"));
 }
+static int
+samba_write_all(int fd, const char *data, size_t length)
+{
+	size_t offset = 0;
+	ssize_t written;
+
+	while (offset < length) {
+		written = write(fd, data + offset, length - offset);
+		if (written < 0 && errno == EINTR)
+			continue;
+		if (written <= 0)
+			return -1;
+		offset += (size_t)written;
+	}
+
+	return 0;
+}
+
+/* Pass plaintext credentials only through a private unlinked stdin file. */
+static int
+samba_run_smbpasswd(const char *passdb_path, const char *username,
+		    const char *password)
+{
+	char input_path[] = "/tmp/.smbpasswd-input.XXXXXX";
+	char newline = '\n';
+	int input_fd = -1, status;
+	pid_t child, waited;
+
+	if (!samba_passdb_password_is_safe(password))
+		return -1;
+
+	input_fd = mkstemp(input_path);
+	if (input_fd < 0)
+		return -1;
+
+	if (fchmod(input_fd, 0600) != 0 ||
+	    samba_write_all(input_fd, password, strlen(password)) != 0 ||
+	    samba_write_all(input_fd, &newline, 1) != 0 ||
+	    samba_write_all(input_fd, password, strlen(password)) != 0 ||
+	    samba_write_all(input_fd, &newline, 1) != 0 ||
+	    lseek(input_fd, 0, SEEK_SET) < 0)
+		goto failed;
+
+	child = fork();
+	if (child < 0)
+		goto failed;
+
+	if (child == 0) {
+		if (dup2(input_fd, STDIN_FILENO) < 0)
+			_exit(126);
+		close(input_fd);
+#if defined (APP_SMBD36)
+		if (passdb_path && *passdb_path)
+			execl("/bin/smbpasswd", "smbpasswd", "-s", "-f",
+			      passdb_path, username, (char *)NULL);
+#else
+		(void)passdb_path;
+#endif
+		execl("/bin/smbpasswd", "smbpasswd", "-s",
+		      username, (char *)NULL);
+		_exit(127);
+	}
+
+	close(input_fd);
+	input_fd = -1;
+	unlink(input_path);
+
+	do {
+		waited = waitpid(child, &status, 0);
+	} while (waited < 0 && errno == EINTR);
+
+	if (waited != child || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
+		return -1;
+
+	return 0;
+
+failed:
+	if (input_fd >= 0)
+		close(input_fd);
+	unlink(input_path);
+	return -1;
+}
+
+static int
+samba_secure_private_samba_dir(void)
+{
+	struct stat st;
+
+	if (lstat("/etc/samba", &st) != 0 ||
+	    !S_ISDIR(st.st_mode) || st.st_uid != 0)
+		return -1;
+	if (chmod("/etc/samba", 0700) != 0 ||
+	    stat("/etc/samba", &st) != 0 ||
+	    !S_ISDIR(st.st_mode) || st.st_uid != 0 ||
+	    (st.st_mode & 0777) != 0700)
+		return -1;
+
+	return 0;
+}
+
+#if defined (APP_SMBD36)
+static int
+samba_prepare_private_passdb(char *staged_path, size_t staged_path_size)
+{
+	int fd, close_result, path_len;
+
+	path_len = snprintf(staged_path, staged_path_size,
+			    "/etc/samba/.smbpasswd.XXXXXX");
+	if (path_len < 0 || (size_t)path_len >= staged_path_size)
+		return -1;
+
+	fd = mkstemp(staged_path);
+	if (fd < 0)
+		return -1;
+	if (fchmod(fd, 0600) != 0) {
+		close(fd);
+		unlink(staged_path);
+		return -1;
+	}
+	close_result = close(fd);
+	if (close_result != 0) {
+		unlink(staged_path);
+		return -1;
+	}
+
+	return 0;
+}
+#endif
 
 int
 check_existed_share(const char *string)
@@ -574,8 +704,12 @@ stop_samba(int force_stop)
 
 void run_samba(void)
 {
-	int sh_num, has_nmbd, has_smbd, i;
+	int sh_num, has_nmbd, has_smbd, i, j;
+	int credential_failed = 0;
 	char tmpuser[40], tmp2[40];
+#if defined (APP_SMBD36)
+	char staged_passdb[128];
+#endif
 
 	if (nvram_match("enable_samba", "0") || nvram_match("st_samba_mode", "0"))
 		return;
@@ -583,16 +717,31 @@ void run_samba(void)
 	recreate_passwd_unix(0);
 
 	mkdir_if_none("/etc/samba", "777");
+	if (samba_secure_private_samba_dir() != 0) {
+		logmessage("Samba Server", "private Samba directory validation failed; service was not reloaded");
+		return;
+	}
 
 	has_smbd = pids("smbd");
 	has_nmbd = pids("nmbd");
 
 	if (!has_nmbd && !has_smbd) {
-		doSystem("rm -f %s", "/etc/samba/*");
+		/* Preserve the account database; clear only volatile TDB/staging files. */
+		doSystem("rm -f %s %s", "/etc/samba/*.tdb", "/etc/samba/.smbpasswd.*");
 		clean_smbd_trash();
 	}
 
-	write_smb_conf();
+	if (write_smb_conf() != 0) {
+		logmessage("Samba Server", "configuration generation failed; service was not reloaded");
+		return;
+	}
+
+#if defined (APP_SMBD36)
+	if (samba_prepare_private_passdb(staged_passdb, sizeof(staged_passdb)) != 0) {
+		logmessage("Samba Server", "unable to prepare private passdb; service was not reloaded");
+		return;
+	}
+#endif
 
 	sh_num = nvram_safe_get_int("acc_num", 0, 0, MAX_ACCOUNT_NUM);
 	for (i = 0; i < sh_num; i++) {
@@ -600,16 +749,45 @@ void run_samba(void)
 		snprintf(tmp2, sizeof(tmp2), "acc_password%d", i);
 		if (!samba_service_account_is_safe(nvram_safe_get(tmpuser)))
 			continue;
-		{
-			char *smb_args[] = {
-				"smbpasswd",
-				nvram_safe_get(tmpuser),
-				nvram_safe_get(tmp2),
-				NULL
-			};
-			_eval(smb_args, NULL, 0, NULL);
+
+		/* Reject duplicate NVRAM identities instead of writing ambiguous rows. */
+		for (j = 0; j < i; j++) {
+			char previous_user[40];
+
+			snprintf(previous_user, sizeof(previous_user), "acc_username%d", j);
+			if (!strcmp(nvram_safe_get(tmpuser), nvram_safe_get(previous_user))) {
+				credential_failed = 1;
+				break;
+			}
+		}
+		if (credential_failed)
+			break;
+
+		if (!samba_passdb_password_is_safe(nvram_safe_get(tmp2)) ||
+		    samba_run_smbpasswd(
+#if defined (APP_SMBD36)
+			staged_passdb,
+#else
+			NULL,
+#endif
+			nvram_safe_get(tmpuser), nvram_safe_get(tmp2)) != 0) {
+			credential_failed = 1;
+			break;
 		}
 	}
+
+#if defined (APP_SMBD36)
+	if (credential_failed || rename(staged_passdb, "/etc/samba/smbpasswd") != 0) {
+		unlink(staged_passdb);
+		logmessage("Samba Server", "credential provisioning failed; existing passdb was preserved");
+		return;
+	}
+#else
+	if (credential_failed) {
+		logmessage("Samba Server", "credential provisioning failed; Samba was not reloaded");
+		return;
+	}
+#endif
 
 	config_smb_fastpath(0);
 

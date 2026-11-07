@@ -29,7 +29,7 @@
  MULTICALL_O = $(sort $(SMBD_MULTI_O) $(NMBD_MULTI_O) $(SMBPASSWD_MULTI_O) $(MULTI_O))
 --- /dev/null
 +++ b/source3/utils/owrt_smbpasswd.c
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,246 @@
 +/*
 + * Copyright (C) 2012 Felix Fietkau <nbd@nbd.name>
 + * Copyright (C) 2008 John Crispin <blogic@openwrt.org>
@@ -51,6 +51,7 @@
 +#include "includes.h"
 +#include <endian.h>
 +#include <stdio.h>
++#include <sys/stat.h>
 +
 +static char buf[256];
 +
@@ -75,21 +76,23 @@
 +	ZERO_STRUCT(wpwd);
 +}
 +
-+
 +static bool find_passwd_line(FILE *fp, const char *user, char **next)
 +{
 +	char *p1;
 +
 +	while (!feof(fp)) {
-+		if(!fgets(buf, sizeof(buf) - 1, fp))
++		if (!fgets(buf, sizeof(buf) - 1, fp)) {
++			if (ferror(fp))
++				return false;
 +			continue;
++		}
 +
 +		p1 = strchr(buf, ':');
-+
-+		if (p1 - buf != strlen(user))
++		if (!p1)
 +			continue;
-+
-+		if (strncmp(buf, user, p1 - buf) != 0)
++		if ((size_t)(p1 - buf) != strlen(user))
++			continue;
++		if (strncmp(buf, user, (size_t)(p1 - buf)) != 0)
 +			continue;
 +
 +		if (next)
@@ -99,7 +102,7 @@
 +	return false;
 +}
 +
-+/* returns -1 if user is not present in /etc/passwd*/
++/* returns -1 if user is not present in /etc/passwd */
 +static int find_uid_for_user(const char *user)
 +{
 +	FILE *fp;
@@ -109,7 +112,7 @@
 +	fp = fopen("/etc/passwd", "r");
 +	if (!fp) {
 +		printf("failed to open /etc/passwd");
-+		goto out;
++		return -1;
 +	}
 +
 +	if (!find_passwd_line(fp, user, &p1)) {
@@ -120,74 +123,156 @@
 +	p2 = strchr(p1 + 1, ':');
 +	if (!p2)
 +		goto out;
-+
 +	p2++;
 +	p3 = strchr(p2, ':');
-+	if (!p1)
++	if (!p3)
 +		goto out;
 +
 +	*p3 = '\0';
 +	ret = atoi(p2);
 +
 +out:
-+	if(fp)
-+		fclose(fp);
++	fclose(fp);
 +	return ret;
 +}
 +
-+static void smbpasswd_write_user(FILE *fp, const char *user, int uid, const char *password)
++static void smbpasswd_write_user(FILE *fp, const char *user, int uid,
++				 const char *password)
 +{
 +	static uchar nt_p16[NT_HASH_LEN];
 +	int len = 0;
 +	int i;
 +
-+	md4hash(strdup(password), nt_p16);
-+
-+	len += snprintf(buf + len, sizeof(buf) - len, "%s:%u:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:", user, uid);
-+	for(i = 0; i < NT_HASH_LEN; i++)
++	md4hash(password, nt_p16);
++	len += snprintf(buf + len, sizeof(buf) - len,
++			"%s:%u:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:", user, uid);
++	for (i = 0; i < NT_HASH_LEN; i++)
 +		len += snprintf(buf + len, sizeof(buf) - len, "%02X", nt_p16[i]);
-+
 +	snprintf(buf + len, sizeof(buf) - len, ":[U          ]:LCT-00000001:\n");
 +	fputs(buf, fp);
 +}
 +
++static bool read_password_line(char *password, size_t size)
++{
++	unsigned char *p;
++	char *newline;
++	size_t len;
++
++	if (!fgets(password, (int)size, stdin))
++		return false;
++	newline = strchr(password, '\n');
++	if (!newline)
++		return false;
++	*newline = '\0';
++	len = strlen(password);
++	if (len == 0 || len >= 128)
++		return false;
++
++	for (p = (unsigned char *)password; *p; ++p) {
++		if (*p < 0x20 || *p == 0x7f)
++			return false;
++	}
++
++	return true;
++}
++
 +int main(int argc, char **argv)
 +{
-+	const char *user, *pw;
++	const char *user, *passdb = "/etc/samba/smbpasswd";
 +	FILE *fp;
 +	bool found;
-+	int uid;
++	int uid, arg = 1;
++	char password[129], confirmation[129];
++	mode_t old_umask;
 +
 +	TALLOC_CTX *frame = talloc_stackframe();
 +
-+	if (argc < 3){
-+		fprintf(stderr, "usage for smbpasswd - \n\t%s USERNAME PASSWD\n", argv[0]);
++	/* Only accept the silent stdin form; plaintext argv is not supported. */
++	if (argc < 3 || strcmp(argv[arg], "-s") != 0) {
++		fprintf(stderr, "usage: %s -s [-f PASSDB] USERNAME\n", argv[0]);
++		TALLOC_FREE(frame);
++		return 1;
++	}
++	arg++;
++
++	if (arg < argc && strcmp(argv[arg], "-f") == 0) {
++		if (arg + 2 >= argc) {
++			fprintf(stderr, "usage: %s -s [-f PASSDB] USERNAME\n", argv[0]);
++			TALLOC_FREE(frame);
++			return 1;
++		}
++		passdb = argv[arg + 1];
++		user = argv[arg + 2];
++		arg += 3;
++	} else {
++		if (arg >= argc) {
++			fprintf(stderr, "usage: %s -s USERNAME\n", argv[0]);
++			TALLOC_FREE(frame);
++			return 1;
++		}
++		user = argv[arg];
++		arg++;
++	}
++	if (arg != argc) {
++		TALLOC_FREE(frame);
 +		return 1;
 +	}
 +
-+	user = argv[1];
++	if (!read_password_line(password, sizeof(password)) ||
++	    !read_password_line(confirmation, sizeof(confirmation)) ||
++	    strcmp(password, confirmation) != 0) {
++		memset(password, 0, sizeof(password));
++		memset(confirmation, 0, sizeof(confirmation));
++		TALLOC_FREE(frame);
++		return 4;
++	}
++
 +	uid = find_uid_for_user(user);
 +	if (uid < 0) {
 +		fprintf(stderr, "Could not find user '%s' in /etc/passwd\n", user);
++		memset(password, 0, sizeof(password));
++		memset(confirmation, 0, sizeof(confirmation));
++		TALLOC_FREE(frame);
 +		return 2;
 +	}
 +
-+	fp = fopen("/etc/samba/smbpasswd", "a+");
-+	if(!fp) {
-+		fprintf(stderr, "Failed to open /etc/samba/smbpasswd");
++	old_umask = umask(077);
++	fp = fopen(passdb, "a+");
++	if (!fp) {
++		umask(old_umask);
++		fprintf(stderr, "Failed to open Samba passdb\n");
++		memset(password, 0, sizeof(password));
++		memset(confirmation, 0, sizeof(confirmation));
++		TALLOC_FREE(frame);
 +		return 3;
 +	}
-+	fseek(fp, 0, SEEK_SET);
++	if (fchmod(fileno(fp), 0600) != 0 || fseek(fp, 0, SEEK_SET) != 0) {
++		fclose(fp);
++		umask(old_umask);
++		memset(password, 0, sizeof(password));
++		memset(confirmation, 0, sizeof(confirmation));
++		TALLOC_FREE(frame);
++		return 5;
++	}
++	umask(old_umask);
 +
 +	found = find_passwd_line(fp, user, NULL);
-+
 +	if (found)
 +		fseek(fp, -strlen(buf), SEEK_CUR);
-+	pw = argv[2];
-+	smbpasswd_write_user(fp, user, uid, pw);
++	smbpasswd_write_user(fp, user, uid, password);
 +
-+	fclose(fp);
++	memset(password, 0, sizeof(password));
++	memset(confirmation, 0, sizeof(confirmation));
++	if (fflush(fp) != 0 || ferror(fp)) {
++		fclose(fp);
++		TALLOC_FREE(frame);
++		return 5;
++	}
++	if (fclose(fp) != 0) {
++		TALLOC_FREE(frame);
++		return 5;
++	}
++
 +	TALLOC_FREE(frame);
-+
 +	return 0;
 +}

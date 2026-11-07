@@ -37,6 +37,9 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
       - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/samba_passdb_policy.h"
+      - "trunk/user/rc/src/tests/samba_passdb_policy.c"
+      - "trunk/user/samba36/patches/111-owrt_smbpasswd.patch"
       - "trunk/user/rc/src/samba_share_policy.h"
       - "trunk/user/rc/src/tests/samba_share_policy.c"
       - "trunk/user/rc/src/ftp_share_policy.h"
@@ -101,6 +104,9 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
       - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/samba_passdb_policy.h"
+      - "trunk/user/rc/src/tests/samba_passdb_policy.c"
+      - "trunk/user/samba36/patches/111-owrt_smbpasswd.patch"
       - "trunk/user/rc/src/samba_share_policy.h"
       - "trunk/user/rc/src/tests/samba_share_policy.c"
       - "trunk/user/rc/src/ftp_share_policy.h"
@@ -394,6 +400,11 @@ jobs:
             trunk/user/rc/src/tests/ftp_share_policy.c \
             -o /tmp/ftp_share_policy
           /tmp/ftp_share_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/samba_passdb_policy.c \
+            -o /tmp/samba_passdb_policy
+          /tmp/samba_passdb_policy
           python3 - <<'PY'
           from pathlib import Path
 
@@ -401,9 +412,16 @@ jobs:
           samba_policy = Path("trunk/user/rc/src/samba_share_policy.h").read_text()
           ftp_policy = Path("trunk/user/rc/src/ftp_share_policy.h").read_text()
           ftp_test = Path("trunk/user/rc/src/tests/ftp_share_policy.c").read_text()
+          passdb_policy = Path("trunk/user/rc/src/samba_passdb_policy.h").read_text()
+          passdb_test = Path("trunk/user/rc/src/tests/samba_passdb_policy.c").read_text()
+          passdb_patch = Path("trunk/user/samba36/patches/111-owrt_smbpasswd.patch").read_text()
           accounts = Path("trunk/user/shared/src/shutils.c").read_text()
           assert '#include "samba_share_policy.h"' in source
           assert '#include "ftp_share_policy.h"' in source
+          assert '#include "samba_passdb_policy.h"' in source
+          assert "samba_passdb_password_is_safe" in passdb_policy
+          assert "len >= 128" in passdb_policy and "*p == 0x7f" in passdb_policy
+          assert "samba_passdb_password_is_safe(overlong_password)" in passdb_test
 
           # Preserve supported UI modes; corrupted values must not fall
           # through to anonymous-enabled FTP mode.
@@ -451,7 +469,26 @@ jobs:
           assert 'assert(strcmp(SAMBA_GUEST_ACCOUNT, "nobody") == 0);' in Path("trunk/user/rc/src/tests/samba_share_policy.c").read_text()
 
           account_guard = source.index("if (!samba_service_account_is_safe(nvram_safe_get(tmpuser)))")
-          assert account_guard < source.index("_eval(smb_args, NULL, 0, NULL);", account_guard)
+          run_start = source.index("void run_samba(void)")
+          run_body = source[run_start:]
+          assert account_guard < source.index("samba_run_smbpasswd(", account_guard)
+          assert "samba_passdb_password_is_safe(nvram_safe_get(tmp2))" in run_body
+          assert "_eval(smb_args" not in run_body
+          assert 'execl("/bin/smbpasswd", "smbpasswd", "-s", "-f"' in source
+          assert 'execl("/bin/smbpasswd", "smbpasswd", "-s"' in source
+          assert "WIFEXITED(status)" in source and "WEXITSTATUS(status) != 0" in source
+          assert "samba_secure_private_samba_dir()" in run_body
+          assert "write_smb_conf() != 0" in run_body
+          assert "samba_prepare_private_passdb(staged_passdb" in run_body
+          assert 'rename(staged_passdb, "/etc/samba/smbpasswd")' in run_body
+          assert "fchmod(input_fd, 0600)" in source
+          assert "read_password_line" in passdb_patch
+          assert "strcmp(password, confirmation) != 0" in passdb_patch
+          assert "fchmod(fileno(fp), 0600)" in passdb_patch
+          assert "md4hash(password, nt_p16)" in passdb_patch
+          assert "strdup(password)" not in passdb_patch
+          assert "pw = argv[2]" not in passdb_patch
+          assert 'doSystem("rm -f %s", "/etc/samba/*")' not in run_body
 
           # The FTP banner is emitted only after rejecting line controls/escapes.
           banner_guard = source.index("if (!samba_conf_text_is_safe(banner_product)")
@@ -1226,6 +1263,9 @@ jobs:
               "trunk/user/libdisk/src/disk_share.c",
               "trunk/user/shared/src/include/router_account_policy.h",
               "trunk/user/shared/src/tests/router_account_policy.c",
+              "trunk/user/rc/src/samba_passdb_policy.h",
+              "trunk/user/rc/src/tests/samba_passdb_policy.c",
+              "trunk/user/samba36/patches/111-owrt_smbpasswd.patch",
           ))
           print("Samba storage-account and Unix passwd/group identity contracts: OK")
           PY
