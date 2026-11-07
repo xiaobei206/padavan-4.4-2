@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/upload.c"
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
       - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
@@ -18,6 +19,7 @@ on:
     paths:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/upload.c"
       - "trunk/user/httpd/src/base64.c"
       - "trunk/user/httpd/src/httpd_basic_auth.h"
       - "trunk/user/httpd/src/tests/httpd_basic_auth.c"
@@ -70,6 +72,7 @@ jobs:
           root = Path("trunk/user/httpd/src")
           httpd = (root / "httpd.c").read_text()
           web = (root / "web_ex.c").read_text()
+          upload = (root / "upload.c").read_text()
 
           getter_start = httpd.index("get_login_private_key_access(void)")
           getter_end = httpd.index("\nstatic void\nhttp_login", getter_start)
@@ -206,6 +209,22 @@ jobs:
           for pattern, callback in protected_routes.items():
               expect_route(pattern, callback, 1)
           print("HTTPD MIME authorization matrix: OK")
+
+          # Upload handlers run their output/restore callbacks even when the
+          # input callback fails, so stale artifacts must be removed before
+          # parsing a new multipart body or rejecting its boundary.
+          upload_start = upload.index("do_upload_file(FILE *stream")
+          upload_end = upload.index(chr(10) + "void" + chr(10) + "do_upgrade_fw_post", upload_start)
+          upload_helper = upload[upload_start:upload_end]
+          stale_clear = upload_helper.index("unlink(fn);")
+          parse_part = upload_helper.index("/* Look for our part */")
+          assert stale_clear < parse_part, "upload destination is not cleared before multipart parsing"
+          storage_post_start = upload.index(chr(10) + "void" + chr(10) + "do_restore_st_post")
+          storage_post = upload[storage_post_start:]
+          storage_clear = storage_post.index("unlink(upload_file);")
+          storage_boundary_check = storage_post.index("if (!boundary || !*boundary || clen < 0)")
+          assert storage_clear < storage_boundary_check, "invalid storage boundary can reuse a stale archive"
+          print("HTTPD stale upload-artifact guard wiring: OK")
           # Session ownership is a 30-second idle lock, not a fixed 30 seconds
           # from first login. Preserve the initial-login timestamp for UI use.
           login_policy = (root / "httpd_login_policy.h").read_text()

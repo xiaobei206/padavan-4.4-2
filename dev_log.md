@@ -1,3 +1,14 @@
+## 2026-11-07 23:20 CST — Clear stale upload artifacts before parsing restore requests
+
+- Baseline main HEAD: 87ce7c634721c2be7a7b3f52b970ad4f6f991892. Bounded P1 audit of `trunk/user/httpd/src/upload.c` and restore callbacks.
+- Finding: `handle_request()` invokes a route's output callback even when its POST input callback fails. `do_upload_file()` used to unlink its destination only after finding the expected multipart file part and skipping its part headers. If a previous request or interrupted operation left an upload artifact, malformed input that failed before that unlink could leave it present for `do_restore_nv_cgi()` or `do_restore_st_cgi()` to pass to privileged restore code. `do_restore_st_post()` also returned on invalid/missing/oversized boundary without clearing an old storage archive.
+- Fix: `do_upload_file()` now clears the fixed destination before argument/multipart validation; `do_restore_st_post()` clears its destination before any early boundary rejection. Failure cleanup and existing image/header checks are preserved.
+- Regression contract: workflow now checks the shared uploader clears its destination before multipart parsing and the storage path clears the archive before boundary validation. This is source-wiring coverage, not runtime multipart fuzzing or proof of archive extraction safety.
+- Validation: PENDING; matching Actions run will be recorded after checking its exact head SHA. Full MIPS build, firmware artifact and hardware validation NOT VERIFIED.
+- Next: inspect the matching workflow result, then audit size arithmetic and `/sbin/mtd_storage.sh` restore/extraction behavior.
+
+---
+
 ## 2026-11-07 23:19 CST — Verify HTTPD MIME authorization matrix contract
 
 - Corrective workflow commit `015b820fc61cb8e3cc1283a0a87a48751205eae6` is on main. HTTPD Authentication and Security Regression run `42385661621` completed SUCCESS on exact head SHA `015b820fc61cb8e3cc1283a0a87a48751205eae6`: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385661621.

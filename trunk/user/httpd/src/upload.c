@@ -198,6 +198,14 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 	int cnt, count, offset, ret, ch, valid_header, boundary_found;
 	long filelen, max_payload_len, end_pos, back_len;
 
+	/*
+	 * The request output/restore callback still runs when upload parsing fails.
+	 * Clear any artifact left by an interrupted earlier request before parsing
+	 * this request, or a malformed POST could reuse the stale file.
+	 */
+	if (fn && *fn)
+		unlink(fn);
+
 	if (!stream || !fn || !*fn || !obj_name || !func_hdr ||
 	    clen < 0 || hdr_size <= 0 || hdr_size > UPLOAD_BUF_SIZE)
 		return -1;
@@ -225,7 +233,6 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 			break;
 	}
 
-	unlink(fn);
 	if (!(fp = fopen(fn, "w+")))
 		goto err;
 
@@ -382,6 +389,9 @@ do_restore_st_post(const char *url, FILE *stream, int clen, char *boundary)
 	char bndr[128];
 	const unsigned char *p;
 	int bndr_len;
+
+	/* A failed boundary check must not leave a previous restore image usable. */
+	unlink(upload_file);
 
 	if (!boundary || !*boundary || clen < 0)
 		return;
