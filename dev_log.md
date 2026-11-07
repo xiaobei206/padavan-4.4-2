@@ -1,3 +1,23 @@
+## 2026-11-08 05:52 CST — Isolate HTTPD privileged upload and storage-restore staging
+
+### Findings and implementation
+- **Verified source/test/workflow SHA:** `f39ec03b4b9c898151048f4244276136d2c1fe33`; exact-head Actions run [`42417878853`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42417878853) completed SUCCESS. Documentation commits after this code checkpoint do not alter the tested source/workflow files.
+- `trunk/user/httpd/src/upload.c::do_upload_file()` deleted a fixed-name output and opened it later using `fopen(fn, "w+")`, allowing a local shared-`/tmp` symlink race to redirect a privileged write. New `httpd_upload_file.h` uses `open(O_CREAT | O_EXCL | O_NOFOLLOW)`, enforces file mode 0600 via `fchmod`, and uses `fdopen` on the returned descriptor. The uploader no longer opens its target with `fopen`.
+- Moved HTTPD NVRAM-upload/download, storage archive and firmware-image staging into `/tmp/.httpd-private/`. In `dev_init.sh`, explicitly set `/tmp` sticky mode 1777 and create `/tmp/.httpd-private` mode 0700 before the storage initialization path. This keeps potentially large firmware uploads on the existing tmpfs rather than moving them to the 1 MiB `/home` tmpfs.
+- In `mtd_storage.sh::func_restore()`, extracted files now go into a uniquely allocated mode-0700 private directory through a bounded `mkdir` loop; the operation quotes path arguments, rejects scratch-allocation exhaustion, and copies the extracted directory contents into `/etc/storage`. Storage tar, compressed archive, lock marker and hash staging are also under the private directory.
+- Added `trunk/user/httpd/src/tests/httpd_upload_file.c`: a planted target symlink must be refused without altering the victim; a normal new upload must produce a regular mode-0600 file. Workflow triggers include the helper/header/shared board macro on both push and PR (the path sets compare equal), and CI runs `sh -n` against `mtd_storage.sh` and `dev_init.sh`.
+
+### Verification and correction history
+- Exact-head run [`42417878853`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42417878853), head `f39ec03b4b9c898151048f4244276136d2c1fe33`, passed its complete job. This included GNU89 `-Wall -Wextra -Werror` compile/run of the symlink/file-mode regression, source-contract assertions and both shell syntax checks.
+- Earlier runs `42417600632` and `42417688730` exposed a test-script `NameError`: the restore source slice was referenced before it was defined. Fixed by `515223ee4f0c9178662e06b67a6bd1879fd47a9a`; exact-head run `42417796130` passed. The follow-up `sh -n` gate committed as `f39ec03b4b9c898151048f4244276136d2c1fe33` then passed run 42417878853.
+- Implementation history: `226f20b880a557004d1e55a20d37717517fb8aa1` first added exclusive creation and restore staging; `7211a6be9067751bae7a94f30c5c4d6af93a938d` relocated staged paths to private tmpfs because `/home` is only 1 MiB. Subsequent workflow-only commits fixed the contract test and added shell syntax checks.
+- **Not run:** production MIPS build, firmware/TRX validation and physical-router test. No claim is made that all archive-member semantics, HTTPD/TLS runtime paths or alternate writers are fully audited.
+
+### Remaining scope
+- Updated `SESSION_HANDOFF.md` and `REFACTOR_ROADMAP.md` with the exact-head checkpoint. HTTPD/archive restore remains P1 AUDITING, system init/service lifecycle remains AUDITING, and FTP/Samba plus USB/storage/hotplug remain NOT AUDITED.
+- Five `refactor/*` checkpoint branches remain far behind current main with their ahead-only changes restricted to SkipDBv2/CMake/test/workflow/dev-log areas; none was merged.
+- **Next:** continue remaining P1 firewall restore/error and IPv6 policy gaps, then rotate across FTP/Samba, USB/storage/hotplug and init/service lifecycle. Do not restrict the project to SkipDBv2.
+
 ## 2026-11-08 05:43 CST — Reject unspecified DHCP hosts and align CI event filters
 
 ### Follow-up findings and fixes
