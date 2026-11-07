@@ -82,14 +82,16 @@ void JFile_setPath_(JFile *self, const char *path)
 	self->logPath = new_log_path;
 }
 
-char *JFile_fileName(JFile *self)
+static char *JFile_fileName_(JFile *self)
 {
+	if (NULL == self || NULL == self->path)
+		return NULL;
 #if defined(__WIN32__) || defined(WIN32) || defined(_WIN32) || defined(_MSC_VER) || defined(__MINGW32__) || defined(__WINS__)
 	char *fileName = strrchr(self->path, '\\');
 #else
 	char *fileName = strrchr(self->path, '/');
 #endif
-	return  fileName ? fileName : self->path;
+	return fileName ? fileName : self->path;
 }
 
 void JFile_setLogPath_(JFile *self, const char *path)
@@ -100,7 +102,7 @@ void JFile_setLogPath_(JFile *self, const char *path)
 
 	if (NULL == self || NULL == path || NULL == self->path)
 		return;
-	file_name = JFile_fileName(self);
+	file_name = JFile_fileName_(self);
 	if (file_name && (*file_name == '/' || *file_name == '\\'))
 		++file_name;
 	if (NULL == file_name || '\0' == *file_name)
@@ -109,9 +111,18 @@ void JFile_setLogPath_(JFile *self, const char *path)
 	path_len = strlen(path);
 	name_len = strlen(file_name);
 	need_slash = path_len > 0 && path[path_len - 1] != '/';
-	if (path_len > (size_t)-1 - name_len - 6 - need_slash)
+
+	/* Check each addition before performing it; chained subtraction can wrap. */
+	total_len = name_len;
+	if (total_len > (size_t)-1 - 5)
 		return;
-	total_len = path_len + need_slash + name_len + 5;
+	total_len += 5;
+	if (need_slash > (size_t)-1 - total_len)
+		return;
+	total_len += need_slash;
+	if (path_len > (size_t)-1 - total_len)
+		return;
+	total_len += path_len;
 	new_log_path = (char *)malloc(total_len);
 	if (NULL == new_log_path)
 		return;
@@ -134,9 +145,16 @@ void JFile_setPath_withExtension_(JFile *self, const char *path, const char *ext
 		return;
 	path_len = strlen(path);
 	ext_len = strlen(ext);
-	if (path_len > (size_t)-1 - ext_len - 2)
+	length = path_len;
+	if (length == (size_t)-1)
 		return;
-	length = path_len + ext_len + 2;
+	++length; /* Account for the separating dot. */
+	if (ext_len > (size_t)-1 - length)
+		return;
+	length += ext_len;
+	if (length == (size_t)-1)
+		return;
+	++length; /* Account for the terminating NUL. */
 	s = (char *)malloc(length);
 	if (NULL == s)
 		return;

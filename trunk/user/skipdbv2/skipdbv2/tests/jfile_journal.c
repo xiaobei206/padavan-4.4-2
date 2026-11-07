@@ -28,6 +28,40 @@ static int file_is_private_owned_regular(const char *path)
 		(file_stat.st_mode & 0777) == 0600;
 }
 
+
+static int test_path_setter_aliases(void)
+{
+	JFile *paths = JFile_new();
+	int passed = 0;
+	if (NULL == paths)
+		return 0;
+
+	JFile_setPath_(paths, "jfile_path_parent/record");
+	if (NULL == paths->path || NULL == paths->logPath ||
+		strcmp(paths->path, "jfile_path_parent/record") != 0 ||
+		strcmp(paths->logPath, "jfile_path_parent/record.log") != 0)
+		goto done;
+
+	JFile_setLogPath_(paths, paths->path);
+	if (NULL == paths->logPath ||
+		strcmp(paths->logPath, "jfile_path_parent/record/record.log") != 0)
+		goto done;
+
+	JFile_setPath_withExtension_(paths, paths->path, "db");
+	if (NULL == paths->path ||
+		strcmp(paths->path, "jfile_path_parent/record.db") != 0)
+		goto done;
+
+	JFile_setLogPath_(paths, paths->path);
+	if (NULL == paths->logPath ||
+		strcmp(paths->logPath, "jfile_path_parent/record.db/record.db.log") != 0)
+		goto done;
+	passed = 1;
+done:
+	JFile_free(paths);
+	return passed;
+}
+
 static int append_crash_tail(const char *path)
 {
 	const unsigned char tail = 0x5a;
@@ -141,6 +175,10 @@ int main(void)
 	if (NULL == file) {
 		fprintf(stderr, "JFile_new failed\n");
 		return EXIT_FAILURE;
+	}
+	if (!test_path_setter_aliases()) {
+		fprintf(stderr, "JFile path setters did not preserve aliased source storage\n");
+		goto done;
 	}
 	errno = 0;
 	if (JFile_hardSyncFileDescriptor_(file, -1) != -1 || errno != EBADF) {

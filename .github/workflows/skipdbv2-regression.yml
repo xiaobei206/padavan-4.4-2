@@ -538,6 +538,14 @@ jobs:
                   "void JFile_writeLogToFile(JFile *self);",
               ],
               "trunk/user/skipdbv2/skipdbv2/jfile/JFile.c": [
+                  "static char *JFile_fileName_(JFile *self)",
+                  "NULL == self || NULL == self->path",
+                  "total_len > (size_t)-1 - 5",
+                  "need_slash > (size_t)-1 - total_len",
+                  "path_len > (size_t)-1 - total_len",
+                  "ext_len > (size_t)-1 - length",
+                  "length += ext_len;",
+
                   '#include "JFileInternal.h"',
                   "static int JFile_verifyManagedFile_(int fd, const struct stat *before, int existed)",
                   "JFile_verifyManagedFile_(fd, &before, exists)",
@@ -591,6 +599,12 @@ jobs:
                   "void JFile_truncate_(JFile *self, off_t size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/jfile_journal.c": [
+                  "test_path_setter_aliases",
+                  "JFile_setLogPath_(paths, paths->path)",
+                  'JFile_setPath_withExtension_(paths, paths->path, "db")',
+                  "jfile_path_parent/record.db/record.db.log",
+                  "JFile path setters did not preserve aliased source storage",
+
                   "file_is_private_owned_regular(file->path)",
                   "file_is_private_owned_regular(file->logPath)",
                   '#include "JFileInternal.h"',
@@ -6783,6 +6797,44 @@ jobs:
               raise SystemExit("managed JFile descriptor validation must have one owner and one call")
           if jfile_source_text.find("static int JFile_verifyManagedFile_(") > jfile_source_text.find("FILE *JFile_openManagedFile_("):
               raise SystemExit("managed JFile validator must be declared before its caller")
+
+          path_name_start = jfile_source_text.find("static char *JFile_fileName_(JFile *self)")
+          path_name_end = jfile_source_text.find(chr(10) + "void JFile_setLogPath_", path_name_start)
+          path_name_body = (jfile_source_text[path_name_start:path_name_end]
+                            if path_name_start >= 0 and path_name_end > path_name_start else "")
+          null_path_guard = path_name_body.find("NULL == self || NULL == self->path")
+          first_path_read = path_name_body.find("strrchr(self->path,")
+          if not path_name_body or null_path_guard < 0 or first_path_read < 0 or null_path_guard > first_path_read:
+              raise SystemExit("JFile basename helper must reject null objects and paths before reading path storage")
+
+          log_path_start = jfile_source_text.find("void JFile_setLogPath_(JFile *self, const char *path)")
+          log_path_end = jfile_source_text.find(chr(10) + "void JFile_setPath_withExtension_", log_path_start)
+          log_path_body = (jfile_source_text[log_path_start:log_path_end]
+                           if log_path_start >= 0 and log_path_end > log_path_start else "")
+          name_guard = log_path_body.find("total_len > (size_t)-1 - 5")
+          name_add = log_path_body.find("total_len += 5;")
+          slash_guard = log_path_body.find("need_slash > (size_t)-1 - total_len")
+          slash_add = log_path_body.find("total_len += need_slash;")
+          prefix_guard = log_path_body.find("path_len > (size_t)-1 - total_len")
+          prefix_add = log_path_body.find("total_len += path_len;")
+          if (not log_path_body or min(name_guard, name_add, slash_guard, slash_add, prefix_guard, prefix_add) < 0 or
+                  not (name_guard < name_add < slash_guard < slash_add < prefix_guard < prefix_add)):
+              raise SystemExit("JFile log-path length arithmetic must validate each addition before updating the accumulated size")
+
+          extension_start = jfile_source_text.find("void JFile_setPath_withExtension_(JFile *self, const char *path, const char *ext)")
+          extension_end = jfile_source_text.find(chr(10) + "char *JFile_path", extension_start)
+          extension_body = (jfile_source_text[extension_start:extension_end]
+                            if extension_start >= 0 and extension_end > extension_start else "")
+          dot_guard = extension_body.find("if (length == (size_t)-1)")
+          dot_add = extension_body.find("++length;")
+          extension_guard = extension_body.find("ext_len > (size_t)-1 - length")
+          extension_add = extension_body.find("length += ext_len;")
+          nul_guard = extension_body.find("if (length == (size_t)-1)", dot_add + 1)
+          nul_add = extension_body.find("++length;", dot_add + 1)
+          if (not extension_body or min(dot_guard, dot_add, extension_guard, extension_add, nul_guard, nul_add) < 0 or
+                  not (dot_guard < dot_add < extension_guard < extension_add < nul_guard < nul_add)):
+              raise SystemExit("JFile extension-path sizing must check dot, extension, and NUL additions before incrementing")
+
           mode_setter_start = jfile_source_text.find(
               "void JFile_setJournalingOn_(JFile *self, int aBool)"
           )

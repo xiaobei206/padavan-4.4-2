@@ -1,3 +1,14 @@
+## 2026-11-07 17:21 CST — Check JFile path sizing additions before arithmetic
+
+- Baseline: `ede6b8582d2f87c2046cc03a73605b6dbd907731`; mainline SkipDBv2 Regression run #605 completed successfully.
+- Scope: the two path-construction setters in `jfile/JFile.c` and their existing `jfile_journal_test`.
+- The setters used chained expressions such as `SIZE_MAX - name_len - 6` and `SIZE_MAX - ext_len - 2`. If a component length approaches the representable limit, the subtraction itself can wrap before the guard compares it, so later allocation-size additions are not proven safe.
+- Replace chained subtraction with sequential checked additions: validate the suffix, separator, and prefix one at a time for `JFile_setLogPath_()`; separately account for the dot, extension bytes, and terminating NUL in `JFile_setPath_withExtension_()`. Make the basename helper file-local and reject a null object/path before dereferencing it.
+- Add path-setter alias regressions using `self->path` as the input to both setters. Extend the current Actions source-order contract so each size check must precede its corresponding addition. Existing CMake/CTest registration is reused; no new files or exported declarations.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 17:19 CST — Revalidate the SkipDB eviction cursor after object callbacks
 
 - Baseline: `d94121ab3c7116ab5e1244b73ce7d37beecc2fcf`; mainline SkipDBv2 Regression run #604 passed the XY-C1 source contracts, full build, and all 57 CTests.
