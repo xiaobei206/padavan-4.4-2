@@ -4993,7 +4993,7 @@ jobs:
               raise SystemExit("UArray resize must copy borrowed storage before relinquishing stack ownership")
           if "copyBytes = oldSizeInBytes < newSizeInBytes ?" not in resize_body:
               raise SystemExit("UArray borrowed-buffer resize must bound copies when shrinking")
-          copy_layout_start = uarray_source.find("static int UArray_hasValidItemLayout_(const UArray *self)\\n{")
+          copy_layout_start = uarray_source.find("static int UArray_hasValidItemLayout_(const UArray *self)\n{")
           copy_layout_end = uarray_source.find("\n}", copy_layout_start)
           copy_layout_body = uarray_source[copy_layout_start:copy_layout_end] if copy_layout_start >= 0 and copy_layout_end > copy_layout_start else ""
           copy_start = uarray_source.find("void UArray_copy_(UArray *self, const UArray *other)")

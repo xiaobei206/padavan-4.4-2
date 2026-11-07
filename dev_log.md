@@ -1,3 +1,11 @@
+## 2026-11-07 19:12 CST — Correct newline escape in UArray source contract
+
+- Failed head: `c0a947efbb97e3ebd221d4bd164eff92ab804c2d`; Actions run #640 still stopped in the source-contract checker before compilation.
+- The intended definition-only search had a double-escaped newline in the Python script, so it searched for a literal backslash sequence instead of the actual newline before the opening brace. The guard consequently still found no validator body.
+- Correct the Python string to use one newline escape; preserve the existing 16-occurrence contract and all implementation files.
+
+---
+
 ## 2026-11-07 19:11 CST — Locate UArray layout-validator definition precisely
 
 - Failed head: `8989a3bb30a48f46d5dfa164ba9f935b81156cf5`; Actions run #639 failed in the source-contract checker before compilation.
