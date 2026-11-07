@@ -1,3 +1,11 @@
+## 2026-11-07 20:07 CST — Align MainArgs replacement-order contract with sentinel cleanup
+
+- Failed head: `3d147dd2fe54162b5e02b01b3cd7bb84dbe633de`; run #655 passed the static source/path inventory but failed the dynamic MainArgs replacement-order check before CMake.
+- The checker still searched for the removed `oldArgc` parameter in the old-vector release call. Cleanup now derives its bound from the owned vector's NULL sentinel, so the new call is `MainArgs_freeArguments_(oldArgv);`.
+- Update only the dynamic source-contract needle; retain its allocate → validate → copy → publish → release ordering assertion. No C source, test, or CMake changes.
+
+---
+
 ## 2026-11-07 20:06 CST — Retarget MainArgs sentinel source contract
 
 - Failed head: `8fd452a201548b0ca1bae935225a39b8b9aa7ab9`; SkipDBv2 Regression run #654 stopped in the XY-C1 source-contract stage before CMake configuration or compilation.

@@ -6561,7 +6561,7 @@ jobs:
           validate = setter.find("if (NULL == argument)")
           copy = setter.find("memcpy(copy, argument, length + 1)")
           publish = setter.find("self->argv = newArgv;")
-          release_old = setter.find("MainArgs_freeArguments_(oldArgv, oldArgc);")
+          release_old = setter.find("MainArgs_freeArguments_(oldArgv);")
           if (not setter or allocate < 0 or validate < 0 or copy < 0 or publish < 0 or
                   release_old < 0 or not (allocate < validate < copy < publish < release_old)):
               raise SystemExit("MainArgs replacement must validate/copy completely before publishing and releasing old state")
