@@ -1,3 +1,13 @@
+## 2026-11-08 05:43 CST — Reject unspecified DHCP hosts and align CI event filters
+
+### Follow-up findings and fixes
+- Source review compared the new lease parser with the existing shared `is_valid_ipv4()` implementation: the latter treats `0.0.0.0` as `INADDR_ANY`, while the first DHCP helper revision only checked syntax. The policy header now separates dotted-quad text validation from host-address validation, rejects `0.0.0.0` for assigned addresses and router/DNS/WINS lists, and allows it only for a classless route with prefix length `/0`. Added regressions for zero host rejection, `/0` acceptance, and invalid nonzero-prefix zero route.
+- Workflow review found the new `rc.h`, `dhcp_lease_policy.h` and `tests/dhcp_lease_policy.c` path filters had landed only in `push.paths`. Added the identical entries to `pull_request.paths`; extracted lists now match exactly (51 entries each, no push/PR path differences). The workflow-only trigger correction commit [`8daa47c339c26e34e950ef36d4815d9c542fdd47`](https://github.com/xiaobei206/padavan-4.4-2/commit/8daa47c339c26e34e950ef36d4815d9c542fdd47) passed exact-head run [42417046785](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42417046785).
+- Semantic follow-up source/test/workflow commit [`048b540edbfc418b6f1bb8053692425f18b86d66`](https://github.com/xiaobei206/padavan-4.4-2/commit/048b540edbfc418b6f1bb8053692425f18b86d66) passed exact-head run [42417162009](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42417162009); all job steps passed, including the GNU89 `-Wall -Wextra -Werror` standalone C policy regression and DHCP source-wiring contracts.
+- Residual verification boundary unchanged: no production MIPS RC build, firmware/TRX validation or physical-router test. The broader DNS package/rebinding, PPP failover and IPv6 state-machine audit remains open.
+- Latest checkpoint-branch comparison against current main: BStreamTag 1/557 ahead/behind, DBAPI result 8/638, dynlib lifecycle 0/561, sorting 0/557, and UArray character 2/555. Ahead-only file differences remain SkipDBv2 source/workflow plus branch log material; no checkpoint was merged.
+- Next: continue the remaining P1 firewall restore failure/rollback and IPv6 policy gaps, then rotate to FTP/Samba, USB/storage/hotplug and init/service lifecycle instead of routine SkipDBv2 expansion.
+
 ## 2026-11-08 05:39 CST — Validate DHCP lease callbacks and reconcile stale WAN routes
 
 ### Scope and implementation
