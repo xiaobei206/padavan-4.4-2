@@ -4903,7 +4903,7 @@ jobs:
                   "#include <errno.h>" not in date_source):
               raise SystemExit("Date calendar conversion must centralize mktime overflow checks and publish normalized state only on success")
           time_constructor_start = date_source.find("void Date_fromTime_(Date *self, time_t t)")
-          time_constructor_end = date_source.find("\\ntime_t Date_asTime(", time_constructor_start)
+          time_constructor_end = date_source.find("\ntime_t Date_asTime(", time_constructor_start)
           time_constructor_body = date_source[time_constructor_start:time_constructor_end] if time_constructor_start >= 0 and time_constructor_end > time_constructor_start else ""
           if (not time_constructor_body or
                   "self->tv.tv_sec = t;" not in time_constructor_body or

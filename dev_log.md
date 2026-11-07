@@ -1,3 +1,11 @@
+## 2026-11-07 12:20 CST — Correct Date_fromTime_ source-contract delimiter
+
+- Baseline: main commit `97d3fa3005cf11f0f22983bcac661597e43ed260`; SkipDBv2 Regression run #525 stopped in source-contract preflight.
+- The new dynamic contract searched for the end of `Date_fromTime_()` using a Python string containing a literal backslash-plus-`n`, rather than the newline that starts `Date_asTime()`. The source body extraction was therefore empty.
+- Correct the delimiter escape so the contract checks the actual function body. Production code and regression test are unchanged.
+
+---
+
 ## 2026-11-07 12:19 CST — Preserve exact time_t values in Date_fromTime_
 
 - Baseline: main commit `b2c7ee397792acb267658448ea80ea3a3c79d335`; SkipDBv2 Regression run #523 passed source contracts, configure, full build, and all CTest regressions.
