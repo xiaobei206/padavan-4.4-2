@@ -187,6 +187,10 @@ jobs:
                   "void UDBIndex_commit(UDBIndex *self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexFreeList.c": [
+                  "static int UDBIndex_pidListsHaveValidStorage_(UDBIndex *self)",
+                  "List_hasValidStorage_(self->holes)",
+                  "List_hasValidStorage_(self->reserved)",
+                  "if (!UDBIndex_pidListsHaveValidStorage_(self))",
                   "static int UDBIndex_pushAndVerify_(List *list, void *value)",
                   "PID_TYPE UDBIndex_nextPid(UDBIndex *self)",
                   "UDBIndex_offsetForPid_(hole, &offset)",
@@ -237,6 +241,13 @@ jobs:
                   "overflow PID offset was accepted",
                   "UDBIndex_setPos_forPid_(db->index, 1, 2)",
                   "unreserved PID mapping changed index state",
+                  "Corrupt stack metadata must fail closed before any pointer-array walk.",
+                  "unable to prepare PID stack corruption fixture",
+                  "PID allocator accepted malformed free-stack storage",
+                  "commit preparation accepted malformed reservation storage",
+                  "List_preallocateToSize_(reserved, 1)",
+                  "UDBIndex_allocPid(db->index)",
+                  "UDBIndex_prepareCommit(db->index)",
                   "UDB_at_put_(db, first, Datum_FromCString_(\"first-replaced\"))",
                   "existing PID mapping could not be updated after commit",
                   "UDBIndex_isReservedPid_(db->index, first)",
@@ -3279,6 +3290,35 @@ jobs:
           ).read_text()
           if freelist_source.count("UDBIndex_pushHole_(") != 3:
               raise SystemExit("UDB free-PID insertion is not centralized across release and commit")
+          pid_lists_guard = freelist_source.find(
+              "static int UDBIndex_pidListsHaveValidStorage_(UDBIndex *self)"
+          )
+          holes_check = freelist_source.find("List_hasValidStorage_(self->holes)", pid_lists_guard)
+          reserved_check = freelist_source.find("List_hasValidStorage_(self->reserved)", pid_lists_guard)
+          if (
+              pid_lists_guard < 0 or holes_check < 0 or reserved_check < 0 or
+              holes_check > reserved_check or
+              freelist_source.count("UDBIndex_pidListsHaveValidStorage_(self)") < 9
+          ):
+              raise SystemExit(
+                  "UDB PID stack operations must validate hole and reservation list storage before traversing it"
+              )
+          prepare_commit_start = freelist_source.find(
+              "int UDBIndex_prepareCommit(UDBIndex *self)"
+          )
+          prepare_commit_end = freelist_source.find(
+              chr(10) + "int UDBIndex_findHoles", prepare_commit_start
+          )
+          prepare_commit_body = (
+              freelist_source[prepare_commit_start:prepare_commit_end]
+              if prepare_commit_start >= 0 and prepare_commit_end > prepare_commit_start else ""
+          )
+          if (
+              "UDBIndex_pidListsHaveValidStorage_(self)" not in prepare_commit_body or
+              prepare_commit_body.find("UDBIndex_pidListsHaveValidStorage_(self)") >
+                  prepare_commit_body.find("for (i = 0; i < self->reserved->size; ++i)")
+          ):
+              raise SystemExit("UDB commit preparation must validate reservation storage before iteration")
 
           index_map_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexMap.c"

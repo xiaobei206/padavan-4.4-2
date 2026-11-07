@@ -50,6 +50,67 @@ int main(void)
         goto done;
     }
 
+    /* Corrupt stack metadata must fail closed before any pointer-array walk. */
+    {
+        List *holes = db->index->holes;
+        List *reserved = db->index->reserved;
+        void **saved_hole_items = holes->items;
+        size_t saved_hole_size = holes->size, saved_hole_mem = holes->memSize;
+        void **saved_reserved_items;
+        size_t saved_reserved_size, saved_reserved_mem;
+        PID_TYPE saved_max_pid = db->index->maxPid;
+        long saved_file_pos = db->index->file->pos;
+        long saved_file_max = db->index->file->maxPos;
+        PID_TYPE preview, allocation;
+        int prepare_result;
+
+        List_preallocateToSize_(reserved, 1);
+        if (reserved->items == NULL || reserved->memSize < sizeof(void *) ||
+            reserved->size > reserved->memSize / sizeof(void *)) {
+            fprintf(stderr, "unable to prepare PID stack corruption fixture\\n");
+            goto done;
+        }
+        saved_reserved_items = reserved->items;
+        saved_reserved_size = reserved->size;
+        saved_reserved_mem = reserved->memSize;
+
+        holes->items = NULL;
+        holes->size = 1;
+        holes->memSize = 0;
+        preview = UDBIndex_nextPid(db->index);
+        allocation = UDBIndex_allocPid(db->index);
+
+        holes->items = saved_hole_items;
+        holes->size = saved_hole_size;
+        holes->memSize = saved_hole_mem;
+        reserved->items = saved_reserved_items;
+        reserved->size = saved_reserved_size;
+        reserved->memSize = saved_reserved_mem;
+        db->index->maxPid = saved_max_pid;
+        db->index->file->pos = saved_file_pos;
+        db->index->file->maxPos = saved_file_max;
+
+        if (preview != 0 || allocation != 0) {
+            fprintf(stderr, "PID allocator accepted malformed free-stack storage\\n");
+            goto done;
+        }
+
+        saved_reserved_items = reserved->items;
+        saved_reserved_size = reserved->size;
+        saved_reserved_mem = reserved->memSize;
+        reserved->items = NULL;
+        reserved->size = 1;
+        reserved->memSize = 0;
+        prepare_result = UDBIndex_prepareCommit(db->index);
+        reserved->items = saved_reserved_items;
+        reserved->size = saved_reserved_size;
+        reserved->memSize = saved_reserved_mem;
+        if (prepare_result != 0) {
+            fprintf(stderr, "commit preparation accepted malformed reservation storage\\n");
+            goto done;
+        }
+    }
+
     /*
      * The last PID whose slot begins below LONG_MAX cannot be allocated if
      * the full fixed-width index entry would extend past the seekable range.

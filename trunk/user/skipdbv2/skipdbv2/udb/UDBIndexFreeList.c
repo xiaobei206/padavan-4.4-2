@@ -2,21 +2,29 @@
 #include "UDBIndexInternal.h"
 #include <stdio.h>
 
+/* Validate both stacks before any helper iterates or mutates their storage. */
+static int UDBIndex_pidListsHaveValidStorage_(UDBIndex *self)
+{
+	return UDBIndex_isValid_(self) &&
+		List_hasValidStorage_(self->holes) &&
+		List_hasValidStorage_(self->reserved);
+}
+
 static int UDBIndex_pushAndVerify_(List *list, void *value)
 {
 	size_t old_size;
-	if (NULL == list || list->size == (size_t)-1)
+	if (!List_hasValidStorage_(list) || list->size == (size_t)-1)
 		return 0;
 	old_size = list->size;
 	List_push_(list, value);
-	return list->size == old_size + 1;
+	return List_hasValidStorage_(list) && list->size == old_size + 1;
 }
 
 int UDBIndex_hasReservation_(UDBIndex *self, PID_TYPE pid)
 {
 	size_t i;
 
-	if (!UDBIndex_isValid_(self) || pid == 0 || pid > self->maxPid)
+	if (!UDBIndex_pidListsHaveValidStorage_(self) || pid == 0 || pid > self->maxPid)
 		return 0;
 	for (i = 0; i < self->reserved->size; ++i) {
 		if (self->reserved->items[i] == (void *)pid)
@@ -27,7 +35,7 @@ int UDBIndex_hasReservation_(UDBIndex *self, PID_TYPE pid)
 
 int UDBIndex_reservePid_(UDBIndex *self, PID_TYPE pid)
 {
-	if (!UDBIndex_isValid_(self) || pid == 0 ||
+	if (!UDBIndex_pidListsHaveValidStorage_(self) || pid == 0 ||
 		UDBIndex_hasReservation_(self, pid))
 		return 0;
 	return UDBIndex_pushAndVerify_(self->reserved, (void *)pid);
@@ -35,13 +43,13 @@ int UDBIndex_reservePid_(UDBIndex *self, PID_TYPE pid)
 
 void UDBIndex_unreservePid_(UDBIndex *self, PID_TYPE pid)
 {
-	if (UDBIndex_isValid_(self))
+	if (UDBIndex_pidListsHaveValidStorage_(self))
 		(void)List_remove_(self->reserved, (void *)pid);
 }
 
 void UDBIndex_removeHole_(UDBIndex *self, PID_TYPE pid)
 {
-	if (!UDBIndex_isValid_(self))
+	if (!UDBIndex_pidListsHaveValidStorage_(self))
 		return;
 	while (List_removeFirst_(self->holes, (void *)pid)) {
 		/* Normalize the free-PID stack before changing ownership. */
@@ -54,7 +62,7 @@ static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)
 	long existing;
 	size_t i;
 
-	if (!UDBIndex_isValid_(self) || pid == 0)
+	if (!UDBIndex_pidListsHaveValidStorage_(self) || pid == 0)
 		return 0;
 
 	/* Keep the first existing occurrence; deduplication requires no allocation. */
@@ -73,7 +81,7 @@ static int UDBIndex_pushHole_(UDBIndex *self, PID_TYPE pid)
 
 int UDBIndex_releasePid_(UDBIndex *self, PID_TYPE pid)
 {
-	if (!UDBIndex_isValid_(self) || pid == 0)
+	if (!UDBIndex_pidListsHaveValidStorage_(self) || pid == 0)
 		return 0;
 	/* Ownership transfers only after the reusable slot is secured. */
 	if (!UDBIndex_pushHole_(self, pid))
@@ -92,7 +100,7 @@ int UDBIndex_prepareCommit(UDBIndex *self)
 {
 	size_t i;
 
-	if (!UDBIndex_hasStreams_(self))
+	if (!UDBIndex_hasStreams_(self) || !UDBIndex_pidListsHaveValidStorage_(self))
 		return 0;
 
 	/* Retire unwritten reservations before UDB arms the durable marker. */
@@ -113,8 +121,7 @@ int UDBIndex_findHoles(UDBIndex *self)
 	PID_TYPE pid;
 	long pid_count;
 
-	if (NULL == self || NULL == self->holes || NULL == self->file ||
-		NULL == self->file->file)
+	if (!UDBIndex_pidListsHaveValidStorage_(self) || NULL == self->file->file)
 		return 0;
 	pid_count = UDBIndex_pidCount(self);
 	if (pid_count <= 0)
@@ -142,8 +149,7 @@ PID_TYPE UDBIndex_nextPid(UDBIndex *self)
 	size_t offset;
 	long end_pos;
 
-	if (NULL == self || NULL == self->holes || NULL == self->file ||
-		NULL == self->file->file)
+	if (!UDBIndex_pidListsHaveValidStorage_(self) || NULL == self->file->file)
 		return 0;
 	hole = (PID_TYPE)List_top(self->holes);
 	if (hole) {
@@ -169,7 +175,7 @@ PID_TYPE UDBIndex_allocPid(UDBIndex *self)
 	size_t offset;
 	long end_pos;
 
-	if (!UDBIndex_hasFile_(self))
+	if (!UDBIndex_hasFile_(self) || !UDBIndex_pidListsHaveValidStorage_(self))
 		return 0;
 
 	hole = (PID_TYPE)List_top(self->holes);

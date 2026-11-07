@@ -1,3 +1,14 @@
+## 2026-11-07 18:29 CST — Validate PID free-list storage before direct traversal
+
+- Baseline: `f91746bcdb1a6705fe624cdf1d50da93cc9f4544`; SkipDBv2 Regression run #625 passed the integration/source contracts, complete build, and all 57 CTests.
+- Scope: PID reservation/free-hole pool in `UDBIndexFreeList.c`.
+- Several operations iterated `reserved->items` directly, and allocator paths treated a `List_top()` NULL result as an empty pool. If list metadata described a nonzero size with missing/undersized storage, these paths could dereference invalid memory or allocate a new PID while the free stack was unusable.
+- Add one private validator for both PID stacks, use it before list reads/mutations and before reservation iteration in commit preparation, and strengthen the push postcondition. Invalid internal storage now fails closed rather than being interpreted as an empty stack.
+- Extend `udb_index_layers_test` with malformed hole/reservation storage fixtures and strengthen the workflow source contract. Existing CMake target reused; no new files.
+- No local compiler/CTest result is claimed; GitHub Actions remains the validation gate.
+
+---
+
 ## 2026-11-07 18:26 CST — Repair workflow source-contract syntax after run #624
 
 - Baseline: `3cdbd676241342f869ea301f9fb2b6db0a250e26`; run #624 stopped during the source-contract script parse, before configuration, compilation, or CTests.
