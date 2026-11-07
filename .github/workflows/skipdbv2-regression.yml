@@ -1701,7 +1701,7 @@ jobs:
                   "currentSeconds < (long long)LONG_MIN - offsetSeconds",
                   "timestamp = (time_t)newSeconds;",
                   "if ((long long)timestamp != newSeconds)",
-                  "if (NULL == self || NULL == timestamp)",
+                  "if (NULL == self || NULL == timestamp || NULL == calendar)",
                   "if (NULL == self || NULL == other || self == other)",
                   "if (NULL == self || NULL == other)",
                   "#include <stdint.h>",

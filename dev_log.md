@@ -1,3 +1,11 @@
+## 2026-11-07 16:36 CST — Update Date local-calendar NULL guard contract
+
+- Baseline: `4e71b2e311bdd5040acdc1e6b394442b95e241dd`; SkipDBv2 Regression run #592 passed the file/path inventory but stopped in the XY-C1 source-contract stage before configure/build.
+- The source-contract map still expected the former two-argument Date local-time helper's NULL check. The reentrant helper now also requires a non-NULL caller-owned `struct tm` destination.
+- Update that single static contract needle to require all three pointer checks. No C implementation, CTest, CMake, or build target changed; the next run is the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 16:35 CST — Align Date leap-year source contract with caller-owned calendar
 
 - Baseline: `e3bc72ce0d503882bc8591ef347b43ddeac3ae63`; SkipDBv2 Regression run #591 stopped in the XY-C1 source-contract stage before CMake configure/build.
