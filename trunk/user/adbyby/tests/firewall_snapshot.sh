@@ -27,12 +27,12 @@ RULES
 EOF
 chmod 700 "$test_root/bin/"*
 PATH="$test_root/bin:$PATH";export PATH
-. "$repo_root/trunk/user/adbyby/adbyby.sh" test-source
+. "$repo_root/trunk/user/adbyby/adbyby.sh" test-source >/dev/null
 snapshot="$test_root/private/.adbyby.save";sentinel="$test_root/sentinel"
 printf 'preserve-me\n' > "$sentinel";ln -s "$sentinel" "$snapshot"
 save_adbyby_rule_snapshot "$test_root/private"
 [ -f "$snapshot" ]&&[ ! -L "$snapshot" ];[ "$(stat -c %a "$snapshot")" = "600" ]
-grep -F -- "-I OUTPUT 1 -p tcp -j ACCEPT" "$snapshot" >/dev/null
+grep -F -- "-I OUTPUT 1 -p tcp -j ADBYBY" "$snapshot" >/dev/null
 grep -F -- "-I PREROUTING 1 -p tcp -j ADBYBY" "$snapshot" >/dev/null
 grep -F -- ":ADBYBY - [0:0]" "$snapshot" >/dev/null
 [ "$(cat "$sentinel")" = "preserve-me" ]
