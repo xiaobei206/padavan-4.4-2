@@ -1,3 +1,13 @@
+## 2026-11-07 13:00 CST — Preflight float-to-integer array fills
+
+- Baseline: main commit `3f005da247d342a2cdf20a19ea49cf8a9ba21782`; SkipDBv2 Regression run #535 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `UArray_setItemsToDouble_()` in `basekit/UArray_math.c`, its existing assignment-transform regression, and matching Actions source contracts.
+- Filling an integer-backed array with `INFINITY`, NaN, or a value outside the destination integer range could invoke undefined floating-to-integer conversion during the element loop and partially mutate the array.
+- Reuse the existing range preflight used by integer division; reject unsafe values before touching data or its cached hash, while preserving floating-array support for non-finite values.
+- Reuse the existing `uarray_math_extrema_test` CMake target; no new files or exported declarations. No local C build/CTest is claimed; mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 12:57 CST — Make UArray size getters NULL-safe
 
 - Baseline: main commit `4c96969dbb2796c2c22b36a73fbafef036f6fe37`; SkipDBv2 Regression run #533 passed source contracts, configure, full build, and all CTest regressions.

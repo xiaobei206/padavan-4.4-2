@@ -1109,6 +1109,24 @@ static int test_assignment_transforms(void)
         goto cleanup;
     }
 
+    longFilled->hash = 0x2323;
+    UArray_setItemsToDouble_(longFilled, INFINITY);
+    if (UArray_rawDoubleAt_(longFilled, 0) != 6.0 ||
+        UArray_rawDoubleAt_(longFilled, 1) != 6.0 ||
+        UArray_rawDoubleAt_(longFilled, 2) != 6.0 || longFilled->hash != 0x2323) {
+        fail("UArray double fill accepted a non-finite integer value");
+        goto cleanup;
+    }
+
+    longFilled->hash = 0x2424;
+    UArray_setItemsToDouble_(longFilled, ldexp(1.0, 31));
+    if (UArray_rawDoubleAt_(longFilled, 0) != 6.0 ||
+        UArray_rawDoubleAt_(longFilled, 1) != 6.0 ||
+        UArray_rawDoubleAt_(longFilled, 2) != 6.0 || longFilled->hash != 0x2424) {
+        fail("UArray double fill accepted an out-of-range int32 value");
+        goto cleanup;
+    }
+
     doubleFilled->hash = 0x3333;
     UArray_setItemsToDouble_(doubleFilled, 2.75);
     if (UArray_rawDoubleAt_(doubleFilled, 0) != 2.75 ||

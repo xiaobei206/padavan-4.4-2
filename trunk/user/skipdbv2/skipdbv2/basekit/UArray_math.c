@@ -22,6 +22,7 @@
 
 static int UArray_hasValidNumericStorage_(const UArray *self);
 static int UArray_hasUnsafeNegation_(const UArray *self);
+static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient);
 
 #define LLVEC_DUALARG_OP(VNAME, COP, TYPE) \
 void v ## TYPE ## _ ## VNAME(TYPE ##_t *aa, TYPE ##_t *bb, size_t size)\
@@ -73,6 +74,11 @@ void UArray_setItemsToDouble_(UArray *self, double x)
 {
 	if (!UArray_hasValidNumericStorage_(self) ||
 		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		return;
+	/* Out-of-range float-to-integer conversion is undefined; reject before mutating. */
+	if (self->itemType != CTYPE_float32_t &&
+		self->itemType != CTYPE_float64_t &&
+		UArray_integerFloatQuotientIsOutOfRange_(self->itemType, x))
 		return;
 	UARRAY_FOREACHASSIGN(self, i, v, x);
 	UArray_changed(self);
