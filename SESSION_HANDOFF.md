@@ -1,5 +1,25 @@
 # Session Handoff — Padavan 4.4
 
+## Latest resumable checkpoint — HTTPD private-key access policy
+
+- Current production-code checkpoint: `1ef811e5cb37613fc5ae0caf59041ecdf294e5d2`; its parent was `8152ec72c39d4a435114806a5e861e2aed925248`. The documentation update for this checkpoint is a follow-up commit on main; always fetch live main before continuing.
+- Changed production paths: `trunk/user/httpd/src/httpd.c`, `httpd.h`, `web_ex.c`; added `httpd_access_policy.h`.
+- Added host regression: `trunk/user/httpd/src/tests/httpd_private_key_policy.c`; added workflow `.github/workflows/httpd-security.yml`.
+- Finding: `get_login_safe()` treated HTTPS as sufficient to mark a peer safe. `web_ex.c::dump_file()` reused that predicate to expose `.key` files, despite the adjacent write-only secret-key comment. That let an authenticated off-LAN HTTPS session pass the private-key visibility gate.
+- Fix: keep the broader HTTPS behavior for existing management functions, but gate `.key` disclosure on a new predicate requiring an active login and the trusted LAN/VPN network flag.
+- Validation: GitHub Actions run `42380444876` completed **successfully** on exact code SHA `1ef811e5cb37613fc5ae0caf59041ecdf294e5d2`; the host C policy regression and production call-site wiring checks both passed.
+- Not performed: complete HTTPD/CGI audit, MIPS cross-build, firmware image validation, XY-C1 hardware test.
+- Remote checkpoints inspected: all outstanding branch deltas are old SkipDBv2/BaseKit work and far behind main; do not cherry-pick without a fresh diff review.
+
+### Next work
+
+1. Continue HTTPD auth review: strict Basic-auth parser, IP-only session semantics, logout/ACL behavior, all MIME route permissions and the conditional unauthenticated `dbconf` route.
+2. Continue HTTPD protocol/lifecycle review: TLS post-handshake read/write, connection pool/FD limits, request timeout behavior, response writes and multipart restore/upload bounds.
+3. Expand into privileged command/config generation, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file sharing, storage, and init/service lifecycle. Record each scope separately.
+4. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` through the repository's firmware validation workflow before claiming target-build verification.
+
+---
+
 **Purpose:** resume work across ChatGPT conversations. GitHub is the source of truth; re-check all values below against live repository state before acting.
 
 ## Bootstrap checkpoint
@@ -12,11 +32,11 @@
 
 ## Current task state
 
-- Governance bootstrap: COMPLETE; commit 84e2fb77973393dd2804b9feb2d94b2ce74933c4 was read back from main.
-- Production C source modifications in this bootstrap: none.
-- Existing mainline changes: untouched.
-- Existing dev_log.md history: preserve fully; prepend one new entry only.
-- Pending code task: none is being modified by this bootstrap.
+- Governance bootstrap: COMPLETE; commits 84e2fb77973393dd2804b9feb2d94b2ce74933c4 and 8152ec72c39d4a435114806a5e861e2aed925248 remain in history.
+- HTTPD private-key disclosure trust-boundary fix: COMPLETE; production-code commit 1ef811e5cb37613fc5ae0caf59041ecdf294e5d2 is on main and its focused Actions regression passed.
+- Broader HTTPD/HTTPS/CGI/authentication review: IN PROGRESS.
+- Whole-userland audit: IN PROGRESS; inventory is preliminary and most modules remain unaudited.
+- No full MIPS firmware build or hardware validation is claimed.
 
 ## Next conversation — mandatory first actions
 

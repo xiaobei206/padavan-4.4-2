@@ -1,3 +1,15 @@
+## 2026-11-07 22:14 CST — Separate HTTPD private-key disclosure from HTTPS transport trust
+
+- Baseline main HEAD: `8152ec72c39d4a435114806a5e861e2aed925248`.
+- Audited the current HTTPD authentication helper and the `web_ex.c::dump_file()` key-file gate. `get_login_safe()` intentionally treated HTTPS as safe for several remote-admin operations, but that transport-level override was also authorizing disclosure of files explicitly described as write-only secret keys.
+- Added a dedicated private-key access predicate requiring an active login and the trusted LAN/VPN network flag. The `.key` masking path now uses this predicate; the existing HTTPS behavior for unrelated management operations is preserved.
+- Added the standalone C policy regression and a new HTTPD Security Regression workflow with an additional source-wiring contract.
+- Production code commit: `1ef811e5cb37613fc5ae0caf59041ecdf294e5d2`.
+- GitHub Actions run `42380444876` passed on that exact SHA: C regression compile/run and HTTPD getter/route wiring checks succeeded.
+- This round did not run a full HTTPD MIPS build, XY-C1 firmware image build, or hardware validation. Broader HTTPD/CGI/authentication and whole-userland reviews remain open.
+
+---
+
 ## 2026-11-07 21:54 CST — Finalize bootstrap commit reference in handoff
 
 - Parent: 84e2fb77973393dd2804b9feb2d94b2ce74933c4; verified this commit is present on main before updating the handoff metadata.
