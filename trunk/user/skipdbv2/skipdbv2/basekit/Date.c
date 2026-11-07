@@ -211,7 +211,8 @@ void Date_fromTime_(Date *self, time_t t)
 {
 	if (NULL == self)
 		return;
-	Date_fromSeconds_(self, (double)t);
+	self->tv.tv_sec = t;
+	self->tv.tv_usec = 0;
 }
 
 time_t Date_asTime(const Date *self)

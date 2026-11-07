@@ -1,3 +1,13 @@
+## 2026-11-07 12:19 CST — Preserve exact time_t values in Date_fromTime_
+
+- Baseline: main commit `b2c7ee397792acb267658448ea80ea3a3c79d335`; SkipDBv2 Regression run #523 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `Date_fromTime_()` in `basekit/Date.c` and the existing `date_time_init` precision regression.
+- The constructor widened an integral `time_t` to `double` and routed it through `Date_fromSeconds_()`. Beyond the exact-integer range of IEEE-754 double, distinct whole-second timestamps collapse to the same value, silently losing seconds.
+- Assign the incoming `time_t` directly to `tv_sec` and reset `tv_usec` to zero. This preserves the exact source value without changing timezone metadata or fractional-second APIs.
+- Extend the existing precision test with a representable timestamp at 2^53+1 seconds and add source-contract checks for the direct assignment. Existing CMake target reused; no new files. No local C build/CTest is claimed; mainline CI is the verification gate.
+
+---
+
 ## 2026-11-07 12:19 CST — Reject malformed UArray layouts before binary stream writes
 
 - Baseline: main commit `7dfc1d1886069458b6c40e357fd3e9351ed307bb`; SkipDBv2 Regression run #523 passed source contracts, configure, full build, and CTest.

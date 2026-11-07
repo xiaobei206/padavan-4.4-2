@@ -278,6 +278,19 @@ static int test_date_compare_precision(void)
         }
     }
 
+    {
+        Date fromTime = {0};
+        time_t preciseTime = (time_t)(exactSeconds + 1LL);
+
+        if ((long long)preciseTime == exactSeconds + 1LL) {
+            Date_fromTime_(&fromTime, preciseTime);
+            if (fromTime.tv.tv_sec != preciseTime || fromTime.tv.tv_usec != 0) {
+                fprintf(stderr, "Date_fromTime lost an exact whole second above double precision\\n");
+                return 0;
+            }
+        }
+    }
+
     earlier.tv.tv_sec = (time_t)exactSeconds;
     later.tv.tv_sec = (time_t)exactSeconds;
     earlier.tv.tv_usec = 100;
