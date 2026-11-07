@@ -2,9 +2,23 @@
 
 #include <limits.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef struct
+{
+    char leadingByte;
+    long double value;
+} CommonAllocAlignmentProbe;
+
+static int isAlignedForLongDouble(const void *pointer)
+{
+    size_t alignment = offsetof(CommonAllocAlignmentProbe, value);
+    return pointer != NULL && alignment > 0 &&
+        ((uintptr_t)pointer % alignment) == 0;
+}
 
 int main(void)
 {
@@ -29,6 +43,17 @@ int main(void)
     tracked = (unsigned char *)io_malloc(16);
     if (NULL == tracked) {
         fprintf(stderr, "tracked allocation failed\n");
+        return EXIT_FAILURE;
+    }
+    if (!isAlignedForLongDouble(tracked)) {
+        fprintf(stderr, "tracked allocation is not aligned for long double\n");
+        io_free(tracked);
+        return EXIT_FAILURE;
+    }
+    *(long double *)tracked = 1.0L;
+    if (*(long double *)tracked != 1.0L) {
+        fprintf(stderr, "tracked allocation cannot store a long double\n");
+        io_free(tracked);
         return EXIT_FAILURE;
     }
     memset(tracked, 0x5a, 16);
@@ -75,8 +100,8 @@ int main(void)
     }
 
     resized = (unsigned char *)io_realloc(tracked, 32);
-    if (NULL == resized || io_allocatedBytes() != 32 ||
-        io_maxAllocatedBytes() != 32 ||
+    if (NULL == resized || !isAlignedForLongDouble(resized) ||
+        io_allocatedBytes() != 32 || io_maxAllocatedBytes() != 32 ||
         resized[0] != 0x5a || resized[15] != 0x5a) {
         fprintf(stderr, "successful realloc did not preserve data and peak accounting\n");
         if (resized)

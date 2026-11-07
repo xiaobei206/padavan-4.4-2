@@ -2234,7 +2234,9 @@ jobs:
                   "!isfinite(gaussian)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/Common.c": [
-                  "char padding[40 >",
+                  "typedef union MemoryBlockAlignment",
+                  "long double longDouble;",
+                  "MemoryBlockAlignment alignment;",
                   "size > (size_t)-1 - sizeof(MemoryBlock)",
                   "MemoryBlock *newBlock;",
                   "MemoryBlock_insertAfter_(self, prev);",
@@ -4414,6 +4416,9 @@ jobs:
           for needle in ("io_free(NULL)", "io_calloc((size_t)-1 / 2 + 1, 2)",
                          "io_realloc(tracked, (size_t)LONG_MAX)",
                          "io_maxAllocatedBytes() != 32",
+                         "isAlignedForLongDouble(tracked)",
+                         "isAlignedForLongDouble(resized)",
+                         "offsetof(CommonAllocAlignmentProbe, value)",
                          "successful realloc did not preserve data and peak accounting",
                          "io_allocatedBytes() != 0", "Common allocation lifecycle test passed"):
               if needle not in common_test:

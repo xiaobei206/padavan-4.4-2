@@ -1,3 +1,13 @@
+## 2026-11-07 10:18 CST — Preserve malloc-compatible alignment in tracked allocations
+
+- Baseline: main commit `39ef3e80488b4c0876028f07a9635e6f41c58c50`; SkipDBv2 Regression run #503 passed.
+- Scope: private `MemoryBlock` payload layout in `basekit/Common.c` and the existing `common_alloc` regression.
+- `MemoryBlockToPtr()` returns the byte immediately after the tracking header. The prior padding left `sizeof(MemoryBlock)` at 56 bytes on common 64-bit ABIs, so a `calloc()`-aligned base could yield an 8-byte-offset payload and violate `malloc()` alignment for `long double` and other fundamental types in `IO_CHECK_ALLOC` builds.
+- Replace byte padding with an alignment-bearing union member, making the private header's size a multiple of the strongest included fundamental alignment. Extend the existing regression to store a `long double` and check both allocation and reallocation alignment. Update the Actions source contracts; the existing CMake target already compiles `Common.c` with `IO_CHECK_ALLOC`. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 10:10 CST — Preserve PID ownership when free-list insertion fails
 
 - Baseline: main commit `b967358bf153983474948e930bf94ed9f033eece`; SkipDBv2 Regression run #502 passed.

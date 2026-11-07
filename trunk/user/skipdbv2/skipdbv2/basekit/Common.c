@@ -84,6 +84,14 @@ Allocator *globalAllocator(void)
 
 typedef struct MemoryBlock MemoryBlock;
 
+/* Keep the payload after this header aligned like a malloc allocation. */
+typedef union MemoryBlockAlignment
+{
+	long double longDouble;
+	void *pointer;
+	long long integer;
+} MemoryBlockAlignment;
+
 struct MemoryBlock
 {
 	size_t size;
@@ -92,10 +100,7 @@ struct MemoryBlock
 	int line;
 	MemoryBlock *next;
 	MemoryBlock *prev;
-	char padding[40 > (sizeof(size_t) + sizeof(size_t) + sizeof(char *) +
-		sizeof(int) + sizeof(void *) + sizeof(void *)) ?
-		40 - (sizeof(size_t) + sizeof(size_t) + sizeof(char *) +
-		sizeof(int) + sizeof(void *) + sizeof(void *)) : 1];
+	MemoryBlockAlignment alignment;
 };
 
 MemoryBlock *PtrToMemoryBlock(void *ptr)
