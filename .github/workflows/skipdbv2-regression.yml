@@ -378,8 +378,13 @@ jobs:
                   "self->previousSteps = 0;",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordLinks.c": [
+                  "static int SkipDBRecord_cachedReferenceIsValid_(",
                   "SkipDBRecord *SkipDBRecord_recordAtLevel_(SkipDBRecord *self, int level)",
-                  "if (r && self->sdb)",
+                  "SkipDBRecord_cachedReferenceIsValid_(self, p, p->record)",
+                  "SkipDBRecord_cachedReferenceIsValid_(self, p, r)",
+                  "if (self->sdb && self->sdb != r->sdb)",
+                  "PID_TYPE SkipDBRecord_allocedPidAtLevel_(",
+                  "PID_TYPE SkipDBRecord_pidAtLevel_(",
                   "r->sdb != db",
                   "p->pid != 0 && p->pid != SkipDBRecord_pid(r)",
                   "cached forward reference belongs to another database or PID",
@@ -495,6 +500,14 @@ jobs:
                   "void SkipDB_list_prefix(SkipDB *self, Datum k, void *ctx,",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/skipdb_core_layers.c": [
+                  '#include "SkipDBRecordInternal.h"',
+                  "SkipDBRecord_atLevel_setRecord_(source_alpha,0,target_alpha);",
+                  "link setter accepted or stored a foreign record",
+                  "SkipDBRecord_pidAtLevel_(source_alpha,0)",
+                  "PID accessor accepted a foreign cached record",
+                  "PID accessor accepted a cached PID mismatch",
+                  "SkipDBRecord_allocedPidAtLevel_(source_alpha,0)",
+                  "PID allocator accepted a foreign cached record",
                   "static int test_record_level_rejects_invalid_receiver_metadata(void)",
                   "Cache age-list notifications must not splice a record owned by another DB.",
                   "foreign record corrupted cache age-list ownership",
@@ -3623,6 +3636,78 @@ jobs:
               not free_callback_body.rstrip().endswith("(*f)(object);")
           ):
               raise SystemExit("SkipDB cache records must be detached before reentrant object-free callbacks")
+
+          record_links_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBRecordLinks.c"
+          ).read_text()
+          cached_ref_start = record_links_source.find(
+              "static int SkipDBRecord_cachedReferenceIsValid_("
+          )
+          alloced_pid_start = record_links_source.find(
+              "PID_TYPE SkipDBRecord_allocedPidAtLevel_("
+          )
+          pid_at_level_start = record_links_source.find(
+              "PID_TYPE SkipDBRecord_pidAtLevel_("
+          )
+          matching_prefix_start = record_links_source.find(
+              "unsigned char SkipDBRecord_matchingPrefixSizeWith_("
+          )
+          setter_start = record_links_source.find(
+              "void SkipDBRecord_atLevel_setRecord_("
+          )
+          cached_record_start = record_links_source.find(
+              "SkipDBRecord *SkipDBRecord_cachedRecordAtLevel_("
+          )
+          record_at_start = record_links_source.find(
+              "SkipDBRecord *SkipDBRecord_recordAtLevel_("
+          )
+          compare_start = record_links_source.find(
+              "static int SkipDBRecord_compareKey_("
+          )
+          cached_ref_body = (
+              record_links_source[cached_ref_start:alloced_pid_start]
+              if cached_ref_start >= 0 and alloced_pid_start > cached_ref_start else ""
+          )
+          alloced_pid_body = (
+              record_links_source[alloced_pid_start:pid_at_level_start]
+              if alloced_pid_start >= 0 and pid_at_level_start > alloced_pid_start else ""
+          )
+          pid_at_level_body = (
+              record_links_source[pid_at_level_start:matching_prefix_start]
+              if pid_at_level_start >= 0 and matching_prefix_start > pid_at_level_start else ""
+          )
+          setter_body = (
+              record_links_source[setter_start:cached_record_start]
+              if setter_start >= 0 and cached_record_start > setter_start else ""
+          )
+          record_at_body = (
+              record_links_source[record_at_start:compare_start]
+              if record_at_start >= 0 and compare_start > record_at_start else ""
+          )
+          helper_guards = [
+              cached_ref_body.find("r->sdb != db"),
+              cached_ref_body.find("p->pid != 0 && p->pid != SkipDBRecord_pid(r)"),
+              cached_ref_body.find("UDB_close(SkipDB_udb(db));"),
+          ]
+          if (
+              not cached_ref_body or min(helper_guards) < 0 or
+              helper_guards != sorted(helper_guards) or
+              alloced_pid_body.find("SkipDBRecord_cachedReferenceIsValid_(self, p, p->record)") < 0 or
+              alloced_pid_body.find("SkipDBRecord_cachedReferenceIsValid_(self, p, p->record)") >
+                  alloced_pid_body.find("SkipDBRecord_pidAllocIfNeeded(p->record)") or
+              pid_at_level_body.find("SkipDBRecord_cachedReferenceIsValid_(self, p, p->record)") < 0 or
+              pid_at_level_body.find("SkipDBRecord_cachedReferenceIsValid_(self, p, p->record)") >
+                  pid_at_level_body.find("SkipDBRecord_pid(p->record)") or
+              not setter_body or
+              setter_body.find("if (self->sdb && self->sdb != r->sdb)") < 0 or
+              setter_body.find("if (self->sdb && self->sdb != r->sdb)") >
+                  setter_body.find("p->pid = SkipDBRecord_pid(r);") or
+              not record_at_body or
+              record_at_body.find("SkipDBRecord_cachedReferenceIsValid_(self, p, r)") < 0
+          ):
+              raise SystemExit(
+                  "SkipDB forward-link accessors must validate cached owner/PID before returning or allocating PIDs"
+              )
 
           record_write_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordWrite.c"

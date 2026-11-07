@@ -1,4 +1,5 @@
 #include "SkipDB.h"
+#include "SkipDBRecordInternal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -191,6 +192,26 @@ int main(void)
    fprintf(stderr,"foreign record corrupted cache age-list ownership\n");goto done;
   }
  }
+ /* Link writes must reject a record owned by another database before mutation. */
+ {
+  SkipDBRecord *source_alpha=SkipDB_recordAt_(source,Datum_FromCString_("alpha"));
+  SkipDBRecord *target_alpha=SkipDB_recordAt_(target,Datum_FromCString_("alpha"));
+  SkipDBRecord *source_next;
+  PID_TYPE source_next_pid;
+  if(!source_alpha||!target_alpha||
+     !SkipDB_isOpen(source)||
+     !(source_next=SkipDBRecord_recordAtLevel_(source_alpha,0))||
+     !SkipDB_isOpen(source)){
+   fprintf(stderr,"cross-database link setter fixture failed\n");goto done;
+  }
+  source_next_pid=source_alpha->pointers[0].pid;
+  SkipDBRecord_atLevel_setRecord_(source_alpha,0,target_alpha);
+  if(!SkipDB_isOpen(source)||
+     source_alpha->pointers[0].record!=source_next||
+     source_alpha->pointers[0].pid!=source_next_pid){
+   fprintf(stderr,"link setter accepted or stored a foreign record\n");goto done;
+  }
+ }
  /* A cached forward pointer may not cross database ownership. */
  {
   SkipDBRecord *source_alpha=SkipDB_recordAt_(source,Datum_FromCString_("alpha"));
@@ -223,6 +244,62 @@ int main(void)
   if(!SkipDB_open(source)||!SkipDB_isOpen(source)||SkipDB_count(source)!=3||
      !value_is(source,"alpine","2")||!value_is(source,"gamma","4")){
    fprintf(stderr,"database did not recover after cached PID rejection\n");goto done;
+  }
+ }
+ /* PID lookup must reject a foreign cached target before exposing its PID. */
+ {
+  SkipDBRecord *source_alpha=SkipDB_recordAt_(source,Datum_FromCString_("alpha"));
+  SkipDBRecord *target_alpha=SkipDB_recordAt_(target,Datum_FromCString_("alpha"));
+  if(!source_alpha||!target_alpha){
+   fprintf(stderr,"foreign PID accessor fixture failed\n");goto done;
+  }
+  source_alpha->pointers[0].record=target_alpha;
+  source_alpha->pointers[0].pid=0;
+  if(SkipDBRecord_pidAtLevel_(source_alpha,0)!=0||
+     SkipDB_isOpen(source)||!SkipDB_isOpen(target)){
+   fprintf(stderr,"PID accessor accepted a foreign cached record\n");goto done;
+  }
+  if(!SkipDB_open(source)||!SkipDB_isOpen(source)||SkipDB_count(source)!=3||
+     !value_is(source,"alpha","updated")||!value_is(source,"gamma","4")){
+   fprintf(stderr,"database did not recover after foreign PID accessor rejection\n");goto done;
+  }
+ }
+ /* PID lookup must also reject a cached object that disagrees with its stored PID. */
+ {
+  SkipDBRecord *source_alpha=SkipDB_recordAt_(source,Datum_FromCString_("alpha"));
+  SkipDBRecord *source_gamma=SkipDB_recordAt_(source,Datum_FromCString_("gamma"));
+  SkipDBRecord *source_next;
+  if(!source_alpha||!source_gamma||
+     !(source_next=SkipDBRecord_recordAtLevel_(source_alpha,0))||
+     !SkipDB_isOpen(source)||SkipDBRecord_pid(source_next)==0){
+   fprintf(stderr,"cached PID mismatch accessor fixture failed\n");goto done;
+  }
+  source_alpha->pointers[0].pid=SkipDBRecord_pid(source_next);
+  source_alpha->pointers[0].record=source_gamma;
+  if(SkipDBRecord_pidAtLevel_(source_alpha,0)!=0||SkipDB_isOpen(source)){
+   fprintf(stderr,"PID accessor accepted a cached PID mismatch\n");goto done;
+  }
+  if(!SkipDB_open(source)||!SkipDB_isOpen(source)||SkipDB_count(source)!=3||
+     !value_is(source,"alpha","updated")||!value_is(source,"gamma","4")){
+   fprintf(stderr,"database did not recover after PID accessor mismatch rejection\n");goto done;
+  }
+ }
+ /* PID allocation must validate ownership before it can allocate or return a target PID. */
+ {
+  SkipDBRecord *source_alpha=SkipDB_recordAt_(source,Datum_FromCString_("alpha"));
+  SkipDBRecord *target_alpha=SkipDB_recordAt_(target,Datum_FromCString_("alpha"));
+  if(!source_alpha||!target_alpha){
+   fprintf(stderr,"foreign PID allocation fixture failed\n");goto done;
+  }
+  source_alpha->pointers[0].record=target_alpha;
+  source_alpha->pointers[0].pid=0;
+  if(SkipDBRecord_allocedPidAtLevel_(source_alpha,0)!=0||
+     SkipDB_isOpen(source)||!SkipDB_isOpen(target)){
+   fprintf(stderr,"PID allocator accepted a foreign cached record\n");goto done;
+  }
+  if(!SkipDB_open(source)||!SkipDB_isOpen(source)||SkipDB_count(source)!=3||
+     !value_is(source,"alpha","updated")||!value_is(source,"gamma","4")){
+   fprintf(stderr,"database did not recover after foreign PID allocation rejection\n");goto done;
   }
  }
  /* A prefix cursor is owned by exactly one SkipDB instance. */

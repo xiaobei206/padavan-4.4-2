@@ -44,6 +44,24 @@ SkipDBPointer *SkipDBRecord_pointerAtLevel_(SkipDBRecord *self, int level)
 	return self->pointers + level;
 }
 
+/* A cached forward target must belong to the source database and match its PID. */
+static int SkipDBRecord_cachedReferenceIsValid_(SkipDBRecord *self, SkipDBPointer *p, SkipDBRecord *r)
+{
+	SkipDB *db;
+	if (NULL == self || NULL == p || NULL == r)
+		return 0;
+	if (NULL == self->sdb)
+		return 1;
+	db = (SkipDB *)self->sdb;
+	if (r->sdb != db ||
+		(p->pid != 0 && p->pid != SkipDBRecord_pid(r))) {
+		fprintf(stderr, "SkipDB: cached forward reference belongs to another database or PID\n");
+		UDB_close(SkipDB_udb(db));
+		return 0;
+	}
+	return 1;
+}
+
 void SkipDBRecord_atLevel_setPid_setSuffix_(SkipDBRecord *self, int level, PID_TYPE pid, uint8_t sMatch)
 {
 	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
@@ -68,6 +86,8 @@ PID_TYPE SkipDBRecord_allocedPidAtLevel_(SkipDBRecord *self, int level)
 	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
 	if (NULL == p)
 		return 0;
+	if (p->record && !SkipDBRecord_cachedReferenceIsValid_(self, p, p->record))
+		return 0;
 	if (!p->pid && p->record)
 		p->pid = SkipDBRecord_pidAllocIfNeeded(p->record);
 	return p->pid;
@@ -77,6 +97,8 @@ PID_TYPE SkipDBRecord_pidAtLevel_(SkipDBRecord *self, int level)
 {
 	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
 	if (NULL == p)
+		return 0;
+	if (p->record && !SkipDBRecord_cachedReferenceIsValid_(self, p, p->record))
 		return 0;
 	/* Resolve a cached pointer to its own PID, not the current record's PID. */
 	if (!p->pid && p->record)
@@ -100,6 +122,10 @@ void SkipDBRecord_atLevel_setRecord_(SkipDBRecord *self, int level, SkipDBRecord
 	SkipDBPointer *p = SkipDBRecord_pointerAtLevel_(self, level);
 	if (NULL == p || NULL == r)
 		return;
+	if (self->sdb && self->sdb != r->sdb) {
+		fprintf(stderr, "SkipDB: refusing cross-database forward link\n");
+		return;
+	}
 	p->pid = SkipDBRecord_pid(r);
 	p->record = r;
 	p->matchingPrefixSize = SkipDBRecord_matchingPrefixSizeWith_(self, r);
@@ -118,16 +144,8 @@ SkipDBRecord *SkipDBRecord_recordAtLevel_(SkipDBRecord *self, int level)
 	if (NULL == p)
 		return NULL;
 	r = p->record;
-	if (r && self->sdb) {
-		SkipDB *db = (SkipDB *)self->sdb;
-		if (r->sdb != db ||
-			(p->pid != 0 && p->pid != SkipDBRecord_pid(r))) {
-			/* The cached object must agree with its owning database and PID. */
-			fprintf(stderr, "SkipDB: cached forward reference belongs to another database or PID\n");
-			UDB_close(SkipDB_udb(db));
-			return NULL;
-		}
-	}
+	if (r && !SkipDBRecord_cachedReferenceIsValid_(self, p, r))
+		return NULL;
 	if (NULL == r && p->pid && self->sdb) {
 		SkipDB *db = (SkipDB *)self->sdb;
 		r = SkipDB_recordAtPid_(db, p->pid);
@@ -139,6 +157,8 @@ SkipDBRecord *SkipDBRecord_recordAtLevel_(SkipDBRecord *self, int level)
 			UDB_close(SkipDB_udb(db));
 			return NULL;
 		}
+		if (!SkipDBRecord_cachedReferenceIsValid_(self, p, r))
+			return NULL;
 		p->record = r;
 	}
 	return r;

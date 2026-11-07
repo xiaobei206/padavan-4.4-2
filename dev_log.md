@@ -1,3 +1,13 @@
+## 2026-11-07 18:51 CST — Validate cached forward-link PID accessors
+
+- Baseline: `40917e5041902c20bef3c038f14cb5386e78e2fe`; SkipDBv2 Regression run #628 passed the integration/source contracts, complete build, and all 57 CTests.
+- Scope: cached forward-link ownership and PID resolution in `SkipDBRecordLinks.c`.
+- The record-pointer accessor already rejected foreign owners and mismatched cached PIDs, but the PID-only accessors could return/cache a foreign PID or allocate through a foreign record before applying the same invariant. The link setter also accepted a cross-database target and deferred failure until a later traversal.
+- Centralize the owner/PID check, apply it before PID reads/allocations and disk-loaded cache registration, and refuse cross-owner setters before mutating the pointer slot. Extend the existing two-database core regression and strict workflow contracts; no new files, CMake targets, or exported declarations.
+- No local compiler/CTest result is claimed; GitHub Actions remains the build/runtime gate.
+
+---
+
 ## 2026-11-07 18:34 CST — Reject foreign records at SkipDB cache-age entry points
 
 - Baseline: `d7a3fae074f2c7972a5819746c3227a830dfed6c`; SkipDBv2 Regression run #627 passed the integration contracts, complete build, and all 57 CTests.
