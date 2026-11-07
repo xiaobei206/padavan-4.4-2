@@ -11,6 +11,7 @@
 #endif
 #include "Common_inline.h"
 #include <limits.h>
+#include <stdint.h>
 #ifdef IO_DECLARE_INLINES
 
 #include <stdio.h>
@@ -27,6 +28,9 @@ IOINLINE int PHash_hasValidStorage_(const PHash *self)
 		self->tableSize != (1u << self->log2tableSize) ||
 		self->mask != self->tableSize - 1 ||
 		self->numKeys > self->tableSize * 2)
+		return 0;
+	/* Every indexed PHashRecord access requires naturally aligned storage. */
+	if ((uintptr_t)self->records % sizeof(void *) != 0)
 		return 0;
 	return 1;
 }

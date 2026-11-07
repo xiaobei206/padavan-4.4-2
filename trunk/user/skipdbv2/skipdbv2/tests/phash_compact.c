@@ -303,6 +303,72 @@ done:
 	return okay;
 }
 
+
+static int phashRejectsMisalignedStorage(void)
+{
+	PHash *source = PHash_new();
+	PHash malformed;
+	PHashRecord *originalRecords;
+	int key = 707, value = 808;
+	unsigned int originalTableSize, originalLog2, originalMask;
+	unsigned int originalNumKeys, originalBalance;
+	int okay = 0;
+
+	if (NULL == source)
+		return 0;
+	PHash_at_put_(source, &key, &value);
+	if (source->numKeys != 1 || PHash_at_(source, &key) != &value)
+		goto done;
+
+	originalRecords = source->records;
+	originalTableSize = source->tableSize;
+	originalLog2 = source->log2tableSize;
+	originalMask = source->mask;
+	originalNumKeys = source->numKeys;
+	originalBalance = source->balance;
+
+	malformed = *source;
+	malformed.records = (PHashRecord *)((uintptr_t)source->records + 1u);
+	if (PHash_hasValidStorage_(&malformed)) {
+		fprintf(stderr, "PHash accepted misaligned backing records storage\n");
+		goto done;
+	}
+
+	/* All invalid-storage operations must now fail closed without dereferencing records. */
+	if (PHash_count(&malformed) != 0 ||
+		PHash_memorySize(&malformed) != 0 ||
+		PHash_recordAt_(&malformed, &key) != &malformed.nullRecord ||
+		PHash_at_(&malformed, &key) != NULL ||
+		PHash_at_update_(&malformed, &key, &value) != 0)
+		goto done;
+	PHash_clean(&malformed);
+	PHash_at_put_(&malformed, &key, &value);
+	PHash_removeKey_(&malformed, &key);
+	PHash_removeValue_(&malformed, &value);
+	PHash_compact(&malformed);
+	PHash_grow(&malformed);
+	PHash_copy_(&malformed, source);
+	PHASH_FOREACH(&malformed, iterKey, iterValue, (void)iterKey; (void)iterValue;);
+
+	if (malformed.records != (PHashRecord *)((uintptr_t)originalRecords + 1u) ||
+		malformed.tableSize != originalTableSize ||
+		malformed.log2tableSize != originalLog2 ||
+		malformed.mask != originalMask ||
+		malformed.numKeys != originalNumKeys ||
+		malformed.balance != originalBalance ||
+		source->records != originalRecords ||
+		source->tableSize != originalTableSize ||
+		source->numKeys != originalNumKeys ||
+		PHash_at_(source, &key) != &value)
+		goto done;
+
+	okay = 1;
+done:
+	PHash_free(source);
+	return okay;
+}
+
+
 int main(void)
 {
 	PHash *hash;
@@ -312,6 +378,9 @@ int main(void)
 
 	PHash_compact(NULL);
 
+	if (!check(phashRejectsMisalignedStorage(),
+		"PHash operations accepted misaligned backing storage"))
+		return EXIT_FAILURE;
 	if (!check(phashCuckooFailurePreservesState(),
 		"PHash cuckoo failure altered the original table or input record"))
 		return EXIT_FAILURE;

@@ -1495,6 +1495,9 @@ jobs:
                   "self->tableSize != (1u << self->log2tableSize)",
                   "self->mask != self->tableSize - 1",
                   "self->numKeys > self->tableSize * 2",
+                  "#include <stdint.h>",
+                  "Every indexed PHashRecord access requires naturally aligned storage.",
+                  "(uintptr_t)self->records % sizeof(void *) != 0",
                   "PHash_hasValidStorage_(self)",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/PHash.c": [
@@ -1518,6 +1521,10 @@ jobs:
                   "self->balance = originalBalance;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/phash_compact.c": [
+                  "static int phashRejectsMisalignedStorage(void)",
+                  "PHash accepted misaligned backing records storage",
+                  "PHash operations accepted misaligned backing storage",
+                  "phashRejectsMisalignedStorage()",
                   "static int phashCopyPreservesSharedBacking(void)",
                   "PHash shallow aliases must not free the source backing allocation",
                   "static int phashOperationsRejectInvalidGeometry(int corruption)",

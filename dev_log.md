@@ -1,3 +1,13 @@
+## 2026-11-07 18:59 CST — Reject misaligned PHash backing storage
+
+- Baseline: `638680f1bd5268a9e24448aadc90d33842707d53`; SkipDBv2 Regression run #632 passed the integration contracts, full build, and all 57 CTests.
+- Scope: `PHash_hasValidStorage_()` and its existing storage-bounds regression.
+- The central PHash validator checked capacity, mask, and key-count geometry but accepted a misaligned `records` pointer. Valid-looking table metadata could therefore allow inline lookups and mutations to perform undefined unaligned `PHashRecord` accesses.
+- Require naturally aligned backing storage before any inline/C operation may proceed, explicitly include `stdint.h`, and extend the existing PHash test to exercise reads, writes, enumeration, sizing, copy, grow, and compaction against a malformed shallow view while confirming the actual source table remains intact.
+- Update the existing GitHub Actions source contracts; no new files, exports, or CMake targets. No local build/CTest result is claimed.
+
+---
+
 ## 2026-11-07 18:59 CST — Reject free-list metadata writes on invalid file extents
 
 - Baseline: `52d6fdef7b95662d9e116afd228188b9baff83da`; latest completed SkipDBv2 Regression run #631 passed.
