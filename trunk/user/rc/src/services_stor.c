@@ -249,8 +249,6 @@ write_smb_conf(void)
 
 	/* share mode */
 	if (i_smb_mode == 1 || i_smb_mode == 3) {
-		char *rootnm = nvram_safe_get("http_username");
-		if (!samba_acl_user_is_safe(rootnm)) rootnm = "admin";
 #if defined (APP_SMBD36)
 		fprintf(fp, "map to guest = %s\n", "Bad Password");
 #else
@@ -258,7 +256,7 @@ write_smb_conf(void)
 #endif
 		fprintf(fp, "guest ok = %s\n", "yes");
 		fprintf(fp, "guest only = yes\n");
-		fprintf(fp, "guest account = %s\n", rootnm);
+		fprintf(fp, "guest account = %s\n", SAMBA_GUEST_ACCOUNT);
 	} else if (i_smb_mode == 4) {
 #if !defined (APP_SMBD36)
 		fprintf(fp, "security = %s\n", "USER");

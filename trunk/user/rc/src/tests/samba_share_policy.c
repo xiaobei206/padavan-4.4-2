@@ -4,6 +4,10 @@
 
 int main(void)
 {
+	/* Public/guest SMB sessions must never inherit the management UID 0. */
+	assert(strcmp(SAMBA_GUEST_ACCOUNT, "nobody") == 0);
+	assert(strcmp(SAMBA_GUEST_ACCOUNT, "admin") != 0);
+
 	assert(samba_conf_text_is_safe("Padavan AX-3000"));
 	assert(samba_conf_text_is_safe("/media/USB Disk"));
 	assert(samba_conf_text_is_safe(""));

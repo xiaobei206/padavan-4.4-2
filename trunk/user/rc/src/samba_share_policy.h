@@ -3,6 +3,11 @@
 
 #include <stddef.h>
 #include <string.h>
+/*
+ * This firmware maps http_username to UID 0 in /etc/passwd. Anonymous SMB
+ * sessions therefore must use the existing locked, non-root nobody account.
+ */
+#define SAMBA_GUEST_ACCOUNT "nobody"
 
 /*
  * Validate values emitted into Samba/vsftpd configuration files.
