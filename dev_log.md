@@ -1,3 +1,13 @@
+## 2026-11-07 11:48 CST — Stop futile PHash growth for identical pointer hashes
+
+- Baseline: main commit `514102b8d054386a9f283ed0b163a499f438484b`; SkipDBv2 Regression run #515 passed after the SHash collision guard.
+- Scope: `basekit/PHash.c`, the existing `tests/phash_compact.c` fixture, and its existing Actions source contract.
+- On 64-bit targets, `PHash_hash()` truncates the transformed pointer to 32 bits. Three distinct pointer values can therefore share the exact hash and are restricted to the same two cuckoo slots at every table size. The old failed-insert path repeatedly grew to the maximum table despite the collision being unresolvable.
+- Detect both occupied candidates and verify their full hash matches the incoming pointer before growing. Add a 64-bit regression using distinct pointer values differing only above the retained hash bits; the 32-bit transform is injective and skips this case. Existing CMake/CTest target reused; no new files.
+- No local C build or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 11:46 CST — Stop futile SHash growth for unplaceable full-hash collisions
 
 - Baseline: main commit `33c777ccb424b99ff736f8006f3c5fc96c6d3b27`; SkipDBv2 Regression run #514 passed.

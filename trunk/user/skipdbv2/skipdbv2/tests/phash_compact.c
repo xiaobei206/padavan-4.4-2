@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 static int check(int condition, const char *message)
 {
@@ -115,6 +116,53 @@ static int phashCuckooFailurePreservesState(void)
 		PHash_at_(hash, keysByPair[selectedPair][1]) == &values[1];
 	PHash_free(hash);
 	return okay;
+}
+
+
+static int phashFullHashCollisionDoesNotGrow(void)
+{
+#if UINTPTR_MAX > UINT32_MAX
+	PHash *hash = PHash_new();
+	int values[3] = {101, 202, 303};
+	uintptr_t base = (uintptr_t)&values[0];
+	void *keys[3];
+	PHashRecord *originalRecords;
+	unsigned int originalBalance;
+	int okay = 0;
+
+	if (NULL == hash)
+		return 0;
+	/* PHash_hash retains only the low 32 bits of pointer ^ (pointer >> 4).
+	 * Bits 36 and 37 therefore produce distinct values with the same hash. */
+	keys[0] = (void *)base;
+	keys[1] = (void *)(base ^ ((uintptr_t)1 << 36));
+	keys[2] = (void *)(base ^ ((uintptr_t)1 << 37));
+	if (PHash_hash(hash, keys[0]) != PHash_hash(hash, keys[1]) ||
+		PHash_hash(hash, keys[0]) != PHash_hash(hash, keys[2]))
+		goto done;
+
+	PHash_at_put_(hash, keys[0], &values[0]);
+	PHash_at_put_(hash, keys[1], &values[1]);
+	if (hash->tableSize != 2 || hash->numKeys != 2)
+		goto done;
+
+	originalRecords = hash->records;
+	originalBalance = hash->balance;
+	PHash_at_put_(hash, keys[2], &values[2]);
+	okay = hash->records == originalRecords &&
+		hash->tableSize == 2 && hash->numKeys == 2 &&
+		hash->balance == originalBalance &&
+		PHash_at_(hash, keys[0]) == &values[0] &&
+		PHash_at_(hash, keys[1]) == &values[1] &&
+		PHash_at_(hash, keys[2]) == NULL;
+
+done:
+	PHash_free(hash);
+	return okay;
+#else
+	/* The 32-bit pointer transform is injective; no such collision exists. */
+	return 1;
+#endif
 }
 
 
@@ -266,6 +314,9 @@ int main(void)
 
 	if (!check(phashCuckooFailurePreservesState(),
 		"PHash cuckoo failure altered the original table or input record"))
+		return EXIT_FAILURE;
+	if (!check(phashFullHashCollisionDoesNotGrow(),
+		"PHash full-hash collisions triggered futile table growth"))
 		return EXIT_FAILURE;
 	if (!check(phashCopyPreservesSharedBacking(),
 		"PHash shallow aliases must not free the source backing allocation"))

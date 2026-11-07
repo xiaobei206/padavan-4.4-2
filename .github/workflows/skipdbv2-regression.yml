@@ -5470,6 +5470,28 @@ jobs:
              "0 == memcmp(originalRecords, hash->records, sizeof(originalRecords))" not in phash_test:
               raise SystemExit("PHash failed-kick regression must verify table and input rollback")
 
+          collision_start = phash_source.find("static int PHash_hasUnresolvableHashPair_(PHash *self, void *key)")
+          collision_end = phash_source.find("void PHash_growWithRecord(", collision_start)
+          collision_body = phash_source[collision_start:collision_end] if collision_start >= 0 and collision_end > collision_start else ""
+          for needle in ("PHash_hash(self, key)",
+                         "PHASH_RECORDS_AT_HASH_(self, 0, hash)",
+                         "PHash_hash_more(self, hash)",
+                         "PHash_hash(self, primary->key) == hash",
+                         "PHash_hash(self, secondary->key) == hash"):
+              if needle not in collision_body:
+                  raise SystemExit("PHash must detect a permanently full pair of equal-hash cuckoo slots: " + needle)
+          grow_record_start = phash_source.find("void PHash_growWithRecord(")
+          grow_record_end = phash_source.find("void PHash_removeValue_(", grow_record_start)
+          grow_record_body = phash_source[grow_record_start:grow_record_end] if grow_record_start >= 0 and grow_record_end > grow_record_start else ""
+          collision_guard = grow_record_body.find("PHash_hasUnresolvableHashPair_(self, key)")
+          growth_call = grow_record_body.find("PHash_grow(self);")
+          if not grow_record_body or min(collision_guard, growth_call) < 0 or collision_guard >= growth_call:
+              raise SystemExit("PHash must reject unresolvable full-hash collisions before allocating a larger table")
+          if ("static int phashFullHashCollisionDoesNotGrow(void)" not in phash_test or
+                  "PHash full-hash collisions triggered futile table growth" not in phash_test):
+              raise SystemExit("PHash full-hash collision growth regression is missing")
+
+
           bstream_tag_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c").read_text()
           bstream_tag_test = Path("trunk/user/skipdbv2/skipdbv2/tests/bstream_tag_boundaries.c").read_text()
           bstream_tag_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()

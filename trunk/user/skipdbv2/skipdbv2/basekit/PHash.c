@@ -325,6 +325,21 @@ void PHash_grow(PHash *self)
 }
 
 
+/* Two resident keys with the same full hash permanently occupy both
+ * candidate slots for this key, regardless of the table mask. */
+static int PHash_hasUnresolvableHashPair_(PHash *self, void *key)
+{
+	unsigned int hash = PHash_hash(self, key);
+	PHashRecord *primary = PHASH_RECORDS_AT_HASH_(self, 0, hash);
+	PHashRecord *secondary = PHASH_RECORDS_AT_HASH_(
+		self, 1, PHash_hash_more(self, hash));
+
+	return primary->key && secondary->key &&
+		PHash_hash(self, primary->key) == hash &&
+		PHash_hash(self, secondary->key) == hash;
+}
+
+
 void PHash_growWithRecord(PHash *self, PHashRecord* thisRecord)
 {
 	void *key, *value;
@@ -334,6 +349,8 @@ void PHash_growWithRecord(PHash *self, PHashRecord* thisRecord)
 		return;
 	key = thisRecord->key;
 	value = thisRecord->value;
+	if (PHash_hasUnresolvableHashPair_(self, key))
+		return;
 	oldTableSize = self->tableSize;
 	PHash_grow(self);
 	if (self->tableSize > oldTableSize && self->records)
