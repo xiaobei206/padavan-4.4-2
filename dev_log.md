@@ -1,3 +1,17 @@
+## 2026-11-08 05:39 CST — Validate DHCP lease callbacks and reconcile stale WAN routes
+
+### Scope and implementation
+- Baseline was main `aaad71a9076fc5f7b683753f312056f806fd1788`, resuming the handoff's explicitly pending DHCP event/route/resolver ordering review. This is a real WAN/DHCP RC task; no SkipDBv2 checkpoint was merged.
+- Added `trunk/user/rc/src/dhcp_lease_policy.h` and `tests/dhcp_lease_policy.c`. The host-testable policy checks canonical IPv4 addresses, contiguous non-zero IPv4 masks, bounded whitespace-delimited IPv4 lists, strict decimal ranges/overflow, and bounded route option text.
+- `net_wan.c` now validates required DHCP IPv4/netmask input before applying it; normalizes router lists; gates DNS/WINS, MTU, lease lifetime, route options and DHCP domain; checks ZeroConf IPv4 input; and reconciles dynamic/default/host gateway routes across renew/deconfig paths. Lease renewal re-runs the bound path for route-option/MTU changes; DNS/domain changes trigger resolver/dnsmasq refresh.
+- Follow-up `man_down()` removes the old MAN default route, off-subnet gateway/DNS host routes and static/dynamic routes before clearing lease-derived NVRAM state, then refreshes resolver state and requests WAN firewall refresh. IPTV DHCP deconfig retires its default/dynamic routes and clears route metadata.
+- Code commits: [`ddd69bd4969fa95f6bd541f99f4ea1b31c8844e7`](https://github.com/xiaobei206/padavan-4.4-2/commit/ddd69bd4969fa95f6bd541f99f4ea1b31c8844e7) and [`5d531a09ec030265828b2ad33969904cc077f3c0`](https://github.com/xiaobei206/padavan-4.4-2/commit/5d531a09ec030265828b2ad33969904cc077f3c0).
+
+### Validation and limits
+- Exact-head GitHub Actions [run 42416794701](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42416794701) completed SUCCESS on `5d531a09ec030265828b2ad33969904cc077f3c0`. The `Verify DHCP lease input and renewal reconciliation` step passed; its C regression compiles with `cc -std=gnu89 -Wall -Wextra -Werror`, and the source contract checks bound validation, renewal decisions, route cleanup, resolver refresh and MAN-down ordering. Existing PPP, DNSMasq, firewall and HTTPD checks in the same job also passed.
+- The test compiles the standalone policy helper, not a production MIPS RC object. **Target MIPS build, firmware/TRX artifact validation and physical-router testing: NOT RUN.** Do not promote DNS/DHCP or WAN/PPP to fully audited: remaining DNS-daemon configuration/rebinding, PPP failover, static-route interactions and IPv6 state transitions are open.
+- Repository-wide next step: select the next highest-risk unaudited module (file sharing, storage/hotplug or init/service lifecycle) and inspect its build manifest/init/callers. Keep routine SkipDBv2 expansion paused; firewall cross-table rollback and IPv6 policy parity remain separate open items.
+
 ## 2026-11-08 05:25 CST — Harden PPP credential file writes and verify exact-head CI
 
 ### PPP finding and implementation
