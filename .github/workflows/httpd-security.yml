@@ -194,6 +194,17 @@ jobs:
           assert 'firewall_log_command_failure("Shadowsocks firewall hook", doSystem("sh %s", shadowsocks_staged));' in dispatch
           assert 'doSystem("sh %s", shadowsocks_iptables_script);' not in dispatch
           assert "firewall_hook_file_remove(shadowsocks_staged);" in dispatch
+          assert 'firewall_hook_file_stage(int_iptables_script, "/home/root", ".post-firewall-",' in dispatch
+          assert 'firewall_log_command_failure("Persistent post-firewall hook",' in dispatch
+          assert 'doSystem("/bin/sh %s", int_iptables_staged)' in dispatch
+          assert "firewall_hook_file_remove(int_iptables_staged);" in dispatch
+          assert 'firewall_hook_file_stage(opt_iptables_script, "/home/root", ".opt-iptables-",' in dispatch
+          assert 'firewall_log_command_failure("Optware iptables update hook",' in dispatch
+          assert 'doSystem("/bin/sh %s update", opt_iptables_staged)' in dispatch
+          assert "firewall_hook_file_remove(opt_iptables_staged);" in dispatch
+          assert 'check_if_file_exist(int_iptables_script)' not in dispatch
+          assert 'check_if_file_exist(opt_iptables_script)' not in dispatch
+          assert "hook validation or staging failed" in firewall
           assert '"/tmp/shadowsocks_iptables.save"' in dispatch
           assert '"/home/root/.adbyby.save"' in dispatch
           assert '"/tmp/adbyby.save"' not in dispatch
@@ -204,7 +215,7 @@ jobs:
           assert 'umask 077' in adbyby and 'mv -f "$next_file" "$final_file"' in adbyby
           assert "/tmp/adbyby.save" not in adbyby
           assert "mkdir -p -m 700 /home/root" in dev_init
-          print("Add-on firewall hook provenance, private staging and snapshot contracts: OK")
+          print("Root extension hook trust gates, private staging and Adbyby snapshot contracts: OK")
           PY
 
       - name: Check firewall command status reporting

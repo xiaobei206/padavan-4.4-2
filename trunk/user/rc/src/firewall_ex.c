@@ -32,9 +32,7 @@
 #include "firewall_filter_policy.h"
 #include "firewall_rule_file.h"
 #include "firewall_command_status.h"
-#if defined (APP_SHADOWSOCKS)
 #include "firewall_hook_file.h"
-#endif
 
 #define foreach_x(x)		for (i=0; i<nvram_get_int(x); i++)
 
@@ -73,6 +71,13 @@ firewall_log_command_failure(const char *operation, int status)
 	}
 
 	logmessage(LOGNAME, "%s: command failed with wait status %d", operation, status);
+}
+
+static void
+firewall_log_hook_stage_failure(const char *operation, int error_number)
+{
+	logmessage(LOGNAME, "%s: hook validation or staging failed (errno=%d)",
+		   operation, error_number);
 }
 
 /* state match - use xt_state (xt_conntrack more slower than xt_state) */
@@ -2313,6 +2318,8 @@ void
 start_firewall_ex(void)
 {
 	int unit, wan_proto, i_tcp_mss, i_use_man, i_rp;
+	char int_iptables_staged[256] = {0};
+	char opt_iptables_staged[256] = {0};
 #if defined (APP_SHADOWSOCKS)
 	char shadowsocks_staged[256] = {0};
 #endif
@@ -2409,11 +2416,26 @@ start_firewall_ex(void)
 	if (check_if_file_exist(adbyby_iptables))
 		firewall_log_command_failure("Adbyby iptables restore", doSystem("iptables-restore -n %s", adbyby_iptables));
 #endif
-	if (check_if_file_exist(int_iptables_script))
-		firewall_log_command_failure("Persistent post-firewall hook", doSystem("%s", int_iptables_script));
+	/* Storage-restored hooks are privileged programs: reject links and unsafe
+	 * metadata, then execute only a root-private snapshot of the opened inode. */
+	if (firewall_hook_file_stage(int_iptables_script, "/home/root", ".post-firewall-",
+				     int_iptables_staged, sizeof(int_iptables_staged)) == 0) {
+		firewall_log_command_failure("Persistent post-firewall hook",
+					     doSystem("/bin/sh %s", int_iptables_staged));
+		firewall_hook_file_remove(int_iptables_staged);
+	} else if (errno != ENOENT) {
+		firewall_log_hook_stage_failure("Persistent post-firewall hook", errno);
+	}
 
-	if (check_if_file_exist(opt_iptables_script))
-		firewall_log_command_failure("Optware iptables update hook", doSystem("%s update", opt_iptables_script));
+	/* /opt is externally managed storage; apply the same root-hook trust gate. */
+	if (firewall_hook_file_stage(opt_iptables_script, "/home/root", ".opt-iptables-",
+				     opt_iptables_staged, sizeof(opt_iptables_staged)) == 0) {
+		firewall_log_command_failure("Optware iptables update hook",
+					     doSystem("/bin/sh %s update", opt_iptables_staged));
+		firewall_hook_file_remove(opt_iptables_staged);
+	} else if (errno != ENOENT) {
+		firewall_log_hook_stage_failure("Optware iptables update hook", errno);
+	}
 
 	/* enable IPv4 forward */
 	set_ipv4_forward(1);
