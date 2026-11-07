@@ -338,7 +338,7 @@ jobs:
           value_append = url_filter.index("strcat(url_list, filterstr)", value_length)
           # The first fprintf flushes an already-validated accumulated list before
           # appending the current item. Check the final writer after the append.
-          rule_writes = [match.start() for match in re.finditer(r"fprintf\\(fp,", url_filter)]
+          rule_writes = [offset for offset in range(len(url_filter))\n                         if url_filter.startswith("fprintf(fp,", offset)]
           assert rule_writes and safe_value < value_length < value_append < rule_writes[-1]
           assert "*p < 0x20" in firewall_policy and "*p == 0x7f" in firewall_policy
           print("Firewall URL pattern config-injection guard: OK")
