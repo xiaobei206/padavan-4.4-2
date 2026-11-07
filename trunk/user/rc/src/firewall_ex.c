@@ -648,7 +648,7 @@ include_lw_filter(FILE *fp, char *wan_if, char *logaccept, char *logdrop)
 		if (!firewall_icmp_type_is_safe(icmp_ptr))
 			continue;
 
-		fprintf(fp, "-A %s -o %s -p icmp --icmp-type %s -j %s\\n",
+		fprintf(fp, "-A %s -o %s -p icmp --icmp-type %s -j %s\n",
 			dtype, wan_if, icmp_ptr, ftype);
 		lw_items++;
 	}
