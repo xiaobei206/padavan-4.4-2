@@ -1,3 +1,22 @@
+## 2026-11-08 05:17 CST — Harden DNSMasq runtime file staging; record compiler follow-up
+
+### Finding and implementation
+- Audited `trunk/user/rc/src/services_ex.c`, `net_wan.c` and the shared config/file helpers. Privileged DNSMasq setup used predictable `fopen(...,"w")` paths for `/tmp/hosts.static` and `/tmp/dnsmasq.servers`; `update_hosts_router()` ingests the static host file into `/etc/hosts`. Lease setup used `create_file("/tmp/dnsmasq.leases")`, which follows the final symlink and doesn't validate the opened inode.
+- Commits:
+  - `b3d9a48663ede904114c8b7587ea250aa49095b9`: unique temp staging, checked finalization + atomic publish for the static hosts and DNS server snapshots; safe lease-path helper and first host tests.
+  - `b503f6a7bea848d314335dc5a8a2b5791ba986ea`: fail closed when no safe DNS server snapshot exists; stop WAN-triggered DNS reload if the snapshot is unsafe.
+  - `e21332e41652794a47963e79cd714aa97fb58a06`: validate `/tmp/hosts.static` before reading it into router hosts.
+  - `314a9b31df790d70b99be98334c26a46109f878f`: attempted to preserve restrictive existing lease modes; its exact-head Action exposed a compiler warning and FAILED, so that commit alone is not a verified checkpoint.
+  - `c59a43645cca746cb7c8c6496b55ff4324ae5870`: corrected the warning by passing explicit `0644` creation-mode bits to `open()`, then computing final lease permissions only after `fstat()`.
+- `dnsmasq_file.h` now stages replacements with `mkstemp`, preserves I/O/close errors, rejects unsafe file types/owners/link counts and publishes by rename. Existing lease-file permissions are narrowed/preserved as appropriate, retaining owner read/write without widening group/other permissions unnecessarily.
+- `tests/dnsmasq_file.c` uses a disposable temp directory to cover: replacing a destination symlink without writing through its target; mode checks for staged and final files; flush/close failure cleanup while retaining the old published file; lease symlink/hardlink/FIFO rejection; existing content preservation; and 0600 permission preservation. `.github/workflows/httpd-security.yml` compiles with GNU89 `-Wall -Wextra -Werror` and verifies the DNSMasq and WAN fail-closed wiring.
+- The earlier implementation Actions completed SUCCESS: `42414660244` (`b3d9a486...`), `42414820481` (`b503f6a...`) and `42414860072` (`e21332e...`). Run [`42414909753`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42414909753) on `314a9b31...` completed FAILURE at the DNSMasq regression step: `lease_mode` was used as the creation-mode argument before being initialized. The follow-up commit `c59a43645...` fixes that path.
+- Exact-head run [`42414963649`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42414963649), on `c59a43645cca746cb7c8c6496b55ff4324ae5870`, was in progress at last poll. Do not assert this final correction passes until checking the run result.
+- Verification limits: source/static checks passed for current code; L2 CI of the newest correction PENDING at checkpoint time. No MIPS target firmware build, final image or physical router test was run. The firewall multi-table rollback remains OPEN; there is no safe cross-table transaction design yet.
+
+### Next action
+Poll exact-head run `42414963649`; fix any compiler/regression failure. Then audit WAN/PPP client events, route/DNS update propagation and service start/stop ordering. Keep progress anchored to whole userland rather than returning to routine SkipDBv2 refactoring.
+
 ## 2026-11-08 05:09 CST — Confirm exact-head firewall staging regression PASS
 
 - **Source/test/workflow SHA:** `af4cb4a10fdcf8989321a7c41df2f261df1544a0`; source/test implementation was already committed, so this is a verification/governance checkpoint only.
