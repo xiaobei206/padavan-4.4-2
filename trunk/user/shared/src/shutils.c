@@ -273,8 +273,8 @@ void recreate_passwd_unix(int force_create)
 			if (duplicate)
 				continue;
 
-			fprintf(fp1, "%s:x:%d:%d:::\\n", usernm, uid, uid);
-			fprintf(fp2, "%s:x:%d:\\n", usernm, uid);
+			fprintf(fp1, "%s:x:%d:%d:::\n", usernm, uid, uid);
+			fprintf(fp2, "%s:x:%d:\n", usernm, uid);
 			uid++;
 		}
 	}
