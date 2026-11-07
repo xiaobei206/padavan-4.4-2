@@ -2170,6 +2170,9 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c": [
                   "extern size_t CTYPE_size(CTYPE type);",
                   "static int UArray_streamHasValidLayout_(const UArray *self)",
+                  "size_t originalSize;",
+                  "else if (itemsRead == originalSize && itemsRead > 0)",
+                  "UArray_changed(self);",
                   "static UArray *UArray_streamSystemPath_(const UArray *path)",
                   "memchr(sysPath->data, 0, sysPath->size)",
                   "sysPath = UArray_streamSystemPath_(path);",
@@ -2194,6 +2197,9 @@ jobs:
                   "itemsRead > (size_t)-1 / self->itemSize - oldSize",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stream_io.c": [
+                  "static int testFreadInvalidatesCachedHashOnFullOverwrite(void)",
+                  "UArray_fread_ retained a stale hash after a same-size full overwrite",
+                  "UArray direct fread did not invalidate its cached hash",
                   "static int testMismatchedItemWidthRejected(void)",
                   "UArray_fread_(wide, readStream)",
                   "UArray_readFromCStream_(wide, readStream)",

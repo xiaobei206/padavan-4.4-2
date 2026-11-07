@@ -31,11 +31,14 @@ static int UArray_streamHasValidLayout_(const UArray *self)
 size_t UArray_fread_(UArray *self, FILE *fp)
 {
 	size_t itemsRead;
+	size_t originalSize;
+
 	if (NULL == fp || !UArray_streamHasValidLayout_(self))
 		return 0;
 	if (self->size == 0)
 		return 0;
 
+	originalSize = self->size;
 	itemsRead = fread(self->data, self->itemSize, self->size, fp);
 	UArray_setSize_(self, itemsRead);
 	if (self->size != itemsRead) {
@@ -43,6 +46,9 @@ size_t UArray_fread_(UArray *self, FILE *fp)
 		self->size = itemsRead;
 		if (self->data)
 			self->data[itemsRead * self->itemSize] = 0;
+		UArray_changed(self);
+	} else if (itemsRead == originalSize && itemsRead > 0) {
+		/* A full overwrite keeps the size unchanged, so invalidate the cached hash here. */
 		UArray_changed(self);
 	}
 	return itemsRead;

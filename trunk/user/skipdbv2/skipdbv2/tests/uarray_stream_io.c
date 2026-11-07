@@ -121,6 +121,40 @@ done:
 	return ok;
 }
 
+static int testFreadInvalidatesCachedHashOnFullOverwrite(void)
+{
+	static const uint8_t payload[] = {'n', 'e', 'w'};
+	FILE *stream = tmpfile();
+	UArray *array = newByteArray();
+	int okay = 0;
+
+	if (NULL == stream || NULL == array)
+		goto done;
+	if (fwrite(payload, 1, sizeof(payload), stream) != sizeof(payload) ||
+		fseek(stream, 0, SEEK_SET) != 0)
+		goto done;
+	UArray_setSize_(array, sizeof(payload));
+	if (array->size != sizeof(payload) || NULL == array->data)
+		goto done;
+
+	array->hash = (uintptr_t)0x4321;
+	if (UArray_fread_(array, stream) != sizeof(payload) ||
+		array->size != sizeof(payload) ||
+		memcmp(array->data, payload, sizeof(payload)) != 0 ||
+		array->hash != 0) {
+		fprintf(stderr, "UArray_fread_ retained a stale hash after a same-size full overwrite\\n");
+		goto done;
+	}
+	okay = 1;
+
+done:
+	if (stream)
+		fclose(stream);
+	UArray_free(array);
+	return okay;
+}
+
+
 static int testReadCountsAndErrors(void)
 {
 	static const uint8_t expected[] = {'a', 'b', 'c'};
@@ -554,6 +588,10 @@ done:
 
 int main(void)
 {
+	if (!testFreadInvalidatesCachedHashOnFullOverwrite()) {
+		fprintf(stderr, "UArray direct fread did not invalidate its cached hash\\n");
+		return EXIT_FAILURE;
+	}
 	if (!testMismatchedItemWidthRejected()) {
 		fprintf(stderr, "UArray stream I/O accepted inconsistent CTYPE/itemSize metadata\n");
 		return EXIT_FAILURE;

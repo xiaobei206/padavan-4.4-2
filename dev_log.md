@@ -1,3 +1,13 @@
+## 2026-11-07 12:17 CST — Invalidate UArray hash after same-size fread
+
+- Baseline: main commit `1e4da38232e3d9c0f6fd28a691d30bbcf42d3e45`; SkipDBv2 Regression run #522 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: direct `UArray_fread_()` writes in `basekit/UArray_stream.c` and the existing `uarray_stream_io` test.
+- A complete read overwrites every logical item but leaves the array size unchanged. `UArray_setSize_()` is a no-op when the requested size already matches, so the existing path retained the previously cached hash for entirely different contents.
+- Remember the pre-read item count and invalidate the hash after a successful nonempty same-size overwrite. Reads that shrink the array continue to use the existing resize/fallback invalidation path; zero-item reads remain unchanged.
+- Add a direct full-overwrite regression that seeds a nonzero cached hash and verifies both payload and hash. Update the existing Actions source contract; CMake target and file set are unchanged. No local C build/CTest is claimed; mainline CI is the verification gate.
+
+---
+
 ## 2026-11-07 12:15 CST — Correct scalar-division contract guard ordering
 
 - Baseline: main commit `6cec8277387e1fd6f405be5874612e71eac31c21`; SkipDBv2 Regression run #521 stopped in the source-contract preflight.
