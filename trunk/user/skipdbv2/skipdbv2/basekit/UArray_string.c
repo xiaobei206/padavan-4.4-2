@@ -581,6 +581,7 @@ static int UArray_hasValidStringItemLayout_(const UArray *self)
 	if (expectedItemSize == 0 || expectedItemAlignment == 0 ||
 		self->itemSize != expectedItemSize ||
 		self->size > (size_t)-1 / expectedItemSize ||
+		self->size * expectedItemSize == (size_t)-1 ||
 		(self->size > 0 && NULL == self->data) ||
 		(self->data &&
 			((uintptr_t)self->data % expectedItemAlignment) != 0))

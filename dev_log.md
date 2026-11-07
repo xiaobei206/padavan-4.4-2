@@ -1,3 +1,14 @@
+## 2026-11-07 14:48 CST — Reject impossible SIZE_MAX string-item extents
+
+- Baseline: `1c7610362f1525d401d4f70e6f4e1a361927fc36`; core UArray SIZE_MAX layout regression passed SkipDBv2 Regression run #566.
+- Scope: shared typed-string layout validation in `basekit/UArray_string.c`.
+- The string-item validator enforced CTYPE width, multiplication overflow, and natural alignment, but still admitted an exact `SIZE_MAX` byte extent for one-byte strings. String mutators use this guard before indexing or iterating, so forged public metadata could bypass the storage invariant that reserves a trailing NUL byte.
+- Added the exact-size sentinel rejection after the overflow bound. Extended the existing unescape/string regression with a borrowed-size forgery and a two-byte swap operation; it must leave the byte sequence and cached hash unchanged.
+- Updated existing Actions source contracts. The test is already registered in CMake; no build-file changes, new files, or exported symbols.
+- Validation: the regression operation would touch only the two real bytes if the guard were absent, avoiding out-of-bounds test behavior while detecting acceptance. Remote CI remains the compile/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:44 CST — Close the core UArray SIZE_MAX typed-layout gap
 
 - Baseline: `5bfc80f78043e1ff7a91150b340e01c49cb6108f`; character-array SIZE_MAX regression passed SkipDBv2 Regression run #565.

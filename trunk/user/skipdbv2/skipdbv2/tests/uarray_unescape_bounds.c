@@ -119,6 +119,35 @@ static int misaligned_numeric_layout_is_preserved(void)
 }
 
 
+
+static int unrepresentable_string_extent_is_preserved(void)
+{
+    UArray *value = UArray_newWithCString_("xy");
+    const uint8_t expected[] = { 'x', 'y' };
+    const uintptr_t sentinelHash = (uintptr_t)0x7c39;
+    int okay = 0;
+
+    if (NULL == value)
+        return 0;
+    value->hash = sentinelHash;
+    value->size = (size_t)-1;
+
+    /* Swap only touches two valid bytes if the invalid size is not rejected. */
+    UArray_swapIndex_withIndex_(value, 0, 1);
+    if (value->size != (size_t)-1 || value->hash != sentinelHash ||
+        memcmp(value->data, expected, sizeof(expected)) != 0) {
+        fprintf(stderr, "UArray string mutation accepted an unrepresentable SIZE_MAX byte extent\\n");
+        goto done;
+    }
+    okay = 1;
+
+done:
+    value->size = sizeof(expected);
+    UArray_free(value);
+    return okay;
+}
+
+
 int main(void)
 {
     UArray *single_backslash = UArray_newWithCString_("\\");
@@ -170,6 +199,11 @@ int main(void)
 
     if (!misaligned_numeric_layout_is_preserved()) {
         fprintf(stderr, "UArray string operations accepted misaligned numeric storage\\n");
+        goto done;
+    }
+
+    if (!unrepresentable_string_extent_is_preserved()) {
+        fprintf(stderr, "UArray string SIZE_MAX extent regression failed\\n");
         goto done;
     }
 
