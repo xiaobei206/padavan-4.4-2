@@ -1,3 +1,14 @@
+## 2026-11-08 01:37 CST — Make fixed-name HTTPD script dispatch explicit
+
+- Baseline main HEAD: `271cc9b7adfef3765a0c33ad25bbdb13b3b4c533`. Source commit: `3859fc59fa3b890a6ce08a2956719c6640a88337` (`fix(httpd): make fixed script dispatch allowlist explicit`).
+- Recovered the precise unfinished item in SESSION_HANDOFF: audit the fixed-name `sys_script()` branches separately from the generic `/tmp/<name>` root-execution fallback.
+- Reviewed `sys_script()` and all three production call sites (`ej_dump()`, `update_variables_ex()`, `apply_cgi()`), MIME route table, EJ template dispatch, active-session trust helper and relevant ASP examples. Dynamic ASP/HTM and apply/update CGI routes in the audited MIME table require authentication. The fixed handler list has bounded semantics: no-op/read-only handlers, fixed process/RC signals, and printer FIFO operations that write fixed bytes; `syscmd.sh` keeps its separate trusted-session gate. No free-form user command is added to the fixed-name handlers.
+- Change: introduced an exact fixed-name allowlist and dispatch policy helper in `httpd_script_policy.h`; `sys_script()` evaluates the policy before branching. Unlisted scripts still require `get_login_safe()`; the existing generic fallback input validation and `_eval()` argv dispatch remain in place. Existing fixed-handler behavior is deliberately unchanged.
+- Regression: extended `tests/httpd_script_policy.c` to cover every fixed handler name, unknown names for trusted/untrusted sessions, and NULL. Workflow source contract asserts all allowlisted names and that the gate precedes the first dispatch branch. Added `variables.c` to the pull-request path filter, where it was missing.
+- Prior checkpoint CI recovery: firewall schedule exact-head Actions run `42396303871` is SUCCESS on SHA `166274833a1df1ca8a8312fa1d250df72934b738`; its job's compile/run and source-wiring steps both passed.
+- Current change exact-head Actions run `42397188114`, head SHA `3859fc59fa3b890a6ce08a2956719c6640a88337`: QUEUED at the time of this entry. L3 MIPS/firmware and L4 router/hardware validation: NOT RUN. This bounded fixed-name audit does not complete HTTPD/CGI or the wider userland audit.
+- Next: trace every `scripts.*` shell file from the HTTPD write path/variable to its RC/init/service consumer and enumerate alternate writers plus root `eval`/`_eval`/`doSystem` inputs.
+
 ## 2026-11-08 01:27 CST — Fail closed firewall schedule dispatch
 
 - Baseline main HEAD: `5e465c371fe4ff585280ee6724152355be42fa94`. Latest production-source checkpoint: `166274833a1df1ca8a8312fa1d250df72934b738`.
