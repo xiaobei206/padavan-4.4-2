@@ -1,3 +1,13 @@
+## 2026-11-07 12:51 CST — Enforce 32-bit MT state and output width
+
+- Baseline: main commit `3420dd2891a7edf14dd858fc58de4340135d1629`; SkipDBv2 Regression run #530 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `genrand_int32()` in `basekit/RandomGen.c`, its existing state-boundary regression, and the corresponding Actions source contract.
+- `RandomGen` stores MT19937 words in `unsigned long`, which is 64-bit on LP64 systems. A corrupted/publicly modified state could therefore leak high bits into the output and violate `RandomGen_randomDouble()`'s `[0,1)` range.
+- Mask every twist result and the tempered output to the algorithm's specified 32-bit word width. Add LP64-only regressions covering both output before a twist and state normalization during a twist; standard seeded sequences remain unchanged.
+- Reuse the existing `random_gen_state_bounds_test` CMake target; no new files or exported declarations. No local C build/CTest is claimed; mainline CI remains the verification gate.
+
+---
+
 ## 2026-11-07 12:48 CST — Detect standard Windows macros for JFile path separators
 
 - Baseline: main commit `6ac2b52e2ff75b60f1b513f5f0409b3a7b713837`; SkipDBv2 Regression run #529 passed source contracts, configure, full build, and all CTest regressions.

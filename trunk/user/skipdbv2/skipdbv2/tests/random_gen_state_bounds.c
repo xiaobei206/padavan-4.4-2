@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 static int check(int condition, const char *message)
 {
@@ -19,6 +20,7 @@ int main(void)
 	int value;
 	int i;
 	double actualGaussian, expectedGaussian;
+	double boundedValue;
 
 	if (actual == NULL || expected == NULL) {
 		RandomGen_free(actual);
@@ -62,6 +64,30 @@ int main(void)
 		RandomGen_randomDouble(actual) == RandomGen_randomDouble(expected),
 		"nonzero degenerate generator state did not recover after bounded Gaussian rejection"))
 		goto failure;
+
+#if ULONG_MAX > 0xffffffffUL
+	/* The MT state stores 32-bit words even when unsigned long is 64-bit. */
+	for (i = 0; i < RANDOMGEN_N; ++i)
+		actual->mt[i] = ULONG_MAX;
+	actual->mti = 0;
+	boundedValue = RandomGen_randomDouble(actual);
+	if (!check(boundedValue >= 0.0 && boundedValue < 1.0,
+		"wide MT state escaped the 32-bit random output range"))
+		goto failure;
+
+	for (i = 0; i < RANDOMGEN_N; ++i)
+		actual->mt[i] = ULONG_MAX;
+	actual->mti = RANDOMGEN_N;
+	boundedValue = RandomGen_randomDouble(actual);
+	if (!check(boundedValue >= 0.0 && boundedValue < 1.0,
+		"wide MT state escaped the output range after twisting"))
+		goto failure;
+	for (i = 0; i < RANDOMGEN_N; ++i) {
+		if (!check(actual->mt[i] <= 0xffffffffUL,
+			"MT twist retained bits above the 32-bit state width"))
+			goto failure;
+	}
+#endif
 
 	RandomGen_free(actual);
 	RandomGen_free(expected);

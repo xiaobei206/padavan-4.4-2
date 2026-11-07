@@ -155,13 +155,16 @@ static unsigned long genrand_int32(RandomGen *self)
 		for (kk=0;kk<N-M;kk++) {
 			y = (self->mt[kk]&UPPER_MASK)|(self->mt[kk+1]&LOWER_MASK);
 			self->mt[kk] = self->mt[kk+M] ^ (y >> 1) ^ mag01[y & 0x1UL];
+			self->mt[kk] &= 0xffffffffUL;
 		}
 		for (;kk<N-1;kk++) {
 			y = (self->mt[kk]&UPPER_MASK)|(self->mt[kk+1]&LOWER_MASK);
 			self->mt[kk] = self->mt[kk+(M-N)] ^ (y >> 1) ^ mag01[y & 0x1UL];
+			self->mt[kk] &= 0xffffffffUL;
 		}
 		y = (self->mt[N-1]&UPPER_MASK)|(self->mt[0]&LOWER_MASK);
 		self->mt[N-1] = self->mt[M-1] ^ (y >> 1) ^ mag01[y & 0x1UL];
+			self->mt[N-1] &= 0xffffffffUL;
 
 		self->mti = 0;
 	}
@@ -174,7 +177,8 @@ static unsigned long genrand_int32(RandomGen *self)
 	y ^= (y << 15) & 0xefc60000UL;
 	y ^= (y >> 18);
 
-	return y;
+	/* Keep the public 32-bit generator contract even if state storage is corrupted. */
+	return y & 0xffffffffUL;
 }
 
 /* generates a random number on [0,0x7fffffff]-interval */
