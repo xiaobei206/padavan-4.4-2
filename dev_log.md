@@ -1,3 +1,13 @@
+## 2026-11-07 10:02 CST — Preserve cached headers when the record stream is closed
+
+- Baseline: main commit `faa375bd8bf8d92ae35284fbf2d5fceff25978fc`; SkipDBv2 Regression run #498 passed.
+- Scope: `UDBRecord_readHeader()` in `udb/UDBRecordRead.c`.
+- The reader checked the cached file length but not whether the underlying `FILE *` was open. After close, a read failure was classified as a corrupt header and zeroed the caller's cached metadata while also seeking the closed `JFile` cursor.
+- Reject closed streams before any seek or header mutation. Add a closed/reopened stream regression to the existing record-storage test and enforce the descriptor guard in the Actions source contract. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:59 CST — Align compaction contract with monotonic timing
 
 - Baseline: main commit `00ff2c40036da65f6010e59c4764fb6fc1a98b58`; SkipDBv2 Regression run #497 failed in the XY-C1 source-contract step.

@@ -20,7 +20,8 @@ int UDBRecord_readHeader(UDBRecord *self)
     int objectsRead;
     size_t file_size;
 
-    if (NULL == self || NULL == self->file || self->file->maxPos < 0)
+    if (NULL == self || NULL == self->file || NULL == self->file->file ||
+        self->file->maxPos < 0)
         return 0;
 
     file_size = (size_t)self->file->maxPos;

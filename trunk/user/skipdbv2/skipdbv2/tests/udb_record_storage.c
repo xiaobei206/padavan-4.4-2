@@ -110,6 +110,31 @@ int main(void)
         goto done;
     }
 
+    /* A closed stream is unavailable, not a corrupt record header. */
+    {
+        UDBRecordHeader saved_header = record->header;
+        PID_TYPE saved_record_pos = record->pos;
+        long saved_file_pos = db->records->file->pos;
+        long saved_file_max = db->records->file->maxPos;
+
+        UDB_close(db);
+        if (UDBRecord_readHeader(record) != 0 ||
+            record->header.tag != saved_header.tag ||
+            record->header.pid != saved_header.pid ||
+            record->header.size != saved_header.size ||
+            record->pos != saved_record_pos ||
+            db->records->file->pos != saved_file_pos ||
+            db->records->file->maxPos != saved_file_max) {
+            fprintf(stderr, "closed record header read mutated cached state\\n");
+            goto done;
+        }
+        UDB_open(db);
+        if (!UDB_isOpen(db) || !UDBRecord_readHeader(record)) {
+            fprintf(stderr, "record stream did not recover after closed-header guard\\n");
+            goto done;
+        }
+    }
+
     /*
      * saveWithDatum_ is append-only in both journaling modes. Allowing a
      * cached live-record position here bypasses the index replacement path.
