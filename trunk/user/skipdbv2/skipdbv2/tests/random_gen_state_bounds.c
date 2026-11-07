@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int check(int condition, const char *message)
 {
@@ -37,6 +38,15 @@ int main(void)
 	actual->mti = RANDOMGEN_N + 2;
 	if (!check(RandomGen_randomInt(actual) == RandomGen_randomInt(expected),
 		"out-of-range generator index did not recover to the default seed"))
+		goto failure;
+
+	RandomGen_setSeed(actual, 5489UL);
+	RandomGen_setSeed(expected, 5489UL);
+	memset(actual->mt, 0, sizeof(actual->mt));
+	actual->mti = 0;
+	if (!check(RandomGen_gaussian(actual, 5.0, 2.0) ==
+		RandomGen_gaussian(expected, 5.0, 2.0),
+		"all-zero generator state did not recover before Gaussian sampling"))
 		goto failure;
 
 	RandomGen_free(actual);

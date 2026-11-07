@@ -279,11 +279,24 @@ int RandomGen_randomInt(RandomGen *self)
 # define M_PI_2 1.57079632679489661923
 #endif
 
+static int RandomGen_hasNonzeroState_(const RandomGen *self)
+{
+	int i;
+	if (NULL == self)
+		return 0;
+	for (i = 0; i < RANDOMGEN_N; ++i)
+		if (self->mt[i] != 0)
+			return 1;
+	return 0;
+}
+
 double RandomGen_gaussian(RandomGen *self, double m, double s)
 {
 		// http://www.taygeta.com/random/gaussian.html
 	if (NULL == self)
 		return 0.0;
+	if (!RandomGen_hasNonzeroState_(self))
+		RandomGen_setSeed(self, 5489UL);
 	double x1, x2, w, y1, y2;
 
 	do {

@@ -2141,6 +2141,9 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/RandomGen.c": [
                   "if (self->mti < 0 || self->mti > N+1)",
+                  "static int RandomGen_hasNonzeroState_(const RandomGen *self)",
+                  "if (!RandomGen_hasNonzeroState_(self))",
+                  "RandomGen_setSeed(self, 5489UL);",
                   "if (NULL == self)",
                   "return self ? genrand_real2(self) : 0.0;",
                   "return self ? (int)(genrand_int32(self) >> 1) : 0;",
@@ -2149,6 +2152,8 @@ jobs:
               "trunk/user/skipdbv2/skipdbv2/tests/random_gen_state_bounds.c": [
                   "actual->mti = -1;",
                   "actual->mti = RANDOMGEN_N + 2;",
+                  "memset(actual->mt, 0, sizeof(actual->mt));",
+                  "all-zero generator state did not recover before Gaussian sampling",
                   "negative generator index did not recover to the default seed",
                   "RandomGen index bounds test passed",
               ],
@@ -4340,13 +4345,16 @@ jobs:
           gaussian_start = random_source.find("double RandomGen_gaussian(RandomGen *self, double m, double s)")
           gaussian_body = random_source[gaussian_start:] if gaussian_start >= 0 else ""
           gaussian_null_guard = gaussian_body.find("if (NULL == self)")
+          state_guard = gaussian_body.find("if (!RandomGen_hasNonzeroState_(self))")
+          state_reseed = gaussian_body.find("RandomGen_setSeed(self, 5489UL);")
           zero_radius_guard = gaussian_body.find("w >= 1.0 || w == 0.0")
           logarithm = gaussian_body.find("log( w )")
           if (not constructor or constructor_guard < 0 or state_init < 0 or constructor_guard > state_init or
                   "return self ? genrand_real2(self) : 0.0;" not in random_source or
-                  gaussian_null_guard < 0 or zero_radius_guard < 0 or logarithm < 0 or
-                  zero_radius_guard > logarithm):
-              raise SystemExit("RandomGen lifecycle and zero-radius Gaussian guards are incomplete")
+                  gaussian_null_guard < 0 or state_guard < 0 or state_reseed < state_guard or
+                  zero_radius_guard < 0 or logarithm < 0 or
+                  not (gaussian_null_guard < state_guard < state_reseed < zero_radius_guard < logarithm)):
+              raise SystemExit("RandomGen must reseed degenerate state before Gaussian rejection sampling")
           random_int_start = random_source.find("int RandomGen_randomInt(RandomGen *self)")
           random_int_end = random_source.find("\n}", random_int_start)
           random_int_body = random_source[random_int_start:random_int_end] if random_int_start >= 0 and random_int_end > random_int_start else ""

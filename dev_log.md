@@ -1,3 +1,13 @@
+## 2026-11-07 09:25 CST — Recover Gaussian sampling from a degenerate RandomGen state
+
+- Baseline: main commit `99ec4482a505c627e05f900d8f8eb84dc7b4437d`; SkipDBv2 Regression run #484 passed.
+- Scope: `RandomGen_gaussian()` in `basekit/RandomGen.c`.
+- A zero-initialized/corrupted but index-in-range MT state produces only zero random values, so the Gaussian rejection loop can reject forever because its radius remains outside the unit circle.
+- Detect an all-zero state before sampling and restore the deterministic fallback seed. Extend the existing state-bounds test to compare its result with a freshly seeded generator and make the Actions source contract enforce recovery before rejection sampling. The CMake test target already exists; no new files.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 09:23 CST — Include active DST bias in Windows timezone offsets
 
 - Baseline: main commit `737d63b496a45e427cf64f339aab7b408a6638e5`; SkipDBv2 Regression run #483 passed.
