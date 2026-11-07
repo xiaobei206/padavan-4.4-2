@@ -1,7 +1,7 @@
 /* UDB record-space compaction operations. */
 #include "UDB.h"
 #include <sys/types.h>
-#include <sys/time.h>
+#include <time.h>
 #include <limits.h>
 
 // compact --------------------------------------------------- 
@@ -151,10 +151,10 @@ static int UDB_compactStepOnce_(UDB *self)
  */
 int UDB_compactStepFor_(UDB *self, double maxSeconds)
 {
-	struct timeval started, now;
+	struct timespec started, now;
 	int count = 0;
 	int has_time_budget = maxSeconds > 0.0 &&
-		gettimeofday(&started, NULL) == 0;
+		clock_gettime(CLOCK_MONOTONIC, &started) == 0;
 
 	for (;;) {
 		double elapsed;
@@ -164,11 +164,10 @@ int UDB_compactStepFor_(UDB *self, double maxSeconds)
 			++count;
 		if (count == INT_MAX || !has_time_budget)
 			return count;
-		if (gettimeofday(&now, NULL) != 0)
+		if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
 			return count;
 		elapsed = (double)now.tv_sec - (double)started.tv_sec +
-			((double)now.tv_usec - (double)started.tv_usec) / 1000000.0;
-		/* A wall-clock adjustment must not extend a compaction slice. */
+			((double)now.tv_nsec - (double)started.tv_nsec) / 1000000000.0;
 		if (elapsed < 0.0 || elapsed >= maxSeconds)
 			return count;
 	}

@@ -1,3 +1,13 @@
+## 2026-11-07 09:57 CST — Use monotonic time for compaction budgets
+
+- Baseline: main commit `8b5e96b65fe334202e265daf0a46f3a5368db602`; SkipDBv2 Regression run #496 passed.
+- Scope: time-sliced compaction scheduling in `udb/UDBCompact.c`.
+- The budget used `gettimeofday()`, so wall-clock corrections could abruptly end a time slice even when the requested budget had not elapsed. The negative-elapsed guard prevented overruns but could not prevent premature stops.
+- Measure the operation budget with `CLOCK_MONOTONIC` and nanosecond precision; retain the existing fail-safe behavior if clock reads fail. Extend the existing source contract. No new files or CMake changes.
+- No local compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:55 CST — Retry interrupted commit-marker directory syncs
 
 - Baseline: main commit `a14e65525c9c1482ba377000d137de3743c46328`; SkipDBv2 Regression run #495 passed.

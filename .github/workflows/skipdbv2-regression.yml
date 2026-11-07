@@ -579,6 +579,8 @@ jobs:
                   "UDB_compactionStreamsAreOpen_(self)",
                   "static int UDB_compactStepOnce_(UDB *self)",
                   "int UDB_compactStepFor_(UDB *self, double maxSeconds)",
+                  "clock_gettime(CLOCK_MONOTONIC, &started)",
+                  "clock_gettime(CLOCK_MONOTONIC, &now)",
                   "gettimeofday(&started, NULL)",
                   "elapsed >= maxSeconds",
                   "if (compactions > INT_MAX - count)",
