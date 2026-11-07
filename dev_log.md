@@ -1,3 +1,12 @@
+## 2026-11-07 16:02 CST — Align Date overflow source contracts with errno capture
+
+- Baseline: `e4c18fdc66a1e8aa65e6100b1d7ee247419dddda`; SkipDBv2 Regression run #587 failed in the early XY-C1 source-contract step before configure/build.
+- The implementation and focused regression now capture `conversionErrno`, restore the caller's `errno`, then classify the `mktime()` result. A separate top-level required-source list still expected the old inline `errno` check and rejected the corrected implementation.
+- Updated that remaining source-contract list to require the new capture/restore/failure-check sequence. No C source or test behavior changed in this correction.
+- Remote Actions will rerun the full source contracts, configure, build, and 57-test CTest suite.
+
+---
+
 ## 2026-11-07 16:01 CST — Restore caller errno after Date calendar failures
 
 - Baseline: `5b6ddb24de439828ff48f793cd98b5f4641262eb`; SkipDBv2 Regression run #586 passed the full build and all 57 CTests.
