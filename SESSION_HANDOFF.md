@@ -1,23 +1,20 @@
 # Session Handoff — Padavan 4.4
 
-## Latest resumable checkpoint — HTTPD private-key access policy
+## Latest resumable checkpoint — HTTPD Shadowsocks dbconf authorization
 
-- Current production-code checkpoint: `1ef811e5cb37613fc5ae0caf59041ecdf294e5d2`; its parent was `8152ec72c39d4a435114806a5e861e2aed925248`. The documentation update for this checkpoint is a follow-up commit on main; always fetch live main before continuing.
-- Changed production paths: `trunk/user/httpd/src/httpd.c`, `httpd.h`, `web_ex.c`; added `httpd_access_policy.h`.
-- Added host regression: `trunk/user/httpd/src/tests/httpd_private_key_policy.c`; added workflow `.github/workflows/httpd-security.yml`.
-- Finding: `get_login_safe()` treated HTTPS as sufficient to mark a peer safe. `web_ex.c::dump_file()` reused that predicate to expose `.key` files, despite the adjacent write-only secret-key comment. That let an authenticated off-LAN HTTPS session pass the private-key visibility gate.
-- Fix: keep the broader HTTPS behavior for existing management functions, but gate `.key` disclosure on a new predicate requiring an active login and the trusted LAN/VPN network flag.
-- Validation: GitHub Actions run `42380444876` completed **successfully** on exact code SHA `1ef811e5cb37613fc5ae0caf59041ecdf294e5d2`; the host C policy regression and production call-site wiring checks both passed.
-- Not performed: complete HTTPD/CGI audit, MIPS cross-build, firmware image validation, XY-C1 hardware test.
-- Remote checkpoints inspected: all outstanding branch deltas are old SkipDBv2/BaseKit work and far behind main; do not cherry-pick without a fresh diff review.
+- Current production-code checkpoint: `7fc9b5d7fee3f5dcb15310456e657e567714d75b`; its parent is the intermediate commit `8756f91b4bda529e11c3f39f1a71cdb540a3f816`. The intermediate commit used a stale Git tree and produced an unintended tree; it was immediately repaired by this fast-forward commit. A live compare from the original intended base `71ff09d1e01d080b6b3b79e1ececa49ef3589bf5` to this checkpoint shows exactly two modified paths: `trunk/user/httpd/src/web_ex.c` and `.github/workflows/httpd-security.yml`.
+- Finding (P1): the conditional Shadowsocks `/dbconf?p=ss` route had `need_auth=0`. `do_dbconf()` accepts caller-selected database prefixes and serializes matching SkipDB records into executable JavaScript. The existing Shadowsocks page reads those records into forms including server password and SOCKS credentials, so the unauthenticated route disclosed credential-bearing configuration.
+- Fix: changed only the `dbconf` MIME route to `need_auth=1`. The existing `handle_request()` authentication gate now runs before the output callback, consistent with the authenticated Shadowsocks management page. Extended the HTTPD workflow with a source contract for both route policy and gate ordering.
+- Validation: HTTPD Authentication and Security Regression run `42381700507` **success** on exact SHA `7fc9b5d7fee3f5dcb15310456e657e567714d75b`; both the existing GNU89 C private-key policy test and new route/auth wiring contract passed. SkipDBv2 Regression run `42381700499` also completed **successfully** on the same SHA, including its integration contracts, configure, SkipDB targets, and regression tests. This is not an HTTPD target build.
+- Recovery note: intermediate commit `8756f91b4bda529e11c3f39f1a71cdb540a3f816` triggered HTTPD run `42381654753`, which failed at the C test compile because unrelated paths were missing from the stale tree. The final tree was restored from the actual `71ff...` base tree; the compare to that base confirms no unrelated source changes remain. The final SHA's HTTPD and SkipDB workflows both pass.
+- Not performed: full HTTPD MIPS cross-build, complete XY-C1 firmware image generation/inspection, fuzzing, and XY-C1 hardware validation.
 
 ### Next work
 
-1. Continue HTTPD auth review: strict Basic-auth parser, IP-only session semantics, logout/ACL behavior, all MIME route permissions and the conditional unauthenticated `dbconf` route.
-2. Continue HTTPD protocol/lifecycle review: TLS post-handshake read/write, connection pool/FD limits, request timeout behavior, response writes and multipart restore/upload bounds.
-3. Expand into privileged command/config generation, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file sharing, storage, and init/service lifecycle. Record each scope separately.
-4. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` through the repository's firmware validation workflow before claiming target-build verification.
-
+1. Continue the HTTPD P1 audit: strict Basic-auth syntax (legacy `b64_decode()` ignores non-alphabet bytes and does not validate canonical padding), global IP-only session semantics, logout/ACL behavior, and the complete MIME/CGI authorization matrix.
+2. Continue HTTPD protocol/lifecycle review: TLS post-handshake read/write WANT_READ/WANT_WRITE behavior, connection pool/FD limits, request timeout behavior, response writes, and multipart restore/upload bounds.
+3. Expand through privileged command/config generation, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, NVRAM, file sharing, storage, and init/service lifecycle. Record each scope separately; do not resume routine SkipDBv2 refactoring.
+4. Run `make XY-C1 TOOLCHAIN=mipsel-linux-musl` through the repository firmware validation workflow after the HTTPD code series before claiming target-build verification.
 ---
 
 **Purpose:** resume work across ChatGPT conversations. GitHub is the source of truth; re-check all values below against live repository state before acting.

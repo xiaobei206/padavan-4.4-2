@@ -1,3 +1,18 @@
+## 2026-11-07 22:30 CST — Require authentication for the Shadowsocks database export
+
+- Baseline main HEAD: `71ff09d1e01d080b6b3b79e1ececa49ef3589bf5`.
+- Audited the outstanding HTTPD MIME authorization exception `dbconf` under `APP_SHADOWSOCKS`. The handler `do_dbconf()` accepted a caller-supplied list of database prefixes and serialized all matching SkipDB keys and values into executable JavaScript. The shipped `Shadowsocks.asp` page consumes `/dbconf?p=ss`; its `ssconf_basic_json_*` records populate server-password and SOCKS server-password fields. The route was therefore an unauthenticated credential-bearing configuration export.
+- Fixed the `dbconf` MIME route from `need_auth=0` to `need_auth=1`. This reuses the existing `handle_request()` Basic-auth / same-IP session gate before the `do_dbconf()` output callback; no frontend request or data format was changed.
+- Extended `.github/workflows/httpd-security.yml` to assert that exactly one `dbconf` route exists, it is authenticated, and the request authorization gate is before response dispatch. The existing private-key policy C regression and wiring checks remain enabled.
+- Production change commit: `7fc9b5d7fee3f5dcb15310456e657e567714d75b` (parent: `8756f91b4bda529e11c3f39f1a71cdb540a3f816`; intended source baseline: `71ff09d1e01d080b6b3b79e1ececa49ef3589bf5`).
+- Recovery disclosure: an intermediate commit `8756f91b4bda529e11c3f39f1a71cdb540a3f816` was accidentally created using a stale Git tree. Its HTTPD Actions run `42381654753` failed at the private-key policy test compile because repository paths were missing. A fast-forward recovery commit restored the actual baseline tree plus only the two intended changes; GitHub compare from `71ff...` to `7fc9b5d7fee3f5dcb15310456e657e567714d75b` confirmed exactly `web_ex.c` and the HTTPD workflow differ. The intermediate commit is not a valid source checkpoint.
+- Validation: HTTPD Authentication and Security Regression run `42381700507` passed on exact head `7fc9b5d7fee3f5dcb15310456e657e567714d75b`; private-key C regression and new auth/route source contract passed. SkipDBv2 Regression run `42381700499` also passed on the same SHA, including firmware integration contracts, configuration, SkipDB target builds, and regression tests. Do not interpret that workflow as a full firmware image build.
+- Not run / not verified: local HTTPD compile, MIPS HTTPD cross-compile, complete XY-C1 TRX firmware build and artifact inspection, protocol fuzzing, and hardware validation.
+- Remaining HTTPD risks: legacy `b64_decode()` ignores non-alphabet bytes and does not enforce canonical Basic-auth padding; login ownership remains a global client-IP keyed session with same-IP bypass; other route exceptions, TLS post-handshake I/O, and upload restore bounds remain open.
+- Next: continue the HTTPD authentication parser/session audit, then broaden into privileged command/configuration, firewall/NAT, DNS/DHCP, WAN/PPP/IPv6, wireless, persistence, file services, storage, and init/service lifecycle.
+
+---
+
 ## 2026-11-07 22:14 CST — Separate HTTPD private-key disclosure from HTTPS transport trust
 
 - Baseline main HEAD: `8152ec72c39d4a435114806a5e861e2aed925248`.
