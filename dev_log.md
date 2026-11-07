@@ -1,3 +1,13 @@
+## 2026-11-07 18:00 CST — Preserve record boundaries when compacting into larger holes
+
+- Baseline: `3c631b805bfdefd44fa90d5b937881a59f04e9e0`; SkipDBv2 Regression run #617 passed the source contracts, full build, and all 57 CTests.
+- Scope: `UDB_compactStepOnce_()` and the existing UDB record-storage regression.
+- The compactor accepted any hole at least as large as the next live row, copied the row to the hole start, and wrote an empty header at `hole_start + row_size`. For a larger hole, that position is still inside the old hole, while the original live row at the old hole end remained non-empty. The persisted free-list pointer, physical scan boundaries, and live row could therefore disagree after a successful compaction.
+- Validate both persisted extents before mutation. Reject a nonzero remainder smaller than a complete record header. When the hole is larger, write the correctly sized residual empty extent and tombstone the old source row before changing the PID mapping. Exact-fit moves preserve the existing single-tombstone path.
+- Extend `udb_record_storage_test` with a large-hole/small-row fixture, assert the moved value and residual pointer, and walk every physical row through EOF. Add workflow source contracts for split/tombstone/map ordering. No new files, CMake changes, or exported declarations.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
 ## 2026-11-07 17:56 CST — Avoid double-committing the journal before truncation
 
 - Baseline: `bd066c3d32c2c36d58e52a24101d797d90849b58`; SkipDBv2 Regression run #616 passed the workflow contracts, full build, and all 57 CTests.

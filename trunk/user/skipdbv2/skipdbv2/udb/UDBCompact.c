@@ -55,6 +55,7 @@ static int UDB_compactStepOnce_(UDB *self)
 {
 	UDBRecord *firstEmptyRecord, *record;
 	PID_TYPE oldEmptyPos, newEmptyPos, newSize;
+	PID_TYPE emptyTotalSize = 0, recordTotalSize = 0;
 
 	if (NULL == self || !self->isOpen || self->withinTransaction ||
 		NULL == self->records || NULL == self->index)
@@ -71,12 +72,20 @@ static int UDB_compactStepOnce_(UDB *self)
 		return 0;
 
 	record = UDBRecords_recordAfter_(self->records, firstEmptyRecord);
-	/* Sliding the hole over the next live record is safe only when the hole
-	 * can contain the whole record; otherwise the destination write overlaps
-	 * the record header/data that follows it. Leave this hole untouched. */
-	if (record && !UDBRecord_isEmpty(record) &&
-		UDBRecord_totalSize(record) > UDBRecord_totalSize(firstEmptyRecord))
-		return 0;
+	/*
+	 * A larger hole must leave room for a complete residual header. The
+	 * destination can otherwise fit the row, but the remainder would be too
+	 * short to represent as a physical record and would corrupt the scan.
+	 */
+	if (record && !UDBRecord_isEmpty(record)) {
+		emptyTotalSize = UDBRecord_totalSize(firstEmptyRecord);
+		recordTotalSize = UDBRecord_totalSize(record);
+		if (emptyTotalSize == 0 || recordTotalSize == 0 ||
+			recordTotalSize > emptyTotalSize ||
+			(emptyTotalSize > recordTotalSize &&
+			 emptyTotalSize - recordTotalSize < sizeof(UDBRecordHeader)))
+			return 0;
+	}
 
 	if (NULL == record) {
 		PID_TYPE tail_pos = UDBRecord_pos(firstEmptyRecord);
@@ -120,19 +129,39 @@ static int UDB_compactStepOnce_(UDB *self)
 		}
 	} else {
 		oldEmptyPos = UDBRecord_pos(firstEmptyRecord);
-		if (UDBRecord_totalSize(record) > (PID_TYPE)-1 - oldEmptyPos) {
+		if (recordTotalSize > (PID_TYPE)-1 - oldEmptyPos) {
 			UDB_close(self);
 			return 0;
 		}
-		newEmptyPos = oldEmptyPos + UDBRecord_totalSize(record);
+		newEmptyPos = oldEmptyPos + recordTotalSize;
 		if (!UDBRecords_firstEmptyRecordPos_(self->records, newEmptyPos) ||
 			!UDBRecord_moveToPos_(record, oldEmptyPos)) {
 			UDB_close(self);
 			return 0;
 		}
+
 		UDBRecord_setPos_(firstEmptyRecord, newEmptyPos);
-		if (!UDBRecord_saveHeader(firstEmptyRecord) ||
-			!UDBIndex_setPos_forPid_(self->index, oldEmptyPos,
+		if (emptyTotalSize > recordTotalSize) {
+			PID_TYPE remainderTotalSize = emptyTotalSize - recordTotalSize;
+
+			/* Split the original hole and tombstone its former live row. */
+			UDBRecord_size_(firstEmptyRecord,
+				remainderTotalSize - sizeof(UDBRecordHeader));
+			if (!UDBRecord_saveHeader(firstEmptyRecord)) {
+				UDB_close(self);
+				return 0;
+			}
+			record->header.tag = RECORD_TAG_EMPTY;
+			if (!UDBRecord_saveHeader(record)) {
+				UDB_close(self);
+				return 0;
+			}
+		} else if (!UDBRecord_saveHeader(firstEmptyRecord)) {
+			/* An exact-fit hole naturally becomes the old row's tombstone. */
+			UDB_close(self);
+			return 0;
+		}
+		if (!UDBIndex_setPos_forPid_(self->index, oldEmptyPos,
 				UDBRecord_pid(record))) {
 			UDB_close(self);
 			return 0;

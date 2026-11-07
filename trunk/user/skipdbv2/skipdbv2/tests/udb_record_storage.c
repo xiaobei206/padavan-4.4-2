@@ -5,6 +5,111 @@
 #include <string.h>
 #include <unistd.h>
 
+static int test_compaction_splits_larger_hole(void)
+{
+    UDB *compact_db = UDB_new();
+    unsigned char large_payload[96];
+    unsigned char small_payload[] = {0x31, 0x42, 0x53, 0x64};
+    Datum large_value = {sizeof(large_payload), large_payload};
+    Datum small_value = {sizeof(small_payload), small_payload};
+    PID_TYPE large_pid = 0, small_pid = 0, hole_pos = 0;
+    PID_TYPE hole_total_size, record_total_size, expected_empty_pos;
+    char path[128];
+    int path_len, passed = 0;
+
+    if (NULL == compact_db)
+        return 0;
+    memset(large_payload, 0xa5, sizeof(large_payload));
+    path_len = snprintf(path, sizeof(path), "udb_compact_split_test_%ld",
+        (long)getpid());
+    if (path_len < 0 || (size_t)path_len >= sizeof(path))
+        goto done;
+    UDB_setPath_(compact_db, path);
+    UDB_delete(compact_db);
+    UDB_open(compact_db);
+    if (!UDB_isOpen(compact_db))
+        goto done;
+
+    UDB_beginTransaction(compact_db);
+    large_pid = UDB_put_(compact_db, large_value);
+    small_pid = UDB_put_(compact_db, small_value);
+    if (!UDB_isOpen(compact_db) || large_pid == 0 || small_pid == 0)
+        goto done;
+    UDB_commitTransaction(compact_db);
+    if (!UDB_isOpen(compact_db))
+        goto done;
+
+    UDB_beginTransaction(compact_db);
+    UDB_removeAt_(compact_db, large_pid);
+    UDB_commitTransaction(compact_db);
+    if (!UDB_isOpen(compact_db))
+        goto done;
+
+    {
+        UDBRecord *hole = UDBRecords_firstEmptyRecord(compact_db->records);
+        UDBRecord *next = hole
+            ? UDBRecords_recordAfter_(compact_db->records, hole) : NULL;
+
+        if (NULL == hole || NULL == next || !UDBRecord_isEmpty(hole) ||
+            UDBRecord_isEmpty(next) || UDBRecord_pid(next) != small_pid)
+            goto done;
+        hole_pos = UDBRecord_pos(hole);
+        hole_total_size = UDBRecord_totalSize(hole);
+        record_total_size = UDBRecord_totalSize(next);
+        if (hole_total_size <= record_total_size ||
+            hole_total_size - record_total_size < sizeof(UDBRecordHeader))
+            goto done;
+        expected_empty_pos = hole_pos + record_total_size;
+    }
+
+    if (UDB_compactStep(compact_db) != 1 || !UDB_isOpen(compact_db)) {
+        fprintf(stderr, "larger-hole compaction step failed\n");
+        goto done;
+    }
+    {
+        Datum restored = UDB_at_(compact_db, small_pid);
+        if (!UDB_isOpen(compact_db) || restored.data == NULL ||
+            restored.size != sizeof(small_payload) ||
+            memcmp(restored.data, small_payload, sizeof(small_payload)) != 0) {
+            fprintf(stderr, "compaction damaged the moved row payload\n");
+            goto done;
+        }
+    }
+    if (UDBRecords_firstEmptyRecordPos(compact_db->records) != expected_empty_pos ||
+        !UDB_isOpen(compact_db)) {
+        fprintf(stderr, "compaction did not persist the residual-hole boundary\n");
+        goto done;
+    }
+
+    {
+        UDBRecord *scan = UDBRecords_firstRecord(compact_db->records);
+        if (NULL == scan || UDBRecord_isEmpty(scan) ||
+            UDBRecord_pid(scan) != small_pid)
+            goto done;
+        scan = UDBRecords_nextRecord(compact_db->records);
+        if (NULL == scan || !UDBRecord_isEmpty(scan)) {
+            fprintf(stderr, "compaction lost the residual empty extent\n");
+            goto done;
+        }
+        scan = UDBRecords_nextRecord(compact_db->records);
+        if (NULL == scan || !UDBRecord_isEmpty(scan)) {
+            fprintf(stderr, "compaction did not tombstone the old live row\n");
+            goto done;
+        }
+        if (UDBRecords_nextRecord(compact_db->records) != NULL ||
+            !UDB_isOpen(compact_db)) {
+            fprintf(stderr, "physical record chain broke after larger-hole compaction\n");
+            goto done;
+        }
+    }
+    passed = 1;
+
+done:
+    UDB_delete(compact_db);
+    UDB_free(compact_db);
+    return passed;
+}
+
 int main(void)
 {
     UDB *db = NULL;
@@ -27,6 +132,11 @@ int main(void)
     char foreign_path[128];
     int path_len, foreign_path_len;
     int result = EXIT_FAILURE;
+
+    if (!test_compaction_splits_larger_hole()) {
+        fprintf(stderr, "larger-hole compaction split regression failed\n");
+        return EXIT_FAILURE;
+    }
 
     db = UDB_new();
     if (NULL == db) {

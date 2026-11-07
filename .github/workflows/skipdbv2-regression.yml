@@ -672,7 +672,12 @@ jobs:
                   "clock_gettime(CLOCK_MONOTONIC, &now)",
                   "elapsed >= maxSeconds",
                   "if (compactions > INT_MAX - count)",
-                  "UDBRecord_totalSize(record) > UDBRecord_totalSize(firstEmptyRecord)",
+                  "emptyTotalSize - recordTotalSize < sizeof(UDBRecordHeader)",
+                  "UDBRecord_moveToPos_(record, oldEmptyPos)",
+                  "UDBRecord_size_(firstEmptyRecord,",
+                  "remainderTotalSize - sizeof(UDBRecordHeader)",
+                  "record->header.tag = RECORD_TAG_EMPTY;",
+                  "UDBIndex_setPos_forPid_(self->index, oldEmptyPos,",
                   "UDBRecords_truncate_(self->records, (off_t)tail_pos)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/udb_reserved_pid.c": [
@@ -814,6 +819,14 @@ jobs:
                   "UDBRecord_moveToPos_(foreign_source_clone, foreign_target_pos)",
                   "record move overwrote an occupied destination",
                   "occupied destination row changed after rejected move",
+                  "static int test_compaction_splits_larger_hole(void)",
+                  "larger-hole compaction step failed",
+                  "compaction damaged the moved row payload",
+                  "compaction did not persist the residual-hole boundary",
+                  "compaction lost the residual empty extent",
+                  "compaction did not tombstone the old live row",
+                  "physical record chain broke after larger-hole compaction",
+                  "larger-hole compaction split regression failed",
                   "destination_value.data == NULL",
                   "destination_value.size != sizeof(",
                   "first_value.data[0] != 0x7b",
@@ -3443,6 +3456,49 @@ jobs:
           ).read_text()
           if compact_source.count("UDB_compactionStreamsAreOpen_(") != 3:
               raise SystemExit("UDB compaction stream readiness is not centralized")
+
+          compact_start = compact_source.find(
+              "static int UDB_compactStepOnce_(UDB *self)"
+          )
+          compact_end = compact_source.find(
+              chr(10) + "/*\n * A nonpositive budget", compact_start
+          )
+          compact_body = (
+              compact_source[compact_start:compact_end]
+              if compact_start >= 0 and compact_end > compact_start
+              else ""
+          )
+          hole_extent = compact_body.find("emptyTotalSize = UDBRecord_totalSize(firstEmptyRecord);")
+          row_extent = compact_body.find("recordTotalSize = UDBRecord_totalSize(record);")
+          short_remainder_guard = compact_body.find(
+              "emptyTotalSize - recordTotalSize < sizeof(UDBRecordHeader)"
+          )
+          move_row = compact_body.find("UDBRecord_moveToPos_(record, oldEmptyPos)")
+          resize_remainder = compact_body.find(
+              "remainderTotalSize - sizeof(UDBRecordHeader)"
+          )
+          tombstone_source = compact_body.find("record->header.tag = RECORD_TAG_EMPTY;")
+          update_pid_map = compact_body.find(
+              "UDBIndex_setPos_forPid_(self->index, oldEmptyPos,"
+          )
+          if (
+              not compact_body or min(hole_extent, row_extent, short_remainder_guard,
+                  move_row, resize_remainder, tombstone_source, update_pid_map) < 0 or
+              not (hole_extent < short_remainder_guard < move_row < resize_remainder <
+                   tombstone_source < update_pid_map)
+          ):
+              raise SystemExit("UDB compaction must bound a residual extent, split larger holes, tombstone the old row, and update the PID map last")
+
+          compact_test = Path(
+              "trunk/user/skipdbv2/skipdbv2/tests/udb_record_storage.c"
+          ).read_text()
+          for needle in (
+              "static int test_compaction_splits_larger_hole(void)",
+              "compaction did not tombstone the old live row",
+              "physical record chain broke after larger-hole compaction",
+          ):
+              if needle not in compact_test:
+                  raise SystemExit("UDB larger-hole compaction regression coverage is missing: " + needle)
 
           commit_marker_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBCommitMarker.c"
