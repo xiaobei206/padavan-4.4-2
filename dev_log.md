@@ -1,8 +1,16 @@
+## 2026-11-07 23:18 CST — Record HTTPD route-matrix CI failure and recovery state
+
+- Verified first matrix workflow run `42385599174` against exact code SHA `4cef7d95812786dad0d0ac34dce461b0a1c0bb64`: the C regression step passed; the source-wiring step failed with `AssertionError: failed to parse the HTTPD MIME route table` because the new Python regex was over-escaped.
+- Corrective workflow commit `015b820fc61cb8e3cc1283a0a87a48751205eae6` is on main. Follow-up Actions run `42385661621` is tied to that exact SHA and was IN_PROGRESS at the last status check. Handoff and roadmap now record both attempts and their distinct SHAs.
+- This documentation-only follow-up does not change code or claim the corrected route-matrix run has passed. Next: verify run `42385661621`; inspect its exact job steps/logs if it fails.
+
+---
+
 ## 2026-11-07 23:17 CST — Fix over-escaped HTTPD route-matrix regex
 
 - Parent main SHA: 4cef7d95812786dad0d0ac34dce461b0a1c0bb64. Route-matrix test commit under validation: `4cef7d95812786dad0d0ac34dce461b0a1c0bb64`; Actions run `42385599174` (`https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385599174`) was still in progress during this correction.
-- Source review caught that the Python raw-string regex had two backslashes where one was required, so it would not match C route initializer lines. The pattern now matches `{ "jquery.js", ..., do_file, 0 },` and the sensitive callback forms without matching whitespace escapes literally. A local Python check of the corrected pattern against representative public, page, download and `dbconf` entries passed.
-- Updated the handoff and roadmap to keep the initial workflow run and corrected follow-up run distinct. No production C source was modified. The initial run outcome and the correction run must both be checked before marking the route matrix contract verified.
+- Source review caught that the Python raw-string regex had two backslashes where one was required. The initial Actions run `42385599174` failed its source-wiring step on exact head `4cef7d95812786dad0d0ac34dce461b0a1c0bb64` with `AssertionError: failed to parse the HTTPD MIME route table`. The pattern was corrected to match C initializer lines such as `{ "jquery.js", ..., do_file, 0 },`; local Python checks against representative public, page, download and `dbconf` entries passed.
+- Correction commit: `015b820fc61cb8e3cc1283a0a87a48751205eae6`. Its Actions run `42385661621` at `https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385661621` was still in progress at the last check. No production C source was modified. The corrected run must pass before marking the route matrix contract verified.
 - Validation: the full GitHub workflow result for this correction is PENDING at commit creation. L3 MIPS build, complete firmware artifact and L4 hardware remain NOT VERIFIED.
 
 ---
