@@ -3278,35 +3278,35 @@ jobs:
           ):
               raise SystemExit("UDB commit preparation must validate reservation storage before iteration")
 
-           next_pid_start = freelist_source.find(
-               "PID_TYPE UDBIndex_nextPid(UDBIndex *self)"
-           )
-           next_pid_end = freelist_source.find(
-               chr(10) + chr(10) + "PID_TYPE UDBIndex_allocPid", next_pid_start
-           )
-           next_pid_body = (
-               freelist_source[next_pid_start:next_pid_end]
-               if next_pid_start >= 0 and next_pid_end > next_pid_start else ""
-           )
-           next_pid_bound = next_pid_body.find("if (max <= self->maxPid)")
-           next_pid_overflow = next_pid_body.find(
-               "if (self->maxPid == (PID_TYPE)-1)", next_pid_bound
-           )
-           next_pid_increment = next_pid_body.find(
-               "hole = self->maxPid + 1;", next_pid_overflow
-           )
-           next_pid_offset_guard = next_pid_body.find(
-               "if (!UDBIndex_offsetForPid_(hole, &offset))", next_pid_increment
-           )
-           if (
-               not next_pid_body or next_pid_bound < 0 or
-               next_pid_overflow < next_pid_bound or
-               next_pid_increment < next_pid_overflow or
-               next_pid_offset_guard < next_pid_increment
-           ):
-               raise SystemExit(
-                   "PID preview must advance past in-memory reservations with overflow and offset guards"
-               )
+          next_pid_start = freelist_source.find(
+              "PID_TYPE UDBIndex_nextPid(UDBIndex *self)"
+          )
+          next_pid_end = freelist_source.find(
+              chr(10) + chr(10) + "PID_TYPE UDBIndex_allocPid", next_pid_start
+          )
+          next_pid_body = (
+              freelist_source[next_pid_start:next_pid_end]
+              if next_pid_start >= 0 and next_pid_end > next_pid_start else ""
+          )
+          next_pid_bound = next_pid_body.find("if (max <= self->maxPid)")
+          next_pid_overflow = next_pid_body.find(
+              "if (self->maxPid == (PID_TYPE)-1)", next_pid_bound
+          )
+          next_pid_increment = next_pid_body.find(
+              "hole = self->maxPid + 1;", next_pid_overflow
+          )
+          next_pid_offset_guard = next_pid_body.find(
+              "if (!UDBIndex_offsetForPid_(hole, &offset))", next_pid_increment
+          )
+          if (
+              not next_pid_body or next_pid_bound < 0 or
+              next_pid_overflow < next_pid_bound or
+              next_pid_increment < next_pid_overflow or
+              next_pid_offset_guard < next_pid_increment
+          ):
+              raise SystemExit(
+                  "PID preview must advance past in-memory reservations with overflow and offset guards"
+              )
 
           index_map_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBIndexMap.c"

@@ -1,3 +1,11 @@
+## 2026-11-07 19:16 CST — Fix PID-preview workflow contract indentation
+
+- Failing head: `e0c680468fb4623067844b069ef469842b9c4633`; Actions run #642 stopped before compilation with a Python `IndentationError` in the newly added PID-preview source-order check.
+- The contract body was inserted one space deeper than the surrounding workflow script, so Python rejected the checker before any build/test stage.
+- Normalize the inserted block to the surrounding ten-space level; leave the C implementation and regression unchanged. Re-run Actions to validate the contract and build.
+
+---
+
 ## 2026-11-07 19:14 CST — Keep next-PID preview ahead of active reservations
 
 - Baseline: `c7066d819c5ff66873d11663229438d233ba403e`; SkipDBv2 Regression run #641 passed source contracts, configuration, full build, and all 57 CTests.
