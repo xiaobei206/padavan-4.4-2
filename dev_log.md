@@ -1,3 +1,9 @@
+## 2026-11-08 07:24 CST — Use the shared ACL grant predicate for every guest decision
+
+- Final source review after the first Samba config commit found one remaining direct `guest_right >= 1` branch on the `guest ok` directive. It was logically equivalent for the validated libdisk range but bypassed the new explicit helper and weakened the source-contract guarantee. Replaced it with `samba_acl_right_can_read(guest_right)`; the workflow now rejects remaining raw guest/user right-threshold comparisons inside the config writer.
+- This is a consistency/verification follow-up, not a newly discovered privilege escalation. It keeps ACL error values (`-1`) and out-of-range values fail-closed across every guest/user grant emission.
+- Exact-head host/Actions result: PENDING for this follow-up commit. The preceding code commit `70da64b461dd17d431d8da1ee693c8b1eb26ddb7` has its own workflow run in progress; that result must not be attributed to this newer head.
+
 ## 2026-11-08 07:22 CST — Fail closed on Samba config generation and validate global config inputs
 
 ### Finding and implementation

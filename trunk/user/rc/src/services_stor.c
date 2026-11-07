@@ -551,7 +551,7 @@ write_smb_conf(void)
 					fprintf(fp, "comment = %s\n", folder_list[n]);
 					fprintf(fp, "path = %s/%s\n", follow_partition->mount_point, folder_list[n]);
 					fprintf(fp, /*(guest_right == 2) ? "writeable = yes\n" : */"writeable = no\n");
-					if (guest_right >= 1)
+					if (samba_acl_right_can_read(guest_right))
 						fprintf(fp, "guest ok = yes\n");
 					
 					fprintf(fp, "valid users = ");

@@ -524,6 +524,7 @@ jobs:
           assert "samba_acl_right_can_write(guest_right)" in writer
           assert "samba_acl_right_can_read(right)" in writer
           assert "samba_acl_right_can_write(right)" in writer
+          assert "guest_right >= " not in writer and "right < " not in writer
           assert "samba_config_value_is_safe(p_workgroup)" in service_config
           assert "samba_config_value_is_safe(p_computer_name)" in service_config
 
