@@ -41,6 +41,9 @@ on:
       - "trunk/user/rc/src/usb_modem.c"
       - "trunk/user/rc/src/modem_node_file.h"
       - "trunk/user/rc/src/tests/modem_node_file.c"
+      - "trunk/user/rc/src/hotplug_stor.c"
+      - "trunk/user/rc/src/storage_partition_probe.h"
+      - "trunk/user/rc/src/tests/storage_partition_probe.c"
       - "trunk/user/rc/src/samba_passdb_policy.h"
       - "trunk/user/rc/src/tests/samba_passdb_policy.c"
       - "trunk/user/samba36/patches/111-owrt_smbpasswd.patch"
@@ -113,6 +116,9 @@ on:
       - "trunk/user/rc/src/usb_modem.c"
       - "trunk/user/rc/src/modem_node_file.h"
       - "trunk/user/rc/src/tests/modem_node_file.c"
+      - "trunk/user/rc/src/hotplug_stor.c"
+      - "trunk/user/rc/src/storage_partition_probe.h"
+      - "trunk/user/rc/src/tests/storage_partition_probe.c"
       - "trunk/user/rc/src/samba_passdb_policy.h"
       - "trunk/user/rc/src/tests/samba_passdb_policy.c"
       - "trunk/user/samba36/patches/111-owrt_smbpasswd.patch"
@@ -427,6 +433,31 @@ jobs:
           assert 'fopen(node_fname, "r+")' not in reader
           assert "symlink(outside_file, link_path)" in regression
           print("USB hotplug metadata path safety and atomic replacement: OK")
+          PY
+
+      - name: Verify block-storage whole-disk partition gate
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/storage_partition_probe.c \
+            -o /tmp/storage_partition_probe
+          /tmp/storage_partition_probe
+          python3 - <<'PY'
+          from pathlib import Path
+
+          hotplug = Path("trunk/user/rc/src/hotplug_stor.c").read_text()
+          helper = Path("trunk/user/rc/src/storage_partition_probe.h").read_text()
+          regression = Path("trunk/user/rc/src/tests/storage_partition_probe.c").read_text()
+          assert '#include "storage_partition_probe.h"' in hotplug
+          assert "if (!procpt)" in hotplug and "return -1;" in hotplug
+          assert "storage_disk_has_partitions(procpt, devname, is_mmc)" in hotplug
+          assert "ferror(proc_partitions)" in helper
+          assert "if (check_root_partition(disk_name, 0))" in hotplug
+          assert "if (check_root_partition(device_name, 1))" in hotplug
+          assert "storage_disk_has_partitions(NULL, \"sda\", 0) == -1" in regression
+          assert "mmcblk0p1" in regression and "sdaa1" in regression
+          print("Block-storage whole-disk mounting is fail-closed on unavailable partition inventory: OK")
           PY
 
       - name: Verify Samba share configuration trust boundaries

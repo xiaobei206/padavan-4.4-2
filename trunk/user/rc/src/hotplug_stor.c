@@ -31,62 +31,27 @@
 #include <disk_initial.h>
 
 #include "rc.h"
+#include "storage_partition_probe.h"
 
 static int
 check_root_partition(const char *devname, int is_mmc)
 {
 	FILE *procpt;
-	char line[128], ptname[32];
-	const char *suffix;
-	size_t devname_len;
-	int ma, mi;
-	unsigned long long dev_sz;
+	int result;
 
-	if (!devname || !*devname)
-		return 0;
-#if !defined (USE_MMC_SUPPORT)
-	(void)is_mmc;
-#endif
-	devname_len = strlen(devname);
-	if (devname_len >= sizeof(ptname))
-		return 0;
+	if (!storage_disk_name_is_valid(devname, is_mmc))
+		return -1;
 
 	procpt = fopen(PROC_PARTITIONS_FILE, "r");
 	if (!procpt)
-		return 0;
+		return -1;
 
-	while (fgets(line, sizeof(line), procpt)) {
-		if (sscanf(line, " %d %d %llu %31[^\n ]", &ma, &mi, &dev_sz, ptname) != 4)
-			continue;
-		if (strncmp(ptname, devname, devname_len) != 0)
-			continue;
+	result = storage_disk_has_partitions(procpt, devname, is_mmc);
+	if (fclose(procpt) != 0 && result == 0)
+		return -1;
 
-		suffix = ptname + devname_len;
-#if defined (USE_MMC_SUPPORT)
-		if (is_mmc) {
-			if (*suffix++ != 'p')
-				continue;
-		} else
-#endif
-		{
-			if (!*suffix)
-				continue;
-		}
-
-		if (!*suffix)
-			continue;
-		while (*suffix >= '0' && *suffix <= '9')
-			suffix++;
-		if (!*suffix) {
-			fclose(procpt);
-			return 1;
-		}
-	}
-
-	fclose(procpt);
-	return 0;
+	return result;
 }
-
 #if defined (USE_BLK_DEV_SD)
 int
 mdev_sd_main(int argc, char **argv)
