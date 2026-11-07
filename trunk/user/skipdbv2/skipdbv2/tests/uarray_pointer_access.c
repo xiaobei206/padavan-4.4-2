@@ -1,6 +1,9 @@
 #include "UArray.h"
 
 #include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include <stdlib.h>
 
 static int fail(const char *message)
@@ -8,6 +11,55 @@ static int fail(const char *message)
     fprintf(stderr, "%s\n", message);
     return EXIT_FAILURE;
 }
+
+
+typedef struct
+{
+    char leadingByte;
+    void *value;
+} TestPointerAlignmentProbe;
+
+static int misaligned_pointer_storage_is_rejected(void)
+{
+    union {
+        void *alignment;
+        unsigned char bytes[sizeof(void *) + 1];
+    } storage;
+    int first = 101, second = 202;
+    void *original = &first;
+    void *replacement = &second;
+    unsigned char snapshot[sizeof(original)];
+    size_t alignment = offsetof(TestPointerAlignmentProbe, value);
+    UArray malformed;
+
+    if (alignment <= 1)
+        return 1;
+    memset(storage.bytes, 0, sizeof(storage.bytes));
+    memcpy(snapshot, &original, sizeof(snapshot));
+    memcpy(storage.bytes + 1, snapshot, sizeof(snapshot));
+    if (((uintptr_t)(storage.bytes + 1) % alignment) == 0)
+        return 0;
+
+    malformed = UArray_stackAllocedWithData_type_size_(
+        storage.bytes + 1, CTYPE_uintptr_t, 1);
+    malformed.hash = (uintptr_t)0x7654;
+
+    if (UArray_pointerAt_(&malformed, 0) != NULL ||
+        UArray_rawPointerAt_(&malformed, 0) != NULL) {
+        fprintf(stderr, "UArray pointer getter read misaligned pointer storage\\n");
+        return 0;
+    }
+
+    UArray_at_putPointer_(&malformed, 0, replacement);
+    UArray_appendPointer_(&malformed, replacement);
+    if (malformed.size != 1 || malformed.hash != (uintptr_t)0x7654 ||
+        memcmp(storage.bytes + 1, snapshot, sizeof(snapshot)) != 0) {
+        fprintf(stderr, "UArray pointer setter mutated misaligned pointer storage\\n");
+        return 0;
+    }
+    return 1;
+}
+
 
 int main(void)
 {
@@ -127,6 +179,12 @@ int main(void)
         UArray_free(array);
         UArray_free(wrongType);
         return fail("UArray pointer setter resized an unsupported empty array");
+    }
+
+    if (!misaligned_pointer_storage_is_rejected()) {
+        UArray_free(array);
+        UArray_free(wrongType);
+        return fail("UArray pointer access accepted misaligned pointer storage");
     }
 
     UArray_free(array);

@@ -1,3 +1,14 @@
+## 2026-11-07 14:19 CST — Reject misaligned UArray pointer arrays
+
+- Baseline: `3b8e9d8315e4bc2143c14ee769b9520e645cde91`; core CTYPE alignment passed SkipDBv2 Regression run #558.
+- Scope: pointer-array access guard `UArray_hasValidPointerStorage_` and its existing `uarray_pointer_access` test.
+- Pointer getters and setters cast backing bytes to `void **`. The existing guard verified pointer width and allocation bounds but accepted misaligned borrowed storage, leaving undefined typed reads/writes on strict-alignment targets.
+- Added a `void *` alignment probe and reject misaligned backing addresses before raw/bounds-checked pointer reads, writes, or appends. The regression uses a byte-offset borrowed pointer slot and verifies getters return NULL while setters preserve the original bytes, size, and cached hash.
+- Updated existing Actions source contracts. The test was already registered in CMake; no source lists, new files, or exported symbols changed.
+- Validation: source review confirms all pointer getters/setters route through the shared guard before casting to `void **`. Remote CI remains the build/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:16 CST — Enforce CTYPE alignment in core UArray layout validation
 
 - Baseline: `8d98d011854e7ad1e179be8e4c2654c1522ca5a2`; numeric math alignment passed SkipDBv2 Regression run #557.

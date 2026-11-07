@@ -16,6 +16,8 @@ license: See _BSDLicense.txt.
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdint.h>
 
 size_t CTYPE_size(CTYPE type)
 {
@@ -968,13 +970,22 @@ BASEKIT_API UArray *UArray_slice(const UArray *self, long start, long end)
 
 // at, without bounds check
 
+typedef struct
+{
+    char leadingByte;
+    void *value;
+} UArrayPointerAlignmentProbe;
+
 static int UArray_hasValidPointerStorage_(const UArray *self)
 {
+    size_t alignment = offsetof(UArrayPointerAlignmentProbe, value);
+
     if (NULL == self || self->itemType != CTYPE_uintptr_t ||
         self->itemSize != sizeof(void *) ||
         self->itemSize != sizeof(uintptr_t) ||
         self->size > (size_t)-1 / self->itemSize ||
-        (self->size > 0 && NULL == self->data))
+        (self->size > 0 && NULL == self->data) ||
+        (self->data && ((uintptr_t)self->data % alignment) != 0))
         return 0;
     return 1;
 }

@@ -2155,6 +2155,10 @@ jobs:
                   "UArray distance precision test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_pointer_access.c": [
+                  "misaligned_pointer_storage_is_rejected",
+                  "UArray pointer getter read misaligned pointer storage",
+                  "UArray pointer setter mutated misaligned pointer storage",
+                  "UArray pointer access accepted misaligned pointer storage",
                   "UArray valid pointer array round trip failed",
                   "UArray pointer getter accepted NULL or out-of-range access",
                   "UArray pointer mutation failed to update data and invalidate hash",
@@ -2448,6 +2452,8 @@ jobs:
                   'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")',
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray.c": [
+                  "UArrayPointerAlignmentProbe",
+                  "(uintptr_t)self->data % alignment) != 0",
                   "static size_t UArray_itemAlignment_(CTYPE itemType)",
                   "expectedAlignment = UArray_itemAlignment_(self->itemType);",
                   "(uintptr_t)self->data % expectedAlignment) != 0",
