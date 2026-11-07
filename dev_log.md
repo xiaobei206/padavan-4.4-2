@@ -1,3 +1,13 @@
+## 2026-11-07 13:24 CST — Preserve UArray scalar-write cache invalidation
+
+- Baseline: main commit `6d425107c2712381b7bfc35a85239b75ae9e4ec1`; SkipDBv2 Regression run #542 passed source contracts, configure, and the full build, but 1 of 57 CTest cases failed in `uarray_math_extrema_test`.
+- The failure exposed a second defect in the same scalar-write path: `UARRAY_RAWAT_PUT_` used `return;` in every dispatch arm, exiting `UArray_at_putLong_()` / `UArray_at_putDouble_()` before their trailing `UArray_changed(self)`. Same-size writes therefore left cached hashes stale; growth writes masked the defect because resize already invalidated the hash.
+- Change the 11 switch arms to `break;`, allowing both setters to run the shared mutation invalidation. Add same-size double and long write assertions, while retaining the int64/uint64 boundary checks that found the issue.
+- Tighten the workflow source contract: require switch breaks and verify both setters invalidate after dispatch; correct the layout-validator call-site count diagnostic. Reuse the existing test and CMake registration.
+- Validation: run #542 compiled all targets and isolated the failure to this test; the next Actions run is the post-fix build/CTest gate. No local build is claimed.
+
+---
+
 ## 2026-11-07 13:21 CST — Align UArray layout-validator source contract
 
 - Baseline: main commit `cbaef56b38fe0c66ae5aae3f6eea72b813359190`; SkipDBv2 Regression run #541 stopped in the XY-C1 source-contract preflight before CMake configure/build/CTest.

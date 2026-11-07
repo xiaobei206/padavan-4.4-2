@@ -222,7 +222,13 @@ static int test_indexed_double_writes(void)
         goto cleanup;
     }
 
+    signedValues->hash = (uintptr_t)0x111;
     UArray_at_putDouble_(signedValues, 0, 127.75);
+    if (((int8_t *)signedValues->data)[0] != INT8_MAX ||
+        signedValues->hash != 0) {
+        fail("UArray in-place indexed double write did not invalidate the cached hash");
+        goto cleanup;
+    }
     UArray_at_putDouble_(signedValues, 2, -128.75);
     if (signedValues->size != 3 ||
         ((int8_t *)signedValues->data)[0] != INT8_MAX ||
@@ -284,6 +290,14 @@ static int test_indexed_double_writes(void)
     UArray_at_putDouble_(floatValues, 0, INFINITY);
     if (!isinf(((float32_t *)floatValues->data)[0])) {
         fail("UArray floating scalar writes no longer preserve non-finite values");
+        goto cleanup;
+    }
+
+    signedValues->hash = (uintptr_t)0x113;
+    UArray_at_putLong_(signedValues, 1, 42);
+    if (((int8_t *)signedValues->data)[1] != 42 ||
+        signedValues->hash != 0) {
+        fail("UArray in-place indexed long write did not invalidate the cached hash");
         goto cleanup;
     }
 

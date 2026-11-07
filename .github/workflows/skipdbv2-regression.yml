@@ -2109,6 +2109,9 @@ jobs:
                   "UArray scalar indexed writes accepted malformed item geometry",
                   "UArray scalar indexed writes accepted an unsupported item type",
                   "test_indexed_double_writes() != EXIT_SUCCESS",
+                  "UArray in-place indexed double write did not invalidate the cached hash",
+                  "UArray_at_putLong_(signedValues, 1, 42);",
+                  "UArray in-place indexed long write did not invalidate the cached hash",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_distance_precision.c": [
                   "UArray float64 distance overflowed intermediate squares for a finite result",
@@ -2456,6 +2459,10 @@ jobs:
                   "!UArray_doubleFitsItemType_(self->itemType, v)",
                   "void UArray_at_putDouble_(UArray *self, size_t pos, double v)",
                   "!UArray_hasValidItemLayout_(self))",
+                  "case CTYPE_int64_t:   ((int64_t *)self->data)[pos] = v; break;",
+                  "case CTYPE_uintptr_t: ((uintptr_t *)self->data)[pos] = v; break;",
+                  "UARRAY_RAWAT_PUT_(self, pos, v);",
+                  "UArray_changed(self);",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_size_in_bytes.c": [
                   "extern size_t UArray_sizeRequiredToContain_(const UArray *self, const UArray *other);",
@@ -4122,7 +4129,21 @@ jobs:
                   "!UArray_hasValidItemLayout_(other)" not in copy_items_body):
               raise SystemExit("UArray typed copies must reject malformed source and destination layouts before typed access")
           if uarray_source.count("UArray_hasValidItemLayout_(") != 11:
-              raise SystemExit("UArray layout validator must have one definition and eight guarded call sites")
+              raise SystemExit("UArray layout validator must have one definition and ten guarded call sites")
+          raw_put_start = uarray_source.find("#define UARRAY_RAWAT_PUT_")
+          raw_put_end = uarray_source.find("\\n}", raw_put_start)
+          raw_put_body = uarray_source[raw_put_start:raw_put_end] if raw_put_start >= 0 and raw_put_end > raw_put_start else ""
+          if (not raw_put_body or "return;" in raw_put_body or raw_put_body.count("break;") != 11):
+              raise SystemExit("UArray scalar dispatch must return to setters for cache invalidation")
+          for signature in ("void UArray_at_putLong_(UArray *self, size_t pos, long v)",
+                            "void UArray_at_putDouble_(UArray *self, size_t pos, double v)"):
+              start = uarray_source.find(signature)
+              end = uarray_source.find("\\n}", start)
+              body = uarray_source[start:end] if start >= 0 and end > start else ""
+              dispatch = body.find("UARRAY_RAWAT_PUT_(self, pos, v);")
+              changed = body.find("UArray_changed(self);")
+              if not body or dispatch < 0 or changed < dispatch:
+                  raise SystemExit("UArray indexed scalar setters must invalidate cached hashes after writes")
           stack_range_start = uarray_source.find("UArray UArray_stackRange(const UArray *self, size_t start, size_t size)")
           stack_range_end = uarray_source.find("\n}", stack_range_start)
           stack_range_body = uarray_source[stack_range_start:stack_range_end] if stack_range_start >= 0 and stack_range_end > stack_range_start else ""

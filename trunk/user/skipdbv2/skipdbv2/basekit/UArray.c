@@ -1123,17 +1123,17 @@ BASEKIT_API void UArray_removeLast(UArray *self)
 #define UARRAY_RAWAT_PUT_(self, pos, v) \
 switch (self->itemType)\
 {\
-	case CTYPE_uint8_t:   ((uint8_t   *)self->data)[pos] = v; return;\
-	case CTYPE_uint16_t:  ((uint16_t  *)self->data)[pos] = v; return;\
-	case CTYPE_uint32_t:  ((uint32_t  *)self->data)[pos] = v; return;\
-	case CTYPE_uint64_t:  ((uint64_t  *)self->data)[pos] = v; return;\
-	case CTYPE_int8_t:    ((int8_t    *)self->data)[pos] = v; return;\
-	case CTYPE_int16_t:   ((int16_t   *)self->data)[pos] = v; return;\
-	case CTYPE_int32_t:   ((int32_t   *)self->data)[pos] = v; return;\
-	case CTYPE_int64_t:   ((int64_t   *)self->data)[pos] = v; return;\
-	case CTYPE_float32_t: ((float32_t *)self->data)[pos] = v; return;\
-	case CTYPE_float64_t: ((float64_t *)self->data)[pos] = v; return;\
-	case CTYPE_uintptr_t: ((uintptr_t *)self->data)[pos] = v; return;\
+	case CTYPE_uint8_t:   ((uint8_t   *)self->data)[pos] = v; break;\
+	case CTYPE_uint16_t:  ((uint16_t  *)self->data)[pos] = v; break;\
+	case CTYPE_uint32_t:  ((uint32_t  *)self->data)[pos] = v; break;\
+	case CTYPE_uint64_t:  ((uint64_t  *)self->data)[pos] = v; break;\
+	case CTYPE_int8_t:    ((int8_t    *)self->data)[pos] = v; break;\
+	case CTYPE_int16_t:   ((int16_t   *)self->data)[pos] = v; break;\
+	case CTYPE_int32_t:   ((int32_t   *)self->data)[pos] = v; break;\
+	case CTYPE_int64_t:   ((int64_t   *)self->data)[pos] = v; break;\
+	case CTYPE_float32_t: ((float32_t *)self->data)[pos] = v; break;\
+	case CTYPE_float64_t: ((float64_t *)self->data)[pos] = v; break;\
+	case CTYPE_uintptr_t: ((uintptr_t *)self->data)[pos] = v; break;\
 }
 
 void UArray_at_putLong_(UArray *self, size_t pos, long v)
