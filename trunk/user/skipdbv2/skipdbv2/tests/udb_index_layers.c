@@ -152,7 +152,21 @@ int main(void)
         goto done;
     }
 
-    UDB_close(db);
+    /* A closed index is unavailable, not an empty PID mapping; do not
+     * mutate the cached seek cursor when refusing a read from a closed file. */
+    JFile_setPosition_(db->index->file, 0);
+    {
+        long saved_pos = db->index->file->pos;
+        long saved_max = db->index->file->maxPos;
+
+        UDB_close(db);
+        if (UDBIndex_posForPid_(db->index, reused) != 0 ||
+            db->index->file->pos != saved_pos ||
+            db->index->file->maxPos != saved_max) {
+            fprintf(stderr, "closed index lookup changed the cached file position\n");
+            goto done;
+        }
+    }
     UDB_open(db);
     if (!UDB_isOpen(db) || !has_value(db, reused, "reused") ||
         !has_value(db, second, "second") || UDBIndex_nextPid(db->index) != 3) {

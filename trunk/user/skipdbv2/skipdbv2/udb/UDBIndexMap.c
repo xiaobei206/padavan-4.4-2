@@ -21,7 +21,8 @@ PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 	UDBIndexEntry entry;
 	size_t file_size, offset;
 
-	if (NULL == self || NULL == self->file || self->file->maxPos < 0 ||
+	if (NULL == self || NULL == self->file || NULL == self->file->file ||
+		self->file->maxPos < 0 ||
 		!UDBIndex_offsetForPid_(pid, &offset))
 		return 0;
 

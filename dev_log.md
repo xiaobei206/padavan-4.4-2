@@ -1,3 +1,13 @@
+## 2026-11-07 09:52 CST — Reject PID lookups against a closed index file
+
+- Baseline: main commit `8047b18c8ad0c2ae6f04144b54b2ece5ea5d272c`; SkipDBv2 Regression run #494 passed.
+- Scope: `UDBIndex_posForPid_()` in `udb/UDBIndexMap.c`.
+- The lookup validated cached size and the `JFile` object but not its open data stream. After close, a lookup returned the same zero used for an unmapped PID and changed the cached seek position before the lower-level read rejected the closed stream.
+- Require an open index file before computing or seeking a slot. Extend the existing index-layer test to prove closed-file lookups preserve cached position/size, and make the Actions source contract enforce the descriptor guard. Existing CMake/CTest target is unchanged; no new files.
+- No local C compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:50 CST — Register database cursors at construction
 
 - Baseline: main commit `f75050a27a81195edda38caf37d537d61201f0b5`; SkipDBv2 Regression run #493 passed.
