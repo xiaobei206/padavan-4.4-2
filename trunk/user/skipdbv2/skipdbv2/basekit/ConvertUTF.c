@@ -57,6 +57,36 @@ static const UTF32 halfMask = 0x3FFUL;
 #define false   0
 #define true    1
 
+/*
+ * Converters advance through both buffers. Reject overlapping spans so an
+ * output write cannot overwrite source code units that have not been read.
+ */
+static int ConvertUTF_rangesOverlap_(const void *source, size_t sourceCount,
+    size_t sourceItemSize, const void *target, size_t targetCount,
+    size_t targetItemSize)
+{
+    size_t sourceBytes;
+    size_t targetBytes;
+    uintptr_t sourceAddress;
+    uintptr_t targetAddress;
+
+    if (0 == sourceItemSize || 0 == targetItemSize ||
+        sourceCount > (size_t)-1 / sourceItemSize ||
+        targetCount > (size_t)-1 / targetItemSize)
+        return 1;
+
+    sourceBytes = sourceCount * sourceItemSize;
+    targetBytes = targetCount * targetItemSize;
+    if (0 == sourceBytes || 0 == targetBytes)
+        return 0;
+
+    sourceAddress = (uintptr_t)source;
+    targetAddress = (uintptr_t)target;
+    if (sourceAddress <= targetAddress)
+        return targetAddress - sourceAddress < sourceBytes;
+    return sourceAddress - targetAddress < targetBytes;
+}
+
 /* --------------------------------------------------------------------- */
 
 ConversionResult ConvertUTF32toUTF16 (
@@ -78,7 +108,11 @@ ConversionResult ConvertUTF32toUTF16 (
 	/* Reject reversed ranges before relational arithmetic or buffer access. */
 	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
-	source = *sourceStart;
+
+	if (ConvertUTF_rangesOverlap_(*sourceStart,
+		(size_t)(sourceEnd - *sourceStart), sizeof(**sourceStart),
+		*targetStart, (size_t)(targetEnd - *targetStart), sizeof(**targetStart)))
+		return sourceIllegal;	source = *sourceStart;
 	target = *targetStart;
 
 while (source < sourceEnd)
@@ -161,7 +195,11 @@ ConversionResult ConvertUTF16toUTF32 (
 	/* Reject reversed ranges before relational arithmetic or buffer access. */
 	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
-	source = *sourceStart;
+
+	if (ConvertUTF_rangesOverlap_(*sourceStart,
+		(size_t)(sourceEnd - *sourceStart), sizeof(**sourceStart),
+		*targetStart, (size_t)(targetEnd - *targetStart), sizeof(**targetStart)))
+		return sourceIllegal;	source = *sourceStart;
 	target = *targetStart;
 
 while (source < sourceEnd) {
@@ -277,7 +315,11 @@ ConversionResult ConvertUTF16toUTF8 (
 	/* Reject reversed ranges before relational arithmetic or buffer access. */
 	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
-	source = *sourceStart;
+
+	if (ConvertUTF_rangesOverlap_(*sourceStart,
+		(size_t)(sourceEnd - *sourceStart), sizeof(**sourceStart),
+		*targetStart, (size_t)(targetEnd - *targetStart), sizeof(**targetStart)))
+		return sourceIllegal;	source = *sourceStart;
 	target = *targetStart;
 
 while (source < sourceEnd) {
@@ -415,7 +457,11 @@ ConversionResult ConvertUTF8toUTF16 (
 	/* Reject reversed ranges before relational arithmetic or buffer access. */
 	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
-	source = *sourceStart;
+
+	if (ConvertUTF_rangesOverlap_(*sourceStart,
+		(size_t)(sourceEnd - *sourceStart), sizeof(**sourceStart),
+		*targetStart, (size_t)(targetEnd - *targetStart), sizeof(**targetStart)))
+		return sourceIllegal;	source = *sourceStart;
 	target = *targetStart;
 
 while (source < sourceEnd) {
@@ -499,7 +545,11 @@ ConversionResult ConvertUTF32toUTF8 (
 	/* Reject reversed ranges before relational arithmetic or buffer access. */
 	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
-	source = *sourceStart;
+
+	if (ConvertUTF_rangesOverlap_(*sourceStart,
+		(size_t)(sourceEnd - *sourceStart), sizeof(**sourceStart),
+		*targetStart, (size_t)(targetEnd - *targetStart), sizeof(**targetStart)))
+		return sourceIllegal;	source = *sourceStart;
 	target = *targetStart;
 
 while (source < sourceEnd) {
@@ -569,7 +619,11 @@ ConversionResult ConvertUTF8toUTF32 (
 	/* Reject reversed ranges before relational arithmetic or buffer access. */
 	if (*sourceStart > sourceEnd || *targetStart > targetEnd)
 		return sourceIllegal;
-	source = *sourceStart;
+
+	if (ConvertUTF_rangesOverlap_(*sourceStart,
+		(size_t)(sourceEnd - *sourceStart), sizeof(**sourceStart),
+		*targetStart, (size_t)(targetEnd - *targetStart), sizeof(**targetStart)))
+		return sourceIllegal;	source = *sourceStart;
 	target = *targetStart;
 
 while (source < sourceEnd) {

@@ -55,7 +55,7 @@
 	All four buffer pointers and both cursor handles must be non-NULL.
 	Start cursors must not point past their corresponding end pointers.
 	Invalid buffer arguments return sourceIllegal without changing either
-	cursor. Empty ranges are represented by equal, non-NULL start/end pointers.
+	cursor. Empty ranges are represented by equal, non-NULL start/end pointers. Source and target data ranges must not overlap; an overlapping call returns sourceIllegal without changing either cursor or target bytes.
 
 	These conversion functions take a ConversionFlags argument. When this
 	flag is set to strict, both irregular sequences and isolated surrogates

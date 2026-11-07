@@ -1792,6 +1792,13 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.c": [
                   "#include <stddef.h>",
+                  "static int ConvertUTF_rangesOverlap_(",
+                  "sourceCount > (size_t)-1 / sourceItemSize",
+                  "targetCount > (size_t)-1 / targetItemSize",
+                  "sourceAddress <= targetAddress",
+                  "targetAddress - sourceAddress < sourceBytes",
+                  "sourceAddress - targetAddress < targetBytes",
+                  "if (ConvertUTF_rangesOverlap_(*sourceStart,",
                   "Boolean isLegalUTF8Sequence(const UTF8 *source, const UTF8 *sourceEnd)",
                   "NULL == source || NULL == sourceEnd || source >= sourceEnd",
                   "if (*sourceStart > sourceEnd || *targetStart > targetEnd)",
@@ -1819,6 +1826,15 @@ jobs:
                   "UTF32toUTF8 lenient replacement failed",
                   "UTF32toUTF8 target exhaustion changed source or output",
                   "test_reversed_cursor_ranges",
+                  "test_overlapping_conversion_buffers",
+                  "ConvertUTF32toUTF16: overlapping input/output changed cursors or bytes",
+                  "ConvertUTF16toUTF32: overlapping input/output changed cursors or bytes",
+                  "ConvertUTF16toUTF8: overlapping input/output changed cursors or bytes",
+                  "ConvertUTF8toUTF16: overlapping input/output changed cursors or bytes",
+                  "ConvertUTF32toUTF8: overlapping input/output changed cursors or bytes",
+                  "ConvertUTF8toUTF32: overlapping input/output changed cursors or bytes",
+                  "ConvertUTF8toUTF32 partial overlap: overlapping input/output changed cursors or bytes",
+                  "ConvertUTF rejected disjoint source/target ranges in one allocation",
                   "accepted a reversed source range",
                   "accepted a reversed target range",
                   "test_utf8_conversion_bounds",
@@ -5045,7 +5061,29 @@ jobs:
                   remaining_check < 0 or null_range_guard > first_byte_read or
                   first_byte_read > remaining_check or "source+length > sourceEnd" in sequence):
               raise SystemExit("ConvertUTF sequence validator must reject null/empty ranges and check remaining length before reading")
+          overlap_start = convert_source.find("static int ConvertUTF_rangesOverlap_(")
+          overlap_end = convert_source.find("ConversionResult ConvertUTF32toUTF16", overlap_start)
+          overlap_body = convert_source[overlap_start:overlap_end] if overlap_start >= 0 and overlap_end > overlap_start else ""
+          for needle in ("sourceCount > (size_t)-1 / sourceItemSize",
+                         "targetCount > (size_t)-1 / targetItemSize",
+                         "sourceAddress <= targetAddress",
+                         "targetAddress - sourceAddress < sourceBytes",
+                         "sourceAddress - targetAddress < targetBytes"):
+              if not overlap_body or needle not in overlap_body:
+                  raise SystemExit("ConvertUTF overlap validator is missing overflow-safe range logic: " + needle)
+
           convert_test = Path("trunk/user/skipdbv2/skipdbv2/tests/convert_utf8_bounds.c").read_text()
+          for needle in ("test_overlapping_conversion_buffers",
+                         "ConvertUTF32toUTF16: overlapping input/output changed cursors or bytes",
+                         "ConvertUTF16toUTF32: overlapping input/output changed cursors or bytes",
+                         "ConvertUTF16toUTF8: overlapping input/output changed cursors or bytes",
+                         "ConvertUTF8toUTF16: overlapping input/output changed cursors or bytes",
+                         "ConvertUTF32toUTF8: overlapping input/output changed cursors or bytes",
+                         "ConvertUTF8toUTF32: overlapping input/output changed cursors or bytes",
+                         "ConvertUTF8toUTF32 partial overlap: overlapping input/output changed cursors or bytes",
+                         "ConvertUTF rejected disjoint source/target ranges in one allocation"):
+              if needle not in convert_test:
+                  raise SystemExit("ConvertUTF overlapping-buffer regression missing: " + needle)
           for needle in ("NULL source", "NULL end", "empty range", "truncated sequence",
                          "overlong sequence", "illegal lead byte", "test_utf32_source_semantics",
                          "UTF32toUTF16 strict range error consumed the invalid scalar",
@@ -5125,16 +5163,21 @@ jobs:
               null_rejected = body.find("return sourceIllegal;", guard)
               range_guard = body.find("if (*sourceStart > sourceEnd || *targetStart > targetEnd)", null_rejected)
               range_rejected = body.find("return sourceIllegal;", range_guard)
-              source_read = body.find("source = *sourceStart;", range_rejected)
-              target_read = body.find("target = *targetStart;", range_rejected)
-              if (not body or min(guard, null_rejected, range_guard, range_rejected, source_read, target_read) < 0 or
-                      not (guard < null_rejected < range_guard < range_rejected < source_read and range_rejected < target_read) or
+              overlap_guard = body.find("if (ConvertUTF_rangesOverlap_(", range_rejected)
+              overlap_rejected = body.find("return sourceIllegal;", overlap_guard)
+              source_read = body.find("source = *sourceStart;", overlap_rejected)
+              target_read = body.find("target = *targetStart;", overlap_rejected)
+              if (not body or min(guard, null_rejected, range_guard, range_rejected, overlap_guard,
+                                  overlap_rejected, source_read, target_read) < 0 or
+                      not (guard < null_rejected < range_guard < range_rejected < overlap_guard <
+                           overlap_rejected < source_read and overlap_rejected < target_read) or
                       "NULL == targetStart || NULL == *targetStart || NULL == targetEnd" not in body[guard:null_rejected]):
-                  raise SystemExit(name + " must validate pointer handles and range order before dereferencing cursors")
+                  raise SystemExit(name + " must validate handles, range order, and source/target non-overlap before dereferencing cursors")
           convert_header = Path("trunk/user/skipdbv2/skipdbv2/basekit/ConvertUTF.h").read_text()
           if ("All four buffer pointers and both cursor handles must be non-NULL." not in convert_header or
                   "Start cursors must not point past their corresponding end pointers." not in convert_header or
-                  "Empty ranges are represented by equal, non-NULL start/end pointers." not in convert_header):
+                  "Empty ranges are represented by equal, non-NULL start/end pointers." not in convert_header or
+                  "Source and target data ranges must not overlap;" not in convert_header):
               raise SystemExit("ConvertUTF invalid-buffer documentation missing")
           for name in converter_names:
               if any(name + " " + arg not in convert_test for arg in bad_arguments):

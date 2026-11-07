@@ -408,6 +408,107 @@ static int test_all_bytes_equal_(const void *buffer, size_t length, unsigned cha
     return 1;
 }
 
+
+typedef union
+{
+    UTF8 bytes[64];
+    UTF16 words16[32];
+    UTF32 words32[16];
+} ConvertUTFOverlapStorage;
+
+static int test_overlapping_conversion_buffers(void)
+{
+    ConvertUTFOverlapStorage storage;
+    unsigned char before[sizeof(storage)];
+    const UTF32 *source32;
+    const UTF16 *source16;
+    const UTF8 *source8;
+    UTF32 *target32;
+    UTF16 *target16;
+    UTF8 *target8;
+    ConversionResult result;
+
+#define EXPECT_OVERLAP(label, expression, source_cursor, source_origin, target_cursor, target_origin) do { \
+    memcpy(before, &storage, sizeof(storage)); \
+    if ((expression) != sourceIllegal || (source_cursor) != (source_origin) || \
+        (target_cursor) != (target_origin) || memcmp(before, &storage, sizeof(storage)) != 0) { \
+        fprintf(stderr, "%s: overlapping input/output changed cursors or bytes\n", label); \
+        return 0; \
+    } \
+} while (0)
+
+    memset(&storage, 0x5a, sizeof(storage));
+    storage.words32[0] = 0x41;
+    source32 = storage.words32; target16 = storage.words16;
+    EXPECT_OVERLAP("ConvertUTF32toUTF16",
+        ConvertUTF32toUTF16(&source32, storage.words32 + 1, &target16,
+                            storage.words16 + 32, strictConversion),
+        source32, storage.words32, target16, storage.words16);
+
+    memset(&storage, 0x5a, sizeof(storage));
+    storage.words16[0] = 0x5a5a;
+    source16 = storage.words16; target32 = storage.words32;
+    EXPECT_OVERLAP("ConvertUTF16toUTF32",
+        ConvertUTF16toUTF32(&source16, storage.words16 + 1, &target32,
+                            storage.words32 + 16, strictConversion),
+        source16, storage.words16, target32, storage.words32);
+
+    memset(&storage, 0x5a, sizeof(storage));
+    storage.words16[0] = 0x5a5a;
+    source16 = storage.words16; target8 = storage.bytes;
+    EXPECT_OVERLAP("ConvertUTF16toUTF8",
+        ConvertUTF16toUTF8(&source16, storage.words16 + 1, &target8,
+                           storage.bytes + 64, strictConversion),
+        source16, storage.words16, target8, storage.bytes);
+
+    memset(&storage, 0x5a, sizeof(storage));
+    storage.bytes[0] = 0x41;
+    source8 = storage.bytes; target16 = storage.words16;
+    EXPECT_OVERLAP("ConvertUTF8toUTF16",
+        ConvertUTF8toUTF16(&source8, storage.bytes + 1, &target16,
+                           storage.words16 + 32, strictConversion),
+        source8, storage.bytes, target16, storage.words16);
+
+    memset(&storage, 0x5a, sizeof(storage));
+    storage.words32[0] = 0x41;
+    source32 = storage.words32; target8 = storage.bytes;
+    EXPECT_OVERLAP("ConvertUTF32toUTF8",
+        ConvertUTF32toUTF8(&source32, storage.words32 + 1, &target8,
+                           storage.bytes + 64, strictConversion),
+        source32, storage.words32, target8, storage.bytes);
+
+    memset(&storage, 0x5a, sizeof(storage));
+    storage.bytes[0] = 0x41;
+    source8 = storage.bytes; target32 = storage.words32;
+    EXPECT_OVERLAP("ConvertUTF8toUTF32",
+        ConvertUTF8toUTF32(&source8, storage.bytes + 1, &target32,
+                           storage.words32 + 16, strictConversion),
+        source8, storage.bytes, target32, storage.words32);
+
+    /* Partial overlap must be rejected too, not only identical start pointers. */
+    memset(&storage, 0x6b, sizeof(storage));
+    source8 = storage.bytes; target32 = storage.words32 + 1;
+    EXPECT_OVERLAP("ConvertUTF8toUTF32 partial overlap",
+        ConvertUTF8toUTF32(&source8, storage.bytes + 8, &target32,
+                           storage.words32 + 8, strictConversion),
+        source8, storage.bytes, target32, storage.words32 + 1);
+
+    /* Disjoint ranges within one allocation are still valid. */
+    memset(&storage, 0, sizeof(storage));
+    storage.bytes[0] = 0x41;
+    source8 = storage.bytes; target32 = storage.words32 + 8;
+    result = ConvertUTF8toUTF32(&source8, storage.bytes + 1, &target32,
+                                storage.words32 + 16, strictConversion);
+    if (result != conversionOK || source8 != storage.bytes + 1 ||
+        target32 != storage.words32 + 9 || storage.words32[8] != 0x41) {
+        fprintf(stderr, "ConvertUTF rejected disjoint source/target ranges in one allocation\n");
+        return 0;
+    }
+
+#undef EXPECT_OVERLAP
+    return 1;
+}
+
 static int test_reversed_cursor_ranges(void)
 {
     const UTF8 source8[16] = {0x41};
@@ -508,7 +609,8 @@ int main(void)
     const UTF8 overlong[] = { 0xc0, 0x80 };
     const UTF8 bad_lead[] = { 0xf5, 0x80, 0x80, 0x80, 0x80 };
 
-    if (!test_invalid_buffer_arguments() || !test_reversed_cursor_ranges()) return EXIT_FAILURE;
+    if (!test_invalid_buffer_arguments() || !test_reversed_cursor_ranges() ||
+        !test_overlapping_conversion_buffers()) return EXIT_FAILURE;
 
     if (!expect_result("NULL source", NULL, ascii + 1, false) ||
         !expect_result("NULL end", ascii, NULL, false) ||

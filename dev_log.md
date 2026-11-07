@@ -1,3 +1,14 @@
+## 2026-11-07 17:02 CST — Reject overlapping ConvertUTF source and target ranges
+
+- Baseline: `e4a645471e9c3dbb6437573e84ec4eb6d32165b4`; mainline SkipDBv2 Regression run #598 passed the source-contract stage, full build, and all 57 CTests.
+- Scope: the six public buffer converters in `basekit/ConvertUTF.c`, their shared private range check, and the existing `convert_utf8_bounds_test`.
+- Each converter walks input and output forward. If caller-supplied source and destination spans overlap, an early output write can overwrite source code units that have not yet been decoded.
+- Add one overflow-checked private overlap predicate using byte extents and `uintptr_t` address differences. Reject overlapping spans with `sourceIllegal` before reading or writing caller data or changing the cursors; document the non-overlap contract.
+- Extend the existing test across all six conversions, identical-start and partial overlap, state preservation, and a disjoint-range success case. Extend static and function-order Actions contracts. Reuse the current CTest target; no new files, public symbols, or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 16:42 CST — Preserve BStream_show's full-width cursor
 
 - Baseline: `1f24db0ecc4328cf76b9f16996d81d5dba367f6a`; SkipDBv2 Regression run #597 passed the source-contract stage, full build, and all 57 CTests.
