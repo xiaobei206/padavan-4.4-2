@@ -1,3 +1,12 @@
+## 2026-11-07 17:03 CST — Match ConvertUTF overlap regression diagnostics to source contracts
+
+- Baseline: `fec862cb3ed9c5af8fc356d9d67264e25d9b6ae5`; SkipDBv2 Regression run #599 stopped in the static source-contract stage before CMake configuration.
+- The new overlap tests built diagnostic messages by concatenating a function label with a common suffix, while the existing workflow contract deliberately requires each full regression diagnostic as a literal source needle.
+- Keep the test strict and explicit: make each full error message a literal argument and let the shared macro print it unchanged. No production-code change, test-target change, or workflow relaxation.
+- No compiler/CTest result was reached in run #599.
+
+---
+
 ## 2026-11-07 17:02 CST — Reject overlapping ConvertUTF source and target ranges
 
 - Baseline: `e4a645471e9c3dbb6437573e84ec4eb6d32165b4`; mainline SkipDBv2 Regression run #598 passed the source-contract stage, full build, and all 57 CTests.

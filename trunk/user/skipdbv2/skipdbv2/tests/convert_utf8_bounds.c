@@ -432,7 +432,7 @@ static int test_overlapping_conversion_buffers(void)
     memcpy(before, &storage, sizeof(storage)); \
     if ((expression) != sourceIllegal || (source_cursor) != (source_origin) || \
         (target_cursor) != (target_origin) || memcmp(before, &storage, sizeof(storage)) != 0) { \
-        fprintf(stderr, "%s: overlapping input/output changed cursors or bytes\n", label); \
+        fprintf(stderr, "%s\n", label); \
         return 0; \
     } \
 } while (0)
@@ -440,7 +440,7 @@ static int test_overlapping_conversion_buffers(void)
     memset(&storage, 0x5a, sizeof(storage));
     storage.words32[0] = 0x41;
     source32 = storage.words32; target16 = storage.words16;
-    EXPECT_OVERLAP("ConvertUTF32toUTF16",
+    EXPECT_OVERLAP("ConvertUTF32toUTF16: overlapping input/output changed cursors or bytes",
         ConvertUTF32toUTF16(&source32, storage.words32 + 1, &target16,
                             storage.words16 + 32, strictConversion),
         source32, storage.words32, target16, storage.words16);
@@ -448,7 +448,7 @@ static int test_overlapping_conversion_buffers(void)
     memset(&storage, 0x5a, sizeof(storage));
     storage.words16[0] = 0x5a5a;
     source16 = storage.words16; target32 = storage.words32;
-    EXPECT_OVERLAP("ConvertUTF16toUTF32",
+    EXPECT_OVERLAP("ConvertUTF16toUTF32: overlapping input/output changed cursors or bytes",
         ConvertUTF16toUTF32(&source16, storage.words16 + 1, &target32,
                             storage.words32 + 16, strictConversion),
         source16, storage.words16, target32, storage.words32);
@@ -456,7 +456,7 @@ static int test_overlapping_conversion_buffers(void)
     memset(&storage, 0x5a, sizeof(storage));
     storage.words16[0] = 0x5a5a;
     source16 = storage.words16; target8 = storage.bytes;
-    EXPECT_OVERLAP("ConvertUTF16toUTF8",
+    EXPECT_OVERLAP("ConvertUTF16toUTF8: overlapping input/output changed cursors or bytes",
         ConvertUTF16toUTF8(&source16, storage.words16 + 1, &target8,
                            storage.bytes + 64, strictConversion),
         source16, storage.words16, target8, storage.bytes);
@@ -464,7 +464,7 @@ static int test_overlapping_conversion_buffers(void)
     memset(&storage, 0x5a, sizeof(storage));
     storage.bytes[0] = 0x41;
     source8 = storage.bytes; target16 = storage.words16;
-    EXPECT_OVERLAP("ConvertUTF8toUTF16",
+    EXPECT_OVERLAP("ConvertUTF8toUTF16: overlapping input/output changed cursors or bytes",
         ConvertUTF8toUTF16(&source8, storage.bytes + 1, &target16,
                            storage.words16 + 32, strictConversion),
         source8, storage.bytes, target16, storage.words16);
@@ -472,7 +472,7 @@ static int test_overlapping_conversion_buffers(void)
     memset(&storage, 0x5a, sizeof(storage));
     storage.words32[0] = 0x41;
     source32 = storage.words32; target8 = storage.bytes;
-    EXPECT_OVERLAP("ConvertUTF32toUTF8",
+    EXPECT_OVERLAP("ConvertUTF32toUTF8: overlapping input/output changed cursors or bytes",
         ConvertUTF32toUTF8(&source32, storage.words32 + 1, &target8,
                            storage.bytes + 64, strictConversion),
         source32, storage.words32, target8, storage.bytes);
@@ -480,7 +480,7 @@ static int test_overlapping_conversion_buffers(void)
     memset(&storage, 0x5a, sizeof(storage));
     storage.bytes[0] = 0x41;
     source8 = storage.bytes; target32 = storage.words32;
-    EXPECT_OVERLAP("ConvertUTF8toUTF32",
+    EXPECT_OVERLAP("ConvertUTF8toUTF32: overlapping input/output changed cursors or bytes",
         ConvertUTF8toUTF32(&source8, storage.bytes + 1, &target32,
                            storage.words32 + 16, strictConversion),
         source8, storage.bytes, target32, storage.words32);
@@ -488,7 +488,7 @@ static int test_overlapping_conversion_buffers(void)
     /* Partial overlap must be rejected too, not only identical start pointers. */
     memset(&storage, 0x6b, sizeof(storage));
     source8 = storage.bytes; target32 = storage.words32 + 1;
-    EXPECT_OVERLAP("ConvertUTF8toUTF32 partial overlap",
+    EXPECT_OVERLAP("ConvertUTF8toUTF32 partial overlap: overlapping input/output changed cursors or bytes",
         ConvertUTF8toUTF32(&source8, storage.bytes + 8, &target32,
                            storage.words32 + 8, strictConversion),
         source8, storage.bytes, target32, storage.words32 + 1);
