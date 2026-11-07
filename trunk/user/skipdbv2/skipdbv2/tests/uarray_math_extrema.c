@@ -1629,6 +1629,35 @@ cleanup:
     return result;
 }
 
+
+static int test_misaligned_numeric_storage(void)
+{
+	union {
+		uint64_t alignment;
+		unsigned char bytes[sizeof(uint64_t) + 1];
+	} storage;
+	uint64_t original = UINT64_C(0x123456789abcdef0);
+	unsigned char snapshot[sizeof(original)];
+	UArray malformed;
+
+	memset(storage.bytes, 0, sizeof(storage.bytes));
+	memcpy(storage.bytes + 1, &original, sizeof(original));
+	memcpy(snapshot, &original, sizeof(snapshot));
+	malformed = UArray_stackAllocedWithData_type_size_(
+		storage.bytes + 1, CTYPE_uint64_t, 1);
+
+	UArray_clear(&malformed);
+	if (memcmp(storage.bytes + 1, snapshot, sizeof(snapshot)) != 0)
+		return fail("UArray math mutated misaligned numeric storage");
+	UArray_setItemsToLong_(&malformed, 0);
+	if (memcmp(storage.bytes + 1, snapshot, sizeof(snapshot)) != 0)
+		return fail("UArray math fill accepted misaligned numeric storage");
+	if (UArray_dotProduct_(&malformed, &malformed) != 0.0)
+		return fail("UArray dot product accepted misaligned numeric storage");
+	return EXIT_SUCCESS;
+}
+
+
 int main(void)
 {
     if (test_scalar_mutations() != EXIT_SUCCESS)
@@ -1652,6 +1681,8 @@ int main(void)
     if (test_assignment_transforms() != EXIT_SUCCESS)
         return EXIT_FAILURE;
     if (test_negate() != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (test_misaligned_numeric_storage() != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
 

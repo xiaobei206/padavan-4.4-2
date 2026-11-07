@@ -7,6 +7,7 @@
 #include <math.h>
 #include <float.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #warning Uncomment the IO_USE_SIMD define to turn on SIMD acceleration
 //#define IO_USE_SIMD 1
@@ -256,15 +257,56 @@ static size_t UArray_numericItemSize_(CTYPE itemType)
 }
 
 
+
+#define UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(name, type) \
+	typedef struct { char leadingByte; type value; } name
+
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathUInt8AlignmentProbe, uint8_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathUInt16AlignmentProbe, uint16_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathUInt32AlignmentProbe, uint32_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathUInt64AlignmentProbe, uint64_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathInt8AlignmentProbe, int8_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathInt16AlignmentProbe, int16_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathInt32AlignmentProbe, int32_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathInt64AlignmentProbe, int64_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathFloat32AlignmentProbe, float32_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathFloat64AlignmentProbe, float64_t);
+UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_(UArrayMathUintptrAlignmentProbe, uintptr_t);
+
+#undef UARRAY_MATH_DECLARE_ALIGNMENT_PROBE_
+
+static size_t UArray_numericItemAlignment_(CTYPE itemType)
+{
+	switch (itemType) {
+		case CTYPE_uint8_t: return offsetof(UArrayMathUInt8AlignmentProbe, value);
+		case CTYPE_uint16_t: return offsetof(UArrayMathUInt16AlignmentProbe, value);
+		case CTYPE_uint32_t: return offsetof(UArrayMathUInt32AlignmentProbe, value);
+		case CTYPE_uint64_t: return offsetof(UArrayMathUInt64AlignmentProbe, value);
+		case CTYPE_int8_t: return offsetof(UArrayMathInt8AlignmentProbe, value);
+		case CTYPE_int16_t: return offsetof(UArrayMathInt16AlignmentProbe, value);
+		case CTYPE_int32_t: return offsetof(UArrayMathInt32AlignmentProbe, value);
+		case CTYPE_int64_t: return offsetof(UArrayMathInt64AlignmentProbe, value);
+		case CTYPE_float32_t: return offsetof(UArrayMathFloat32AlignmentProbe, value);
+		case CTYPE_float64_t: return offsetof(UArrayMathFloat64AlignmentProbe, value);
+		case CTYPE_uintptr_t: return offsetof(UArrayMathUintptrAlignmentProbe, value);
+		default: return 0;
+	}
+}
+
+
 static int UArray_hasValidNumericStorage_(const UArray *self)
 {
-	size_t expectedItemSize;
+	size_t expectedItemSize, expectedItemAlignment;
 	if (NULL == self)
 		return 0;
 	expectedItemSize = UArray_numericItemSize_(self->itemType);
-	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+	expectedItemAlignment = UArray_numericItemAlignment_(self->itemType);
+	if (expectedItemSize == 0 || expectedItemAlignment == 0 ||
+		self->itemSize != expectedItemSize ||
 		self->size > (size_t)-1 / expectedItemSize ||
-		(self->size > 0 && NULL == self->data))
+		(self->size > 0 && NULL == self->data) ||
+		(self->data &&
+			((uintptr_t)self->data % expectedItemAlignment) != 0))
 		return 0;
 	return 1;
 }

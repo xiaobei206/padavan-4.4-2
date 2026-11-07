@@ -1817,6 +1817,9 @@ jobs:
                   "UArray unescape bounds test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_math.c": [
+                  "static size_t UArray_numericItemAlignment_(CTYPE itemType)",
+                  "expectedItemAlignment == 0",
+                  "((uintptr_t)self->data % expectedItemAlignment) != 0",
                   "static float UArray_integerValueAsFloat_(const UArray *self, size_t index)",
                   "static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)",
                   "Floating-to-integer conversion outside the destination range is undefined.",
@@ -1991,6 +1994,9 @@ jobs:
                   "UArray bit access test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_math_extrema.c": [
+                  "test_misaligned_numeric_storage",
+                  "UArray math mutated misaligned numeric storage",
+                  "UArray dot product accepted misaligned numeric storage",
                   "UArray integer division changed valid mixed float64 results",
                   "UArray integer division committed a float quotient outside receiver range",
                   "UArray integer division committed a non-finite float quotient",

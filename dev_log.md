@@ -1,3 +1,14 @@
+## 2026-11-07 14:11 CST — Validate alignment before UArray numeric math
+
+- Baseline: `876df8eb6db3b47274bff6cbef3297d311509186`; numeric conversion alignment passed SkipDBv2 Regression run #556.
+- Scope: shared typed-numeric storage preflight in `basekit/UArray_math.c`.
+- Math entry points use typed iteration, scalar writes, reductions, and a float32 vector fast path after validating item width and byte geometry. They did not validate the alignment required by the declared CTYPE, so misaligned borrowed storage could reach typed reads/writes.
+- Added per-CTYPE alignment probes to the shared numeric-storage validator. Extended the existing extrema/math regression test to verify clear/fill operations leave misaligned uint64 storage unchanged and dot-product rejects it.
+- Updated existing Actions source contracts only; CMake registration and source lists are unchanged. No new files or exported symbols.
+- Validation: static review confirms all typed math paths use the shared validator before dispatch; remote CI remains the compiler/CTest gate, no local build is claimed.
+
+---
+
 ## 2026-11-07 14:06 CST — Reject misaligned numeric UArray conversion sources
 
 - Baseline: `b2bbd1ff47146eec03713ac249a1ec8ab9fd8aee`; SkipDBv2 Regression run #554 passed after the typed string-storage alignment change.
