@@ -1339,6 +1339,36 @@ static int test_assignment_transforms(void)
         goto cleanup;
     }
 
+    {
+        const int64_t signedValues[] = {INT64_MIN, INT64_MAX, INT64_C(9007199254740993)};
+        const uint64_t unsignedValues[] = {0, UINT64_MAX, UINT64_MAX - 1};
+        UArray *signedArray = UArray_newWithData_type_size_copy_(
+            (void *)signedValues, CTYPE_int64_t, 3, 1);
+        UArray *unsignedArray = UArray_newWithData_type_size_copy_(
+            (void *)unsignedValues, CTYPE_uint64_t, 3, 1);
+        if (NULL == signedArray || NULL == unsignedArray) {
+            UArray_free(signedArray);
+            UArray_free(unsignedArray);
+            fail("UArray integer round boundary fixture allocation failed");
+            goto cleanup;
+        }
+        signedArray->hash = (uintptr_t)0x5151;
+        unsignedArray->hash = (uintptr_t)0x6161;
+        UArray_round(signedArray);
+        UArray_round(unsignedArray);
+        if (memcmp(signedArray->data, signedValues, sizeof(signedValues)) != 0 ||
+            memcmp(unsignedArray->data, unsignedValues, sizeof(unsignedValues)) != 0 ||
+            signedArray->hash != (uintptr_t)0x5151 ||
+            unsignedArray->hash != (uintptr_t)0x6161) {
+            UArray_free(signedArray);
+            UArray_free(unsignedArray);
+            fail("UArray round changed integer backing storage or invalidated its hash");
+            goto cleanup;
+        }
+        UArray_free(signedArray);
+        UArray_free(unsignedArray);
+    }
+
     empty->hash = 0x6666;
     UArray_clear(empty);
     UArray_setItemsToLong_(empty, 1);

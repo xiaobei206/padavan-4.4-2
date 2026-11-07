@@ -1,3 +1,13 @@
+## 2026-11-07 20:58 CST — Keep UArray_round restricted to floating-point storage
+
+- Baseline: `a53124fbe978c7c8b9e1753219dcc7ea057f185a`; main SkipDBv2 Regression run #662 passed the source contracts, full target build, and all CTests.
+- Scope: `UArray_round()`.
+- Integer arrays are already integral; routing 64-bit values through `double` can round them outside their representable range before the typed assignment, invoking undefined floating-to-integer conversion.
+- Restrict rounding to float32/float64 arrays. Preserve integer storage and its cached hash unchanged, with signed/unsigned 64-bit boundary regressions and a matching Actions source contract.
+- Existing C source, existing math test, workflow, and handoff log only; no new files or CMake targets. No local firmware build is claimed; remote Actions is the validation gate.
+
+---
+
 ## 2026-11-07 20:57 CST — Preflight integer UArray scalar arithmetic before mutation
 
 - Baseline: `cce040bbed5b339af9272ad011d32843c5f13ebf`; main SkipDBv2 Regression run #661 passed.

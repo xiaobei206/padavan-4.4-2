@@ -4535,6 +4535,11 @@ jobs:
                   changed < 0 or changed < first_assign
               ):
                   raise SystemExit(f"UArray {label} assignment must validate numeric storage before dispatch and invalidate hash after writes")
+              if label == "round" and (
+                  "self->itemType != CTYPE_float32_t" not in body or
+                  "self->itemType != CTYPE_float64_t" not in body
+              ):
+                  raise SystemExit("UArray round must skip integer storage")
 
           stack_inline_source = Path(
               "trunk/user/skipdbv2/skipdbv2/basekit/Stack_inline.h"
@@ -4708,18 +4713,15 @@ jobs:
               start = bit_math_source.find(begin)
               end = bit_math_source.find(finish, start)
               body = bit_math_source[start:end] if start >= 0 and end > start else ""
-              assignment = body.find("UARRAY_FOREACHASSIGN(self, i, v,")
+              write = body.find("UARRAY_FOREACHASSIGN(self, i, v,")
               loop = body.find("for (i = 0; i < self->size; ++i)")
               read = body.find(f"UArray_rawDoubleAt_(self, i) {operator} value", loop)
               guard = body.find(f"UArray_integerFloatValueIsOutOfRange_(self->itemType, {result_name})", read)
-              type_guard = body.find("self->itemType != CTYPE_float32_t")
-              if (not body or "UArray_hasValidNumericStorage_(self)" not in body or
-                      "self->itemType == CTYPE_uintptr_t" not in body or "self->size == 0" not in body or
-                      assignment < 0 or body.find("UArray_changed(self);", assignment) < assignment or
-                      loop < 0 or read < loop or guard < read or type_guard < 0 or
-                      type_guard > loop or guard > assignment or
+              if (not body or write < 0 or loop < 0 or read < loop or
+                      guard < read or guard > write or
+                      body.find("self->itemType != CTYPE_float32_t") > loop or
                       (label == "divide" and "value == 0.0" not in body)):
-                  raise SystemExit(f"UArray scalar {label} must validate, preflight, then mutate")
+                  raise SystemExit(f"UArray scalar {label} preflight order is invalid")
 
 
           dot_size_start = bit_math_source.find("static size_t UArray_numericItemSize_(CTYPE itemType)")

@@ -47,7 +47,9 @@ LLVEC_DUALARG_OP(div,  /=, float32);
 void UArray_round(UArray *self)
 {
 	if (!UArray_hasValidNumericStorage_(self) ||
-		self->itemType == CTYPE_uintptr_t || self->size == 0)
+		self->itemType == CTYPE_uintptr_t || self->size == 0 ||
+		(self->itemType != CTYPE_float32_t &&
+		 self->itemType != CTYPE_float64_t))
 		return;
 	UARRAY_FOREACHASSIGN(self, i, v, floor((double)(v+.5)));
 	UArray_changed(self);
