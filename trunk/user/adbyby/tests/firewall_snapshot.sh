@@ -37,6 +37,12 @@ grep -F -- "-I PREROUTING 1 -p tcp -j ADBYBY" "$snapshot" >/dev/null
 grep -F -- ":ADBYBY - [0:0]" "$snapshot" >/dev/null
 [ "$(cat "$sentinel")" = "preserve-me" ]
 printf 'known-good\n' > "$snapshot"
-if FAIL_IPTABLES_SAVE=1 save_adbyby_rule_snapshot "$test_root/private"; then echo "unexpectedly accepted failed save" >&2;exit 1;fi
+FAIL_IPTABLES_SAVE=1
+export FAIL_IPTABLES_SAVE
+if save_adbyby_rule_snapshot "$test_root/private"; then
+    echo "unexpectedly accepted failed iptables-save" >&2
+    exit 1
+fi
+unset FAIL_IPTABLES_SAVE
 [ "$(cat "$snapshot")" = "known-good" ]
 echo "Adbyby private firewall snapshot staging regression: OK"
