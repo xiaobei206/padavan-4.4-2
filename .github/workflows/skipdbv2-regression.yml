@@ -1403,6 +1403,10 @@ jobs:
                   "(value > (int64_t)INTPTR_MAX || value < (int64_t)INTPTR_MIN)",
                   "tagged pointer exceeds platform width",
                   "void BStream_writeTaggedUArray_(BStream *self, UArray *ba)",
+                  "void BStream_show(BStream *self)",
+                  "size_t pos;",
+                  "pos = self->index;",
+                  "self->index = pos;",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/BStreamTag.c": [
                   "if (NULL == self)",
@@ -1452,6 +1456,10 @@ jobs:
                   "BStream plain array write lost an aliased tail terminator",
                   "BStream tagged write lost an aliased tail terminator",
                   "BStream tagged array write lost an aliased tail terminator",
+                  "#include <limits.h>",
+                  "static int testBStreamShowPreservesWideCursor(void)",
+                  "BStream_show(stream);",
+                  "BStream_show truncated a size_t cursor while restoring its position",
                   "static int testBStreamSetUArrayOwnership(void)",
                   "BStream setUArray accepted an exact alias of owned storage",
                   "BStream setUArray accepted an interior alias of owned storage",
@@ -6053,6 +6061,22 @@ jobs:
           bstream_tag_cmake = Path("trunk/user/skipdbv2/skipdbv2/CMakeLists.txt").read_text()
 
           bstream_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/BStream.c").read_text()
+          show_start = bstream_source.find("void BStream_show(BStream *self)")
+          show_end = bstream_source.find(chr(10) + "}", show_start)
+          show_body = bstream_source[show_start:show_end] if show_start >= 0 and show_end > show_start else ""
+          show_save = show_body.find("pos = self->index;")
+          show_reset = show_body.find("self->index = 0;", show_save)
+          show_restore = show_body.find("self->index = pos;", show_reset)
+          if (not show_body or "size_t pos;" not in show_body or
+                  show_save < 0 or show_reset < show_save or show_restore < show_reset):
+              raise SystemExit("BStream_show must preserve and restore the full-width size_t cursor")
+          if "int pos" in show_body:
+              raise SystemExit("BStream_show must not narrow its size_t cursor through int")
+          for needle in ("testBStreamShowPreservesWideCursor",
+                         "BStream_show truncated a size_t cursor while restoring its position"):
+              if needle not in bstream_tag_test:
+                  raise SystemExit("BStream_show cursor-width regression is missing: " + needle)
+
           tag_writer_start = bstream_source.find("void BStream_writeTag(")
           tag_writer_end = bstream_source.find("\nvoid BStream_writeTaggedUint8_(", tag_writer_start)
           tag_writer_body = bstream_source[tag_writer_start:tag_writer_end] if tag_writer_start >= 0 and tag_writer_end > tag_writer_start else ""

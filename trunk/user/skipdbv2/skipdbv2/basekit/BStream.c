@@ -1096,7 +1096,8 @@ int BStream_showInt(BStream *self)
 
 void BStream_show(BStream *self)
 {
-	int pos, v = 0;
+	size_t pos;
+	int v = 0;
 	if (NULL == self || NULL == self->ba)
 		return;
 	pos = self->index;

@@ -1,3 +1,14 @@
+## 2026-11-07 16:42 CST — Preserve BStream_show's full-width cursor
+
+- Baseline: `1f24db0ecc4328cf76b9f16996d81d5dba367f6a`; SkipDBv2 Regression run #597 passed the source-contract stage, full build, and all 57 CTests.
+- Scope: cursor save/restore in `basekit/BStream.c:BStream_show()` and the existing `bstream_tag_boundaries_test`.
+- `BStream.index` is a `size_t`, but the debug display routine saved it in an `int`. On 64-bit builds (and at values beyond `INT_MAX`), invoking the diagnostic could truncate the caller's cursor when restoring it.
+- Store the saved position as `size_t`. Add a focused regression using a tiny valid tagged stream and a synthetic cursor at `INT_MAX + 17`; `BStream_show()` must scan from zero and restore the exact original position without setting a read error.
+- Reuse the current CTest target. Tighten the BStream source contract and add a focused workflow contract for save/reset/restore ordering and the wide-cursor regression. No new files, public declarations, header changes, or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions is the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 16:40 CST — Accept Date_second's guarded zero fallback in the accessor contract
 
 - Baseline: `10b77b183a6d4033e93669eba40fcdbb76cd611d`; SkipDBv2 Regression run #596 passed the XY-C1 inventory and earlier Date contracts, then stopped in the Date accessor source-order assertion.

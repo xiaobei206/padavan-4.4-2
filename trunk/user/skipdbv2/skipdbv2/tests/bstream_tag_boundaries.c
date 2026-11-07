@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 
 extern int BStream_readTag(BStream *self, unsigned int t, unsigned int b, unsigned int a);
 extern void BStream_readNumber_size_(BStream *self, unsigned char *v, int size);
@@ -842,6 +843,32 @@ static int testBStreamReadNumberAliasing(void)
     return EXIT_SUCCESS;
 }
 
+
+static int testBStreamShowPreservesWideCursor(void)
+{
+	BStream *stream = BStream_new();
+	const size_t originalPosition = (size_t)INT_MAX + (size_t)17;
+
+	if (NULL == stream)
+		return fail("BStream show cursor fixture allocation failed");
+	BStream_writeTaggedUint8_(stream, 42);
+	if (UArray_size(stream->errorBa) != 0) {
+		BStream_free(stream);
+		return fail("BStream show cursor fixture could not encode a tagged value");
+	}
+
+	/* BStream_show scans from zero but must restore the full size_t cursor. */
+	stream->index = originalPosition;
+	BStream_show(stream);
+	if (stream->index != originalPosition ||
+		UArray_size(stream->errorBa) != 0) {
+		BStream_free(stream);
+		return fail("BStream_show truncated a size_t cursor while restoring its position");
+	}
+	BStream_free(stream);
+	return EXIT_SUCCESS;
+}
+
 int main(void)
 {
 	unsigned int arrayFlag, type, byteCount;
@@ -894,6 +921,8 @@ int main(void)
 	if (testBStreamAliasedWrites() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 	if (testBStreamReadNumberAliasing() != EXIT_SUCCESS)
+		return EXIT_FAILURE;
+	if (testBStreamShowPreservesWideCursor() != EXIT_SUCCESS)
 		return EXIT_FAILURE;
 #if !defined(__SYMBIAN32__)
 	if (testBStreamTaggedPointerWidth() != EXIT_SUCCESS)
