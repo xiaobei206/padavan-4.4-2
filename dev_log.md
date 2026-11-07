@@ -1,3 +1,20 @@
+## 2026-11-08 00:09 CST — Validate firewall ports, flags, protocol numbers and schedules
+
+- Recovered the unfinished firewall input audit from the prior handoff. The previous bounded fixes covered URL-pattern quoting/control-byte injection and ICMP token injection; this round continued into raw port/protocol/TCP-flag and date/time arguments instead of returning to SkipDBv2.
+- Added policy validators in trunk/user/rc/src/firewall_filter_policy.h and production call-site guards in firewall_ex.c:
+  - filter-LW source/destination port fields accept only optional empty values, decimal ports 1..65535, or one ordered inclusive low:high range.
+  - TCP flag suffixes are limited to the fixed UI enum (empty, ALL, SYN, ACK, FIN, RST, URG, PSH).
+  - filter-LW other-protocol and VTS other-protocol values must be decimal IP protocol numbers 0..255.
+  - VTS public port/range and optional translated local port are checked before both filter and DNAT rules are emitted.
+  - schedule date must contain seven weekday bits; schedule time must contain eight HHMMHHMM digits with valid hour/minute values.
+- Added regression cases for numeric boundaries/overflow, invalid/reversed ranges, control-byte/newline injection, unsupported TCP flags, weekday shape and invalid hour/minute values. Added source-wiring assertions for the production rule paths.
+- CI recovery trail: run 42389702872 exposed the missing string.h dependency in the new policy header, fixed by 87b732a57d9038d9cc7e233d8d32f9b8fb97338b; run 42389728466 exposed a malformed workflow line continuation, fixed by aa9d424a2d08dc584bac40143d45a871e7a9136d; run 42389752533 exposed an overly exact flag-guard source assertion, fixed by 551ac54f3d605c71f334b7c6163d393de15e93aa.
+- Final validation: HTTPD Authentication and Security Regression run 42389819329 completed SUCCESS on exact SHA 551ac54f3d605c71f334b7c6163d393de15e93aa. GNU89 compile-and-run policy regressions and complete HTTPD/firewall source-wiring step both passed. The C step used cc -std=gnu89 -Wall -Wextra -Werror. Logs confirmed HTTPD MIME auth, sid_list validation, stale upload cleanup, archive symlink-parent guard, firewall URL, ICMP and expanded rule-token contracts.
+- Scope limit: Actions tested host regression programs and source contracts, not a production MIPS build. Full firewall_ex.c target compile, XY-C1 firmware image, runtime restore behavior and hardware validation remain NOT RUN.
+- Schedule caveat: malformed date/time currently produces an empty time-match suffix, so the legacy rule becomes unqualified/all-time. Syntax injection is prevented, but fail-closed schedule semantics remain a separate open issue.
+- Firewall remains AUDITING: remaining iptables/ip6tables NVRAM sinks, interface/address arguments, shell construction, chain lifecycle/rollback and IPv6 parity still require review.
+- Next P1 module is CGI sys_script() / SystemCmd and privileged script dispatch; then DNS/DHCP, WAN/PPP/IPv6 and service lifecycle. Routine SkipDBv2 expansion remains paused.
+
 ## 2026-11-07 23:52 CST — Firewall ICMP rule-token guard and CI test repair
 
 - Code checkpoint before documentation update: `895a1700fb498a5f9ec190a83b7282e5adb19416`; baseline for this extension: `ed5b3a270205857220ba49e641b232da0fbf2de0`.

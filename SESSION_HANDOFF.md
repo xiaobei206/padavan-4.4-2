@@ -1,26 +1,25 @@
 # Session Handoff — Padavan 4.4
 
-## Latest resumable checkpoint — Firewall NVRAM rule-token guards (policy test PASS; current Actions pending)
+## Latest resumable checkpoint — Firewall NVRAM rule-token hardening (host regression + CI PASS)
 
-- Verified code HEAD immediately before this documentation checkpoint: `895a1700fb498a5f9ec190a83b7282e5adb19416`. This is the current source checkpoint; fetch live `main` again on resume because this handoff update itself creates a later documentation commit.
-- Previous bounded task recovery: HTTPD Security workflow run `42387739482` was tied to exact old head `259288902383060425b2288f0c1c4bd8f60012e3` and failed in the C regression compile step because `tests/firewall_filter_policy.c` used `NULL` without `<stddef.h>`. The prior HTTPD/archive test executables had run; firewall policy test and subsequent wiring step had not. This is a test-source compile defect, not a product test failure.
-- Added `#include <stddef.h>` to the firewall test in `ed5b3a270205857220ba49e641b232da0fbf2de0`.
-- Existing URL rule-injection guard remains in `259288902383060425b2288f0c1c4bd8f60012e3`: `include_webstr_filter()` rejects quote, backslash, DEL and ASCII control bytes in `url_keyword_xN` before aggregation into the quoted `--url` iptables-restore rule.
-- Second P1 issue found in the same firewall module: `include_lw_filter()` read NVRAM `filter_lw_icmp_x`, tokenized it with a macro that splits only on ASCII spaces, then inserted each token directly into `--icmp-type %s`. The firewall UI's `validate_portlist()` is client-side only; the HTTPD `validate_cgi()` storage path calls `nvram_set()` for ordinary POSTed variables. A token carrying newline/control bytes could reach the restore rules file.
-- Fix: `firewall_icmp_type_is_safe()` accepts decimal digits only and bounds the numeric value to 0..255 with overflow-safe accumulation; invalid tokens are skipped before the rule `fprintf()`. Production call-site integration is in `firewall_ex.c`; C regression and workflow wiring assertions were added. Final source preserves the original C `\n` newline escape.
-- Relevant commits: test include repair `ed5b3a270205857220ba49e641b232da0fbf2de0`; ICMP helper `3f99db8651379751753e6125e917b86b7ba9adc9`; initial call-site integration `e713e06d65bced142cdd3a00b46007a9a24ce990`; regression cases `b0d8e11d3829ac836e577d9b4463e364b498e709`; workflow source-wiring assertion `5296929c05bef7d8828612abe1be7cc5228a1d3d`; final newline-escape correction `895a1700fb498a5f9ec190a83b7282e5adb19416`.
-- Local validation: exact fetched policy header + C regression compiled with `cc -std=gnu89 -Wall -Wextra -Werror` and executed successfully (**PASS**). This verifies the policy helper executable only; it does not compile production `firewall_ex.c` or run the whole workflow.
-- Actions status for current code HEAD: combined commit status is empty. The connected workflow-run query only returns PR-triggered runs and returned no run for the current push; the current push run ID/result is **PENDING / NOT RETRIEVED**. The old run `42387739482` remains failed on its old exact SHA; do not claim current CI passed until a run is found and its head SHA/steps are checked.
-- Validation levels: focused GNU89 policy test **PASS**; current full Actions/source-wiring result **PENDING / NOT RETRIEVED**; production source/target compilation **NOT RUN**; XY-C1 firmware artifact/runtime/hardware **NOT RUN**.
-- Firewall remains **AUDITING**. Additional unresolved direct interpolation sites include raw port strings from `portrange_conv()`, TCP flag suffixes from `protoflag_conv()`, VTS port/protocol-number rules, and date/time-derived rule arguments. Also open: complete NVRAM-to-iptables/ip6tables sweep, shell command construction, chain lifecycle/rollback, IPv4/IPv6 parity.
- 
+- Code/workflow HEAD before this handoff update: 551ac54f3d605c71f334b7c6163d393de15e93aa. Re-fetch live main before follow-on work because this documentation commit creates a later HEAD.
+- Recovered the unfinished firewall input audit from the previous handoff. The previous round had fixed URL-pattern quoting/control-byte injection and ICMP-token injection, but raw port/protocol/TCP-flag/schedule arguments and current Actions verification remained open.
+- Completed the bounded input pass in trunk/user/rc/src/firewall_ex.c with reusable validators in firewall_filter_policy.h: ICMP type 0..255; filter-LW port numbers/ranges; TCP flag suffix allowlist; numeric IP protocol 0..255; virtual-server public port/local-port/protocol-number; weekday bitset and HHMMHHMM schedule validation. Invalid rule fields are rejected before affected rules are formatted.
+- Expanded tests/firewall_filter_policy.c for valid boundaries, numeric overflow, malformed/reversed ranges, disallowed separators and control bytes, TCP flag allowlist bypasses, weekday shape and invalid time fields. Added source-wiring assertions to the HTTPD Security workflow.
+- Final matching Actions run: HTTPD Authentication and Security Regression 42389819329, completed/success, exact head SHA 551ac54f3d605c71f334b7c6163d393de15e93aa. Both GNU89 compile-and-run policy regressions and the complete HTTPD/firewall source-wiring step passed.
+- Recovery trail: validator/call-site/tests commit 6419f7602771aa1dc33ebd58fbaad89aa2073cf6; policy-header string.h dependency correction 87b732a57d9038d9cc7e233d8d32f9b8fb97338b; workflow assertion fixes aa9d424a2d08dc584bac40143d45a871e7a9136d and 551ac54f3d605c71f334b7c6163d393de15e93aa.
+- Important schedule caveat: malformed date/time returns an empty match suffix, so the legacy builder emits an unqualified/all-time rule. Malformed bytes no longer reach iptables-restore text, but an explicit fail-closed schedule policy remains open.
+- Remote checkpoint comparison at this HEAD: refactor/bstream-tag-wire 1 ahead / 459 behind (SkipDBv2 BStreamTag/test/CI); refactor/dbapi-result-20261105 8 ahead / 540 behind (SkipDBv2 DBAPI/test/CI); refactor/dynlib-lifecycle 0 ahead / 463 behind; refactor/sorting-boundaries 0 ahead / 459 behind; refactor/uarray-character-ctype 2 ahead / 457 behind (SkipDBv2 UArray/test/CI). All outstanding deltas are stale and hundreds of commits behind; none is a firewall/HTTPD handoff.
+- Firewall remains AUDITING. Remaining work includes other NVRAM-to-iptables/ip6tables sinks, interface/address arguments, shell construction, chain initialization/rollback, failure recovery and IPv6 parity.
+- This is host regression/source-contract evidence only. Production firewall_ex.c target compilation, XY-C1 MIPS build, firmware artifact inspection, runtime restore testing and hardware validation are NOT RUN / NOT VERIFIED.
+
 ### Next exact actions
 
-1. Retrieve the push-triggered HTTPD Security run for current main and verify exact head SHA, compile/test step and Python source-wiring step. If it failed, read logs and fix the actual cause; do not weaken guards or describe the old run as current verification.
-2. Continue the firewall pass on `portrange_conv()`, `protoflag_conv()`, VTS port/protocol values and date/time arguments; add only format-appropriate allowlists and regression cases, then inspect all remaining restore command inputs and failure rollback.
-3. Run the supported `make XY-C1 TOOLCHAIN=mipsel-linux-musl` only when actually executed and inspect the produced firmware image; L3/L4 remain unverified.
-4. After closing this bounded firewall input pass, move to P1 CGI `SystemCmd`/script dispatch and broaden DNS/DHCP, WAN/PPP/IPv6 and system service lifecycle auditing. Do not get trapped in SkipDBv2-only work.
-
+1. Start the next P1 audit at CGI sys_script() / SystemCmd and privileged script dispatch. Trace request variables to eval/_eval/doSystem and filesystem writes; identify a bounded unsafe sink and add a regression.
+2. Continue HTTPD session/authorization coverage and privileged RC interfaces, then DNS/DHCP, WAN/PPP/IPv6 and service lifecycle audits.
+3. Return to firewall for all remaining restore sinks, IPv6 parity and explicit invalid-schedule policy semantics; do not mark the module audited.
+4. Run make XY-C1 TOOLCHAIN=mipsel-linux-musl only when actually executed and inspect the resulting firmware image. L3/L4 remain unverified.
+5. Keep the roadmap, handoff and development log synchronized after each bounded task. Do not resume routine SkipDBv2 expansion while higher-risk userland remains open.
 ---
 
 **Purpose:** resume work across ChatGPT conversations. GitHub is the source of truth; re-check all values below against live repository state before acting.

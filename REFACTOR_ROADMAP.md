@@ -4,7 +4,7 @@
 **Primary branch:** main  
 **Initial baseline before this governance bootstrap:** 412eebb4d0c36f9cbaf43921b4ce1f2056665984
 **Governance bootstrap commit:** 84e2fb77973393dd2804b9feb2d94b2ce74933c4 (verified on main)  
-**Roadmap status:** INVENTORY IN PROGRESS / HTTPD AUTH, SESSION, MIME, UPLOAD, ARCHIVE PATH AND CGI SERVICE-ID SCOPES HOST-VERIFIED; FIREWALL URL AND ICMP TOKEN GUARDS CODED WITH FOCUSED GNU89 POLICY TEST PASS; CURRENT-HEAD ACTIONS PENDING / NOT RETRIEVED; FIREWALL AUDIT AND WHOLE-REPO AUDIT INCOMPLETE
+**Roadmap status:** INVENTORY IN PROGRESS / HTTPD AUTH, SESSION, MIME, UPLOAD, ARCHIVE PATH AND CGI SERVICE-ID SCOPES HOST-VERIFIED; FIREWALL URL/ICMP/PORT/PROTOCOL/TCP-FLAG/SCHEDULE TOKEN GUARDS HOST-VERIFIED BY HTTPD SECURITY ACTIONS RUN 42389819329; FIREWALL AND WHOLE-REPOSITORY AUDITS INCOMPLETE
 
 ## Purpose and status semantics
 
@@ -41,7 +41,7 @@ Priorities:
 - Recovery: intermediate commit `8756f91b4bda529e11c3f39f1a71cdb540a3f816` was created from a stale tree and its HTTPD run `42381654753` failed during the existing C test compile. Fast-forward recovery `7fc9b5d7fee3f5dcb15310456e657e567714d75b` restored the real `71ff09d1e01d080b6b3b79e1ececa49ef3589bf5` tree plus only the two intended file edits; compare confirms exactly those two paths changed. Do not use the intermediate SHA as a valid source checkpoint.
 - HTTPD Security Regression run `42380444876` completed successfully against that exact code commit. It compiled and ran the C policy regression and passed the source-to-call-site wiring contract. It is a focused host regression, not a full HTTPD cross-build.
 - SkipDBv2 Regression run `42376349424` remains successful for its exact older head `412eebb4d0c36f9cbaf43921b4ce1f2056665984`; it is not evidence for the HTTPD changes.
-- Remote checkpoint branch comparison against main: `refactor/bstream-tag-wire` (1 ahead / 415 behind, SkipDBv2 BStreamTag/test/CI delta); `refactor/dbapi-result-20261105` (8 ahead / 496 behind, SkipDBv2 DBAPI delta); `refactor/dynlib-lifecycle` (0 ahead / 419 behind); `refactor/sorting-boundaries` (0 ahead / 415 behind); `refactor/uarray-character-ctype` (2 ahead / 413 behind, SkipDBv2 UArray/test/CI delta). These are old, heavily behind, SkipDBv2-only checkpoints; none is an HTTPD handoff. Their unmerged deltas were not blindly cherry-picked.
+- Remote checkpoint branch comparison against main at 551ac54f3d605c71f334b7c6163d393de15e93aa: refactor/bstream-tag-wire (1 ahead / 459 behind, SkipDBv2 BStreamTag/test/CI only); refactor/dbapi-result-20261105 (8 ahead / 540 behind, SkipDBv2 DBAPI/test/CI only); refactor/dynlib-lifecycle (0 ahead / 463 behind); refactor/sorting-boundaries (0 ahead / 459 behind); refactor/uarray-character-ctype (2 ahead / 457 behind, SkipDBv2 UArray/test/CI only). These are stale/behind; no unrelated branch delta was merged.
 
 - Main HEAD at initial bootstrap: 412eebb4d0c36f9cbaf43921b4ce1f2056665984.
 - The latest available SkipDBv2 Regression run at that HEAD was #669 / 42376349424, conclusion success, exact head SHA matched. The preceding conversation's job inspection reported 57/57 CTests passed.
@@ -58,7 +58,7 @@ Priorities:
 | CGI / ASP / Web templates | `trunk/user/httpd/src/{cgi.c,ej.c,web_ex.c,variables.c,common.c}`; `trunk/user/www/{dict,n56u_ribbon_fixed}` | P1 | AUDITING — unknown `sid_list` IDs now fail closed in `update_variables_ex()` and `apply_cgi()`; C regression and source wiring HOST-VERIFIED by run `42387172293`; EJ output/command/config dataflow remains unaudited | Continue `sys_script()`/`SystemCmd`, service/group mutation and output-encoding review; preserve the MIME auth matrix |
 | Authentication / session / authorization | `httpd.c::http_login_check/auth_check/get_login_safe`; `web_ex.c::mime_handlers/dump_file`; `httpd_basic_auth.h`; `httpd_login_policy.h` | P1 | AUDITING — disclosure gates and strict Basic parsing corrected; inactivity timeout now measures successful protected-route activity; IP-only ownership and route matrix remain open | Review logout/ACL behavior, same-NAT effects, and every conditional `need_auth` exception |
 | Privileged command/configuration interfaces | `web_ex.c::sys_script`, `trunk/user/rc/src/auth.c`, `services*.c`, NVRAM and shared helpers | P1 | NOT AUDITED — call sites inventoried only | Trace every external value to `eval`/`_eval`/`doSystem`/filesystem writes; review generated configuration escaping and source trust |
-| Firewall / NAT / QoS | `trunk/user/rc/src/firewall_ex.c`, `firewall_filter_policy.h`, `tests/firewall_filter_policy.c`; `trunk/user/iptables/**`; `ipset/**`; `sqm-qos/**` | P1 | AUDITING — URL tokens reject quote/backslash/control bytes; `filter_lw_icmp_x` tokens now require decimal 0..255 before `--icmp-type` output. Focused GNU89 policy test PASS locally. Previous CI failure was a missing test `<stddef.h>` on old SHA; current-head push run is PENDING / NOT RETRIEVED. Raw port/protocol interpolations and broader rule paths remain open | Verify current-head Actions; audit `portrange_conv()`, `protoflag_conv()`, VTS mappings, date/time tokens, IPv4/IPv6 parity, command construction and rollback |
+| Firewall / NAT / QoS | trunk/user/rc/src/firewall_ex.c, firewall_filter_policy.h, tests/firewall_filter_policy.c; trunk/user/iptables/**; ipset/**; sqm-qos/** | P1 | AUDITING — URL tokens reject quote/backslash/control bytes; ICMP types require decimal 0..255; filter-LW ports/TCP flags/protocol numbers and VTS ports/local ports/protocol numbers are allowlisted; weekday/time values have shape/range checks. GNU89 policy regressions plus HTTPD Security source-wiring workflow PASS on exact SHA 551ac54f3d605c71f334b7c6163d393de15e93aa (run 42389819329). Invalid schedule values still fall back to an unqualified/all-time rule; full firewall audit remains open | Continue all remaining NVRAM-to-iptables/ip6tables sinks, command/interface arguments, rollback, schedule fail-closed semantics and IPv6 parity; then privileged CGI audit |
 | DNS / DHCP / resolver integration | `trunk/user/{dnsmasq,dnsproxy,chinadns-ng,smartdns}/**`; RC service orchestration | P1/P2 | INVENTORIED — NOT AUDITED | Trace config generation, dynamic updates, DNS rebinding boundaries, leases, restart/rollback behavior |
 | WAN / PPP / routing / IPv6 | `trunk/user/rc/src/{net.c,net6.c,net_wan.c,net_wan6.c,net_ppp.c}`; `pppd`, `pppoe`, `rp-l2tp`, `xl2tpd`, `uqmi`, VPN packages | P1/P2 | INVENTORIED — NOT AUDITED | Trace state transitions, route/address parsing, helper arguments, and failure recovery |
 | Wireless management / MTK interfaces | `trunk/user/rc/src/{net_wifi.c,ralink.c,switch*.c}`; `wpa_supplicant`, `wireless-tools`, board/driver interfaces | P1/P2 | INVENTORIED — NOT AUDITED | Review ioctl buffers, scan/association parsing, credential/config escaping, and radio restart paths |
@@ -123,29 +123,36 @@ Priorities:
 - GitHub Actions: SkipDBv2 Regression run `42381700499`, conclusion **success**, exact same head `7fc9b5d7fee3f5dcb15310456e657e567714d75b`; integration contracts, configure, SkipDB target build, and regression tests passed. This workflow does not produce the full router firmware image.
 - No full HTTPD MIPS object build, XY-C1 firmware build, image inspection or hardware validation was run in this round.
 
-## Firewall / NAT / QoS — bounded NVRAM rule-token checkpoint (2026-11-07)
+## Firewall / NAT / QoS — NVRAM rule-token validation checkpoint (2026-11-07)
 
-### Findings and changes
+### Findings and production changes
 
-- The URL-filter path remains fixed by `259288902383060425b2288f0c1c4bd8f60012e3`: `include_webstr_filter()` no longer writes quote, backslash, DEL or ASCII control bytes from `url_keyword_xN` into a quoted `iptables-restore` rule.
-- The failed run `42387739482` is tied to the older exact head `259288902383060425b2288f0c1c4bd8f60012e3`; its first failing step was test compilation because the new test used `NULL` without including `<stddef.h>`. Commit `ed5b3a270205857220ba49e641b232da0fbf2de0` repairs the test include. Do not describe that old run as validating the corrected source.
-- A second P1 path was identified in `include_lw_filter()`: NVRAM `filter_lw_icmp_x` was split by the shared ASCII-space-only `foreach()` macro and copied directly into `--icmp-type %s`. The UI `validate_portlist()` is browser-side validation; HTTPD `validate_cgi()` stores posted ordinary variables via `nvram_set()`, so it is not a server-side constraint. Tokens containing control bytes or rule text could reach the restore file.
-- Added `firewall_icmp_type_is_safe()` in `firewall_filter_policy.h`; it accepts only decimal digits and numeric values 0..255 using overflow-safe accumulation. The C call site skips invalid tokens before `fprintf()`. Tests cover valid 0, 8, 255 and leading-zero values, plus NULL/empty/out-of-range and injection-shaped tokens.
-- Extended `.github/workflows/httpd-security.yml` to assert that the helper is wired into the production ICMP rule path before the write. The corrected C regression compiled and ran locally with `cc -std=gnu89 -Wall -Wextra -Werror`: **PASS**.
+- The URL-filter path rejects quote, backslash, DEL and ASCII control bytes from url_keyword_xN before values enter a quoted iptables-restore rule.
+- ICMP filter_lw_icmp_x tokens must be decimal values 0..255. This closes the ASCII-space-only tokenizer gap where tabs/newlines could remain inside a token and enter --icmp-type.
+- Added format-specific server-side allowlists at the production rule boundary:
+  - filter-LW source/destination ports: optional empty value or one decimal port / inclusive ordered low:high range, endpoints 1..65535.
+  - TCP flag suffix: empty or the fixed UI enum ALL/SYN/ACK/FIN/RST/URG/PSH.
+  - filter-LW and VTS protocol numbers: decimal IP protocol values 0..255.
+  - VTS public port: required single port or ordered range; translated local port: optional single port 1..65535.
+  - schedule date: exactly seven weekday bits; schedule time: exactly HHMMHHMM with valid hours and minutes.
+- Malformed port/protocol/flag entries are skipped before rule generation. The same checks are applied in virtual-server filter and DNAT generation; browser-side form validation is not treated as a server-side trust boundary.
+- Regression coverage includes numeric bounds/overflow, range ordering and shape, control-byte/newline injection, unsupported TCP flags, weekday shape and invalid hour/minute values.
+- Schedule caveat: malformed date/time currently yields an empty match suffix, preserving the legacy behavior where the rule is emitted without a time qualifier (all-time). Injection syntax is blocked, but a separate fail-closed schedule policy remains open.
 
 ### Exact checkpoint and verification
 
-- Current code HEAD before this roadmap update: `895a1700fb498a5f9ec190a83b7282e5adb19416`.
-- Implementation/test/workflow commits: `3f99db8651379751753e6125e917b86b7ba9adc9`, `e713e06d65bced142cdd3a00b46007a9a24ce990`, `b0d8e11d3829ac836e577d9b4463e364b498e709`, `5296929c05bef7d8828612abe1be7cc5228a1d3d`, `895a1700fb498a5f9ec190a83b7282e5adb19416`; test include correction: `ed5b3a270205857220ba49e641b232da0fbf2de0`.
-- Current-head combined status query returned no commit statuses; the connected workflow-run query only exposes PR-triggered runs and returned no run for this push. Current push Actions result is **PENDING / NOT RETRIEVED**. Last observed run `42387739482` failed on the old SHA for the missing include only.
-- Local policy unit-test compile/run is PASS. The full workflow, production `firewall_ex.c` target compilation, MIPS build, firmware artifact, runtime and hardware are not verified.
+- Code/workflow checkpoint: 551ac54f3d605c71f334b7c6163d393de15e93aa.
+- Validator/call-site/test commit: 6419f7602771aa1dc33ebd58fbaad89aa2073cf6. Policy-header string.h dependency correction: 87b732a57d9038d9cc7e233d8d32f9b8fb97338b. Workflow matcher/source-contract corrections: aa9d424a2d08dc584bac40143d45a871e7a9136d and 551ac54f3d605c71f334b7c6163d393de15e93aa.
+- HTTPD Authentication and Security Regression run 42389819329 completed success on the exact same SHA 551ac54f3d605c71f334b7c6163d393de15e93aa. Both Compile and run policy regression and Verify HTTPD auth and route-access wiring passed.
+- The C step compiled/executed the HTTPD private-key, Basic-auth, login-policy, service-ID, BusyBox archive-path and firewall-policy regression programs with cc -std=gnu89 -Wall -Wextra -Werror. The wiring step reported HTTPD MIME authorization, sid_list service-ID validation, stale upload cleanup, archive symlink-parent protection, URL, ICMP and expanded firewall token guards OK.
+- Earlier CI attempts exposed workflow/test harness issues and were repaired: missing policy-header string.h include, malformed source-contract line continuation, and an overly exact flag-guard substring assertion. The final exact-head run above is green.
+- This is host regression/source-contract evidence only. Production firewall_ex.c target compilation, XY-C1 MIPS build, firmware image inspection, runtime restore testing and hardware validation remain NOT RUN / NOT VERIFIED.
 
 ### Remaining firewall scope
 
-- Continue review of `portrange_conv()` values inserted into source/destination port rules, `protoflag_conv()` TCP flag suffixes, `vts_port_xN`/`vts_lport_xN` and `vts_protono_xN` used by `include_vts_filter()`/`include_vts_nat()`, plus date/time-derived rule arguments.
-- Review every remaining NVRAM-to-iptables/ip6tables restore interpolation, shell command construction, chain initialization/rollback and IPv4/IPv6 parity. This checkpoint does not close the Firewall/NAT/QoS module.
-- After this bounded pass, move to P1 CGI `SystemCmd`/script dispatch and expand DNS/DHCP, WAN/PPP/IPv6 and service lifecycle auditing rather than returning to routine SkipDBv2 work.
-
+- Firewall remains AUDITING. Continue tracing every remaining NVRAM-derived iptables-restore and ip6tables-restore argument outside the reviewed filter/VTS/schedule paths; inspect interface/address inputs, shell command construction, chain initialization, restore failures and rollback.
+- Review IPv6 independently. The current regression covers selected IPv4 rule builders and policy helpers; it does not establish full IPv6-path safety.
+- Next P1 scope is CGI sys_script() / SystemCmd and privileged script dispatch. Then continue DNS/DHCP, WAN/PPP/IPv6 and system service lifecycle auditing rather than routine SkipDBv2 expansion.
 ---
 
 ## Mandatory next work
