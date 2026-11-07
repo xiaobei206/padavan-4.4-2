@@ -276,6 +276,11 @@ static int test_date_compare_precision(void)
             fprintf(stderr, "Date_compare collapsed distinct whole seconds above double precision\\n");
             return 0;
         }
+        if (Date_secondsSince_(&later, &earlier) != 1.0 ||
+            Date_secondsSince_(&earlier, &later) != -1.0) {
+            fprintf(stderr, "Date_secondsSince collapsed a one-second delta above double precision\\n");
+            return 0;
+        }
     }
 
     {
@@ -300,6 +305,11 @@ static int test_date_compare_precision(void)
         if (Date_compare(&earlier, &later) != -1 ||
             Date_compare(&later, &earlier) != 1) {
             fprintf(stderr, "Date_compare collapsed distinct microseconds at a large timestamp\\n");
+            return 0;
+        }
+        if (fabs(Date_secondsSince_(&later, &earlier) - 0.000001) > 1e-12 ||
+            fabs(Date_secondsSince_(&earlier, &later) + 0.000001) > 1e-12) {
+            fprintf(stderr, "Date_secondsSince collapsed a microsecond delta at a large timestamp\\n");
             return 0;
         }
     }

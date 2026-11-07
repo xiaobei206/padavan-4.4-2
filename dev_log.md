@@ -1,3 +1,13 @@
+## 2026-11-07 13:08 CST — Preserve Date interval precision at large timestamps
+
+- Baseline: main commit `6ea543e8997971d94527d99cb702814652a9e57a`; Actions run #539 passed source contracts, configure, full build, and all CTest regressions.
+- Scope: `Date_secondsSince_()` in `basekit/Date.c`, the existing `date_time_init` precision test, and their source contracts.
+- The function subtracted two absolute timestamps only after converting each to `double`; above 2^53, adjacent whole seconds or microseconds can collapse to a zero interval even though `Date_compare()` retains exact ordering.
+- Compute the signed interval from the integer seconds delta first, splitting the unsigned delta into high/low 32-bit chunks before converting to `double`, then add the fractional-microsecond difference. This avoids signed integer subtraction overflow and preserves small intervals on platforms where `long double` is not wider than `double`.
+- Extend the existing precision test for ±1 second and ±1 microsecond at large timestamps. Existing CMake target reused; no new files or exported declarations. No local C build/CTest is claimed; mainline CI is the verification gate.
+
+---
+
 ## 2026-11-07 13:06 CST — Align PortableUsleep Windows detection
 
 - Baseline: main commit `ba87ea7a6ca9f8b5a2e08f0316651a58c076316b`; Actions run #538 passed source contracts, configure, full build, and all CTest regressions.

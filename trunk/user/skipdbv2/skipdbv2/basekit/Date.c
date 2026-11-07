@@ -12,6 +12,7 @@
 #include <time.h>
 #include <math.h>
 #include <limits.h>
+#include <stdint.h>
 #include "PortableStrptime.h"
 #include "UArray.h"
 
@@ -283,9 +284,29 @@ void Date_addSeconds_(Date *self, double s)
 
 double Date_secondsSince_(const Date *self, const Date *other)
 {
+	uintmax_t wholeSeconds;
+	double whole, fractional;
+
 	if (NULL == self || NULL == other)
 		return 0.0;
-	return Date_asSeconds(self) - Date_asSeconds(other);
+
+	/* Subtract whole seconds before converting to double, preserving small
+	 * deltas between timestamps beyond double's exact-integer range. */
+	fractional = ((double)self->tv.tv_usec -
+		(double)other->tv.tv_usec) / 1000000.0;
+	if (self->tv.tv_sec >= other->tv.tv_sec) {
+		wholeSeconds = (uintmax_t)self->tv.tv_sec -
+			(uintmax_t)other->tv.tv_sec;
+		whole = (double)(wholeSeconds >> 32) * 4294967296.0 +
+			(double)(wholeSeconds & UINT32_MAX);
+		return whole + fractional;
+	}
+
+	wholeSeconds = (uintmax_t)other->tv.tv_sec -
+		(uintmax_t)self->tv.tv_sec;
+	whole = (double)(wholeSeconds >> 32) * 4294967296.0 +
+		(double)(wholeSeconds & UINT32_MAX);
+	return fractional - whole;
 }
 
 // components --------------------------------------------------------
