@@ -2358,6 +2358,7 @@ start_firewall_ex(void)
 #endif
 	char logaccept[16], logdrop[16];
 	char wan_if[16], man_if[16], lan_if[16];
+	const char *man_if_value, *wan_if_value;
 	char wan_ip[16], man_ip[16], lan_ip[16], lan_net[24] = {0};
 	const char *opt_iptables_script = "/opt/bin/update_iptables.sh";
 	const char *int_iptables_script = SCRIPT_POST_FIREWALL;
@@ -2370,11 +2371,38 @@ start_firewall_ex(void)
 	unit = 0;
 
 	snprintf(lan_if, sizeof(lan_if), "%s", IFNAME_BR);
-	snprintf(man_if, sizeof(man_if), "%s", get_man_ifname(unit));
-	snprintf(wan_if, sizeof(wan_if), "%s", get_wan_unit_value(unit, "ifname_t"));
 
-	if (strlen(wan_if) < 1)
+	/* These names are interpolated into iptables-restore rule tokens. Validate
+	 * NVRAM-backed values before copying, and validate the fallback output
+	 * before use, so no newline or option-like token reaches a table writer. */
+	man_if_value = get_man_ifname(unit);
+	if (man_if_value && *man_if_value &&
+	    !firewall_interface_name_is_safe(man_if_value)) {
+		logmessage(LOGNAME, "Unsafe management interface token; refusing firewall rebuild");
+		return;
+	}
+	snprintf(man_if, sizeof(man_if), "%s", man_if_value ? man_if_value : "");
+
+	wan_if_value = get_wan_unit_value(unit, "ifname_t");
+	if (wan_if_value && *wan_if_value) {
+		if (!firewall_interface_name_is_safe(wan_if_value)) {
+			logmessage(LOGNAME, "Unsafe WAN interface token; refusing firewall rebuild");
+			return;
+		}
+		snprintf(wan_if, sizeof(wan_if), "%s", wan_if_value);
+	} else {
+		wan_if[0] = '\0';
 		get_wan_ifname(wan_if);
+	}
+
+	if (!firewall_interface_name_is_safe(wan_if)) {
+		logmessage(LOGNAME, "No safe WAN interface token; refusing firewall rebuild");
+		return;
+	}
+	if (!firewall_interface_name_is_safe(lan_if)) {
+		logmessage(LOGNAME, "No safe LAN interface token; refusing firewall rebuild");
+		return;
+	}
 
 	snprintf(lan_ip, sizeof(lan_ip), "%s", nvram_safe_get("lan_ipaddr"));
 	if (!firewall_ipv4_address_is_safe(lan_ip)) {
@@ -2393,6 +2421,11 @@ start_firewall_ex(void)
 	if (ppp_ifindex(wan_if) >= 0 && strcmp(man_if, wan_if)) {
 		if (wan_proto != IPV4_WAN_PROTO_PPPOE || get_wan_unit_value_int(unit, "pppoe_man") > 0)
 			i_use_man = 1;
+	}
+
+	if (i_use_man && !firewall_interface_name_is_safe(man_if)) {
+		logmessage(LOGNAME, "No safe management interface token; refusing firewall rebuild");
+		return;
 	}
 
 	/* mcast needs rp filter to be turned off only for non default iface */

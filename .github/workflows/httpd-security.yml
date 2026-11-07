@@ -861,6 +861,16 @@ jobs:
           assert firewall.count("firewall_ipv4_address_is_safe(") == 9
           assert "is_valid_ipv4(" not in firewall
           firewall_main_start = firewall.index("start_firewall_ex(void)")
+          # Interface names become bare -i/-o tokens in iptables-restore input.
+          assert "firewall_interface_name_is_safe" in firewall_policy
+          assert 'firewall_interface_name_is_safe("eth0\\n-A INPUT -j ACCEPT")' in firewall_test
+          assert 'firewall_interface_name_is_safe("ppp10+")' in firewall_test
+          assert 'if (!firewall_interface_name_is_safe(wan_if_value))' in firewall
+          assert 'if (man_if_value && *man_if_value &&' in firewall
+          assert 'if (i_use_man && !firewall_interface_name_is_safe(man_if))' in firewall
+          assert firewall.index("man_if_value = get_man_ifname(unit);", firewall_main_start) < firewall.index("ipt_raw_rules();", firewall_main_start)
+          assert firewall.index('wan_if_value = get_wan_unit_value(unit, "ifname_t");', firewall_main_start) < firewall.index("ipt_raw_rules();", firewall_main_start)
+          print("Firewall raw interface-token validation: OK")
           firewall_main_end = firewall.index(chr(10) + "}", firewall_main_start)
           firewall_main = firewall[firewall_main_start:firewall_main_end]
           lan_copy = firewall_main.index('snprintf(lan_ip, sizeof(lan_ip), "%s", nvram_safe_get("lan_ipaddr"));')

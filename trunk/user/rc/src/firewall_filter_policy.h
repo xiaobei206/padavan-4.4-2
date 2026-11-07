@@ -13,6 +13,40 @@ firewall_ipv4_address_is_safe(const char *value)
 	return value && inet_pton(AF_INET, value, &address) == 1;
 }
 
+/* Interface names become bare -i/-o tokens in iptables-restore files.
+ * Linux IFNAMSIZ is 16 bytes including NUL; permit ordinary interface
+ * characters and the conventional trailing '+' wildcard used by iptables. */
+static int
+firewall_interface_name_is_safe(const char *value)
+{
+	const unsigned char *p;
+	size_t len;
+
+	if (!value)
+		return 0;
+
+	len = strlen(value);
+	if (len == 0 || len > 15)
+		return 0;
+
+	p = (const unsigned char *)value;
+	if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+	      (*p >= '0' && *p <= '9')))
+		return 0;
+
+	for (; *p; ++p) {
+		if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+		    (*p >= '0' && *p <= '9') || *p == '_' || *p == '.' ||
+		    *p == ':' || *p == '-')
+			continue;
+		if (*p == '+' && p[1] == '\0')
+			return 1;
+		return 0;
+	}
+
+	return 1;
+}
+
 /* VPN lease interface names must be exact ppp<decimal-unit> tokens. */
 static int
 firewall_ppp_interface_is_safe(const char *value, unsigned int min_unit)
