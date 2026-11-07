@@ -365,6 +365,11 @@ jobs:
                   "\"truncated binary stream\"",
               ],
               "trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCache.c": [
+                  "void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)",
+                  "r->sdb != self",
+                  "r->sdb = NULL;",
+                  "r->object = NULL;",
+                  "(*f)(object);",
                   "void SkipDB_noteAccessedRecord_(SkipDB *self, SkipDBRecord *r)",
                   "PHash_at_(self->pidToRecord, (void *)SkipDBRecord_pid(r)) == r",
                   "static int SkipDB_cacheAgeListIsValid_(SkipDB *self)",
@@ -438,6 +443,9 @@ jobs:
                   "youngest->youngerRecord = oldest;",
                   "cyclic cache age list was not rejected before eviction",
                   "cache age-list cycle was not repaired during reopen cleanup",
+                  "static void reentrant_object_free(void *object)",
+                  "SkipDB_clearCache(reentrant_callback_db);",
+                  "cache teardown reentered object finalization or damaged the database",
                   "source->header=NULL;",
                   "commit proceeded with missing root record",
                   "transaction abort fixture write failed",
@@ -3108,6 +3116,34 @@ jobs:
               cleanup_repair < 0 or cleanup_repair > cleanup_body.find("while (self->youngestRecord)")
           ):
               raise SystemExit("SkipDB cache-age list must be bounded before eviction and normalized before teardown")
+
+          free_callback_start = cache_source.find(
+              "void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)"
+          )
+          free_callback_end = cache_source.find("\\n}", free_callback_start)
+          free_callback_body = (
+              cache_source[free_callback_start:free_callback_end]
+              if free_callback_start >= 0 and free_callback_end > free_callback_start
+              else ""
+          )
+          free_callback_order = [
+              free_callback_body.find(token) for token in (
+                  "r->sdb != self",
+                  "if (self->cachedRecordCount > 0)",
+                  "SkipDBRecord_removeFromAgeList(r);",
+                  "PHash_removeKey_(self->pidToRecord, (void *)SkipDBRecord_pid(r));",
+                  "r->sdb = NULL;",
+                  "r->object = NULL;",
+                  "if (f && object)",
+                  "(*f)(object);",
+              )
+          ]
+          if (
+              not free_callback_body or min(free_callback_order) < 0 or
+              free_callback_order != sorted(free_callback_order) or
+              not free_callback_body.rstrip().endswith("(*f)(object);")
+          ):
+              raise SystemExit("SkipDB cache records must be detached before reentrant object-free callbacks")
 
           record_write_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordWrite.c"

@@ -13,6 +13,17 @@ static int key_is(SkipDBRecord *record,const char *expected)
  Datum key;size_t size;if(!record)return 0;key=SkipDBRecord_keyDatum(record);size=strlen(expected)+1;
  return key.data!=NULL&&key.size==size&&memcmp(key.data,expected,size)==0;
 }
+static SkipDB *reentrant_callback_db = NULL;
+static int reentrant_callback_calls = 0;
+
+static void reentrant_object_free(void *object)
+{
+    (void)object;
+    ++reentrant_callback_calls;
+    if (reentrant_callback_calls == 1 && reentrant_callback_db)
+        SkipDB_clearCache(reentrant_callback_db);
+}
+
 int main(void)
 {
  SkipDB *source=NULL,*target=NULL;SkipDBCursor *cursor=NULL,*foreignCursor=NULL,*transferCursor=NULL;SkipDBRecord *record;
@@ -154,6 +165,33 @@ int main(void)
 			!value_is(source, "alpha", "updated") ||
 			!value_is(source, "gamma", "4")) {
 			fprintf(stderr, "cache age-list cycle was not repaired during reopen cleanup\n");
+			goto done;
+		}
+	}
+	/* A user object finalizer may reenter cache teardown. Its record must
+	 * already be detached so nested cleanup cannot finalize/free it twice. */
+	{
+		int object_token = 0;
+		SkipDBRecord *callback_record = SkipDB_recordAt_(
+			source, Datum_FromCString_("alpha"));
+
+		if (NULL == callback_record || callback_record == source->header) {
+			fprintf(stderr, "reentrant callback record fixture failed\n");
+			goto done;
+		}
+		SkipDB_noteAccessedRecord_(source, callback_record);
+		SkipDBRecord_object_(callback_record, &object_token);
+		reentrant_callback_db = source;
+		reentrant_callback_calls = 0;
+		SkipDB_freeObjectCallback_(source, reentrant_object_free);
+		SkipDB_clearCache(source);
+		SkipDB_freeObjectCallback_(source, NULL);
+		reentrant_callback_db = NULL;
+
+		if (reentrant_callback_calls != 1 || !SkipDB_isOpen(source) ||
+			SkipDB_count(source) != 3 || !value_is(source, "alpha", "updated") ||
+			!value_is(source, "gamma", "4")) {
+			fprintf(stderr, "cache teardown reentered object finalization or damaged the database\n");
 			goto done;
 		}
 	}

@@ -71,12 +71,14 @@ void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)
 {
 	SkipDBFreeObjectFunc *f;
 	void *object;
-	if (NULL == self || NULL == r)
+
+	if (NULL == self || NULL == r || r->sdb != self)
 		return;
+
 	f = self->objectFreeFunc;
 	object = SkipDBRecord_object(r);
-	if (f && object)
-		(*f)(object);
+
+	/* Detach before calling user code: the callback may reenter cache teardown. */
 	if (self->cachedRecordCount > 0)
 		self->cachedRecordCount--;
 	if (r == self->youngestRecord)
@@ -86,6 +88,14 @@ void SkipDB_noteWillFreeRecord_(SkipDB *self, SkipDBRecord *r)
 	if (self->pidToRecord && SkipDBRecord_pid(r) != 0 &&
 		PHash_at_(self->pidToRecord, (void *)SkipDBRecord_pid(r)) == r)
 		PHash_removeKey_(self->pidToRecord, (void *)SkipDBRecord_pid(r));
+
+	/* Make reentrant notifications and record mutations observe a detached row. */
+	r->sdb = NULL;
+	r->object = NULL;
+
+	/* No cache/database state is touched after this arbitrary user callback. */
+	if (f && object)
+		(*f)(object);
 }
 
 

@@ -1,3 +1,13 @@
+## 2026-11-07 15:20 CST — Detach SkipDB cache records before object-free callbacks
+
+- Baseline: `8d5c717bb6fd31aeb69ed5adf63261aa5a89dade`; SkipDBv2 Regression run #573 completed successfully.
+- Scope: `SkipDB_noteWillFreeRecord_` in `skipdb/SkipDBCache.c` and its existing core-layers regression.
+- The cache teardown path invoked the user-supplied object-free callback while the record was still linked in the age list and PID cache. If that callback reentered `SkipDB_clearCache()`, nested teardown could discover the same record again, invoke the callback twice, and free the record while the outer deallocator was still using it.
+- Validate record ownership, remove the record from the age list and PID cache, decrement the cache count, and clear its database/object association before invoking arbitrary callback code. No database/cache state is accessed after the callback.
+- Extend the existing `skipdb_core_layers` test with a callback that recursively clears the same database and requires exactly one finalization plus successful database recovery. Extend the existing Actions token and ordering contracts. The test is already registered in CMake; no new files, exported symbols, or build-list changes.
+- Static review confirms the database ownership guard and all cache detachment precede the callback; remote Actions remains the compiler/CTest gate. No local build is claimed.
+
+---
 ## 2026-11-07 15:08 CST — Preserve UArray path source-contract function discovery
 
 - Baseline: `3613cef7c01adac5480c3fbf1f1f0b45cad847d5`; run #572 completed its file-token checks but a legacy function-body contract failed before configure.
