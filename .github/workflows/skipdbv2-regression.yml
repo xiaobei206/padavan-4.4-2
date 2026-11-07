@@ -636,6 +636,7 @@ jobs:
                   "JFile_truncate_(truncate_file, 0);",
                   "truncate_file->maxPos != 0",
                   "truncate closed streams while a journal commit was pending",
+                  "char link_path[128] = {0};",
                   "test_path_setter_aliases",
                   "JFile_setLogPath_(paths, paths->path)",
                   'JFile_setPath_withExtension_(paths, paths->path, "db")',

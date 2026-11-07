@@ -207,7 +207,7 @@ int main(void)
 	size_t first_size = strlen(first) + 1;
 	size_t second_size = strlen(second) + 1;
 	char path[128];
-	char link_path[128];
+	char link_path[128] = {0};
 	long committed_log_end;
 	int path_len;
 	int result = EXIT_FAILURE;

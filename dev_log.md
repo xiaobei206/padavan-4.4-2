@@ -1,3 +1,12 @@
+## 2026-11-07 19:07 CST — Initialize the journal fixture cleanup path
+
+- Baseline: `a6b424eca9ad97f4584a06ef14f559685ae0b4f4`; SkipDBv2 Regression run #636 passed the source contracts, full build, and all 57 CTests.
+- Scope: failure cleanup in `tests/jfile_journal.c`.
+- The two earliest test guards jump to shared cleanup before `link_path` is populated, but cleanup always reads `link_path[0]` and may pass the uninitialized stack buffer to `unlink()`. A failure in an unrelated fixture could therefore trigger undefined behavior or target an unintended relative path.
+- Zero-initialize the path buffer; retain the existing conditional cleanup and add a source-contract needle so the invariant remains enforced. No new files or build changes; no local build is claimed.
+
+---
+
 ## 2026-11-07 19:05 CST — Guard Stack backing release during teardown
 
 - Baseline: `796411d5f2d86e9df3053c18942dc4d9d470c2ef`; SkipDBv2 Regression run #635 passed integration contracts, full build, and all 57 CTests.
@@ -13,7 +22,7 @@
 - Failed head: `6a20f802d6008c11dadadab8ca8d5b208087c165`; run #634 failed immediately and GitHub reported zero jobs/check runs, so no step-level log was available.
 - Root cause addressed in-place: the workflow had grown to 512783 characters and contained seven duplicate keys in the Python `checks` dictionary. Python keeps only each key's last value, so the earlier blocks were shadowed and added no effective validation.
 - Remove only those seven overwritten blocks, retaining every effective source-contract block, including the new PID-map extent and regression assertions. The workflow falls to 505807 characters; no C sources, tests, build targets, or workflow triggers are changed.
-- CI #634 remains the failure being repaired; the new main run is the validation gate.
+- CI #635 passed after the duplicate-contract cleanup, and #636 subsequently passed source contracts, configuration, the full build, and all 57 CTests.
 
 ---
 
