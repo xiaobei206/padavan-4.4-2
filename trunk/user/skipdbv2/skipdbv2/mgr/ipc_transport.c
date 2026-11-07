@@ -28,11 +28,15 @@ int skipdb_ipc_connect_unix(const char *sock_path)
     socklen_t address_len;
     struct sockaddr_un remote;
 
-    if (NULL == sock_path)
+    if (NULL == sock_path || '\0' == *sock_path) {
+        errno = EINVAL;
         return -1;
+    }
     path_len = strlen(sock_path);
-    if (path_len == 0 || path_len >= sizeof(remote.sun_path))
+    if (path_len >= sizeof(remote.sun_path)) {
+        errno = ENAMETOOLONG;
         return -1;
+    }
 #ifdef SOCK_CLOEXEC
     fd = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (fd < 0 && errno == EINVAL)

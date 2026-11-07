@@ -849,6 +849,8 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/mgr/ipc_transport.c": [
                   "static int skipdb_ipc_set_cloexec_(int fd)",
+                  "errno = EINVAL;",
+                  "errno = ENAMETOOLONG;",
                   "SOCK_CLOEXEC",
                   "flags | FD_CLOEXEC",
                   "saved_errno = errno;",
@@ -861,6 +863,8 @@ jobs:
                   "O_NONBLOCK",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/ipc_transport.c": [
+                  "errno != EINVAL",
+                  "errno != ENAMETOOLONG",
                   "(flags & FD_CLOEXEC) == 0",
                   "Unix socket descriptor is not close-on-exec",
                   "test_validation_and_buffer",

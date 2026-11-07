@@ -1,3 +1,13 @@
+## 2026-11-07 09:33 CST — Report deterministic errors for invalid IPC socket paths
+
+- Baseline: main commit `fbcb6aca8b763677dc7dde1ba71602a4a3625f3d`; SkipDBv2 Regression run #487 passed.
+- Scope: path validation in `skipdb_ipc_connect_unix()` in `mgr/ipc_transport.c`.
+- Null and empty socket paths, and paths too long for `sockaddr_un.sun_path`, previously returned `-1` without setting `errno`, leaving callers with stale/unrelated diagnostics.
+- Report `EINVAL` for null/empty paths and `ENAMETOOLONG` for overlong paths. Tighten the existing Unix-socket transport regression and the Actions source contract. Existing CMake/CTest registration is unchanged; no new files.
+- No local compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:32 CST — Preserve platform timezone declarations in DST regression
 
 - Baseline: main commit `fde8f11122c0c2bb1a909feaa646c169c281e421`; Regression run #486 failed while compiling `date_time_init_test`, before tests ran.

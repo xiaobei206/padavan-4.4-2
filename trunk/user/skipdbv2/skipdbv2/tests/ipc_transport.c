@@ -55,13 +55,17 @@ static int test_unix_connect(void)
     int seed = -1, listener = -1, client = -1, accepted = -1;
     socklen_t address_len;
 
-    if (skipdb_ipc_connect_unix(NULL) != -1 ||
-        skipdb_ipc_connect_unix("") != -1)
-        return -1;
+    errno = 0;
+    if (skipdb_ipc_connect_unix(NULL) != -1 || errno != EINVAL)
+        goto fail;
+    errno = 0;
+    if (skipdb_ipc_connect_unix("") != -1 || errno != EINVAL)
+        goto fail;
     memset(long_path, 'x', sizeof(long_path));
     long_path[sizeof(long_path) - 1] = '\0';
-    if (skipdb_ipc_connect_unix(long_path) != -1)
-        return -1;
+    errno = 0;
+    if (skipdb_ipc_connect_unix(long_path) != -1 || errno != ENAMETOOLONG)
+        goto fail;
 
     seed = mkstemp(path);
     if (seed < 0)
