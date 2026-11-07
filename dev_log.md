@@ -1,3 +1,24 @@
+## 2026-11-08 05:07 CST — Log firewall rule-file staging failures and preserve errno
+
+### Baseline and Actions
+- Base: `dda496751d51324469249079c58c7ee1db28f5ca`; implementation/test/workflow commit: `af4cb4a10fdcf8989321a7c41df2f261df1544a0`.
+- Exact-head Actions run [`42414162783`](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42414162783), head SHA `af4cb4a10fdcf8989321a7c41df2f261df1544a0`. All executable test steps are marked SUCCESS, including compilation/execution of the policy regression and the firewall rule-file, hook-file, and command-status checks; the workflow run itself was still `in_progress` at the last poll because its final post-checkout step had not completed. Final conclusion remains PENDING; re-check the exact run before relying on it.
+- Source changes were re-fetched from GitHub after commit. Static preflight confirmed 10 labelled open wrappers and 10 labelled finish wrappers, no direct unlogged rule-file calls remain in the 10 table writers, and the workflow asserts IPv6-specific restore/ICMPv6 wiring.
+
+### Changes
+1. `trunk/user/rc/src/firewall_rule_file.h`: `firewall_rule_file_finish()` now preserves the first meaningful flush/stream/close error across cleanup, supplies `EINVAL` for a null stream and `EIO` when an I/O failure has no usable errno, and still unlinks any incomplete rule file.
+2. `trunk/user/rc/src/firewall_ex.c`: all 10 IPv4/IPv6 rule-table writers use operation-labelled wrappers that log failure to create the private staging file or flush/close it separately from the existing restore-command failure logger. An incomplete rule file is still never applied.
+3. `trunk/user/rc/src/tests/firewall_rule_file.c`: added a regression that forces a descriptor/write-close failure, asserts a nonzero errno is preserved, and asserts the incomplete staged file is removed.
+4. `.github/workflows/httpd-security.yml`: source contracts cover all 10 wrappers and assert the bounded IPv6 family checks, including `ip6tables-restore`, ICMPv6 type handling and the `ip6table_mangle` gate.
+
+### Restore/IPv6 audit and validation boundaries
+- Bounded static review compared the IPv4 and IPv6 filter/restore paths. The inspected IPv6 path uses protocol number 58 with `--icmpv6-type`, uses the IPv6 restore binary, and checks `ip6table_mangle`; family-specific differences such as DHCPv6 and the IPv6 forwarding/pinhole path remain intentional candidates for continuing rule-by-rule review. This is not a complete firewall semantic-parity certification.
+- No automatic cross-table rollback was added. The startup path applies individual IPv4 and IPv6 tables with sequential restore commands. A correct rollback would need a coordinated snapshot/generation boundary across tables and add-on/dynamic rule writers; simply replaying stale snapshots can overwrite concurrent UPnP or service rule changes. Existing command failures remain logged per operation. Treat rollback/transactionality as unresolved pending a safe design, not as fixed.
+- L1 static review/preflight: PASS. L2: the workflow's compile/test steps were SUCCESS at last poll, but overall run conclusion PENDING. L3 MIPS/firmware build and L4 router hardware validation: NOT RUN.
+
+### Next action
+Re-check run `42414162783` on exact SHA `af4cb4a10fdcf8989321a7c41df2f261df1544a0`. Do not add uncoordinated multi-table rollback. Close the bounded IPv6 restore-dispatch checks, then broaden to DNS/DHCP and WAN/PPP/service lifecycle instead of returning to SkipDBv2-only work.
+
 ## 2026-11-08 04:51 CST — Validate root extension hooks before firewall dispatch
 
 ### Baseline and CI
