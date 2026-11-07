@@ -693,10 +693,30 @@ jobs:
           assert "fchmod(fd, S_IRUSR | S_IWUSR)" in firewall_rule_file
           assert "fflush(fp)" in firewall_rule_file and "ferror(fp)" in firewall_rule_file
           assert "fclose(fp)" in firewall_rule_file and "unlink(path)" in firewall_rule_file
-          assert firewall.count("firewall_rule_file_open(ipt_file)") == 10
+          assert firewall.count("firewall_open_rule_file(ipt_file,") == 10
+          assert firewall.count("firewall_rule_file_open(ipt_file)") == 0
+          assert "cannot create private rule file" in firewall
           assert firewall.count('fopen(ipt_file, "w")') == 0
-          assert firewall.count("firewall_rule_file_finish(fp, ipt_file)") == 10
+          assert firewall.count("firewall_finish_rule_file(fp, ipt_file,") == 10
+          assert firewall.count("firewall_rule_file_finish(fp, ipt_file)") == 0
+          assert "cannot flush/close private rule file" in firewall
           assert firewall.count("firewall_rule_file_remove(ipt_file)") == 10
+          # IPv4/IPv6 firewall generation is intentionally staged separately.
+          # Verify protocol-family-specific restore and ICMPv6 behavior so a
+          # copy/paste regression cannot silently route IPv6 through iptables.
+          ip6_filter_start = firewall.index("ip6t_filter_rules(")
+          ip6_filter_end = firewall.index("ip6t_filter_default(", ip6_filter_start)
+          ip6_filter = firewall[ip6_filter_start:ip6_filter_end]
+          assert 'firewall_open_rule_file(ipt_file, "IPv6 filter")' in ip6_filter
+          assert 'firewall_finish_rule_file(fp, ipt_file, "IPv6 filter")' in ip6_filter
+          assert 'doSystem("ip6tables-restore %s", ipt_file)' in ip6_filter
+          assert '-p %d ! --icmpv6-type %s' in ip6_filter
+          assert 'doSystem("iptables-restore %s", ipt_file)' not in ip6_filter
+          ip6_mangle_start = firewall.index("ip6t_mangle_rules(")
+          ip6_nat_start = firewall.index("ip6t_nat_rules(", ip6_mangle_start)
+          ip6_mangle = firewall[ip6_mangle_start:ip6_nat_start]
+          assert 'is_module_loaded("ip6table_mangle")' in ip6_mangle
+          assert 'is_module_loaded("iptable_mangle")' not in ip6_mangle
           assert all(f'"/tmp/{name}"' not in firewall for name in (
               "ipt_filter.rules", "ipt_filter.default", "ipt_mangle.rules",
               "ipt_raw.rules", "ip6t_filter.rules", "ip6t_filter.default",

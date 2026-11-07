@@ -13,8 +13,11 @@ main(void)
 	char directory[] = "/tmp/firewall-rule-file-test.XXXXXX";
 	char legacy_path[256], sentinel_path[256], template_path[256];
 	char actual_path[256], contents[64];
-	FILE *fp;
+	char failure_template[] = "/tmp/firewall-rule-file-fail.XXXXXX";
+	char failure_path[256];
+	FILE *fp, *failure_fp;
 	struct stat st;
+	int finish_result, finish_errno;
 
 	assert(mkdtemp(directory) != NULL);
 	assert(snprintf(legacy_path, sizeof(legacy_path), "%s/ipt_filter.rules", directory) > 0);
@@ -55,6 +58,20 @@ main(void)
 	assert(fclose(fp) == 0);
 	assert(unlink(legacy_path) == 0);
 	assert(unlink(sentinel_path) == 0);
+	/* A write/close failure must remove the incomplete rules and preserve errno. */
+	failure_fp = firewall_rule_file_open(failure_template);
+	assert(failure_fp != NULL);
+	assert(snprintf(failure_path, sizeof(failure_path), "%s", failure_template) > 0);
+	assert(fputs("incomplete rules\n", failure_fp) >= 0);
+	assert(close(fileno(failure_fp)) == 0);
+	errno = 0;
+	finish_result = firewall_rule_file_finish(failure_fp, failure_template);
+	finish_errno = errno;
+	assert(finish_result == -1);
+	assert(finish_errno != 0);
+	assert(failure_template[0] == '\0');
+	assert(access(failure_path, F_OK) != 0 && errno == ENOENT);
+
 	assert(rmdir(directory) == 0);
 	return 0;
 }

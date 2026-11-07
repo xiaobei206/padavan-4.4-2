@@ -46,24 +46,36 @@ static int
 firewall_rule_file_finish(FILE *fp, char *path)
 {
 	int failed = 0;
+	int saved_errno = 0;
+
 	if (!fp) {
 		if (path && path[0]) {
 			unlink(path);
 			path[0] = '\0';
 		}
+		errno = EINVAL;
 		return -1;
 	}
-	if (fflush(fp) != 0)
+	if (fflush(fp) != 0) {
 		failed = 1;
-	if (ferror(fp))
+		saved_errno = errno;
+	}
+	if (ferror(fp)) {
 		failed = 1;
-	if (fclose(fp) != 0)
+		if (!saved_errno)
+			saved_errno = errno ? errno : EIO;
+	}
+	if (fclose(fp) != 0) {
+		if (!saved_errno)
+			saved_errno = errno;
 		failed = 1;
+	}
 	if (failed) {
 		if (path && path[0]) {
 			unlink(path);
 			path[0] = '\0';
 		}
+		errno = saved_errno ? saved_errno : EIO;
 		return -1;
 	}
 	return 0;
