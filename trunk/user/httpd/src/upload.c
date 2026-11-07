@@ -33,6 +33,7 @@
 
 #include "common.h"
 #include "httpd.h"
+#include "httpd_upload_file.h"
 
 #ifndef O_BINARY
 #define O_BINARY	0
@@ -233,7 +234,7 @@ do_upload_file(FILE *stream, int clen, char *bndr, const char *fn, const char *o
 			break;
 	}
 
-	if (!(fp = fopen(fn, "w+")))
+	if (!(fp = httpd_upload_open_exclusive(fn)))
 		goto err;
 
 	max_payload_len = clen;

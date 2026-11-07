@@ -5,10 +5,10 @@ mtd_part_name="Storage"
 mtd_part_dev="/dev/mtdblock5"
 mtd_part_size=65536
 dir_storage="/etc/storage"
-slk="/tmp/.storage_locked"
-tmp="/tmp/storage.tar"
+slk="/home/root/.storage_locked"
+tmp="/home/root/.storage.tar"
 tbz="${tmp}.bz2"
-hsh="/tmp/hashes/storage_md5"
+hsh="/home/root/.storage_md5"
 
 func_get_mtd()
 {
@@ -50,7 +50,7 @@ func_load()
 	fsz=`stat -c %s $tmp 2>/dev/null`
 	if [ -n "$fsz" ] && [ $fsz -gt 0 ] ; then
 		md5sum $tmp > $hsh
-		tar xf $tmp -C $dir_storage 2>/dev/null
+		tar xf "$tmp" -C "$dir_storage" 2>/dev/null
 	else
 		result=1
 		rm -f $hsh
@@ -88,7 +88,7 @@ func_save()
 	fi
 	md5sum $tmp > $hsh
 	bzip2 -9 $tmp 2>/dev/null
-	fsz=`stat -c %s $tbz 2>/dev/null`
+	fsz=`stat -c %s "$tbz" 2>/dev/null`
 	if [ -n "$fsz" ] && [ $fsz -ge 16 ] && [ $fsz -le $mtd_part_size ] ; then
 		mtd_write write $tbz $mtd_part_name
 		if [ $? -eq 0 ] ; then
@@ -125,7 +125,7 @@ func_restore()
 
 	[ ! -f "$tbz" ] && exit 1
 
-	fsz=`stat -c %s $tbz 2>/dev/null`
+	fsz=`stat -c %s "$tbz" 2>/dev/null`
 	if [ -z "$fsz" ] || [ $fsz -lt 16 ] || [ $fsz -gt $mtd_part_size ] ; then
 		result=1
 		rm -f $tbz
@@ -133,21 +133,30 @@ func_restore()
 		return 1
 	fi
 
-	tmp_storage="/tmp/storage"
-	rm -rf $tmp_storage
-	mkdir -p -m 755 $tmp_storage
-	tar xjf $tbz -C $tmp_storage 2>/dev/null
+	tmp_storage="/home/root/.storage-restore"
+	restore_suffix=0
+	while ! mkdir -m 700 "$tmp_storage" 2>/dev/null; do
+		restore_suffix=$((restore_suffix + 1))
+		if [ "$restore_suffix" -gt 999 ]; then
+			result=1
+			rm -f "$tbz"
+			logger -t "Storage restore" "Cannot allocate private restore scratch directory"
+			return 1
+		fi
+		tmp_storage="/home/root/.storage-restore-$restore_suffix"
+	done
+	tar xjf "$tbz" -C "$tmp_storage" 2>/dev/null
 	if [ $? -ne 0 ] ; then
 		result=1
 		rm -f $tbz
-		rm -rf $tmp_storage
+		rm -rf "$tmp_storage"
 		logger -t "Storage restore" "Unable to extract BZ2 file: $tbz"
 		return 1
 	fi
 	if [ ! -f "$tmp_storage/start_script.sh" ] ; then
 		result=1
 		rm -f $tbz
-		rm -rf $tmp_storage
+		rm -rf "$tmp_storage"
 		logger -t "Storage restore" "Invalid content of BZ2 file: $tbz"
 		return 1
 	fi
@@ -158,8 +167,8 @@ func_restore()
 	rm -f $tbz
 	rm -rf $dir_storage
 	mkdir -p -m 755 $dir_storage
-	cp -rf $tmp_storage /etc
-	rm -rf $tmp_storage
+	cp -rf "$tmp_storage"/. "$dir_storage"/
+	rm -rf "$tmp_storage"
 
 	func_start_apps
 }
