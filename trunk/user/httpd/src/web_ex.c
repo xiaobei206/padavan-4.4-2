@@ -340,6 +340,13 @@ sys_script(char *name)
 		size_t name_len;
 		int argc = 0, path_len;
 
+		/* This fallback executes arbitrary /tmp scripts as root. Keep the
+		 * fixed named handlers above available under their existing policy,
+		 * but require a trusted LAN/HTTPS session for generic script dispatch.
+		 */
+		if (!get_login_safe())
+			return;
+
 		if (!name)
 			return;
 		name_len = strlen(name);
