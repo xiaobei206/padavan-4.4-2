@@ -45,6 +45,10 @@ int main(void)
     char space_hour24_format[] = "%k";
     char space_hour12_format[] = "%l";
     char composite_date_format[] = "%C";
+    char unsupported_input[] = "opaque";
+    char unsupported_format[] = "%Q";
+    char timezone_input[] = "+0800";
+    char timezone_format[] = "%z";
 
     memset(&parsed, 0, sizeof(parsed));
     if (io_strptime(NULL, format, &parsed) != NULL ||
@@ -57,6 +61,13 @@ int main(void)
     if (NULL == io_strptime(valid, format, &parsed) ||
         parsed.tm_year != 124 || parsed.tm_mon != 10 || parsed.tm_mday != 6) {
         fprintf(stderr, "valid date did not parse correctly\n");
+        return EXIT_FAILURE;
+    }
+
+    memset(&invalid, 0, sizeof(invalid));
+    if (io_strptime(unsupported_input, unsupported_format, &invalid) != NULL ||
+        io_strptime(timezone_input, timezone_format, &invalid) != NULL) {
+        fprintf(stderr, "unsupported strptime conversion directive was silently accepted\\n");
         return EXIT_FAILURE;
     }
 

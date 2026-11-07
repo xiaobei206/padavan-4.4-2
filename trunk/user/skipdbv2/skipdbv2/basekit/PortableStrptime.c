@@ -363,6 +363,10 @@ char *io_strptime(char *buf, char *fmt, struct tm *tm)
 						tm->tm_mon = i;
 						buf += len;
 						break;
+
+				default:
+						/* Never report success for an unsupported directive. */
+						return NULL;
 				}
 		}
 

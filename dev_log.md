@@ -1,3 +1,14 @@
+## 2026-11-07 13:41 CST — Reject unsupported PortableStrptime directives
+
+- Baseline: main commit `5621c6f0e847c743ba6f5dee99341239b2234840`; SkipDBv2 Regression run #548 passed source contracts, configure, the complete build, and all CTest cases.
+- Scope: conversion-specifier dispatch in `basekit/PortableStrptime.c` and the existing `portable_strptime_bounds_test`.
+- The parser's switch had no default branch. An unsupported directive such as `%Q` or an unimplemented standard directive such as `%z` was silently skipped, allowing an invalid format to return a successful input cursor without consuming the directive's expected data.
+- Add an explicit rejection path for unsupported conversion specifiers. Exercise both an unknown directive and an unsupported timezone directive in the existing boundary test; retain all supported directive behavior unchanged.
+- Reuse the existing CMake test registration and add a workflow source contract for the rejection branch. No new files or exported declarations.
+- Static preflight: confirmed the default branch is inside the format dispatch switch, invalid formats return NULL, both cases are exercised, and the CTest target is already registered. No local compiler/CTest run is claimed; mainline Actions is the verification gate.
+
+---
+
 ## 2026-11-07 13:35 CST — Recover absorbing all-zero RandomGen state
 
 - Baseline: main commit `705ea49e1d3943ec002cd147a35b5674e9f0b2e4`; SkipDBv2 Regression run #547 passed source contracts, configure, the complete build, and all CTest cases.
