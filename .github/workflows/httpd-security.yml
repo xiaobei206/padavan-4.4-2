@@ -39,6 +39,9 @@ on:
       - "trunk/user/rc/src/tests/firewall_rule_file.c"
       - "trunk/user/rc/src/firewall_hook_file.h"
       - "trunk/user/rc/src/tests/firewall_hook_file.c"
+      - "trunk/user/rc/src/firewall_command_status.h"
+      - "trunk/user/rc/src/tests/firewall_command_status.c"
+      - "trunk/user/shared/src/shutils.c"
       - "trunk/user/adbyby/adbyby.sh"
       - "trunk/user/adbyby/tests/firewall_snapshot.sh"
   pull_request:
@@ -79,6 +82,9 @@ on:
       - "trunk/user/rc/src/tests/firewall_rule_file.c"
       - "trunk/user/rc/src/firewall_hook_file.h"
       - "trunk/user/rc/src/tests/firewall_hook_file.c"
+      - "trunk/user/rc/src/firewall_command_status.h"
+      - "trunk/user/rc/src/tests/firewall_command_status.c"
+      - "trunk/user/shared/src/shutils.c"
       - "trunk/user/adbyby/adbyby.sh"
       - "trunk/user/adbyby/tests/firewall_snapshot.sh"
   workflow_dispatch:
@@ -199,6 +205,49 @@ jobs:
           assert "/tmp/adbyby.save" not in adbyby
           assert "mkdir -p -m 700 /home/root" in dev_init
           print("Add-on firewall hook provenance, private staging and snapshot contracts: OK")
+          PY
+
+      - name: Check firewall command status reporting
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -Itrunk/user/rc/src \
+            trunk/user/rc/src/tests/firewall_command_status.c \
+            -o /tmp/firewall_command_status
+          /tmp/firewall_command_status
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          firewall = Path("trunk/user/rc/src/firewall_ex.c").read_text()
+          status_helper = Path("trunk/user/rc/src/firewall_command_status.h").read_text()
+          status_test = Path("trunk/user/rc/src/tests/firewall_command_status.c").read_text()
+          shutils = Path("trunk/user/shared/src/shutils.c").read_text()
+
+          # doSystem() returns system(3)'s encoded wait status, not a plain
+          # shell exit code. Require every built-in and add-on restore to be
+          # wrapped so failures are visible in the router log.
+          assert "return system(cmd_buf);" in shutils
+          assert '#include "firewall_command_status.h"' in firewall
+          assert "WIFEXITED(status)" in status_helper
+          assert "WEXITSTATUS(status)" in status_helper
+          assert "WIFSIGNALED(status)" in status_helper
+          assert "firewall_command_status_signal(SIGTERM)" in status_test
+          restore_calls = re.findall(
+              r'firewall_log_command_failure\("[^"]*restore",\s*doSystem\("(?:ip6tables-restore|iptables-restore)[^"]*"',
+              firewall
+          )
+          assert len(restore_calls) == 11, len(restore_calls)
+          assert not re.search(r'^\s*doSystem\("(?:ip6tables-restore|iptables-restore)', firewall, re.M)
+          for call in (
+              'firewall_log_command_failure("Shadowsocks firewall hook", doSystem("sh %s", shadowsocks_staged));',
+              'firewall_log_command_failure("Persistent post-firewall hook", doSystem("%s", int_iptables_script));',
+              'firewall_log_command_failure("Optware iptables update hook", doSystem("%s update", opt_iptables_script));',
+              'firewall_log_command_failure("Adbyby iptables restore", doSystem("iptables-restore -n %s", adbyby_iptables));'
+          ):
+              assert call in firewall
+          assert firewall.count("firewall_log_command_failure(") == 15
+          print("Firewall restore and extension command failures are reported: OK")
           PY
 
       - name: Check root-managed executable script staging
