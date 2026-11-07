@@ -197,6 +197,8 @@ MemoryBlock *MemoryBlock_reallocToSize_(MemoryBlock *self, size_t size)
 	newBlock->size = size;
 	MemoryBlock_insertAfter_(newBlock, prev);
 	allocatedBytes = newAllocatedBytes;
+	if (allocatedBytes > maxAllocatedBytes)
+		maxAllocatedBytes = allocatedBytes;
 	reallocs++;
 	return newBlock;
 }

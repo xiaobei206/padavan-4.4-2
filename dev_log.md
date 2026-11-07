@@ -1,3 +1,13 @@
+## 2026-11-07 09:12 CST — Track realloc growth in allocator high-water accounting
+
+- Baseline: main commit `f0cb6e3992ac99efff7d320aeeaba990750e7b46`; SkipDBv2 Regression run #478 passed.
+- Scope: tracked allocation resize in `basekit/Common.c`.
+- `MemoryBlock_newWithSize_file_line_()` updated `maxAllocatedBytes`, but successful `MemoryBlock_reallocToSize_()` only changed the current byte total. A realloc that grew the live heap could therefore leave the advertised peak-memory statistic stale until a later allocation happened to exceed it.
+- Update the high-water mark after the realloc succeeds and the current total is committed. Extend the existing `common_alloc.c` regression and Actions source contract to assert that growing 16 bytes to 32 immediately raises the peak to 32. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 09:04 CST — Reject malformed UArray stack-range layouts
 
 - Baseline: main commit `d50b95ba0f2abd1d4262c0125d365c3b9d9e9579`; SkipDBv2 Regression run #477 passed.

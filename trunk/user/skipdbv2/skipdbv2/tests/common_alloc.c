@@ -76,8 +76,9 @@ int main(void)
 
     resized = (unsigned char *)io_realloc(tracked, 32);
     if (NULL == resized || io_allocatedBytes() != 32 ||
+        io_maxAllocatedBytes() != 32 ||
         resized[0] != 0x5a || resized[15] != 0x5a) {
-        fprintf(stderr, "successful realloc did not preserve data and accounting\n");
+        fprintf(stderr, "successful realloc did not preserve data and peak accounting\n");
         if (resized)
             io_free(resized);
         else

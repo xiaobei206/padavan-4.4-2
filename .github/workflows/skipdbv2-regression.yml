@@ -2180,6 +2180,8 @@ jobs:
                   "io_calloc((size_t)-1 / 2 + 1, 2)",
                   "io_realloc(tracked, (size_t)LONG_MAX)",
                   "failed realloc lost the original tracked block or counters",
+                  "io_maxAllocatedBytes() != 32",
+                  "successful realloc did not preserve data and peak accounting",
                   "cpalloc(resized, 32)",
                   "io_show_mem(\"tracked allocation diagnostics\");",
                   "io_showUnfreed();",
@@ -4265,6 +4267,13 @@ jobs:
           if (not realloc_body or detach < 0 or call < detach or failure < call or
                   restore < failure or "allocatedBytes = newAllocatedBytes;" not in realloc_body[restore:]):
               raise SystemExit("tracked realloc must preserve and relink the original block when realloc fails")
+          accounting_update = realloc_body.find("allocatedBytes = newAllocatedBytes;")
+          peak_update = realloc_body.find("if (allocatedBytes > maxAllocatedBytes)")
+          peak_assignment = realloc_body.find("maxAllocatedBytes = allocatedBytes;", peak_update)
+          realloc_return = realloc_body.find("return newBlock;")
+          if (min(accounting_update, peak_update, peak_assignment, realloc_return) < 0 or
+                  not (accounting_update < peak_update < peak_assignment < realloc_return)):
+              raise SystemExit("tracked realloc must update the peak-byte high-water mark after successful growth")
 
           memory_show_start = common_source.find("void MemoryBlock_show(MemoryBlock *self)")
           memory_show_end = common_source.find("\n}", memory_show_start)
@@ -4301,6 +4310,8 @@ jobs:
           common_test = Path("trunk/user/skipdbv2/skipdbv2/tests/common_alloc.c").read_text()
           for needle in ("io_free(NULL)", "io_calloc((size_t)-1 / 2 + 1, 2)",
                          "io_realloc(tracked, (size_t)LONG_MAX)",
+                         "io_maxAllocatedBytes() != 32",
+                         "successful realloc did not preserve data and peak accounting",
                          "io_allocatedBytes() != 0", "Common allocation lifecycle test passed"):
               if needle not in common_test:
                   raise SystemExit("Common allocator lifecycle regression case missing: " + needle)
