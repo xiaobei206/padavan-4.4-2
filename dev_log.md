@@ -1,19 +1,19 @@
 ## 2026-11-08 07:29 CST — Secure USB modem hotplug metadata staging against /tmp symlink races
 
 ### Finding and change
-- **Base main SHA:** \`faf672ce13f4b759ce8b8bfefca2fa92c365b5c8\`. This rotates the governance audit from the completed Samba config checkpoint into USB hotplug/storage rather than returning to SkipDBv2-only work.
-- **P2 local trust-boundary finding:** \`mdev_wdm_main()\`, \`mdev_net_main()\` and \`mdev_tty_main()\` created predictable \`/tmp/modem/<device>\` metadata with \`mkdir_if_none(...,"777")\` and \`fopen(node_fname,"w+")\`. The directory was world-writable and not sticky. A local account able to place a symlink in that directory could make a later root hotplug event follow the link and truncate another root-writable file. This is a local filesystem race in the modem metadata path, not unauthenticated remote access.
-- **Fix:** new \`modem_node_file.h\` validates device basenames, creates/checks \`/tmp/modem\` as an effective-UID-owned real directory with mode 0755, writes through a unique \`mkstemp\` staging file, and atomically renames it into place. A pre-existing destination symlink is replaced as a directory entry rather than followed. Unplug cleanup uses the same validated directory/name helper. The only reader, \`usb_modem.c::find_modem_node()\`, now opens metadata read-only (\`"r"\`) instead of \`"r+"\`.
-- Added \`tests/modem_node_file.c\` for basename validation, ownership/mode, atomic publication, destination-symlink victim preservation, symlink-parent rejection and cleanup. The workflow compiles it with GNU89 \`-Wall -Wextra -Werror\`, runs it, and verifies all three production writer/remover call sites and both push/PR path filters.
-- **Scope boundary:** this does not audit the separate block-storage \`hotplug_stor.c\` → \`automount.sh\` mount/unmount path, disk enumeration, root-partition rejection, filesystem helpers, or every other /tmp producer. Those remain open. Production MIPS build, firmware/TRX and hardware are not run.
+- **Base main SHA:** `faf672ce13f4b759ce8b8bfefca2fa92c365b5c8`. This rotates the governance audit from the completed Samba config checkpoint into USB hotplug/storage rather than returning to SkipDBv2-only work.
+- **P2 local trust-boundary finding:** `mdev_wdm_main()`, `mdev_net_main()` and `mdev_tty_main()` created predictable `/tmp/modem/<device>` metadata with `mkdir_if_none(...,"777")` and `fopen(node_fname,"w+")`. The directory was world-writable and not sticky. A local account able to place a symlink in that directory could make a later root hotplug event follow the link and truncate another root-writable file. This is a local filesystem race in the modem metadata path, not unauthenticated remote access.
+- **Fix:** new `modem_node_file.h` validates device basenames, creates/checks `/tmp/modem` as an effective-UID-owned real directory with mode 0755, writes through a unique `mkstemp` staging file, and atomically renames it into place. A pre-existing destination symlink is replaced as a directory entry rather than followed. Unplug cleanup uses the same validated directory/name helper. The only reader, `usb_modem.c::find_modem_node()`, now opens metadata read-only (`"r"`) instead of `"r+"`.
+- Added `tests/modem_node_file.c` for basename validation, ownership/mode, atomic publication, destination-symlink victim preservation, symlink-parent rejection and cleanup. The workflow compiles it with GNU89 `-Wall -Wextra -Werror`, runs it, and verifies all three production writer/remover call sites and both push/PR path filters.
+- **Scope boundary:** this does not audit the separate block-storage `hotplug_stor.c` → `automount.sh` mount/unmount path, disk enumeration, root-partition rejection, filesystem helpers, or every other /tmp producer. Those remain open. Production MIPS build, firmware/TRX and hardware are not run.
 
 ### Verification
-- L1 source review of the three modem metadata producers and the shared reader: PASS.
-- L2 exact helper regression and source-contract Actions: PENDING until the current code commit's exact-head workflow completes. Do not infer success from the prior Samba run.
+- L1 source review of the three modem metadata producers and the shared reader: PASS. A focused read of `automount.sh` also confirmed device/share-name allowlists, separately-read blkid fields (no eval), sanitized labels, and same-device mountpoint checks; this is not a complete block-storage lifecycle audit.
+- **Code/test SHA:** `59f69e8869b4cdd03c8b2b3caa78f6c202bc57e9`. Exact-head GitHub Actions run [42425967651](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42425967651) completed **SUCCESS**; all 17 recorded job steps passed, including GNU89 `-Wall -Wextra -Werror` helper compilation/execution and production source contracts. The Samba run above is a separate prior checkpoint.
 - L3 production RC/MIPS build, L4 router/hardware test: NOT RUN.
 
 ### Next
-- Confirm the exact-head Actions result. Then continue block-storage hotplug (\`hotplug_stor.c\`, \`automount.sh\`, mount/unmount and swapoff ordering), \`libdisk\` path ownership, and destructive-operation gates. Keep Samba's remaining FTP/NFS compatibility gaps, HTTPD/CGI/auth, firewall rollback/IPv6 parity and init/service lifecycle in the global ledger.
+- Confirm the exact-head Actions result. Then continue block-storage hotplug (`hotplug_stor.c`, `automount.sh`, mount/unmount and swapoff ordering), `libdisk` path ownership, and destructive-operation gates. Keep Samba's remaining FTP/NFS compatibility gaps, HTTPD/CGI/auth, firewall rollback/IPv6 parity and init/service lifecycle in the global ledger.
 
 ## 2026-11-08 07:24 CST — Use the shared ACL grant predicate for every guest decision
 
@@ -6759,20 +6759,20 @@ Re-check run `42414162783` on exact SHA `af4cb4a10fdcf8989321a7c41df2f261df1544a
 ## 2026-11-05 19:31 CST — Centralize SkipDB IPC response-envelope parsing
 
 ### Baseline and regression state
-- Base commit: \`47e63934c960a96d30714bec1132037b22ca8dfa\` (\`fix: commit index bootstrap and preserve delete predecessor\`).
+- Base commit: `47e63934c960a96d30714bec1132037b22ca8dfa` (`fix: commit index bootstrap and preserve delete predecessor`).
 - The SkipDBv2 host regression remains the validation gate. The baseline commit had no combined status checks reported by the repository status endpoint; no CI result is inferred from that empty response.
 
 ### Changes
-1. **Shared IPC envelope parser — \`mgr/ipc_protocol.c\`, \`mgr/ipc_protocol.h\`**
+1. **Shared IPC envelope parser — `mgr/ipc_protocol.c`, `mgr/ipc_protocol.h`**
    - Added one bounded parser for the common command/key/payload response envelope used by both CLI clients.
    - Returns non-owning slices with explicit lengths, rejects missing separators, empty command/key tokens, and embedded NUL bytes in command/key tokens, while preserving arbitrary binary payload bytes including embedded NUL.
-2. **dbus response/list parsing — \`mgr/dbus.c\`**
+2. **dbus response/list parsing — `mgr/dbus.c`**
    - Routed ordinary response envelopes and list/script frames through the shared parser.
-   - Kept command matching, dedicated \`__error__\`/\`__end__\` handling, raw Datum output, shell identifier validation, and shell quoting in the dbus caller.
-3. **dbapi response/list parsing — \`mgr/dbapi.c\`**
+   - Kept command matching, dedicated `__error__`/`__end__` handling, raw Datum output, shell identifier validation, and shell quoting in the dbus caller.
+3. **dbapi response/list parsing — `mgr/dbapi.c`**
    - Reused the same envelope split for write acknowledgements and callback-based list results.
    - Preserved dbapi's stricter string-Datum terminator rules and callback/error semantics.
-4. **Regression and build contracts — \`tests/ipc_protocol.c\`, \`CMakeLists.txt\`, \`.github/workflows/skipdbv2-regression.yml\`**
+4. **Regression and build contracts — `tests/ipc_protocol.c`, `CMakeLists.txt`, `.github/workflows/skipdbv2-regression.yml`**
    - Added isolated parser coverage for binary payloads, empty values, terminal frames, malformed separators, and NUL-bearing command/key tokens.
    - Linked the new module into both CLI executables and both existing protocol harnesses, and registered a dedicated CTest.
    - Extended source contracts to verify declarations, implementation ownership, client delegation, all five CMake source links, and the regression test registration.
@@ -6783,9 +6783,9 @@ Re-check run `42414162783` on exact SHA `af4cb4a10fdcf8989321a7c41df2f261df1544a
 - No local CMake/compiler/CTest run is claimed. The pushed revision triggers the unchanged SkipDBv2 Regression workflow.
 
 ### Follow-up
-- Keep wire-envelope tokenization in \`ipc_protocol.c\`; do not move command-specific response policies or text rendering back into the shared transport.
-- Keep socket readiness, deadlines, exact I/O and buffer allocation in \`ipc_transport.c\`.
-- Keep dbus shell/export and raw-value presentation behavior in \`dbus.c\`; keep dbapi callback and string-Datum validation in \`dbapi.c\`.
+- Keep wire-envelope tokenization in `ipc_protocol.c`; do not move command-specific response policies or text rendering back into the shared transport.
+- Keep socket readiness, deadlines, exact I/O and buffer allocation in `ipc_transport.c`.
+- Keep dbus shell/export and raw-value presentation behavior in `dbus.c`; keep dbapi callback and string-Datum validation in `dbapi.c`.
 
 ---
 
