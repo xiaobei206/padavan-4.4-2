@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main(void)
 {
@@ -18,7 +19,9 @@ int main(void)
 		signed_high_byte, CTYPE_int8_t, sizeof(signed_high_byte));
 	UArray wide = UArray_stackAllocedWithData_type_size_(
 		wide_words, CTYPE_uint16_t, sizeof(wide_words) / sizeof(wide_words[0]));
-	UArray invalid;
+	UArray invalid, impossible;
+	uint8_t alpha_snapshot[sizeof(alpha_bytes)];
+	const uintptr_t sentinelHash = (uintptr_t)0x5a17;
 	int result = EXIT_FAILURE;
 
 	UArray_isalpha(NULL);
@@ -72,6 +75,25 @@ int main(void)
 	UArray_toupper(&invalid);
 	if (UArray_isLowercase(&invalid) != 0) {
 		fprintf(stderr, "invalid NULL-backed array was accepted\n");
+		goto done;
+	}
+
+
+	/* SIZE_MAX bytes cannot leave room for UArray's trailing NUL byte. */
+	impossible = alpha;
+	memcpy(alpha_snapshot, alpha_bytes, sizeof(alpha_snapshot));
+	impossible.size = (size_t)-1;
+	impossible.hash = sentinelHash;
+	UArray_isalpha(&impossible);
+	UArray_tolower(&impossible);
+	UArray_toupper(&impossible);
+	if (UArray_isLowercase(&impossible) != 0 ||
+		UArray_isUppercase(&impossible) != 0 ||
+		impossible.size != (size_t)-1 ||
+		impossible.data != alpha_bytes ||
+		impossible.hash != sentinelHash ||
+		memcmp(alpha_bytes, alpha_snapshot, sizeof(alpha_snapshot)) != 0) {
+		fprintf(stderr, "character ctype operations accepted an unrepresentable SIZE_MAX byte extent\\n");
 		goto done;
 	}
 

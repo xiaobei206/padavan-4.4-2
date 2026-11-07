@@ -1,3 +1,14 @@
+## 2026-11-07 14:40 CST — Reject impossible SIZE_MAX character-array extents
+
+- Baseline: `6d50d548c067278d1796ba892a41eed6145ad316`; UArray stream extent regression passed SkipDBv2 Regression run #564.
+- Scope: the shared byte-array preflight in `basekit/UArray_character.c`.
+- The character API accepts only one-byte CTYPEs, but its multiplication-overflow test could never reject the exact `SIZE_MAX` byte extent. UArray storage requires a trailing NUL byte, so such a logical extent is not representable; the predicate/case-map loops could otherwise traverse an impossible public-struct size.
+- Added an explicit exact-SIZE_MAX rejection after the overflow guard. Extended the existing ctype test with a shallow borrowed view whose size is forged to SIZE_MAX; every predicate/case-map entry point must leave the underlying bytes and cached hash untouched, while case queries return false.
+- Updated the existing Actions source contracts. The test is already registered in CMake; no build-file changes, new files, or exported symbols.
+- Validation: the byte-count multiplication is evaluated only after its division bound; the regression uses existing live storage but exercises only the preflight path. Remote CI remains the compile/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:36 CST — Reject the unrepresentable SIZE_MAX UArray stream extent
 
 - Baseline: `b8bbfbc937a4d81f7ffdbab1f02852fbe33cbfd3`; BStream expected-tag validation passed SkipDBv2 Regression run #563.

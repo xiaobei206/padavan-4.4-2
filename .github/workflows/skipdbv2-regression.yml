@@ -2274,6 +2274,7 @@ jobs:
                   "UArray encoding conversion test passed",
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray_character.c": [
+                  "self->size * self->itemSize == (size_t)-1",
                   "static int UArray_characterByteArrayIsValid_(const UArray *self)",
                   "self->size > (size_t)-1 / self->itemSize",
                   "!!OP((unsigned char)v)",
@@ -2283,6 +2284,8 @@ jobs:
                   "(unsigned char)toupper((unsigned char)v)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_character_ctype.c": [
+                  "impossible.size = (size_t)-1;",
+                  "character ctype operations accepted an unrepresentable SIZE_MAX byte extent",
                   "UArray_isalpha(NULL);",
                   "UArray_tolower(NULL);",
                   "ctype predicate results were not normalized to Boolean bytes",

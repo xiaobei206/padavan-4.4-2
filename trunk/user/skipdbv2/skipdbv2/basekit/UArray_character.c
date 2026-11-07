@@ -15,6 +15,7 @@ static int UArray_characterByteArrayIsValid_(const UArray *self)
 		(self->itemType != CTYPE_uint8_t && self->itemType != CTYPE_int8_t) ||
 		self->itemSize != sizeof(uint8_t) ||
 		self->size > (size_t)-1 / self->itemSize ||
+		self->size * self->itemSize == (size_t)-1 ||
 		(self->size > 0 && NULL == self->data))
 		return 0;
 	return 1;
