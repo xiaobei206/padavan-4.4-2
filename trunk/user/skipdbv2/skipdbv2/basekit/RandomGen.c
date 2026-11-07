@@ -58,6 +58,7 @@
 #define MATRIX_A 0x9908b0dfUL   /* constant vector a */
 #define UPPER_MASK 0x80000000UL /* most significant w-r bits */
 #define LOWER_MASK 0x7fffffffUL /* least significant r bits */
+#define RANDOMGEN_GAUSSIAN_MAX_REJECTIONS 128
 
 /*static unsigned long self->mt[N];*/ /* the array for the state vector  */
 /*static int self->mti=N+1;*/ /* self->mti==N+1 means self->mt[N] is not initialized */
@@ -298,11 +299,19 @@ double RandomGen_gaussian(RandomGen *self, double m, double s)
 	if (!RandomGen_hasNonzeroState_(self))
 		RandomGen_setSeed(self, 5489UL);
 	double x1, x2, w, y1, y2;
+	unsigned int rejectedPairs = 0;
 
 	do {
 		x1 = 2.0 * RandomGen_randomDouble(self) - 1.0;
 		x2 = 2.0 * RandomGen_randomDouble(self) - 1.0;
 		w = x1 * x1 + x2 * x2;
+		if (w >= 1.0 || w == 0.0) {
+			if (++rejectedPairs >= RANDOMGEN_GAUSSIAN_MAX_REJECTIONS) {
+				/* Recover from a nonzero but unusable externally-corrupted state. */
+				RandomGen_setSeed(self, 5489UL);
+				rejectedPairs = 0;
+			}
+		}
 	} while (w >= 1.0 || w == 0.0);
 
 	w = sqrt( (-2.0 * log( w ) ) / w );

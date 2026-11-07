@@ -1,3 +1,14 @@
+## 2026-11-07 10:45 CST — Bound Gaussian rejection and recover unusable RandomGen states
+
+- Baseline: main commit `4c9775873b7b86b6b972bf32def21fbe5ed59228`; SkipDBv2 Regression run #42330602360 passed.
+- Scope: `RandomGen_gaussian()` and the existing `random_gen_state_bounds` regression.
+- The Gaussian polar sampler used an unbounded rejection loop. Its earlier all-zero-state recovery did not cover a nonzero but degenerate/corrupted MT state; such a state could keep producing points outside the unit circle and stall callers indefinitely.
+- Cap consecutive rejected pairs at 128, then restore the deterministic default seed and continue. Normal MT19937 rejection behavior is unchanged unless the state fails to produce a usable pair for the full bound.
+- Extend the existing test with a nonzero all-ones state. The test verifies recovery yields the same Gaussian sample and subsequent PRNG state as a freshly default-seeded generator. Update both static and function-order Actions contracts. The existing CMake target is reused; no new files or CMake changes.
+- No local C build or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 10:42 CST — Refresh UArray validator call-count contract
 
 - Baseline: main commit `80651a37a9b4f4017a6bd4d61a63da1974434ccf`; its Actions run failed in the source-contract step before configuration/build.

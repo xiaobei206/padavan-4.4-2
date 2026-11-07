@@ -17,6 +17,8 @@ int main(void)
 	RandomGen *actual = RandomGen_new();
 	RandomGen *expected = RandomGen_new();
 	int value;
+	int i;
+	double actualGaussian, expectedGaussian;
 
 	if (actual == NULL || expected == NULL) {
 		RandomGen_free(actual);
@@ -47,6 +49,18 @@ int main(void)
 	if (!check(RandomGen_gaussian(actual, 5.0, 2.0) ==
 		RandomGen_gaussian(expected, 5.0, 2.0),
 		"all-zero generator state did not recover before Gaussian sampling"))
+		goto failure;
+
+	RandomGen_setSeed(actual, 5489UL);
+	RandomGen_setSeed(expected, 5489UL);
+	for (i = 0; i < RANDOMGEN_N; ++i)
+		actual->mt[i] = 1UL;
+	actual->mti = 0;
+	actualGaussian = RandomGen_gaussian(actual, 5.0, 2.0);
+	expectedGaussian = RandomGen_gaussian(expected, 5.0, 2.0);
+	if (!check(actualGaussian == expectedGaussian &&
+		RandomGen_randomDouble(actual) == RandomGen_randomDouble(expected),
+		"nonzero degenerate generator state did not recover after bounded Gaussian rejection"))
 		goto failure;
 
 	RandomGen_free(actual);

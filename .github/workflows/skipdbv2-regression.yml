@@ -2211,7 +2211,11 @@ jobs:
                   "if (NULL == self)",
                   "return self ? genrand_real2(self) : 0.0;",
                   "return self ? (int)(genrand_int32(self) >> 1) : 0;",
-                  "w >= 1.0 || w == 0.0",
+                  "w >= 1.0 || w == 0.0",                  "#define RANDOMGEN_GAUSSIAN_MAX_REJECTIONS 128",
+                  "unsigned int rejectedPairs = 0;",
+                  "if (++rejectedPairs >= RANDOMGEN_GAUSSIAN_MAX_REJECTIONS)",
+                  "rejectedPairs = 0;",
+
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/random_gen_state_bounds.c": [
                   "actual->mti = -1;",
@@ -2219,7 +2223,11 @@ jobs:
                   "memset(actual->mt, 0, sizeof(actual->mt));",
                   "all-zero generator state did not recover before Gaussian sampling",
                   "negative generator index did not recover to the default seed",
-                  "RandomGen index bounds test passed",
+                  "RandomGen index bounds test passed",                  "actual->mt[i] = 1UL;",
+                  "actual->mti = 0;",
+                  "actualGaussian = RandomGen_gaussian(actual, 5.0, 2.0);",
+                  "nonzero degenerate generator state did not recover after bounded Gaussian rejection",
+
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/random_gen_lifecycle.c": [
                   "RandomGen_randomDouble(NULL)",
@@ -4448,13 +4456,17 @@ jobs:
           state_guard = gaussian_body.find("if (!RandomGen_hasNonzeroState_(self))")
           state_reseed = gaussian_body.find("RandomGen_setSeed(self, 5489UL);")
           zero_radius_guard = gaussian_body.find("w >= 1.0 || w == 0.0")
+          rejection_limit = gaussian_body.find("if (++rejectedPairs >= RANDOMGEN_GAUSSIAN_MAX_REJECTIONS)")
+          bounded_reseed = gaussian_body.find("RandomGen_setSeed(self, 5489UL);", state_reseed + 1)
+          rejection_loop_end = gaussian_body.find("} while (w >= 1.0 || w == 0.0);", rejection_limit)
           logarithm = gaussian_body.find("log( w )")
           if (not constructor or constructor_guard < 0 or state_init < 0 or constructor_guard > state_init or
                   "return self ? genrand_real2(self) : 0.0;" not in random_source or
                   gaussian_null_guard < 0 or state_guard < 0 or state_reseed < state_guard or
-                  zero_radius_guard < 0 or logarithm < 0 or
-                  not (gaussian_null_guard < state_guard < state_reseed < zero_radius_guard < logarithm)):
-              raise SystemExit("RandomGen must reseed degenerate state before Gaussian rejection sampling")
+                  min(zero_radius_guard, rejection_limit, bounded_reseed, rejection_loop_end, logarithm) < 0 or
+                  not (gaussian_null_guard < state_guard < state_reseed < zero_radius_guard <
+                       rejection_limit < bounded_reseed < rejection_loop_end < logarithm)):
+              raise SystemExit("RandomGen must bound Gaussian rejection sampling and reseed a non-convergent state")
           random_int_start = random_source.find("int RandomGen_randomInt(RandomGen *self)")
           random_int_end = random_source.find("\n}", random_int_start)
           random_int_body = random_source[random_int_start:random_int_end] if random_int_start >= 0 and random_int_end > random_int_start else ""
