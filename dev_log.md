@@ -1,3 +1,12 @@
+## 2026-11-07 17:14 CST — Fix SkipDBRecord level contract newline boundary
+
+- Baseline: `6322614f6db948772625987c879a17e60623234f`; run #603 failed in the XY-C1 source-contract step before CMake configuration.
+- The new function-body check searched for the two literal characters `\\n` instead of the newline separating `SkipDBRecord_level_()` from `SkipDBRecord_object_()`. The implementation and regression were not reached by the build.
+- Use `chr(10)` as the function boundary delimiter. Keep the guard-order assertions unchanged; no production C or test behavior changed.
+- No compiler/CTest result was reached in run #603.
+
+---
+
 ## 2026-11-07 17:12 CST — Reject malformed existing SkipDB record levels before resize
 
 - Baseline: `1c45c3cce044c500bfbfa03c30b30f59459d772e`; mainline SkipDBv2 Regression run #601 passed the integration contracts, complete build, and all 57 CTests.

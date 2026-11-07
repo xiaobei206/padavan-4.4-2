@@ -3362,7 +3362,7 @@ jobs:
               raise SystemExit("SkipDB record key/value datum validation is not centralized")
 
           level_start = record_source.find("void SkipDBRecord_level_(SkipDBRecord *self, int level)")
-          level_end = record_source.find("\\nvoid SkipDBRecord_object_", level_start)
+          level_end = record_source.find(chr(10) + "void SkipDBRecord_object_", level_start)
           level_body = record_source[level_start:level_end] if level_start >= 0 and level_end > level_start else ""
           old_level_read = level_body.find("old_level = self->level;")
           invalid_level_guard = level_body.find("if (old_level < 0 || old_level > SKIPDB_MAX_LEVEL)", old_level_read)
