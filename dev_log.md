@@ -1,3 +1,13 @@
+## 2026-11-07 20:57 CST — Preflight integer UArray scalar arithmetic before mutation
+
+- Baseline: `cce040bbed5b339af9272ad011d32843c5f13ebf`; main SkipDBv2 Regression run #661 passed.
+- Scope: integer destination handling in `UArray_addScalarDouble_()`, `UArray_subtractScalarDouble_()`, and `UArray_multiplyScalarDouble_()`.
+- These operations converted each intermediate double directly into an integer element. A later NaN, infinity, or out-of-range result could invoke undefined floating-to-integer conversion after earlier elements had already changed.
+- Generalize the existing range predicate and preflight every integer result before writing any element. Preserve floating-array behavior and hash invalidation semantics; add boundary and non-finite regressions to the existing math test and strengthen its existing Actions source contract.
+- Existing C source, test, workflow, and handoff log only; no new declarations, files, or CMake targets. No local firmware build is claimed; remote Actions is the validation gate.
+
+---
+
 ## 2026-11-07 20:34 CST — Keep Date timezone refresh atomic on clock errors
 
 - Baseline: `3a517037eb67ff816d75f7c7ac202f6936486e72`; main SkipDBv2 Regression run #660 passed the source contracts, full target build, and all CTests.

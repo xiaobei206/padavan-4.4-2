@@ -2078,14 +2078,14 @@ jobs:
                   "expectedItemAlignment == 0",
                   "((uintptr_t)self->data % expectedItemAlignment) != 0",
                   "static float UArray_integerValueAsFloat_(const UArray *self, size_t index)",
-                  "static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)",
+                  "static int UArray_integerFloatValueIsOutOfRange_(CTYPE itemType, double value)",
                   "Floating-to-integer conversion outside the destination range is undefined.",
                   "UArray_rawDoubleAt_(self, i) / value",
-                  "UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)",
-                  "if (!isfinite(quotient))",
-                  "return quotient <= -1.0 || quotient >= ldexp(1.0, bits);",
+                  "UArray_integerFloatValueIsOutOfRange_(self->itemType, quotient)",
+                  "if (!isfinite(value))",
+                  "return value <= -1.0 || value >= ldexp(1.0, bits);",
                   "UArray_integerValueAsFloat_(self, i)",
-                  "UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)",
+                  "UArray_integerFloatValueIsOutOfRange_(self->itemType, quotient)",
                   "sum = hypot(sum, (double)d);",
                   "return sum;",
                   "void UArray_duplicateIndexes(UArray *self)",
@@ -2137,7 +2137,7 @@ jobs:
                   "void UArray_clear(UArray *self)",
                   "void UArray_setItemsToLong_(UArray *self, long x)",
                   "void UArray_setItemsToDouble_(UArray *self, double x)",
-                  "UArray_integerFloatQuotientIsOutOfRange_(self->itemType, x)",
+                  "UArray_integerFloatValueIsOutOfRange_(self->itemType, x)",
                   "Out-of-range float-to-integer conversion is undefined; reject before mutating.",
                   "void UArray_rangeFill(UArray *self)",
                   "static int UArray_hasValidNumericStorage_(const UArray *self);",
@@ -4669,7 +4669,7 @@ jobs:
           )
           integer_float_cast = divide_helper_body.find("UArray_integerValueAsFloat_(self, i)", floating_division_start)
           integer_float_range = divide_helper_body.find(
-              "UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)", floating_division_start
+              "UArray_integerFloatValueIsOutOfRange_(self->itemType, quotient)", floating_division_start
           )
           integer_float_continue = divide_helper_body.find("continue;", integer_float_range)
           integer_divisor_fallback = divide_helper_body.find("if (divisor != -1.0)", floating_division_start)
@@ -4678,58 +4678,48 @@ jobs:
                   integer_divisor_fallback < integer_float_continue):
               raise SystemExit("UArray integer division must range-check floating quotients before the integer-only -1 overflow path")
           float_range_helper_start = bit_math_source.find(
-              "static int UArray_integerFloatQuotientIsOutOfRange_(CTYPE itemType, double quotient)\n{"
+              "static int UArray_integerFloatValueIsOutOfRange_(CTYPE itemType, double value)\n{"
           )
           float_range_helper_end = bit_math_source.find(
               "static int UArray_hasUnsafeIntegerDivision_", float_range_helper_start
           )
           float_range_helper = bit_math_source[float_range_helper_start:float_range_helper_end] if float_range_helper_start >= 0 and float_range_helper_end > float_range_helper_start else ""
-          if ("if (!isfinite(quotient))" not in float_range_helper or
+          if ("if (!isfinite(value))" not in float_range_helper or
                   "ldexp(1.0, bits)" not in float_range_helper or
-                  "return quotient < -upperBound || quotient >= upperBound;" not in float_range_helper):
+                  "return value < -upperBound || value >= upperBound;" not in float_range_helper):
               raise SystemExit("UArray integer quotient preflight must reject non-finite and out-of-range float results")
           division_test = Path("trunk/user/skipdbv2/skipdbv2/tests/uarray_math_extrema.c").read_text()
           for needle in ("UArray integer division changed valid mixed float64 results",
                          "UArray integer division committed a float quotient outside receiver range",
                          "UArray integer division committed a non-finite float quotient",
                          "UArray scalar integer division mutated the receiver before rejecting an out-of-range quotient",
-                         "UArray scalar integer division accepted a non-finite quotient"):
+                         "UArray scalar integer division accepted a non-finite quotient",
+                         "UArray scalar integer arithmetic committed an out-of-range result"):
               if needle not in division_test:
                   raise SystemExit("UArray floating-to-integer division regression missing: " + needle)
 
           scalar_operation_ranges = (
-              ("add", "void UArray_addScalarDouble_(UArray *self, double value)", "void UArray_subtractScalarDouble_"),
-              ("subtract", "void UArray_subtractScalarDouble_(UArray *self, double value)", "void UArray_multiplyScalarDouble_"),
-              ("multiply", "void UArray_multiplyScalarDouble_(UArray *self, double value)", "void UArray_divideScalarDouble_"),
-              ("divide", "void UArray_divideScalarDouble_(UArray *self, double value)", "// bitwise"),
+              ("add", "void UArray_addScalarDouble_", "void UArray_subtractScalarDouble_", "+", "result"),
+              ("subtract", "void UArray_subtractScalarDouble_", "void UArray_multiplyScalarDouble_", "-", "result"),
+              ("multiply", "void UArray_multiplyScalarDouble_", "void UArray_divideScalarDouble_", "*", "result"),
+              ("divide", "void UArray_divideScalarDouble_", "// bitwise", "/", "quotient"),
           )
-          for label, start_marker, end_marker in scalar_operation_ranges:
-              start = bit_math_source.find(start_marker)
-              end = bit_math_source.find(end_marker, start)
+          for label, begin, finish, operator, result_name in scalar_operation_ranges:
+              start = bit_math_source.find(begin)
+              end = bit_math_source.find(finish, start)
               body = bit_math_source[start:end] if start >= 0 and end > start else ""
-              storage_guard = body.find("UArray_hasValidNumericStorage_(self)")
-              first_foreach = body.find("UARRAY_FOREACHASSIGN(self, i, v,")
-              changed = body.find("UArray_changed(self);")
-              if (
-                  not body or storage_guard < 0 or first_foreach < 0 or
-                  storage_guard > first_foreach or
-                  "self->itemType == CTYPE_uintptr_t" not in body or
-                  "self->size == 0" not in body or
-                  changed < 0 or changed < first_foreach
-              ):
-                  raise SystemExit(f"UArray scalar {label} must validate numeric storage and invalidate hash after assignment")
-              if label == "divide":
-                  if "value == 0.0" not in body:
-                      raise SystemExit("UArray scalar divide must reject a zero divisor before integer or floating-point assignment")
-                  range_loop = body.find("for (i = 0; i < self->size; ++i)")
-                  range_read = body.find("UArray_rawDoubleAt_(self, i) / value", range_loop)
-                  range_guard = body.find("UArray_integerFloatQuotientIsOutOfRange_(self->itemType, quotient)", range_read)
-                  floating_type_guard = body.find("self->itemType != CTYPE_float32_t")
-                  if (range_loop < 0 or range_read < range_loop or
-                      range_guard < range_read or floating_type_guard < 0 or
-                      floating_type_guard > range_loop or
-                      range_guard > first_foreach):
-                      raise SystemExit("UArray scalar integer division must preflight every quotient before mutating the array")
+              assignment = body.find("UARRAY_FOREACHASSIGN(self, i, v,")
+              loop = body.find("for (i = 0; i < self->size; ++i)")
+              read = body.find(f"UArray_rawDoubleAt_(self, i) {operator} value", loop)
+              guard = body.find(f"UArray_integerFloatValueIsOutOfRange_(self->itemType, {result_name})", read)
+              type_guard = body.find("self->itemType != CTYPE_float32_t")
+              if (not body or "UArray_hasValidNumericStorage_(self)" not in body or
+                      "self->itemType == CTYPE_uintptr_t" not in body or "self->size == 0" not in body or
+                      assignment < 0 or body.find("UArray_changed(self);", assignment) < assignment or
+                      loop < 0 or read < loop or guard < read or type_guard < 0 or
+                      type_guard > loop or guard > assignment or
+                      (label == "divide" and "value == 0.0" not in body)):
+                  raise SystemExit(f"UArray scalar {label} must validate, preflight, then mutate")
 
 
           dot_size_start = bit_math_source.find("static size_t UArray_numericItemSize_(CTYPE itemType)")

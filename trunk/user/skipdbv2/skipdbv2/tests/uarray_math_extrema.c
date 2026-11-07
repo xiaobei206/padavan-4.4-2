@@ -8,6 +8,27 @@
 static int fail(const char *s) { fprintf(stderr, "%s\n", s); return EXIT_FAILURE; }
 static int nearEnough(double a, double b) { return fabs(a - b) <= 1e-12; }
 
+typedef void (*ScalarDoubleOperation)(UArray *, double);
+
+static int expect_scalar_integer_range_rejection(
+    const int8_t initial[2], double operand, ScalarDoubleOperation operation)
+{
+    UArray *values = UArray_newWithData_type_size_copy_(
+        (void *)initial, CTYPE_int8_t, 2, 1);
+    const uintptr_t original_hash = (uintptr_t)0x5a5a;
+    if (NULL == values)
+        return fail("UArray scalar integer arithmetic fixture allocation failed");
+    values->hash = original_hash;
+    operation(values, operand);
+    if (memcmp(values->data, initial, 2 * sizeof(initial[0])) != 0 ||
+        values->hash != original_hash) {
+        UArray_free(values);
+        return fail("UArray scalar integer arithmetic committed an out-of-range result");
+    }
+    UArray_free(values);
+    return EXIT_SUCCESS;
+}
+
 static int test_scalar_mutations(void)
 {
     const int32_t initial[] = {2, -4, 6};
@@ -98,6 +119,17 @@ static int test_scalar_mutations(void)
         UArray_free(nonFinite);
     }
 
+    {
+        const int8_t addOverflow[] = {INT8_MAX, -5};
+        const int8_t subtractOverflow[] = {INT8_MIN, 5};
+        const int8_t multiplyOverflow[] = {64, -10};
+        const int8_t finiteValues[] = {1, 2};
+        if (expect_scalar_integer_range_rejection(addOverflow, 1.0, UArray_addScalarDouble_) ||
+            expect_scalar_integer_range_rejection(subtractOverflow, 1.0, UArray_subtractScalarDouble_) ||
+            expect_scalar_integer_range_rejection(multiplyOverflow, 2.0, UArray_multiplyScalarDouble_) ||
+            expect_scalar_integer_range_rejection(finiteValues, NAN, UArray_addScalarDouble_))
+            goto cleanup;
+    }
     UArray_addScalarDouble_(NULL, 1.0);
     UArray_subtractScalarDouble_(NULL, 1.0);
     UArray_multiplyScalarDouble_(NULL, 1.0);
