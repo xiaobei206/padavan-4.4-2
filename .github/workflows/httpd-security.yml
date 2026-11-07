@@ -482,6 +482,11 @@ jobs:
           assert "samba_prepare_private_passdb(staged_passdb" in run_body
           assert 'rename(staged_passdb, "/etc/samba/smbpasswd")' in run_body
           assert "fchmod(input_fd, 0600)" in source
+          handoff_start = source.index("samba_run_smbpasswd(")
+          handoff_end = source.index("samba_secure_private_samba_dir()", handoff_start)
+          handoff = source[handoff_start:handoff_end]
+          assert handoff.index("unlink(input_path)") < handoff.index("child = fork();")
+          assert "if (input_fd != STDIN_FILENO)" in handoff
           assert "read_password_line" in passdb_patch
           assert "strcmp(password, confirmation) != 0" in passdb_patch
           assert "fchmod(fileno(fp), 0600)" in passdb_patch

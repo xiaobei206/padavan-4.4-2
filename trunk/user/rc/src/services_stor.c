@@ -249,7 +249,8 @@ samba_run_smbpasswd(const char *passdb_path, const char *username,
 	    samba_write_all(input_fd, &newline, 1) != 0 ||
 	    samba_write_all(input_fd, password, strlen(password)) != 0 ||
 	    samba_write_all(input_fd, &newline, 1) != 0 ||
-	    lseek(input_fd, 0, SEEK_SET) < 0)
+	    lseek(input_fd, 0, SEEK_SET) < 0 ||
+	    unlink(input_path) != 0)
 		goto failed;
 
 	child = fork();
@@ -257,9 +258,11 @@ samba_run_smbpasswd(const char *passdb_path, const char *username,
 		goto failed;
 
 	if (child == 0) {
-		if (dup2(input_fd, STDIN_FILENO) < 0)
-			_exit(126);
-		close(input_fd);
+		if (input_fd != STDIN_FILENO) {
+			if (dup2(input_fd, STDIN_FILENO) < 0)
+				_exit(126);
+			close(input_fd);
+		}
 #if defined (APP_SMBD36)
 		if (passdb_path && *passdb_path)
 			execl("/bin/smbpasswd", "smbpasswd", "-s", "-f",
@@ -274,7 +277,6 @@ samba_run_smbpasswd(const char *passdb_path, const char *username,
 
 	close(input_fd);
 	input_fd = -1;
-	unlink(input_path);
 
 	do {
 		waited = waitpid(child, &status, 0);
