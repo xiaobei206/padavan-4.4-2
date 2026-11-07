@@ -1,3 +1,12 @@
+## 2026-11-07 23:17 CST — Fix over-escaped HTTPD route-matrix regex
+
+- Parent main SHA: 4cef7d95812786dad0d0ac34dce461b0a1c0bb64. Route-matrix test commit under validation: `4cef7d95812786dad0d0ac34dce461b0a1c0bb64`; Actions run `42385599174` (`https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385599174`) was still in progress during this correction.
+- Source review caught that the Python raw-string regex had two backslashes where one was required, so it would not match C route initializer lines. The pattern now matches `{ "jquery.js", ..., do_file, 0 },` and the sensitive callback forms without matching whitespace escapes literally. A local Python check of the corrected pattern against representative public, page, download and `dbconf` entries passed.
+- Updated the handoff and roadmap to keep the initial workflow run and corrected follow-up run distinct. No production C source was modified. The initial run outcome and the correction run must both be checked before marking the route matrix contract verified.
+- Validation: the full GitHub workflow result for this correction is PENDING at commit creation. L3 MIPS build, complete firmware artifact and L4 hardware remain NOT VERIFIED.
+
+---
+
 ## 2026-11-07 23:16 CST — Add HTTPD MIME authorization matrix regression
 
 - Baseline main HEAD: 8fd0a842b9599876b753c2b5b6deda4bd4feecf7. Bounded P1 continuation of the unfinished HTTPD route/auth audit.

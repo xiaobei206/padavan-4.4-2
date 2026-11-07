@@ -128,7 +128,7 @@ jobs:
           table_end = web.index(chr(10) + "};", table_start)
           route_table = web[table_start:table_end]
           route_pattern = re.compile(
-              r'^\\s*\\{\\s*"([^"]+)"\\s*,.*,\\s*(do_[A-Za-z_]\\w*)\\s*,\\s*([01])\\s*\\},'
+              r'^\s*\{\s*"([^"]+)"\s*,.*,\s*(do_[A-Za-z_]\w*)\s*,\s*([01])\s*\},'
           )
           routes = []
           for route_line in route_table.splitlines():
