@@ -10,6 +10,60 @@
 
 #define HTTPD_FILE_TYPE_SCRIPT 1
 
+#include <string.h>
+
+/*
+ * Fixed handlers are a deliberately small compatibility surface. They do
+ * not accept arbitrary command text; generic /tmp execution remains a
+ * separate trusted-session-only path. Keep this list in sync with sys_script.
+ */
+static int
+httpd_script_name_is_fixed(const char *name)
+{
+	static const char * const fixed_names[] = {
+		"syscmd.sh",
+		"syslog.sh",
+		"wan.sh",
+		"printer.sh",
+		"lpr_remove",
+		"mfp_requeue",
+		"mfp_monopolize",
+		"wlan11a.sh",
+		"wlan11b.sh",
+		"eth_wan.sh",
+		"eth_lan1.sh",
+		"eth_lan2.sh",
+		"eth_lan3.sh",
+		"eth_lan4.sh",
+		"leases.sh",
+		"vpns_list.sh",
+		"iptable.sh",
+		"route.sh",
+		"conntrack.sh",
+		"ddnsclient",
+		"hostname_check",
+		"dlna_rescan",
+		NULL
+	};
+	int i;
+
+	if (!name || !*name)
+		return 0;
+
+	for (i = 0; fixed_names[i] != NULL; ++i) {
+		if (strcmp(name, fixed_names[i]) == 0)
+			return 1;
+	}
+
+	return 0;
+}
+
+static int
+httpd_script_dispatch_allowed(const char *name, int trusted_session)
+{
+	return (trusted_session || httpd_script_name_is_fixed(name));
+}
+
 static int
 httpd_script_file_write_allowed(int file_type, int trusted_session)
 {

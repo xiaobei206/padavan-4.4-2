@@ -236,6 +236,12 @@ sys_script(char *name)
 	if (!name)
 		return;
 
+	/* Keep fixed dispatch explicit; new handlers must not silently bypass
+	 * the trusted-session gate protecting generic /tmp root execution.
+	 */
+	if (!httpd_script_dispatch_allowed(name, get_login_safe()))
+		return;
+
 	if (strcmp(name,"syscmd.sh")==0)
 	{
 		if (SystemCmd[0] && get_login_safe()) {

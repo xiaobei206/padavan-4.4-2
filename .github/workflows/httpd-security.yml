@@ -43,6 +43,7 @@ on:
       - "trunk/user/httpd/src/tests/httpd_login_policy.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
+      - "trunk/user/httpd/src/variables.c"
       - "trunk/user/httpd/src/common.c"
       - "trunk/user/httpd/src/tests/httpd_service_id.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
@@ -469,6 +470,19 @@ jobs:
           assert len(ap_script_entries) == 2
           assert all("EVM_BLOCK_UNSAFE" in line for line in ap_script_entries)
           assert 'if (!strcmp(file_name, "ap_script.sh") && get_login_safe())' in web
+
+          # Fixed sys_script handlers are an explicit compatibility allowlist.
+          fixed_names = ["syscmd.sh","syslog.sh","wan.sh","printer.sh","lpr_remove","mfp_requeue","mfp_monopolize","wlan11a.sh","wlan11b.sh","eth_wan.sh","eth_lan1.sh","eth_lan2.sh","eth_lan3.sh","eth_lan4.sh","leases.sh","vpns_list.sh","iptable.sh","route.sh","conntrack.sh","ddnsclient","hostname_check","dlna_rescan"]
+          for fixed_name in fixed_names:
+              assert f'"{fixed_name}"' in script_policy
+          dispatch_gate = sys_script.index(
+              "if (!httpd_script_dispatch_allowed(name, get_login_safe()))"
+          )
+          first_handler = sys_script.index('if (strcmp(name,"syscmd.sh")==0)')
+          assert dispatch_gate < first_handler
+          assert "httpd_script_dispatch_allowed(fixed_names[i], 0)" in script_policy_test
+          assert 'httpd_script_dispatch_allowed("unknown_script.sh", 0)' in script_policy_test
+          print("HTTPD fixed sys_script dispatch allowlist: OK")
           print("HTTPD executable script write and execution trust boundary: OK")
 
           print("HTTPD strict Basic authentication and decoder wiring: OK")
