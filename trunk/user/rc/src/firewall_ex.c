@@ -1847,7 +1847,7 @@ ip6t_nat_rules(char *man_if)
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_rule_file_finish(fp, ipt_file) == 0)
 		doSystem("ip6tables-restore %s", ipt_file);
-		firewall_rule_file_remove(ipt_file);
+	firewall_rule_file_remove(ipt_file);
 }
 
 
