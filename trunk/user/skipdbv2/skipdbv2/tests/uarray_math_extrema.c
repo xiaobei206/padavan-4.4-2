@@ -1647,7 +1647,7 @@ static int test_unary_transforms(void)
         }
 
         signedArray->hash = (uintptr_t)0x7171;
-        UArray_fabs(signedArray);
+        UArray_abs(signedArray);
         if (memcmp(signedArray->data, signedExpected, sizeof(signedExpected)) != 0 ||
             signedArray->hash != 0) {
             UArray_free(signedArray);
@@ -1669,7 +1669,7 @@ static int test_unary_transforms(void)
         }
 
         unsignedArray->hash = (uintptr_t)0x9191;
-        UArray_fabs(unsignedArray);
+        UArray_abs(unsignedArray);
         if (memcmp(unsignedArray->data, unsignedInput, sizeof(unsignedInput)) != 0 ||
             unsignedArray->hash != (uintptr_t)0x9191) {
             UArray_free(signedArray);

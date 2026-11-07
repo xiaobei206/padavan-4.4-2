@@ -1,3 +1,11 @@
+## 2026-11-07 21:04 CST — Test integer absolute value through the public UArray_abs API
+
+- Baseline: `ef57cfc46091a08549157134a384ecb9e90f3096`; run #665 passed the source-contract and configure steps but failed compiling the math regression because `UArray_fabs` is not declared in the public `UArray_math.h`.
+- Route the new integer regressions through the declared `UArray_abs()` alias. Keep the implementation unchanged and avoid creating an unnecessary public declaration solely for a test.
+- Existing math test and handoff log only; no new files, declarations, CMake targets, or workflow changes.
+
+---
+
 ## 2026-11-07 21:02 CST — Repair scalar-math Actions contract syntax
 
 - Baseline: `9099b75d6fa0c70ae07c4657d0fdac4194a2b737`; main run #663 passed, while run #664 stopped in the source-contract step before configure/build.
