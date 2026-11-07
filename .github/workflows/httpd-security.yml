@@ -741,7 +741,11 @@ jobs:
           assert storage_clear < storage_boundary_check, "invalid storage boundary can reuse a stale archive"
           print("HTTPD stale upload-artifact guard wiring: OK")
 
-          # Fixed-name outputs live below the 0700 root home; exclusive open
+          restore_start = storage_script.index("func_restore()")
+          restore_end = storage_script.index(chr(10) + "func_erase()", restore_start)
+          restore = storage_script[restore_start:restore_end]
+
+          # Fixed-name outputs live in a 0700 private tmpfs directory; exclusive open
           # prevents a symlink inserted after stale-file cleanup from being followed.
           assert '#include "httpd_upload_file.h"' in upload
           assert "httpd_upload_open_exclusive(fn)" in upload_helper
