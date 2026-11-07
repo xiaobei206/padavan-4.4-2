@@ -257,7 +257,9 @@ timematch_conv(char *mstr, const char *nv_date, const char *nv_time)
 
 	mstr[0] = 0;
 
-	if (strlen(date) != 7 || strlen(time) != 8)
+	/* Both fields reach iptables-restore text; never interpolate malformed bytes. */
+	if (!firewall_schedule_date_is_safe(date) ||
+	    !firewall_schedule_time_is_safe(time))
 		return;
 
 	if (!strcmp(date, "0000000"))
@@ -617,10 +619,16 @@ include_lw_filter(FILE *fp, char *wan_if, char *logaccept, char *logdrop)
 			flag = "";
 			srcport = "";
 			dstport = "";
+			if (!firewall_ip_protocol_number_is_safe(proto))
+				continue;
 		} else {
 			flag = protoflag_conv("filter_lw_proto_x", i, 1);
 			srcport = portrange_conv("filter_lw_srcport_x", i);
 			dstport = portrange_conv("filter_lw_dstport_x", i);
+			if (!firewall_tcp_flags_are_safe(flag) ||
+			    !firewall_port_range_is_safe(srcport, 1) ||
+			    !firewall_port_range_is_safe(dstport, 1))
+				continue;
 		}
 		
 		srcip = iprange_ex_conv("filter_lw_srcip_x", i);
@@ -694,6 +702,15 @@ include_vts_filter(FILE *fp, char *lan_ip, char *logaccept, int forward_chain)
 		proto = proto_conv("vts_proto_x", i);
 		port = portrange_conv("vts_port_x", i);
 		lport = portrange_conv("vts_lport_x", i);
+		if (strcmp(proto, "other") == 0) {
+			protono = portrange_conv("vts_protono_x", i);
+			if (!firewall_ip_protocol_number_is_safe(protono))
+				continue;
+		} else {
+			if (!firewall_port_range_is_safe(port, 0) ||
+			    (lport && *lport && !firewall_port_number_is_safe(lport)))
+				continue;
+		}
 		
 		if (lport && strlen(lport)!=0)
 			snprintf(dstports, sizeof(dstports), "%s", lport);
@@ -709,7 +726,6 @@ include_vts_filter(FILE *fp, char *lan_ip, char *logaccept, int forward_chain)
 		}
 		
 		if (strcmp(proto, "other")==0) {
-			protono = portrange_conv("vts_protono_x", i);
 			if (*protono)
 				fprintf(fp, "-A %s -p %s%s -d %s -j %s\n", dtype, protono, srcaddrs, dstip, logaccept);
 		}
@@ -743,6 +759,15 @@ include_vts_nat(FILE *fp)
 		proto = proto_conv("vts_proto_x", i);
 		port = portrange_conv("vts_port_x", i);
 		lport = portrange_conv("vts_lport_x", i);
+		if (strcmp(proto, "other") == 0) {
+			protono = portrange_conv("vts_protono_x", i);
+			if (!firewall_ip_protocol_number_is_safe(protono))
+				continue;
+		} else {
+			if (!firewall_port_range_is_safe(port, 0) ||
+			    (lport && *lport && !firewall_port_number_is_safe(lport)))
+				continue;
+		}
 		
 		if (strcmp(proto, "tcp")==0 || strcmp(proto, "both") == 0) {
 			if (lport && strlen(lport)!=0 && strcmp(port, lport)!=0)
@@ -759,7 +784,6 @@ include_vts_nat(FILE *fp)
 		}
 		
 		if (strcmp(proto, "other") == 0) {
-			protono = portrange_conv("vts_protono_x", i);
 			if (*protono)
 				fprintf(fp, "-A %s -p %s%s -j DNAT --to %s\n", dtype, protono, srcaddrs, dstip);
 		}
