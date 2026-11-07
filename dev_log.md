@@ -1,3 +1,13 @@
+## 2026-11-07 09:55 CST — Retry interrupted commit-marker directory syncs
+
+- Baseline: main commit `a14e65525c9c1482ba377000d137de3743c46328`; SkipDBv2 Regression run #495 passed.
+- Scope: `UDBCommitMarker_syncParentDirectory()` in `udb/UDBCommitMarker.c`.
+- The commit-marker durability path called `fsync()` directly, unlike the shared persistence barrier which retries `EINTR`. A harmless signal interruption therefore aborted database startup/commit instead of completing the required directory sync.
+- Route the directory descriptor through `JFile_hardSyncFileDescriptor_()` so both marker-directory and journal/file durability barriers share the same platform-specific sync and interruption handling. The existing `commit_marker_test` still covers directory syncing; Actions now enforces the shared helper call. No new files.
+- No local compilation or CTest run is claimed; mainline CI remains the validation gate.
+
+---
+
 ## 2026-11-07 09:52 CST — Reject PID lookups against a closed index file
 
 - Baseline: main commit `8047b18c8ad0c2ae6f04144b54b2ece5ea5d272c`; SkipDBv2 Regression run #494 passed.

@@ -1,5 +1,5 @@
 #include "UDBCommitMarker.h"
-#include "JFile.h"
+#include "JFileInternal.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -121,7 +121,7 @@ int UDBCommitMarker_syncParentDirectory(const char *path)
     else if(slash==dir)slash[1]='\0';
     else *slash='\0';
     fd=open(dir,O_RDONLY|O_CLOEXEC);free(dir);if(fd<0)return -1;
-    result=fsync(fd);saved_errno=errno;
+    result=JFile_hardSyncFileDescriptor_(NULL,fd);saved_errno=errno;
     if(close(fd)!=0&&result==0){result=-1;saved_errno=errno;}
     errno=saved_errno;return result;
 }

@@ -92,6 +92,7 @@ jobs:
                   "after.st_nlink!=1",
                   "fchmod(fd,0600)",
                   "JFile_verifyLog(&journal)",
+                  "JFile_hardSyncFileDescriptor_(NULL,fd)",
                   "UDBCommitMarker_artifactsAreEmpty",
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDB.h": [
