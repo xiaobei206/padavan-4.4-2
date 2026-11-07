@@ -16,5 +16,19 @@ main(void)
 	assert(!firewall_url_filter_value_is_safe("tab\tvalue"));
 	assert(!firewall_url_filter_value_is_safe("delete\177char"));
 	assert(!firewall_url_filter_value_is_safe(NULL));
+
+	assert(firewall_icmp_type_is_safe("0"));
+	assert(firewall_icmp_type_is_safe("8"));
+	assert(firewall_icmp_type_is_safe("255"));
+	assert(firewall_icmp_type_is_safe("0008"));
+	assert(!firewall_icmp_type_is_safe(NULL));
+	assert(!firewall_icmp_type_is_safe(""));
+	assert(!firewall_icmp_type_is_safe("256"));
+	assert(!firewall_icmp_type_is_safe("-1"));
+	assert(!firewall_icmp_type_is_safe("8/1"));
+	assert(!firewall_icmp_type_is_safe("8\nCOMMIT"));
+	assert(!firewall_icmp_type_is_safe("8\r-A INPUT -j ACCEPT"));
+	assert(!firewall_icmp_type_is_safe("8\t"));
+	assert(!firewall_icmp_type_is_safe("8 -A INPUT -j ACCEPT"));
 	return 0;
 }
