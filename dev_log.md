@@ -1,3 +1,12 @@
+## 2026-11-07 14:29 CST — Repair DynLib fixture CMake contract gate
+
+- Baseline: `5f571bc7b3109649b292bbba49b4b5a173b69880`; run #561 failed only in the XY-C1 integration-contract step before CMake configure/build.
+- The new reentrant DynLib fixture and parameterized CTest command were present in `CMakeLists.txt`, but the workflow's Python contract still asserted the old no-argument `add_test` line.
+- Updated that existing assertion to require the fixture shared-library target, source path, test dependency, and generator-expression argument. No production or test logic changed.
+- Validation: exact CMake strings were compared against the committed target block; remote CI will validate configure/build/CTest.
+
+---
+
 ## 2026-11-07 14:25 CST — Prevent recursive DynLib free-callback unload
 
 - Baseline: `51cba03394b7bd86a0bdc28f91b0de5df37026ea`; UArray pointer-alignment regression passed SkipDBv2 Regression run #560.
