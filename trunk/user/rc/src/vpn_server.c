@@ -552,11 +552,11 @@ ipdown_vpns_main(int argc, char **argv)
 	}
 
 	if (fp1) {
-		while (fscanf(fp1, "%15s %63s %63s %63[^\\n]\\n", ifname, addr_l, addr_r, name_p) == 4) {
+		while (fscanf(fp1, "%15s %63s %63s %63[^\n]\n", ifname, addr_l, addr_r, name_p) == 4) {
 			if (strcmp(ifname, argv[1])) {
 				i_clients++;
 				if (fp2)
-					fprintf(fp2, "%s %s %s %s\\n", ifname, addr_l, addr_r, name_p);
+					fprintf(fp2, "%s %s %s %s\n", ifname, addr_l, addr_r, name_p);
 			}
 		}
 
@@ -570,7 +570,7 @@ ipdown_vpns_main(int argc, char **argv)
 		if (fclose(fp2) != 0)
 			write_failed = 1;
 		if (!write_failed && rename(clients_l2, clients_l1) == 0)
-			clients_l2[0] = '\\0';
+			clients_l2[0] = '\0';
 		if (clients_l2[0])
 			unlink(clients_l2);
 	}
