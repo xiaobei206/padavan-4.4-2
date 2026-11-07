@@ -46,6 +46,8 @@ PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 {
 	UDBIndexEntry entry;
 	size_t file_size, offset;
+	long previous_file_pos, previous_max_pos;
+	int read_ok;
 
 	if (NULL == self || NULL == self->file || NULL == self->file->file ||
 		self->file->maxPos < 0 ||
@@ -57,9 +59,16 @@ PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)
 		file_size - offset < sizeof(UDBIndexEntry))
 		return 0;
 
+	previous_file_pos = self->file->pos;
+	previous_max_pos = self->file->maxPos;
 	entry.pos = 0;
 	JFile_setPosition_(self->file, (long)offset);
-	if (JFile_fread(self->file, (unsigned char *)&entry, sizeof(UDBIndexEntry), 1) != 1)
+	read_ok = JFile_fread(self->file, (unsigned char *)&entry,
+			      sizeof(UDBIndexEntry), 1) == 1;
+	/* Mapping lookup is observational; do not leak its internal seek. */
+	self->file->pos = previous_file_pos;
+	self->file->maxPos = previous_max_pos;
+	if (!read_ok)
 		return 0;
 
 	return entry.pos;

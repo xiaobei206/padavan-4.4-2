@@ -1,3 +1,14 @@
+## 2026-11-07 18:25 CST — Preserve the UDB PID-index cursor during lookups
+
+- Baseline: `c0e91489cb7946d13bd50b21d421380814895e98`; SkipDBv2 Regression run #623 passed the source contracts, full build, and all 57 CTests.
+- Scope: `UDBIndex_posForPid_()` in the fixed-width PID-to-offset mapping module.
+- A normal lookup sought to the PID slot and returned without restoring `JFile.pos`. Besides making a read accessor mutate caller state, this caused `UDBIndex_setPos_forPid_()` to snapshot the already-advanced cursor rather than the caller's original cursor for its failure path.
+- Snapshot and restore the logical cursor and file extent around the slot read, including read failure; retain the error flag so callers can still fail closed.
+- Extend `udb_index_layers_test` and the workflow's strict source contract to cover successful lookup cursor preservation and enforce restore-before-return ordering. No new files or CMake targets.
+- No local compiler/CTest result is claimed; GitHub Actions remains the validation gate.
+
+---
+
 ## 2026-11-07 18:23 CST — Preserve UDB record cursor during free-list metadata I/O
 
 - Baseline: `804b982d1a7665b4f6303ad9b7dbde4fe8c3f32d`; SkipDBv2 Regression run #622 passed the XY-C1 source contracts, full build, and all 57 CTests.

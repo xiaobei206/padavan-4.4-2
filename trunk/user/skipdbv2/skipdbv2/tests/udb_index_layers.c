@@ -128,6 +128,22 @@ int main(void)
         goto done;
     }
 
+    /* A successful PID lookup must not disturb an unrelated logical cursor. */
+    {
+        long saved_pos, saved_max;
+        PID_TYPE saved_mapping;
+
+        JFile_setPosition_(db->index->file, 0);
+        saved_pos = db->index->file->pos;
+        saved_max = db->index->file->maxPos;
+        saved_mapping = UDBIndex_posForPid_(db->index, first);
+        if (saved_mapping == 0 || db->index->file->pos != saved_pos ||
+            db->index->file->maxPos != saved_max) {
+            fprintf(stderr, "PID mapping lookup changed the index cursor\\n");
+            goto done;
+        }
+    }
+
     /* A failed delete of a mapped PID must not journal a zero mapping. */
     {
         PID_TYPE saved_mapping = UDBIndex_posForPid_(db->index, first);

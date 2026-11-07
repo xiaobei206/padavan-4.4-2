@@ -242,7 +242,10 @@ jobs:
                   "UDBIndex_isReservedPid_(db->index, first)",
                   "UDBIndex_isReservedPid_(db->index, abandoned)",
                   "closed index lookup changed the cached file position",
-                  "UDB_close(db);",
+                  "PID mapping lookup changed the index cursor",
+                  "JFile_setPosition_(db->index->file, 0)",
+                  "UDBIndex_posForPid_(db->index, first)",
+                  "UDB_close(db);
                   "unwritten reservation was not reclaimed at commit",
                   "UDBIndex_nextPid(db->index) != first",
                   "UDBIndex_nextPid(db->index) != 3",
@@ -3282,6 +3285,37 @@ jobs:
           ).read_text()
           if index_map_source.count("UDBIndex_offsetForPid_(") != 3:
               raise SystemExit("UDB PID-to-offset overflow validation is not centralized")
+          pid_lookup_start = index_map_source.find(
+              "PID_TYPE UDBIndex_posForPid_(UDBIndex *self, PID_TYPE pid)"
+          )
+          pid_lookup_end = index_map_source.find(
+              chr(10) + chr(10) + "int UDBIndex_setPos_forPid_", pid_lookup_start
+          )
+          pid_lookup_body = (
+              index_map_source[pid_lookup_start:pid_lookup_end]
+              if pid_lookup_start >= 0 and pid_lookup_end > pid_lookup_start else ""
+          )
+          pid_snapshot = pid_lookup_body.find("previous_file_pos = self->file->pos;")
+          pid_max_snapshot = pid_lookup_body.find("previous_max_pos = self->file->maxPos;")
+          pid_seek = pid_lookup_body.find("JFile_setPosition_(self->file, (long)offset);")
+          pid_read = pid_lookup_body.find("read_ok = JFile_fread(self->file,")
+          pid_restore = pid_lookup_body.find("self->file->pos = previous_file_pos;")
+          pid_restore_max = pid_lookup_body.find("self->file->maxPos = previous_max_pos;")
+          pid_read_failure = pid_lookup_body.find("if (!read_ok)")
+          if (
+              not pid_lookup_body or min(
+                  pid_snapshot, pid_max_snapshot, pid_seek, pid_read,
+                  pid_restore, pid_restore_max, pid_read_failure
+              ) < 0 or not (
+                  pid_snapshot < pid_seek < pid_read < pid_restore <
+                  pid_read_failure and
+                  pid_max_snapshot < pid_seek and
+                  pid_restore_max > pid_read and pid_restore_max < pid_read_failure
+              )
+          ):
+              raise SystemExit(
+                  "UDB PID mapping lookups must restore the caller's logical file cursor on both success and read failure"
+              )
           release_helper_start = index_map_source.find(
               "static int UDBIndex_prepareReleaseHole_(UDBIndex *self, PID_TYPE pid)"
           )
