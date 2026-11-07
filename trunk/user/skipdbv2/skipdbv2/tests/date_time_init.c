@@ -242,7 +242,12 @@ static int test_calendar_mktime_failure_is_atomic(void)
     impossible.tm_mday = 1;
     impossible.tm_isdst = -1;
     beforeImpossible = impossible;
+    errno = ERANGE;
     Date_fromLocalTime_(&value, &impossible);
+    if (errno != ERANGE) {
+        fprintf(stderr, "Date_fromLocalTime did not preserve errno after mktime failure\\n");
+        return 0;
+    }
     if (value.tv.tv_sec != before.tv.tv_sec ||
         value.tv.tv_usec != before.tv.tv_usec ||
         memcmp(&impossible, &beforeImpossible, sizeof(impossible)) != 0) {
@@ -250,7 +255,12 @@ static int test_calendar_mktime_failure_is_atomic(void)
         return 0;
     }
 
+    errno = EDOM;
     Date_setYear_(&value, (long)INT_MAX);
+    if (errno != EDOM) {
+        fprintf(stderr, "Date_setYear did not preserve errno after mktime failure\\n");
+        return 0;
+    }
     if (value.tv.tv_sec != before.tv.tv_sec ||
         value.tv.tv_usec != before.tv.tv_usec) {
         fprintf(stderr, "Date_setYear committed mktime's overflow sentinel\n");

@@ -31,7 +31,7 @@ static int Date_calendarToTime_(struct tm *calendar, time_t *timestamp)
 {
 	struct tm normalized;
 	time_t converted;
-	int savedErrno;
+	int savedErrno, conversionErrno;
 
 	if (NULL == calendar || NULL == timestamp)
 		return 0;
@@ -39,9 +39,10 @@ static int Date_calendarToTime_(struct tm *calendar, time_t *timestamp)
 	savedErrno = errno;
 	errno = 0;
 	converted = mktime(&normalized);
-	if (converted == (time_t)-1 && errno != 0)
-		return 0;
+	conversionErrno = errno;
 	errno = savedErrno;
+	if (converted == (time_t)-1 && conversionErrno != 0)
+		return 0;
 	*calendar = normalized;
 	*timestamp = converted;
 	return 1;

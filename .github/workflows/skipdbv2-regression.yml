@@ -5259,7 +5259,9 @@ jobs:
           date_test = Path("trunk/user/skipdbv2/skipdbv2/tests/date_time_init.c").read_text()
           for needle in ("Date_now(NULL)", "Date_setToLocalTimeZone(NULL)",
                          "Date_isLeapYear narrowed a representable future year",
-                         "Date_new did not initialize the wall-clock state"):
+                         "Date_new did not initialize the wall-clock state",
+                         "Date_fromLocalTime did not preserve errno after mktime failure",
+                         "Date_setYear did not preserve errno after mktime failure"):
               if needle not in date_test:
                   raise SystemExit("Date initialization regression case missing: " + needle)
 
@@ -5310,8 +5312,9 @@ jobs:
               "savedErrno = errno;",
               "errno = 0;",
               "converted = mktime(&normalized);",
-              "if (converted == (time_t)-1 && errno != 0)",
+              "conversionErrno = errno;",
               "errno = savedErrno;",
+              "if (converted == (time_t)-1 && conversionErrno != 0)",
               "*calendar = normalized;",
               "*timestamp = converted;")]
           if (not calendar_helper or min(helper_order) < 0 or

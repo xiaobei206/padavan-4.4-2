@@ -1,3 +1,14 @@
+## 2026-11-07 16:01 CST — Restore caller errno after Date calendar failures
+
+- Baseline: `5b6ddb24de439828ff48f793cd98b5f4641262eb`; SkipDBv2 Regression run #586 passed the full build and all 57 CTests.
+- Scope: the private `Date_calendarToTime_()` conversion boundary and existing `date_time_init_test`.
+- The helper saved the caller's `errno`, but restored it only after a successful `mktime()`. When an unrepresentable calendar value made `mktime()` return `(time_t)-1` with an error, the early return leaked that internal error into the caller's ambient errno state.
+- Capture `mktime()`'s errno separately, restore the caller's errno on both paths, and test the captured conversion error when distinguishing a valid `-1` timestamp from overflow. Calendar and timestamp publication remain all-or-nothing.
+- Extend the existing overflow regression to verify that both `Date_fromLocalTime_()` and `Date_setYear_()` preserve a pre-existing errno on conversion failure. Tighten the existing Actions source contract to enforce capture/restore/check order. No new files, public APIs, or CMake changes.
+- No local build is claimed; remote Actions remains the compiler/CTest gate.
+
+---
+
 ## 2026-11-07 15:59 CST — Repair Datum delimiter source-contract newline
 
 - Baseline: `d57c81841b717e6d63a6ac3f5740422cf28ce53e`; SkipDBv2 Regression run #584 failed in the Python source-contract step before CMake configure/build.
