@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -e
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/../../../.." && pwd)
 test_root=$(mktemp -d /tmp/adbyby-firewall-snapshot.XXXXXX)
 trap 'rm -rf "$test_root"' EXIT HUP INT TERM
