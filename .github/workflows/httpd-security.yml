@@ -17,6 +17,9 @@ on:
       - "trunk/user/httpd/src/tests/httpd_login_policy.c"
       - "trunk/user/httpd/src/httpd.h"
       - "trunk/user/httpd/src/web_ex.c"
+      - "trunk/user/httpd/src/variables.c"
+      - "trunk/user/httpd/src/httpd_script_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_script_policy.c"
       - "trunk/user/httpd/src/common.c"
       - "trunk/user/httpd/src/tests/httpd_service_id.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
@@ -82,6 +85,11 @@ jobs:
           /tmp/httpd_login_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
             -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_script_policy.c \
+            -o /tmp/httpd_script_policy
+          /tmp/httpd_script_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
             trunk/user/httpd/src/common.c \
             trunk/user/httpd/src/tests/httpd_service_id.c \
             -o /tmp/httpd_service_id
@@ -106,6 +114,9 @@ jobs:
           httpd = (root / "httpd.c").read_text()
           web = (root / "web_ex.c").read_text()
           common = (root / "common.c").read_text()
+          variables = (root / "variables.c").read_text()
+          script_policy = (root / "httpd_script_policy.h").read_text()
+          script_policy_test = (root / "tests/httpd_script_policy.c").read_text()
           service_id_test = (root / "tests/httpd_service_id.c").read_text()
           upload = (root / "upload.c").read_text()
           archive_root = Path("trunk/user/busybox/busybox-1.24.x/archival/libarchive")
@@ -430,6 +441,30 @@ jobs:
           assert 'script = websGetVar(wp, "action_script","");' in apply_handler
           assert "sys_script(script);" in apply_handler
           print("HTTPD generic /tmp script trusted-session guard: OK")
+          # Executable scripts are root-managed programs. Enforce their trust
+          # boundary in the common file writer even if a variable's event mask
+          # is accidentally missing EVM_BLOCK_UNSAFE.
+          write_start = web.index("write_textarea_to_file(const char* value")
+          write_end = web.index(chr(10) + "static void" + chr(10) + "websScan", write_start)
+          write_helper = web[write_start:write_end]
+          script_write_gate = write_helper.index(
+              "httpd_script_file_write_allowed(file_type, get_login_safe())"
+          )
+          temp_write = write_helper.index("unlink(temp_path);")
+          assert script_write_gate < temp_write
+          assert "file_type = HTTPD_FILE_TYPE_SCRIPT;" in write_helper
+          assert "HTTPD_FILE_TYPE_SCRIPT 1" in script_policy
+          assert "HTTPD_FILE_TYPE_SCRIPT, 0" in script_policy_test
+          assert "HTTPD_FILE_TYPE_SCRIPT, 1" in script_policy_test
+          ap_script_entries = [
+              line for line in variables.splitlines()
+              if '"scripts.ap_script.sh"' in line
+          ]
+          assert len(ap_script_entries) == 2
+          assert all("EVM_BLOCK_UNSAFE" in line for line in ap_script_entries)
+          assert 'if (!strcmp(file_name, "ap_script.sh") && get_login_safe())' in web
+          print("HTTPD executable script write and execution trust boundary: OK")
+
           print("HTTPD strict Basic authentication and decoder wiring: OK")
 
           print("HTTPD private-key access policy and call-site wiring: OK")

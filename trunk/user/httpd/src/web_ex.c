@@ -56,6 +56,7 @@
 #include "common.h"
 #include "nvram_x.h"
 #include "httpd.h"
+#include "httpd_script_policy.h"
 #include "dbapi.h"
 #define GROUP_FLAG_REFRESH 	0
 #define GROUP_FLAG_DELETE 	1
@@ -444,11 +445,15 @@ write_textarea_to_file(const char* value, const char* dir_name, const char* file
 		    strcmp(extensions, ".pem") == 0)
 			file_type = 2; // this is key/cert
 		else if (strcmp(extensions, ".sh") == 0)
-			file_type = 1; // this is script
+			file_type = HTTPD_FILE_TYPE_SCRIPT; // this is script
 	} else {
 		if (strcmp(file_name, "authorized_keys") == 0)
 			file_type = 3; // this is ssh authorized_keys
 	}
+
+	/* Script files become executable root-managed programs. */
+	if (!httpd_script_file_write_allowed(file_type, get_login_safe()))
+		return 0;
 
 	path_len = snprintf(temp_path, sizeof(temp_path), "%s/.%s", "/tmp", file_name);
 	if (path_len < 0 || path_len >= (int)sizeof(temp_path))
@@ -1083,7 +1088,7 @@ validate_asp_apply(webs_t wp, int sid)
 			} else if (!strncmp(v->name, "scripts.", 8)) {
 				if (write_textarea_to_file(value, STORAGE_SCRIPTS_DIR, file_name))
 					restart_needed_bits |= event_mask;
-				if (!strcmp(file_name, "ap_script.sh"))
+				if (!strcmp(file_name, "ap_script.sh") && get_login_safe())
 				{
 					doSystem("/etc/storage/ap_script.sh");
 				}
