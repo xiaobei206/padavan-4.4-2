@@ -1,3 +1,12 @@
+## 2026-11-07 23:19 CST — Verify HTTPD MIME authorization matrix contract
+
+- Corrective workflow commit `015b820fc61cb8e3cc1283a0a87a48751205eae6` is on main. HTTPD Authentication and Security Regression run `42385661621` completed SUCCESS on exact head SHA `015b820fc61cb8e3cc1283a0a87a48751205eae6`: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42385661621.
+- All three GNU89 `-Wall -Wextra -Werror` policy/basic-auth/session helper regressions compiled and ran. Source contract confirmed the route matrix and auth gate ordering. Previous failed run `42385599174` on the earlier matrix commit is retained and explained as the over-escaped test regex; it did not expose a production C failure.
+- Updated the durable handoff and roadmap with the verified result and the explicit test boundary. HTTPD/CGI remain AUDITING; MIPS firmware build, artifact validation, fuzzing and hardware testing remain NOT VERIFIED.
+- Next bounded P1 task: audit `upload.c` and firmware/NVRAM/storage restore callers for multipart framing, length bounds, filesystem/cleanup behavior, extraction limits and rollback. Do not resume routine SkipDBv2 work.
+
+---
+
 ## 2026-11-07 23:18 CST — Record HTTPD route-matrix CI failure and recovery state
 
 - Verified first matrix workflow run `42385599174` against exact code SHA `4cef7d95812786dad0d0ac34dce461b0a1c0bb64`: the C regression step passed; the source-wiring step failed with `AssertionError: failed to parse the HTTPD MIME route table` because the new Python regex was over-escaped.
@@ -20,7 +29,7 @@
 - Baseline main HEAD: 8fd0a842b9599876b753c2b5b6deda4bd4feecf7. Bounded P1 continuation of the unfinished HTTPD route/auth audit.
 - Source reviewed: `trunk/user/httpd/src/web_ex.c::mime_handlers[]` and `trunk/user/httpd/src/httpd.c::handle_request()`. The request path checks `need_auth` before invoking input/output callbacks; the prior `dbconf` exception is now auth-gated. Existing localhost bypass and public asset exceptions are preserved as compatibility contracts.
 - Change: extend `.github/workflows/httpd-security.yml` with a regex-based source table parser that verifies callback plus `need_auth` for explicit cached public assets and all known dynamic pages, dynamic-JS fallback, config/storage/log exports, feature-gated exports/APIs, apply/update CGI, firmware upgrade and both restore routes. Also assert that public cached JavaScript routes precede the protected `**.js` fallback. The contract parses feature-gated entries independent of the active firmware configuration.
-- Validation: PENDING — run URL/ID and result will be recorded after matching the Actions run to this exact code SHA. No local workflow execution, target build or firmware/hardware validation is claimed. Handler internals, complete CGI/EJ dataflow and the full HTTPD surface remain unaudited.
+- Initial run `42385599174` failed on exact SHA `4cef7d95812786dad0d0ac34dce461b0a1c0bb64` because the Python regex did not parse any route rows. Corrective commit `015b820fc61cb8e3cc1283a0a87a48751205eae6` fixed the backslash count. Actions run `42385661621` passed on that exact SHA: C tests and the source-wiring step both succeeded. This verifies the listed route declarations and existing auth-gate order, not handler internals. No target build or firmware/hardware validation is claimed.
 - Next: verify this exact run; then audit `do_upgrade_fw_cgi`, `do_restore_nv_cgi`, `do_restore_st_cgi`, `do_apply_cgi`, `do_update_cgi` and sensitive file exports.
 
 ---
