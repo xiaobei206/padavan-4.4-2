@@ -1,3 +1,13 @@
+## 2026-11-07 17:56 CST — Avoid double-committing the journal before truncation
+
+- Baseline: `bd066c3d32c2c36d58e52a24101d797d90849b58`; SkipDBv2 Regression run #616 passed the workflow contracts, full build, and all 57 CTests.
+- Scope: `JFile_truncate_()` and the existing journal regression test.
+- `JFile_truncate_()` called `JFile_commitToLog()` and then `JFile_commitToFile()`, which itself calls `JFile_commitToLog()`. The first call converts the terminal item marker into a transaction marker; the second then expects an item marker, treats the already committed journal as invalid, closes the journal stream, and returns before truncation.
+- Let `JFile_commitToFile()` own the single prepare/replay sequence. Add a regression that truncates with a pending journal entry, verifies both streams remain open and the data extent is empty, then performs a successful write/commit on the same object.
+- Extend the existing source contracts to ensure truncation does not directly double-commit and that the regression remains registered. No new files or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the build/runtime gate.
+
+---
 ## 2026-11-07 17:54 CST — Validate UArray layouts before insert-every arithmetic
 
 - Baseline: `8906776f32240d305181efa4afa6cec3cb450ba3`; SkipDBv2 Regression run #615 passed all source contracts, the full build, and 57 CTests.

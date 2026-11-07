@@ -151,6 +151,52 @@ done:
 	return passed;
 }
 
+static int test_truncate_commits_pending_journal_once(void)
+{
+	JFile *truncate_file = JFile_new();
+	const char before[] = "pending-before-truncate";
+	const char after[] = "write-after-truncate";
+	char path[128];
+	int path_len;
+	int passed = 0;
+
+	if (NULL == truncate_file)
+		return 0;
+	path_len = snprintf(path, sizeof(path), "jfile_truncate_test_%ld",
+		(long)getpid());
+	if (path_len < 0 || (size_t)path_len >= sizeof(path))
+		goto done;
+	JFile_setPath_(truncate_file, path);
+	JFile_remove(truncate_file);
+	JFile_open(truncate_file);
+	if (NULL == truncate_file->file || NULL == truncate_file->log ||
+		JFile_fwrite(truncate_file, (void *)before, sizeof(before), 1) != 1 ||
+		JFile_logSize(truncate_file) == 0)
+		goto done;
+
+	/* Truncate must replay the pending journal without double-committing it. */
+	JFile_truncate_(truncate_file, 0);
+	if (NULL == truncate_file->file || NULL == truncate_file->log ||
+		truncate_file->maxPos != 0 || JFile_logSize(truncate_file) != 0 ||
+		fseek(truncate_file->file, 0, SEEK_END) != 0 ||
+		ftell(truncate_file->file) != 0)
+		goto done;
+
+	if (JFile_fwrite(truncate_file, (void *)after, sizeof(after), 1) != 1)
+		goto done;
+	JFile_commitToFile(truncate_file);
+	if (NULL == truncate_file->file || NULL == truncate_file->log ||
+		JFile_logSize(truncate_file) != 0 ||
+		!file_contains(truncate_file, 0, after))
+		goto done;
+	passed = 1;
+
+done:
+	JFile_remove(truncate_file);
+	JFile_free(truncate_file);
+	return passed;
+}
+
 int main(void)
 {
 	JFile *file = NULL;
@@ -168,6 +214,10 @@ int main(void)
 
 	if (!test_journaling_mode_transition()) {
 		fprintf(stderr, "mid-open journaling-mode change corrupted journal replay\n");
+		goto done;
+	}
+	if (!test_truncate_commits_pending_journal_once()) {
+		fprintf(stderr, "truncate closed streams while a journal commit was pending\n");
 		goto done;
 	}
 

@@ -621,6 +621,10 @@ jobs:
                   "void JFile_truncate_(JFile *self, off_t size)",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/jfile_journal.c": [
+                  "test_truncate_commits_pending_journal_once",
+                  "JFile_truncate_(truncate_file, 0);",
+                  "truncate_file->maxPos != 0",
+                  "truncate closed streams while a journal commit was pending",
                   "test_path_setter_aliases",
                   "JFile_setLogPath_(paths, paths->path)",
                   'JFile_setPath_withExtension_(paths, paths->path, "db")',
@@ -3573,6 +3577,34 @@ jobs:
           sync_return = sync_body.find("return result;", sync_retry)
           if not sync_body or sync_retry < 0 or sync_return < sync_retry:
               raise SystemExit("JFile hard-sync helper must return the fsync/F_FULLFSYNC result after EINTR retries")
+
+          truncate_start = sync_source.find(
+              "void JFile_truncate_(JFile *self, off_t size)"
+          )
+          truncate_fail = sync_source.find(chr(10) + "fail:", truncate_start)
+          truncate_end = sync_source.find(chr(10) + "}", truncate_fail)
+          truncate_body = (
+              sync_source[truncate_start:truncate_end]
+              if truncate_start >= 0 and truncate_fail > truncate_start and truncate_end > truncate_fail
+              else ""
+          )
+          truncate_commit = truncate_body.find("JFile_commitToFile(self);")
+          truncate_write = truncate_body.find("ftruncate(fd, target)")
+          if (
+              not truncate_body or "JFile_commitToLog(self);" in truncate_body or
+              truncate_commit < 0 or truncate_write < 0 or truncate_commit > truncate_write
+          ):
+              raise SystemExit("JFile_truncate_ must delegate the pending journal commit once before truncating")
+
+          journal_test = Path(
+              "trunk/user/skipdbv2/skipdbv2/tests/jfile_journal.c"
+          ).read_text()
+          if (
+              "static int test_truncate_commits_pending_journal_once(void)" not in journal_test or
+              "JFile_truncate_(truncate_file, 0);" not in journal_test or
+              "truncate closed streams while a journal commit was pending" not in journal_test
+          ):
+              raise SystemExit("JFile pending-journal truncation regression coverage is missing")
 
           line_source = Path("trunk/user/skipdbv2/skipdbv2/basekit/UArray_stream.c").read_text()
           cursor_source = Path("trunk/user/skipdbv2/skipdbv2/skipdb/SkipDBCursor.c").read_text()
