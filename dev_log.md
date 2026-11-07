@@ -1,3 +1,9 @@
+## 2026-11-07 17:50 CST — Repair workflow contract quoting
+
+- CI run #613 stopped in the early XY-C1 integration-contract step, before compilation: the new assertion needle in the Python source-contract list was missing its closing quote.
+- Restore the closing quote only; the C build and CTest stages had not run in this attempt.
+
+---
 ## 2026-11-07 17:49 CST — Correct fail-closed regression expectation
 
 - CI run #612 compiled all targets and passed the source/build gates; `skipdb_cursor_previous_test` reached the new corruption case and showed the implementation closed UDB as intended.
