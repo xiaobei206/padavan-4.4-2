@@ -1,3 +1,11 @@
+## 2026-11-07 15:39 CST — Correct BStream numeric-read contract delimiters
+
+- Baseline: `9be024ebbea4798a96f3f2aba5297f6beef5f394`; run #580 failed in the Python source-contract phase before configure/build.
+- The new contract used double-escaped newline and tab sequences when extracting `BStream_readNumber_size_()`. Python therefore searched for literal backslash characters, failed to find the function boundary and alias-guard closing brace, and rejected the valid C implementation.
+- Correct the two Python string delimiters to match the actual source newlines and tab indentation. No C implementation or runtime regression code changed.
+- Rerun the full contract, configure, build, and CTest gates.
+
+---
 ## 2026-11-07 15:38 CST — Reject numeric-read destinations that alias BStream storage
 
 - Baseline: `af336c118844f99de94318e83c5f4e18124f0850`; mainline run #579 passed source contracts, configure, full build, and CTest.
