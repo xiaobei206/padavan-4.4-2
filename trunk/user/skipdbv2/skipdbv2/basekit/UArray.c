@@ -14,6 +14,8 @@ license: See _BSDLicense.txt.
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 
 size_t CTYPE_size(CTYPE type)
 {
@@ -684,16 +686,56 @@ void UArray_sizeTo_(UArray *self, size_t size)
 
 // copy
 
+
+#define UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(name, type) \
+	typedef struct { char leadingByte; type value; } name
+
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayUInt8AlignmentProbe, uint8_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayUInt16AlignmentProbe, uint16_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayUInt32AlignmentProbe, uint32_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayUInt64AlignmentProbe, uint64_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayInt8AlignmentProbe, int8_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayInt16AlignmentProbe, int16_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayInt32AlignmentProbe, int32_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayInt64AlignmentProbe, int64_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayFloat32AlignmentProbe, float32_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayFloat64AlignmentProbe, float64_t);
+UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_(UArrayUintptrAlignmentProbe, uintptr_t);
+
+#undef UARRAY_DECLARE_ITEM_ALIGNMENT_PROBE_
+
+static size_t UArray_itemAlignment_(CTYPE itemType)
+{
+	switch (itemType) {
+		case CTYPE_uint8_t: return offsetof(UArrayUInt8AlignmentProbe, value);
+		case CTYPE_uint16_t: return offsetof(UArrayUInt16AlignmentProbe, value);
+		case CTYPE_uint32_t: return offsetof(UArrayUInt32AlignmentProbe, value);
+		case CTYPE_uint64_t: return offsetof(UArrayUInt64AlignmentProbe, value);
+		case CTYPE_int8_t: return offsetof(UArrayInt8AlignmentProbe, value);
+		case CTYPE_int16_t: return offsetof(UArrayInt16AlignmentProbe, value);
+		case CTYPE_int32_t: return offsetof(UArrayInt32AlignmentProbe, value);
+		case CTYPE_int64_t: return offsetof(UArrayInt64AlignmentProbe, value);
+		case CTYPE_float32_t: return offsetof(UArrayFloat32AlignmentProbe, value);
+		case CTYPE_float64_t: return offsetof(UArrayFloat64AlignmentProbe, value);
+		case CTYPE_uintptr_t: return offsetof(UArrayUintptrAlignmentProbe, value);
+		default: return 0;
+	}
+}
+
+
 static int UArray_hasValidItemLayout_(const UArray *self)
 {
-	size_t expectedItemSize;
+	size_t expectedItemSize, expectedAlignment;
 
 	if (NULL == self)
 		return 0;
 	expectedItemSize = CTYPE_size(self->itemType);
-	if (expectedItemSize == 0 || self->itemSize != expectedItemSize ||
+	expectedAlignment = UArray_itemAlignment_(self->itemType);
+	if (expectedItemSize == 0 || expectedAlignment == 0 ||
+		self->itemSize != expectedItemSize ||
 		self->size > (size_t)-1 / expectedItemSize ||
-		(self->size > 0 && NULL == self->data))
+		(self->size > 0 && NULL == self->data) ||
+		(self->data && ((uintptr_t)self->data % expectedAlignment) != 0))
 		return 0;
 	return 1;
 }

@@ -1,3 +1,14 @@
+## 2026-11-07 14:16 CST — Enforce CTYPE alignment in core UArray layout validation
+
+- Baseline: `8d98d011854e7ad1e179be8e4c2654c1522ca5a2`; numeric math alignment passed SkipDBv2 Regression run #557.
+- Scope: the shared `UArray_hasValidItemLayout_` guard in `basekit/UArray.c`, which protects typed copy/conversion, scalar writes, sorting, and stack-range creation.
+- The core validator checked CTYPE width, extent overflow, and non-empty data presence, but still accepted a correctly sized yet misaligned borrowed pointer. Those call sites subsequently use typed C lvalues or comparators, which can be undefined on strict-alignment platforms.
+- Added a per-CTYPE alignment lookup using `offsetof` probes and reject misaligned backing storage before the shared typed operations run. Extended the existing stack/copy regression test to cover misaligned copy sources and destinations, stack ranges, and scalar writes; fixtures are initialized and inspected through byte operations.
+- Updated existing Actions source contracts. The test was already registered in CMake; no build files, new files, or exported symbols changed.
+- Validation: reviewed every call site of the shared validator to ensure the check precedes typed access. Remote CI is the compile/CTest gate; no local build is claimed.
+
+---
+
 ## 2026-11-07 14:11 CST — Validate alignment before UArray numeric math
 
 - Baseline: `876df8eb6db3b47274bff6cbef3297d311509186`; numeric conversion alignment passed SkipDBv2 Regression run #556.

@@ -2448,6 +2448,9 @@ jobs:
                   'BStream_canReadArray_(self, b, "invalid tagged binary stream array read")',
               ],
               "trunk/user/skipdbv2/skipdbv2/basekit/UArray.c": [
+                  "static size_t UArray_itemAlignment_(CTYPE itemType)",
+                  "expectedAlignment = UArray_itemAlignment_(self->itemType);",
+                  "(uintptr_t)self->data % expectedAlignment) != 0",
                   "static int UArray_hasValidItemLayout_(const UArray *self)",
                   "expectedItemSize = CTYPE_size(self->itemType);",
                   "self->itemSize != expectedItemSize",
@@ -2661,6 +2664,11 @@ jobs:
                   "return count > (size_t)INT_MAX ? INT_MAX : (int)count;",
               ],
               "trunk/user/skipdbv2/skipdbv2/tests/uarray_stack_resize.c": [
+                  "testRejectsMisalignedTypedItemLayouts",
+                  "UArray typed copy read misaligned source storage",
+                  "UArray typed copy wrote misaligned destination storage",
+                  "UArray stack range exposed misaligned typed storage",
+                  "UArray scalar write accepted misaligned typed storage",
                   "static int testCopyRejectsMismatchedItemLayouts(void)",
                   "UArray_copyItems_(&target, &malformedSource)",
                   "UArray_copyItems_(&malformedTarget, &validSource)",

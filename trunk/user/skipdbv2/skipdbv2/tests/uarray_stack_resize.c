@@ -1,6 +1,8 @@
 #include "UArray.h"
 
 #include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -164,6 +166,96 @@ done:
     UArray_stackFree(&malformedTarget);
     UArray_stackFree(&target);
     UArray_stackFree(&malformedSource);
+    return okay;
+}
+
+
+
+typedef struct
+{
+    char leadingByte;
+    uint64_t value;
+} TestUArrayUInt64AlignmentProbe;
+
+static int testRejectsMisalignedTypedItemLayouts(void)
+{
+    union {
+        uint64_t alignment;
+        uint8_t bytes[sizeof(uint64_t) + 1];
+    } sourceStorage, targetStorage;
+    const uint64_t sourceValue = UINT64_C(0x123456789abcdef0);
+    uint8_t sourceSnapshot[sizeof(sourceValue)];
+    uint32_t targetValue = UINT32_C(0x55667788);
+    const uint32_t expectedTarget = UINT32_C(0x55667788);
+    uint32_t replacementValue = UINT32_C(0x10203040);
+    UArray malformedSource, malformedTarget, alignedTarget, alignedSource;
+    UArray range;
+    uintptr_t misalignedSourceAddress, misalignedTargetAddress;
+    size_t alignment = offsetof(TestUArrayUInt64AlignmentProbe, value);
+    int okay = 0;
+
+    if (alignment <= 1)
+        return 1;
+
+    memset(sourceStorage.bytes, 0, sizeof(sourceStorage.bytes));
+    memset(targetStorage.bytes, 0, sizeof(targetStorage.bytes));
+    memcpy(sourceSnapshot, &sourceValue, sizeof(sourceSnapshot));
+    memcpy(sourceStorage.bytes + 1, sourceSnapshot, sizeof(sourceSnapshot));
+    memcpy(targetStorage.bytes + 1, sourceSnapshot, sizeof(sourceSnapshot));
+    misalignedSourceAddress = (uintptr_t)(sourceStorage.bytes + 1);
+    misalignedTargetAddress = (uintptr_t)(targetStorage.bytes + 1);
+    if (misalignedSourceAddress % alignment == 0 ||
+        misalignedTargetAddress % alignment == 0)
+        return 0;
+
+    malformedSource = UArray_stackAllocedWithData_type_size_(
+        sourceStorage.bytes + 1, CTYPE_uint64_t, 1);
+    malformedTarget = UArray_stackAllocedWithData_type_size_(
+        targetStorage.bytes + 1, CTYPE_uint64_t, 1);
+    alignedTarget = UArray_stackAllocedWithData_type_size_(
+        &targetValue, CTYPE_uint32_t, 1);
+    alignedSource = UArray_stackAllocedWithData_type_size_(
+        &replacementValue, CTYPE_uint32_t, 1);
+
+    alignedTarget.hash = (uintptr_t)0x1234;
+    UArray_copyItems_(&alignedTarget, &malformedSource);
+    if (targetValue != expectedTarget || alignedTarget.hash != (uintptr_t)0x1234) {
+        fprintf(stderr, "UArray typed copy read misaligned source storage\\n");
+        goto done;
+    }
+
+    malformedTarget.hash = (uintptr_t)0x2345;
+    UArray_copyItems_(&malformedTarget, &alignedSource);
+    if (memcmp(targetStorage.bytes + 1, sourceSnapshot, sizeof(sourceSnapshot)) != 0 ||
+        malformedTarget.hash != (uintptr_t)0x2345) {
+        fprintf(stderr, "UArray typed copy wrote misaligned destination storage\\n");
+        goto done;
+    }
+
+    range = UArray_stackRange(&malformedSource, 0, 1);
+    if (range.data != NULL || range.size != 0 ||
+        range.itemType != CTYPE_uint8_t || range.itemSize != sizeof(uint8_t)) {
+        fprintf(stderr, "UArray stack range exposed misaligned typed storage\\n");
+        UArray_stackFree(&range);
+        goto done;
+    }
+    UArray_stackFree(&range);
+
+    malformedTarget.hash = (uintptr_t)0x3456;
+    UArray_at_putLong_(&malformedTarget, 0, 0);
+    UArray_at_putDouble_(&malformedTarget, 0, 1.0);
+    if (memcmp(targetStorage.bytes + 1, sourceSnapshot, sizeof(sourceSnapshot)) != 0 ||
+        malformedTarget.hash != (uintptr_t)0x3456) {
+        fprintf(stderr, "UArray scalar write accepted misaligned typed storage\\n");
+        goto done;
+    }
+
+    okay = 1;
+done:
+    UArray_stackFree(&malformedSource);
+    UArray_stackFree(&malformedTarget);
+    UArray_stackFree(&alignedTarget);
+    UArray_stackFree(&alignedSource);
     return okay;
 }
 
@@ -354,6 +446,10 @@ int main(void)
     }
     if (!testCopyRejectsMismatchedItemLayouts()) {
         fprintf(stderr, "UArray typed copy accepted inconsistent element layout metadata\n");
+        goto done;
+    }
+    if (!testRejectsMisalignedTypedItemLayouts()) {
+        fprintf(stderr, "UArray typed operations accepted misaligned backing storage\\n");
         goto done;
     }
     if (testIndexCompaction() != EXIT_SUCCESS) {
