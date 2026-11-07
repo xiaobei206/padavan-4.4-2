@@ -145,7 +145,17 @@ elif [ "$ID_FS_TYPE" == "hfsplus" -o "$ID_FS_TYPE" == "hfs" ] ; then
 	fi
 elif [ "$ID_FS_TYPE" == "ext4" -o "$ID_FS_TYPE" == "ext3" -o "$ID_FS_TYPE" == "ext2" ] ; then
 	if [ "$achk_enable" != "0" ] && [ -x /sbin/e2fsck ] ; then
+		if [ ! -r /sbin/storage_fsck_status.sh ]; then
+			logger -t "automount" "Missing e2fsck status policy; refusing to mount $dev_full"
+			exit 1
+		fi
+		. /sbin/storage_fsck_status.sh
 		/sbin/e2fsck -p -v "$dev_full" > "/tmp/e2fsck_result_$1" 2>&1
+		e2fsck_status=$?
+		if ! storage_e2fsck_status_allows_mount "$e2fsck_status"; then
+			logger -t "automount" "Refusing to mount $dev_full after e2fsck exit status $e2fsck_status"
+			exit 1
+		fi
 	fi
 	if [ "$ID_FS_TYPE" == "ext4" ] ; then
 		func_load_module ext4
