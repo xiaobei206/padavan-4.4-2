@@ -11,6 +11,13 @@ static int check_bytes(const UArray *array, const uint8_t *expected, size_t leng
 		(length == 0 || memcmp(UArray_bytes(array), expected, length) == 0);
 }
 
+static int compare_equal_items(const void *left, const void *right)
+{
+	(void)left;
+	(void)right;
+	return 0;
+}
+
 int main(void)
 {
 	uint8_t bytes16[] = { 0x10, 0x20, 0x30, 0x40, 0x50, 0x60 };
@@ -26,10 +33,14 @@ int main(void)
     const uint8_t swappedOrder[] = { 0x10, 0x30, 0x20, 0x40 };
     uint8_t malformedBytes[] = { 0xa1, 0xb2, 0xc3, 0xd4 };
     const uint8_t originalMalformedBytes[] = { 0xa1, 0xb2, 0xc3, 0xd4 };
+    uint8_t malformedSortBytes[] = { 0x91, 0x82, 0x73, 0x64 };
+    const uint8_t originalMalformedSortBytes[] = { 0x91, 0x82, 0x73, 0x64 };
     UArray itemOrder = UArray_stackAllocedWithData_type_size_(
         orderBytes, CTYPE_uint8_t, sizeof(orderBytes));
     UArray malformedLayout = UArray_stackAllocedWithData_type_size_(
         malformedBytes, CTYPE_uint8_t, 2);
+    UArray malformedSort = UArray_stackAllocedWithData_type_size_(
+        malformedSortBytes, CTYPE_uint64_t, sizeof(malformedSortBytes));
 	UArray empty = UArray_stackAllocedEmptyUArray();
 	UArray invalid = words16;
 
@@ -102,6 +113,27 @@ int main(void)
         return EXIT_FAILURE;
     }
 
+    /* Sorting must reject an item width that disagrees with its CTYPE. */
+    malformedSort.itemSize = sizeof(uint8_t);
+    malformedSort.hash = (uintptr_t)0x4567;
+    UArray_sort(&malformedSort);
+    if (memcmp(malformedSortBytes, originalMalformedSortBytes,
+            sizeof(originalMalformedSortBytes)) != 0 ||
+        malformedSort.hash != (uintptr_t)0x4567) {
+        fprintf(stderr, "UArray_sort accepted malformed CTYPE/itemSize geometry\n");
+        return EXIT_FAILURE;
+    }
+
+    malformedSort.hash = (uintptr_t)0x5678;
+    UArray_sortBy_(&malformedSort, compare_equal_items);
+    if (memcmp(malformedSortBytes, originalMalformedSortBytes,
+            sizeof(originalMalformedSortBytes)) != 0 ||
+        malformedSort.hash != (uintptr_t)0x5678) {
+        fprintf(stderr, "UArray_sortBy_ accepted malformed CTYPE/itemSize geometry\n");
+        return EXIT_FAILURE;
+    }
+
+	UArray_stackFree(&malformedSort);
 	UArray_stackFree(&words16);
 	UArray_stackFree(&word32);
 	UArray_stackFree(&empty);

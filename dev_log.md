@@ -1,3 +1,13 @@
+## 2026-11-07 08:46 CST — Validate UArray layout before sorting
+
+- Baseline: main commit `2b2df6aa6252c894b66d79f6c3d6d6e250e20277`; SkipDBv2 Regression run #475 passed source contracts, configure, full build, and all regression tests.
+- Scope: `UArray_sort()` and `UArray_sortBy_()` in `basekit/UArray.c`.
+- Both sort entry points checked only for a null buffer, not whether `itemType` and `itemSize` agreed. A malformed public UArray struct could make `qsort()` use an element width larger than its declared backing layout, allowing out-of-bounds memory access and invalidating the cached hash.
+- Reuse `UArray_hasValidItemLayout_()` before hashing or sorting; extend the existing malformed-layout regression and Actions source contracts. No new files or CMake changes.
+- No local C compilation or CTest run is claimed; mainline CI remains the compile/runtime gate.
+
+---
+
 ## 2026-11-07 08:43 CST — Retry interrupted durability barriers
 
 - Baseline: main commit `73b2c1b693f87abfd3d6d3e9762f7ca39a310c5a`; SkipDBv2 Regression run #474 passed source contracts, configure, full build, and all regression tests.

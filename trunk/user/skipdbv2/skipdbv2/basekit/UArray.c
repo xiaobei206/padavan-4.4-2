@@ -1758,7 +1758,7 @@ void UArray_sort(UArray *self)
 {
 	void *base;
 	size_t size;
-	if (NULL == self || (self->size > 0 && NULL == self->data))
+	if (NULL == self || !UArray_hasValidItemLayout_(self))
 		return;
 	base = self->data;
 	size = self->size;
@@ -1788,8 +1788,7 @@ void UArray_sortBy_(UArray *self, UArraySortCallback *cmp)
 {
 	void *base;
 	size_t size;
-	if (NULL == self || NULL == cmp ||
-		(self->size > 0 && NULL == self->data))
+	if (NULL == self || NULL == cmp || !UArray_hasValidItemLayout_(self))
 		return;
 	base = self->data;
 	size = self->size;
