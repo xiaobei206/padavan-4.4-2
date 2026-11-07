@@ -1,3 +1,14 @@
+## 2026-11-07 17:28 CST — Unify UDBRecords partial-construction cleanup
+
+- Baseline: `5fbf29156cbf1b0a4f1ce7cd94b9d6bc8f82cd39`; mainline SkipDBv2 Regression run #607 passed source contracts, the full build, and all 57 CTests.
+- Scope: the `UDBRecords_new()` constructor and its existing `UDBRecords_free()` lifecycle path.
+- Allocation failure and default-path initialization failure previously duplicated the same four resource releases. This makes constructor rollback easy to drift from the normal destructor when fields are added or ownership changes.
+- Route both failures through one cleanup label and the canonical NULL-safe destructor. The destructor already handles partially initialized `JFile` and `UDBRecord` members; no resource is published and successful construction remains unchanged.
+- Tighten the existing Actions source contract and add an ordering/count assertion for the single rollback path. No new files, symbols, CTest targets, or CMake changes.
+- No local compiler/CTest result is claimed; GitHub Actions remains the compiler/runtime gate.
+
+---
+
 ## 2026-11-07 17:25 CST — Reject Windows wall-clock seconds outside timeval range
 
 - Baseline: `bcc82f840626a8594a190d24b888cdbf166ee748`; mainline SkipDBv2 Regression run #606 passed the XY-C1 source contracts, complete build, and all 57 CTests.

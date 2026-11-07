@@ -492,6 +492,9 @@ jobs:
               ],
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecords.c": [
                   "UDBRecords *UDBRecords_new(void)",
+                  "goto failed;",
+                  "failed:",
+                  "UDBRecords_free(self);",
                   "void UDBRecords_free(UDBRecords *self)",
                   "void UDBRecords_setPath_(UDBRecords *self, const char *path)",
               ],
@@ -3199,6 +3202,18 @@ jobs:
               raise SystemExit("SkipDB ordered-query PID traversal limit is not centralized")
           if query_source.count("SkipDB_queryTraversalStep_(") != 3:
               raise SystemExit("SkipDB ordered-query bounded-step guard is not centralized")
+
+          records_lifecycle_source = Path(
+              "trunk/user/skipdbv2/skipdbv2/udb/UDBRecords.c"
+          ).read_text()
+          records_new_start = records_lifecycle_source.find("UDBRecords *UDBRecords_new(void)")
+          records_new_end = records_lifecycle_source.find(chr(10) + "void UDBRecords_free", records_new_start)
+          records_new_body = records_lifecycle_source[records_new_start:records_new_end] if records_new_start >= 0 and records_new_end > records_new_start else ""
+          if (not records_new_body or records_new_body.count("goto failed;") != 2 or
+                  records_new_body.count("UDBRecords_free(self);") != 1 or
+                  records_new_body.find("failed:") < 0 or
+                  records_new_body.find("UDBRecords_free(self);") < records_new_body.find("failed:")):
+              raise SystemExit("UDBRecords partial construction must converge on its NULL-safe destructor")
 
           records_cursor_source = Path(
               "trunk/user/skipdbv2/skipdbv2/udb/UDBRecordsCursor.c"

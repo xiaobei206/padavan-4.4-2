@@ -14,26 +14,23 @@ UDBRecords *UDBRecords_new(void)
 	UDBRecords *self = (UDBRecords *)calloc(1, sizeof(*self));
 	if (NULL == self)
 		return NULL;
+
 	self->file = JFile_new();
 	self->record = UDBRecord_new();
 	self->firstEmptyRecord = UDBRecord_new();
 	if (NULL == self->file || NULL == self->record ||
-		NULL == self->firstEmptyRecord) {
-		JFile_free(self->file);
-		UDBRecord_free(self->record);
-		UDBRecord_free(self->firstEmptyRecord);
-		free(self);
-		return NULL;
-	}
+		NULL == self->firstEmptyRecord)
+		goto failed;
+
 	UDBRecords_setPath_(self, "default");
-	if (NULL == self->file->path || NULL == self->file->logPath) {
-		JFile_free(self->file);
-		UDBRecord_free(self->record);
-		UDBRecord_free(self->firstEmptyRecord);
-		free(self);
-		return NULL;
-	}
+	if (NULL == self->file->path || NULL == self->file->logPath)
+		goto failed;
 	return self;
+
+failed:
+	/* Use the normal destructor so partial construction has one owner path. */
+	UDBRecords_free(self);
+	return NULL;
 }
 
 void UDBRecords_free(UDBRecords *self)
