@@ -5014,8 +5014,10 @@ jobs:
                   "!UArray_hasValidItemLayout_(self)" not in copy_items_body or
                   "!UArray_hasValidItemLayout_(other)" not in copy_items_body):
               raise SystemExit("UArray typed copies must reject malformed source and destination layouts before typed access")
-          if uarray_source.count("UArray_hasValidItemLayout_(") != 13:
-              raise SystemExit("UArray layout validator must have one definition and twelve guarded call sites")
+          if uarray_source.count("UArray_hasValidItemLayout_(") != 16:
+              raise SystemExit(
+                  "UArray layout validator must have one forward declaration, one definition, and fourteen guarded call sites"
+              )
 
           insert_every_start = uarray_source.find(
               "void UArray_insert_every_(UArray *self, UArray *other, size_t itemCount)"

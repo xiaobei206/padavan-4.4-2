@@ -1,3 +1,11 @@
+## 2026-11-07 19:10 CST — Repair UArray layout source-count contract
+
+- Failing head: `e6d1a4eb84c657db4d135456614f5bc0b9c5863c`; GitHub Actions run #638 reached the integration-contract checker and failed before configure/build.
+- Root cause: the UArray teardown hardening correctly added one file-scope forward declaration and two guarded destructor call sites, but the strict workflow still required exactly 13 textual occurrences of `UArray_hasValidItemLayout_()`. The current file contains 16 (one declaration, one definition, fourteen calls).
+- Update only the stale source-count assertion/message; no product code, test behavior, build target, or trigger changed. Re-run full CI as the validation gate.
+
+---
+
 ## 2026-11-07 19:09 CST — Validate UArray backing ownership before teardown
 
 - Baseline: `c596819019796a5b32f4383b8551b214345cbc57`; SkipDBv2 Regression run #637 passed integration/source contracts, full build, and all 57 CTests.
