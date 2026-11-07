@@ -31,6 +31,7 @@
 #include <ctype.h>
 
 #include "rc.h"
+#include "ppp_options_file.h"
 
 static char *
 get_wan_ppp_peer(int unit)
@@ -239,6 +240,7 @@ launch_wan_pppd(int unit, int wan_proto)
 {
 	FILE *fp;
 	int auth_type, mtu, mru, mtu_max, mru_max, mtu_def, mru_def;
+	int saved_errno;
 	char options[64], tmp[256];
 	char *svcs[] = { NULL, NULL };
 
@@ -247,9 +249,17 @@ launch_wan_pppd(int unit, int wan_proto)
 
 	snprintf(options, sizeof(options), "/tmp/ppp/options.wan%d", unit);
 
-	/* Generate options file */
-	if (!(fp = fopen(options, "w"))) {
-		perror(options);
+	/* Keep the credential-bearing directory and file private before writing. */
+	if (ppp_options_directory_ready("/tmp/ppp") != 0) {
+		saved_errno = errno ? errno : EPERM;
+		logmessage(LOGNAME, "refusing unsafe PPP options directory (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (!(fp = ppp_options_file_open(options))) {
+		saved_errno = errno ? errno : EIO;
+		logmessage(LOGNAME, "cannot open private PPP options file (errno=%d)", saved_errno);
+		errno = saved_errno;
 		return -1;
 	}
 
@@ -412,9 +422,12 @@ launch_wan_pppd(int unit, int wan_proto)
 	/* user specific options */
 	fprintf(fp, "%s\n", safe_pppd_line(get_wan_unit_value(unit, "ppp_pppd"), tmp, sizeof(tmp)));
 
-	fclose(fp);
-
-	chmod(options, 0600);
+	if (ppp_options_file_finish(fp, options) != 0) {
+		saved_errno = errno ? errno : EIO;
+		logmessage(LOGNAME, "cannot finalize PPP options file (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
 
 	if (wan_proto == IPV4_WAN_PROTO_L2TP) {
 #if defined (APP_RPL2TP)
