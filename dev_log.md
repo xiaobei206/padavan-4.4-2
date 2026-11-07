@@ -1,3 +1,10 @@
+## 2026-11-07 23:32 CST — Sync whole-repository risk ledger with archive-policy CI result
+
+- Updated the P1 table row and top status in `REFACTOR_ROADMAP.md` to include BusyBox `data_extract_all.c`, the new path policy, and the storage restore script, with exact successful host CI runs `42385963510` and `42386675924`.
+- This is a documentation-only consistency commit. HTTPD/archive restore remains AUDITING; the full archive and CGI handlers have not been audited, and L3 MIPS/firmware artifact plus L4 hardware validation remain NOT VERIFIED.
+
+---
+
 ## 2026-11-07 23:31 CST — Verify expanded archive-path policy regression
 
 - Follow-up code commit `a0e700bb6e61fbb7c11623821563449ed3d0ffa9` passed HTTPD Authentication and Security Regression run `42386675924` against the exact SHA: https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42386675924.

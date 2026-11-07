@@ -4,7 +4,7 @@
 **Primary branch:** main  
 **Initial baseline before this governance bootstrap:** 412eebb4d0c36f9cbaf43921b4ce1f2056665984
 **Governance bootstrap commit:** 84e2fb77973393dd2804b9feb2d94b2ce74933c4 (verified on main)  
-**Roadmap status:** INVENTORY IN PROGRESS / HTTPD PRIVATE-KEY, SHADOWSOCKS DBCONF AUTHORIZATION, STRICT BASIC-AUTH, AND SESSION-IDLE-TIMEOUT SUBSCOPES HOST-VERIFIED; WHOLE-REPO AUDIT INCOMPLETE
+**Roadmap status:** INVENTORY IN PROGRESS / HTTPD PRIVATE-KEY, SHADOWSOCKS DBCONF AUTHORIZATION, STRICT BASIC-AUTH, SESSION-IDLE-TIMEOUT, MIME ROUTE MATRIX, STALE-UPLOAD CLEANUP, AND ARCHIVE PATH POLICY SUBSCOPES HOST-VERIFIED; WHOLE-REPO AUDIT INCOMPLETE
 
 ## Purpose and status semantics
 
@@ -54,7 +54,7 @@ Priorities:
 
 | Area | Known source clues / examples | Priority | Current status | Next action |
 |---|---|---:|---|---|
-| HTTPD / HTTPS | `trunk/user/httpd/src/{httpd.c,httpd.h,https.c,upload.c,base64.c,httpd_basic_auth.h,httpd_login_policy.h}`; `trunk/user/httpd/src/Makefile`; `trunk/user/httpd/Makefile` | P1 | AUDITING — private-key, dbconf auth, strict Basic-auth, idle-timeout, known MIME matrix and stale-upload cleanup HOST-VERIFIED; full handlers/TLS/session/file audit incomplete | Audit header arithmetic and restore extraction, then privileged CGI/config paths and TLS I/O; perform target build |
+| HTTPD / HTTPS / archive restore | `trunk/user/httpd/src/{httpd.c,httpd.h,https.c,upload.c,base64.c,httpd_basic_auth.h,httpd_login_policy.h}`; BusyBox `archival/libarchive/{data_extract_all.c,safe_extract_path.h}`; `trunk/user/scripts/files/sbin/mtd_storage.sh` | P1 | AUDITING — HTTPD auth/session/MIME/stale-upload plus archive symlink-parent and directory-leaf path policies HOST-VERIFIED by runs `42385963510` and `42386675924`; full handlers/TLS/session/archive/file audit incomplete | Audit archive/link compatibility and restore bounds, then privileged CGI/config paths and TLS I/O; perform target build |
 | CGI / ASP / Web templates | `trunk/user/httpd/src/{cgi.c,ej.c,web_ex.c,variables.c}`; `trunk/user/www/{dict,n56u_ribbon_fixed}` | P1 | PARTIAL INVENTORY — NOT AUDITED | Build the complete MIME/EJ/CGI route matrix; audit unescaped values, output encoding, command dispatch, and handler authorization |
 | Authentication / session / authorization | `httpd.c::http_login_check/auth_check/get_login_safe`; `web_ex.c::mime_handlers/dump_file`; `httpd_basic_auth.h`; `httpd_login_policy.h` | P1 | AUDITING — disclosure gates and strict Basic parsing corrected; inactivity timeout now measures successful protected-route activity; IP-only ownership and route matrix remain open | Review logout/ACL behavior, same-NAT effects, and every conditional `need_auth` exception |
 | Privileged command/configuration interfaces | `web_ex.c::sys_script`, `trunk/user/rc/src/auth.c`, `services*.c`, NVRAM and shared helpers | P1 | NOT AUDITED — call sites inventoried only | Trace every external value to `eval`/`_eval`/`doSystem`/filesystem writes; review generated configuration escaping and source trust |
