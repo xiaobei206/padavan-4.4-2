@@ -1,3 +1,11 @@
+## 2026-11-07 13:29 CST — Correct UArray source-contract newline escapes
+
+- Baseline: main commit `fa29af2957460c923ff7f000ff88144bb4d24cb2`. Preflight of run #543 found that the new Python source-contract searches were double-escaped; they would search for a literal backslash-n instead of the macro/function closing-line boundary.
+- Correct both searches to use a single Python newline escape (`\n`). No C implementation or test code changed in this workflow-only repair.
+- Static check confirms both targeted escapes were corrected and no double-escaped variants remain. This commit triggers the authoritative rerun of the scalar-write cache fix.
+
+---
+
 ## 2026-11-07 13:24 CST — Preserve UArray scalar-write cache invalidation
 
 - Baseline: main commit `6d425107c2712381b7bfc35a85239b75ae9e4ec1`; SkipDBv2 Regression run #542 passed source contracts, configure, and the full build, but 1 of 57 CTest cases failed in `uarray_math_extrema_test`.

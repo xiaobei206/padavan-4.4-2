@@ -4131,14 +4131,14 @@ jobs:
           if uarray_source.count("UArray_hasValidItemLayout_(") != 11:
               raise SystemExit("UArray layout validator must have one definition and ten guarded call sites")
           raw_put_start = uarray_source.find("#define UARRAY_RAWAT_PUT_")
-          raw_put_end = uarray_source.find("\\n}", raw_put_start)
+          raw_put_end = uarray_source.find("\n}", raw_put_start)
           raw_put_body = uarray_source[raw_put_start:raw_put_end] if raw_put_start >= 0 and raw_put_end > raw_put_start else ""
           if (not raw_put_body or "return;" in raw_put_body or raw_put_body.count("break;") != 11):
               raise SystemExit("UArray scalar dispatch must return to setters for cache invalidation")
           for signature in ("void UArray_at_putLong_(UArray *self, size_t pos, long v)",
                             "void UArray_at_putDouble_(UArray *self, size_t pos, double v)"):
               start = uarray_source.find(signature)
-              end = uarray_source.find("\\n}", start)
+              end = uarray_source.find("\n}", start)
               body = uarray_source[start:end] if start >= 0 and end > start else ""
               dispatch = body.find("UARRAY_RAWAT_PUT_(self, pos, v);")
               changed = body.find("UArray_changed(self);")
