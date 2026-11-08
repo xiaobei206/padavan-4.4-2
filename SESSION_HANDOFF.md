@@ -1,4 +1,19 @@
-## Latest resumable checkpoint — Restore physical WAN state after demand-PPP readiness failure
+## Latest resumable checkpoint — Confirm service exit before WAN teardown
+
+- **Main integration:** PR [#10](https://github.com/xiaobei206/padavan-4.4-2/pull/10) merged by squash to main at bec69e232901e81ce937eb89ec1c05a0905293fc. Base main SHA: acfb164a4d0d5ec1b2109dfa0245e73508da1d1f; exact tested PR source head: b98f95574e0cee8b2f238dced474f7c54dae8c8d. Active branch for new work: main.
+- **Module:** WAN/PPP service lifecycle and shared RC process-stop helper.
+- **Finding:** common_ex.c::kill_services() returned void. After its SIGTERM wait expired, it sent SIGKILL, slept once, and never checked whether a target process remained. stop_wan_ppp() / stop_wan() therefore proceeded to clear NVRAM/interface state despite a surviving process. Full WAN restart and reconnect could then start a replacement session while an old PPP/DHCP worker remained active. Firmware flash similarly advanced to storage cleanup and flash after unchecked service termination.
+- **Implemented:** added service_lifecycle_policy.h with callback-driven termination and a bounded final process-inventory check after SIGKILL (3 seconds). kill_services() now returns success only when all named processes are absent and logs survivors otherwise. WAN PPP/WAN stop functions propagate failure; manual disconnect, full restart and reconnect abort their next state transition on failure. stop_misc() now returns its result, and firmware update aborts before storage cleanup/flash if the PPP/wireless or miscellaneous stop groups remain active.
+- **Regression:** added tests/service_lifecycle_policy.c covering graceful exit, forced exit, delayed exit after SIGKILL, a stubborn survivor, non-forced timeout, and an empty service list. The workflow compiles/runs it with GNU89 -Wall -Wextra -Werror and checks production caller ordering.
+- **Exact-head CI:** PR Actions [run 42449267653](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42449267653) completed **SUCCESS** on exact tested source head b98f95574e0cee8b2f238dced474f7c54dae8c8d; the new bounded-service-termination step passed. The independent SkipDBv2 regression run [42449267646](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42449267646) also completed **SUCCESS** on the same PR head. No SkipDBv2 source was changed.
+- **Changed paths:** .github/workflows/httpd-security.yml; trunk/user/rc/src/{common_ex.c,net_wan.c,rc.c,rc.h,services.c}; new service_lifecycle_policy.h and tests/service_lifecycle_policy.c.
+- **Validation boundary:** L1 source/control-flow review and L2 exact PR-head CI PASS. These Actions runs validate host policy behavior and source contracts; they are **not** a production MIPS/uClibc build, complete firmware/TRX build, live PPP/router test, or hardware validation. No separate push-event run for the squash SHA is recorded here.
+- **Residual:** this bounded change does not audit every kill_services() caller; shutdown remains best-effort by design. BusyBox pids()/killall process-name matching still needs target validation. The udhcpc SIGUSR2 request, interface/route command return values, stale PPP callback generation, automatic reconnect/watchdog/backoff, and IPv4 LWF_LIST versus IPv6 policy intent remain open.
+- **Next exact action:** continue WAN/PPP with callback-versus-stop generation ordering and watchdog/reconnect/backoff, then inspect static-route and IPv6 interactions. Keep HTTPD/CGI/auth, firewall, storage and other userland modules on the repository-wide risk ledger; do not return to routine SkipDBv2-only work.
+
+---
+
+## Previous resumable checkpoint — Restore physical WAN state after demand-PPP readiness failure
 
 - **Base main SHA:** `ca3a9862ba753de53bbba5cf29d376a6de942670`; exact code/test/workflow commit on `main`: `f11eb828b6d337121cf11fd2bc910ff869264fe7`. Active branch: `main`.
 - **Current task / module:** WAN / PPP startup state reconciliation, `trunk/user/rc/src/net_wan.c`.
