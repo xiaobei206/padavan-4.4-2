@@ -229,12 +229,14 @@ firewall_apply_core_restore(const char *operation, const char *family,
 
 	standalone = !firewall_core_restore_transaction_active;
 	context.operation = operation;
-	if (standalone) {
-		if (firewall_core_restore_transaction.snapshot_count > 0 &&
-		    !firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction))
-			(void)firewall_restore_transaction_cleanup_snapshots(&firewall_core_restore_transaction,
-				firewall_remove_restore_snapshot, NULL);
-		firewall_restore_transaction_reset(&firewall_core_restore_transaction);
+	if (standalone &&
+	    firewall_restore_transaction_prepare_reset(&firewall_core_restore_transaction,
+		firewall_remove_restore_snapshot, NULL) != 0) {
+		logmessage(LOGNAME,
+			   "%s: refusing standalone firewall restore; previous recovery state is unresolved",
+			   operation);
+		errno = EBUSY;
+		return -1;
 	}
 	result = firewall_restore_transaction_apply(&firewall_core_restore_transaction,
 		family, table, rule_path, firewall_snapshot_core_table,
@@ -2554,13 +2556,18 @@ start_firewall_ex(void)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
 	int adbyby_snapshot_exists;
 #endif
-/* Retry snapshot unlinks left by an earlier successful commit or rollback.
-	 * Never remove the recovery set after the rollback itself has failed. */
-	if (firewall_core_restore_transaction.snapshot_count > 0 &&
-	    !firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction))
-		(void)firewall_restore_transaction_cleanup_snapshots(&firewall_core_restore_transaction,
-			firewall_remove_restore_snapshot, NULL);
-	firewall_restore_transaction_reset(&firewall_core_restore_transaction);
+/* A previous cleanup failure or incomplete rollback is persistent
+	 * recovery state. Do not discard its paths or start another ruleset apply. */
+	if (firewall_restore_transaction_prepare_reset(&firewall_core_restore_transaction,
+						firewall_remove_restore_snapshot, NULL) != 0) {
+		if (firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction))
+			firewall_log_retained_restore_snapshots(&firewall_core_restore_transaction);
+		logmessage(LOGNAME,
+			   "Refusing firewall rebuild: previous recovery state remains unresolved (%lu snapshots retained)",
+			   (unsigned long)firewall_core_restore_transaction.snapshot_count);
+		errno = EBUSY;
+		return;
+	}
 	firewall_core_restore_transaction_active = 0;
 	unit = 0;
 
