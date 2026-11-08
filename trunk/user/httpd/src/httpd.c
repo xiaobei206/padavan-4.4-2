@@ -49,6 +49,7 @@
 #include "httpd_basic_auth.h"
 #include "httpd_login_policy.h"
 #include "httpd_cgi_method_policy.h"
+#include "httpd_csrf_policy.h"
 
 #define LOGIN_TIMEOUT		30
 #define SERVER_NAME		"httpd"
@@ -903,6 +904,12 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	char line[4096];
 	char *method, *path, *protocol, *authorization, *boundary;
 	char *cur, *end, *cp, *file, *query;
+	char origin_header[HTTPD_CSRF_ORIGIN_MAX];
+	char referer_header[HTTPD_CSRF_REFERER_MAX];
+	char host_header[HTTPD_CSRF_HOST_MAX];
+	int origin_seen = 0, referer_seen = 0, host_seen = 0;
+	int origin_invalid = 0, referer_invalid = 0, host_invalid = 0;
+	int request_is_https = 0;
 	int len, login_state, method_id, do_logout, clen = 0, clen_seen = 0;
 	int headers_done = 0;
 	unsigned long parsed_clen;
@@ -919,6 +926,7 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 
 	/* Initialize the request variables. */
 	authorization = boundary = NULL;
+	origin_header[0] = referer_header[0] = host_header[0] = '\0';
 
 	/* Parse the first line of the request. */
 	if (!fgets(line, sizeof(line), conn_fp)) {
@@ -969,6 +977,36 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 		if (strncasecmp(cur, "Accept-Language:", 16) == 0) {
 			if (!http_has_lang)
 				http_has_lang = set_preferred_lang(cur + 16);
+		}
+		else if (strncasecmp(cur, "Host:", 5) == 0) {
+			cp = cur + 5;
+			cp += strspn(cp, " \t");
+			if (host_seen)
+				host_invalid = 1;
+			else if (!httpd_csrf_copy_header_value(host_header,
+			                                       sizeof(host_header), cp))
+				host_invalid = 1;
+			host_seen = 1;
+		}
+		else if (strncasecmp(cur, "Origin:", 7) == 0) {
+			cp = cur + 7;
+			cp += strspn(cp, " \t");
+			if (origin_seen)
+				origin_invalid = 1;
+			else if (!httpd_csrf_copy_header_value(origin_header,
+			                                       sizeof(origin_header), cp))
+				origin_invalid = 1;
+			origin_seen = 1;
+		}
+		else if (strncasecmp(cur, "Referer:", 8) == 0) {
+			cp = cur + 8;
+			cp += strspn(cp, " \t");
+			if (referer_seen)
+				referer_invalid = 1;
+			else if (!httpd_csrf_copy_header_value(referer_header,
+			                                       sizeof(referer_header), cp))
+				referer_invalid = 1;
+			referer_seen = 1;
 		}
 		else if (strncasecmp( cur, "Authorization:", 14) == 0) {
 			cp = cur + 14;
@@ -1118,8 +1156,26 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 	}
 
 #if defined (SUPPORT_HTTPS)
+	request_is_https = item->ssl;
 	http_is_ssl = item->ssl;
 #endif
+
+	/* Check browser-supplied origin metadata before auth can establish or
+	 * refresh the global IP-bound management login session. Missing metadata
+	 * remains compatible with legacy non-browser clients.
+	 */
+	if (method_id == HTTP_METHOD_POST && handler->need_auth &&
+	    !httpd_csrf_post_allowed(origin_seen ? origin_header : NULL,
+	                             referer_seen ? referer_header : NULL,
+	                             host_seen ? host_header : NULL,
+	                             request_is_https, origin_invalid,
+	                             referer_invalid, host_invalid)) {
+		eat_post_data(conn_fp, clen);
+		send_error(403, "Forbidden", NULL,
+			   "Origin or Referer does not match the management host.",
+			   conn_fp);
+		return;
+	}
 
 	do_logout = (strcmp(file, "Logout.asp") == 0) ? 1 : 0;
 

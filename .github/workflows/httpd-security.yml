@@ -30,6 +30,8 @@ on:
       - "trunk/user/www/n56u_ribbon_fixed/aidisk/popModifyFolder.asp"
       - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
       - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
+      - "trunk/user/httpd/src/httpd_csrf_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_csrf_policy.c"
       - "trunk/user/www/n56u_ribbon_fixed/Shadowsocks.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_daily.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_last24.asp"
@@ -150,6 +152,8 @@ on:
       - "trunk/user/www/n56u_ribbon_fixed/aidisk/popModifyFolder.asp"
       - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
       - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
+      - "trunk/user/httpd/src/httpd_csrf_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_csrf_policy.c"
       - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_daily.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_last24.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_realtime.asp"
@@ -312,6 +316,11 @@ jobs:
             trunk/user/httpd/src/tests/httpd_storage_ej_policy.c \
             -o /tmp/httpd_storage_ej_policy
           /tmp/httpd_storage_ej_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_csrf_policy.c \
+            -o /tmp/httpd_csrf_policy
+          /tmp/httpd_csrf_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
             -I trunk/user/httpd/src \
             trunk/user/httpd/src/tests/httpd_cgi_method_policy.c \
@@ -957,6 +966,8 @@ jobs:
           update_policy_test = (root / "tests/httpd_update_output_policy.c").read_text()
           method_policy = (root / "httpd_cgi_method_policy.h").read_text()
           method_policy_test = (root / "tests/httpd_cgi_method_policy.c").read_text()
+          csrf_policy = (root / "httpd_csrf_policy.h").read_text()
+          csrf_policy_test = (root / "tests/httpd_csrf_policy.c").read_text()
           service_id_test = (root / "tests/httpd_service_id.c").read_text()
           ui_root = Path("trunk/user/www/n56u_ribbon_fixed")
           upload = (root / "upload.c").read_text()
@@ -1001,7 +1012,29 @@ jobs:
           request_start = httpd.index("handle_request(FILE *conn_fp")
           request_end = httpd.index("reset_lang_dict(void)", request_start)
           request = httpd[request_start:request_end]
+
+          # Browser Origin/Referer validation must run for every authenticated
+          # POST before Basic auth can create or refresh the single-IP login.
+          csrf_gate = request.index("httpd_csrf_post_allowed(")
           auth_gate = request.index("if (handler->need_auth && login_state > 1")
+          assert csrf_gate < auth_gate
+          assert "method_id == HTTP_METHOD_POST && handler->need_auth" in request
+          assert 'strncasecmp(cur, "Origin:", 7)' in request
+          assert 'strncasecmp(cur, "Referer:", 8)' in request
+          assert 'strncasecmp(cur, "Host:", 5)' in request
+          assert "origin_invalid" in request and "referer_invalid" in request
+          assert 'send_error(403, "Forbidden"' in request[csrf_gate:auth_gate]
+          assert "httpd_csrf_url_matches_host" in csrf_policy
+          assert "Origin takes precedence over Referer" in csrf_policy
+          assert "neither metadata header was sent" in csrf_policy
+          assert "httpd_csrf_post_allowed" in csrf_policy_test
+          workflow_text = Path(".github/workflows/httpd-security.yml").read_text()
+          for csrf_path in (
+              "trunk/user/httpd/src/httpd_csrf_policy.h",
+              "trunk/user/httpd/src/tests/httpd_csrf_policy.c",
+          ):
+              assert workflow_text.count('      - "' + csrf_path + '"') == 2
+          print("HTTPD same-origin POST Origin/Referer policy: OK")
           output_call = request.index("handler->output(file, conn_fp)")
           assert auth_gate < output_call
           assert "auth_check(authorization)" in request[auth_gate:output_call]
