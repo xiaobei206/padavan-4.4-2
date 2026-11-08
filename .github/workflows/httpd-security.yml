@@ -851,8 +851,8 @@ jobs:
           assert 'mktemp /tmp/adbyby-blockip.XXXXXX' in adbyby
           assert 'ipset -! restore < "$blockip_file" 2>/dev/null' in adbyby
           assert "/tmp/blockip.ipset" not in adbyby
-          ip_rule_start = adbyby.index("ip_rule()\\n{")
-          ip_rule_end = adbyby.index("\\nadd_dns()", ip_rule_start)
+          ip_rule_start = adbyby.index("ip_rule()" + chr(10) + "{")
+          ip_rule_end = adbyby.index(chr(10) + "add_dns()", ip_rule_start)
           ip_rule = adbyby[ip_rule_start:ip_rule_end]
           for guarded in (
               "ipset -! -N adbyby_esc hash:ip || return 1",
@@ -862,8 +862,8 @@ jobs:
               "if ! ipset -! restore < \"$blockip_file\" 2>/dev/null; then",
           ):
               assert guarded in ip_rule, guarded
-          add_rule_start = adbyby.index("add_rule()\\n{")
-          add_rule_end = adbyby.index("\\ndel_rule()", add_rule_start)
+          add_rule_start = adbyby.index("add_rule()" + chr(10) + "{")
+          add_rule_end = adbyby.index(chr(10) + "del_rule()", add_rule_start)
           add_rule = adbyby[add_rule_start:add_rule_end]
           assert "if ! $ipt_n -N ADBYBY; then" in add_rule
           assert "if ! ip_rule; then" in add_rule
