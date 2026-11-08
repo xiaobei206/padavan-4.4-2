@@ -97,6 +97,10 @@ on:
       - "trunk/user/shared/src/include/router_account_policy.h"
       - "trunk/user/shared/src/tests/router_account_policy.c"
       - "trunk/user/rc/src/net_wan.c"
+      - "trunk/user/rc/src/common_ex.c"
+      - "trunk/user/rc/src/services.c"
+      - "trunk/user/rc/src/service_lifecycle_policy.h"
+      - "trunk/user/rc/src/tests/service_lifecycle_policy.c"
       - "trunk/user/rc/src/dhcp_lease_policy.h"
       - "trunk/user/rc/src/tests/dhcp_lease_policy.c"
       - "trunk/user/rc/src/net_ppp.c"
@@ -226,6 +230,10 @@ on:
       - "trunk/user/shared/src/include/router_account_policy.h"
       - "trunk/user/shared/src/tests/router_account_policy.c"
       - "trunk/user/rc/src/net_wan.c"
+      - "trunk/user/rc/src/common_ex.c"
+      - "trunk/user/rc/src/services.c"
+      - "trunk/user/rc/src/service_lifecycle_policy.h"
+      - "trunk/user/rc/src/tests/service_lifecycle_policy.c"
       - "trunk/user/rc/src/rc.h"
       - "trunk/user/rc/src/dhcp_lease_policy.h"
       - "trunk/user/rc/src/tests/dhcp_lease_policy.c"
@@ -2270,3 +2278,68 @@ jobs:
           print("PID 1 async signal deferral and SIGCHLD reaping contracts: OK")
           PY
 
+      - name: Verify bounded service termination and WAN stop failure gates
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/service_lifecycle_policy.c \
+            -o /tmp/service_lifecycle_policy
+          /tmp/service_lifecycle_policy
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def body(source, signature):
+              start = source.index(signature)
+              brace = source.index("{", start)
+              depth = 0
+              for pos in range(brace, len(source)):
+                  if source[pos] == "{":
+                      depth += 1
+                  elif source[pos] == "}":
+                      depth -= 1
+                      if depth == 0:
+                          return source[brace + 1:pos]
+              raise AssertionError("unterminated function: " + signature)
+
+          policy = Path("trunk/user/rc/src/service_lifecycle_policy.h").read_text()
+          common = Path("trunk/user/rc/src/common_ex.c").read_text()
+          wan = Path("trunk/user/rc/src/net_wan.c").read_text()
+          services = Path("trunk/user/rc/src/services.c").read_text()
+          rc = Path("trunk/user/rc/src/rc.c").read_text()
+          header = Path("trunk/user/rc/src/rc.h").read_text()
+
+          assert "SERVICE_LIFECYCLE_FORCE_WAIT_SECONDS 3" in policy
+          assert "SIGTERM" in policy and "SIGKILL" in policy
+          assert "service_lifecycle_wait_for_exit" in policy
+          assert "return service_lifecycle_wait_for_exit" in policy
+          assert "service_lifecycle_stop(svc_name, wtimeout, forcekill, &ops, NULL)" in common
+          assert "service stop incomplete: %s remains active" in common
+
+          stop_ppp = body(wan, "stop_wan_ppp(void)")
+          stop_wan = body(wan, "stop_wan(void)")
+          full_restart = body(wan, "full_restart_wan(void)")
+          reconnect = body(wan, "try_wan_reconnect(int try_use_modem, long pause_in_seconds)")
+          manual_disconnect = body(wan, "manual_wan_disconnect(void)")
+          assert "if (kill_services(svcs_ppp, 6, 1) != 0)" in stop_ppp
+          assert stop_ppp.index("return -1;") < stop_ppp.index("clear_wan_state();")
+          assert stop_wan.count("if (kill_services(") == 2
+          assert stop_wan.count("return -1;") == 2
+          assert "if (stop_wan() != 0)" in full_restart
+          assert full_restart.index("if (stop_wan() != 0)") < full_restart.index("reset_wan_vars();")
+          assert "if (stop_wan() != 0)" in reconnect
+          assert reconnect.index("if (stop_wan() != 0)") < reconnect.index("reset_wan_vars();")
+          assert "if (stop_wan_ppp() != 0)" in manual_disconnect
+
+          stop_misc = body(services, "stop_misc(void)")
+          assert "return kill_services(svcs, 3, 1);" in stop_misc
+          flash = body(rc, "flash_firmware(void)")
+          assert "if (kill_services(svcs, 6, 1) != 0)" in flash
+          assert "if (stop_misc() != 0)" in flash
+          assert flash.index("if (stop_misc() != 0)") < flash.index("safe_remove_all_stor_devices(0)")
+
+          assert "int kill_services(char* svc_name[], int wtimeout, int forcekill);" in header
+          assert "int stop_wan(void);" in header
+          assert "int stop_misc(void);" in header
+          print("Service termination confirmation and WAN/firmware stop-failure contracts: OK")
+          PY
