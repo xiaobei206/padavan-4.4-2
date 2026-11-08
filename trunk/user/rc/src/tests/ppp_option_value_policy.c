@@ -51,6 +51,23 @@ main(void)
 	assert(ppp_option_text_escape("bad\rline", out, sizeof(out)) == -1);
 	assert(errno == EINVAL);
 
+	assert(ppp_config_line_value_copy("peer.example", out, sizeof(out)) == 0);
+	assert(strcmp(out, "peer.example") == 0);
+	assert(ppp_config_line_value_copy("user name", out, sizeof(out)) == 0);
+	assert(strcmp(out, "user name") == 0);
+	assert(ppp_config_line_value_copy("peer\\nsection attack", out, sizeof(out)) == -1);
+	assert(errno == EINVAL);
+	assert(out[0] == '\\0');
+	assert(ppp_config_line_value_copy("peer\\rsection attack", out, sizeof(out)) == -1);
+	assert(errno == EINVAL);
+	assert(ppp_config_line_value_copy("bad\\tvalue", out, sizeof(out)) == -1);
+	assert(errno == EINVAL);
+	assert(ppp_config_line_value_copy(long_value, out, sizeof(out)) == -1);
+	assert(errno == EOVERFLOW);
+	assert(out[0] == '\\0');
+	assert(ppp_config_line_value_copy(NULL, out, sizeof(out)) == -1);
+	assert(errno == EINVAL);
+
 	puts("PPP option value escaping regression: OK");
 	return 0;
 }
