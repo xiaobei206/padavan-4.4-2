@@ -24,7 +24,7 @@
 #include <limits.h>
 
 #include <httpd.h>
-#include "httpd_storage_ej_policy.h"
+#include "httpd_direct_ej_policy.h"
 
 #define MAX_PATTERN_LENGTH	1024
 
@@ -105,7 +105,7 @@ call_asp(char *func, FILE *stream)
 	 */
 	for (handler = &ej_handlers[0]; handler->pattern; handler++) {
 		if (strcmp(handler->pattern, func) == 0) {
-			if (httpd_storage_ej_allowed(handler->pattern, get_login_safe())) {
+			if (httpd_direct_ej_allowed(handler->pattern, get_login_safe())) {
 				handler->output(0, stream, argc, argv);
 			} else {
 				websWrite(stream, "%s",
