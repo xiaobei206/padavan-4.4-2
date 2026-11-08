@@ -2308,6 +2308,7 @@ jobs:
           services = Path("trunk/user/rc/src/services.c").read_text()
           rc = Path("trunk/user/rc/src/rc.c").read_text()
           header = Path("trunk/user/rc/src/rc.h").read_text()
+          ppp = Path("trunk/user/rc/src/net_ppp.c").read_text()
 
           assert "SERVICE_LIFECYCLE_FORCE_WAIT_SECONDS 3" in policy
           assert "SIGTERM" in policy and "SIGKILL" in policy
@@ -2341,5 +2342,20 @@ jobs:
           assert "int kill_services(char* svc_name[], int wtimeout, int forcekill);" in header
           assert "int stop_wan(void);" in header
           assert "int stop_misc(void);" in header
-          print("Service termination confirmation and WAN/firmware stop-failure contracts: OK")
+
+          launch_pppd = body(ppp, "launch_wan_pppd(int unit, int wan_proto)")
+          l2tp_launch = body(launch_pppd, "if (wan_proto == IPV4_WAN_PROTO_L2TP)")
+          stop_failure = body(l2tp_launch, "if (kill_services(svcs, 5, 1) != 0)")
+          assert launch_pppd.count("kill_services(svcs, 5, 1)") == 1
+          assert launch_pppd.index("if (wan_proto == IPV4_WAN_PROTO_L2TP)") < launch_pppd.index("ppp_options_file_open(options)")
+          assert "errno = EBUSY;" in stop_failure and "return -1;" in stop_failure
+          assert "refusing L2TP WAN launch: %s did not stop" in stop_failure
+          assert launch_pppd.index("ppp_options_file_open(options)") < launch_pppd.index("ppp_options_file_finish(fp, options)")
+          assert launch_pppd.index("ppp_options_file_finish(fp, options)") < launch_pppd.index("safe_start_xl2tpd()")
+          assert "kill_services(svcs, 5, 1);" not in launch_pppd
+          if '#if defined (APP_RPL2TP)' in l2tp_launch:
+              assert l2tp_launch.index("kill_services(svcs, 5, 1)") < l2tp_launch.index("start_rpl2tp(unit)")
+              assert l2tp_launch.index('nvram_set_int_temp("l2tp_wan_t", 0);') < l2tp_launch.index("start_rpl2tp(unit)")
+          assert l2tp_launch.index('nvram_set_int_temp("l2tp_wan_t", 1);') < l2tp_launch.index("safe_start_xl2tpd()")
+          print("Service termination, WAN stop gates and L2TP transport startup contracts: OK")
           PY
