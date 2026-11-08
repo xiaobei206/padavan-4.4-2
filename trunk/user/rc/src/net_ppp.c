@@ -48,15 +48,58 @@ int
 safe_start_xl2tpd(void)
 {
 	FILE *fp;
-	int unit, has_lac_lns;
+	int unit;
+	int use_vpn_server, use_wan_lac, use_vpnc;
+	int saved_errno;
+	const char *invalid_value = NULL;
 	const char *l2tp_conf = "/etc/xl2tpd.conf";
+	char hostname[256], wan_peer[256], wan_user[256];
+	char vpnc_peer[256], vpnc_user[256];
+
+	hostname[0] = wan_peer[0] = wan_user[0] = '\0';
+	vpnc_peer[0] = vpnc_user[0] = '\0';
+	unit = 0; /* todo */
+	use_vpn_server = nvram_match("vpns_enable", "1") &&
+		nvram_match("vpns_type", "1");
+	use_wan_lac = (get_wan_proto(unit) == IPV4_WAN_PROTO_L2TP
+#if defined (APP_RPL2TP)
+		&& nvram_invmatch("wan_l2tpd", "1")
+#endif
+		);
+	use_vpnc = nvram_match("vpnc_enable", "1") &&
+		nvram_match("vpnc_type", "1");
+
+	/* Validate all NVRAM-derived, line-oriented values before truncating
+	 * the live daemon configuration. Printable credentials/spaces remain
+	 * supported, but controls cannot inject additional L2TP options. */
+	if (use_vpn_server &&
+	    ppp_config_line_value_copy(get_our_hostname(), hostname, sizeof(hostname)) != 0)
+		invalid_value = "hostname";
+	if (!invalid_value && use_wan_lac &&
+	    ppp_config_line_value_copy(get_wan_ppp_peer(unit), wan_peer, sizeof(wan_peer)) != 0)
+		invalid_value = "wan peer";
+	if (!invalid_value && use_wan_lac &&
+	    ppp_config_line_value_copy(get_wan_unit_value(unit, "pppoe_username"), wan_user, sizeof(wan_user)) != 0)
+		invalid_value = "wan username";
+	if (!invalid_value && use_vpnc &&
+	    ppp_config_line_value_copy(nvram_safe_get("vpnc_peer"), vpnc_peer, sizeof(vpnc_peer)) != 0)
+		invalid_value = "VPN client peer";
+	if (!invalid_value && use_vpnc &&
+	    ppp_config_line_value_copy(nvram_safe_get("vpnc_user"), vpnc_user, sizeof(vpnc_user)) != 0)
+		invalid_value = "VPN client username";
+	if (invalid_value) {
+		saved_errno = errno ? errno : EINVAL;
+		logmessage(LOGNAME, "refusing unsafe or oversized L2TP config value %s (errno=%d)",
+			   invalid_value, saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
 
 	if (!(fp = fopen(l2tp_conf, "w"))) {
 		perror(l2tp_conf);
 		return -1;
 	}
 
-	has_lac_lns = 0;
 
 	fprintf(fp,
 		"[global]\n"
@@ -64,93 +107,102 @@ safe_start_xl2tpd(void)
 		"access control = no\n"
 		"rand source = dev\n\n");
 
-	if (nvram_match("vpns_enable", "1") && nvram_match("vpns_type", "1")) {
+	if (use_vpn_server) {
 		char sa_v[INET_ADDRSTRLEN], sp_b[INET_ADDRSTRLEN], sp_e[INET_ADDRSTRLEN];
 		unsigned int vaddr, vmask, vp_b, vp_e;
 		struct in_addr pool_in;
-		
+
 		get_vpns_pool(nvram_get_int("vpns_vuse"), &vaddr, &vmask, &vp_b, &vp_e);
-		
+
 		pool_in.s_addr = htonl(vaddr);
 		strcpy(sa_v, inet_ntoa(pool_in));
-		
+
 		pool_in.s_addr = htonl((vaddr & vmask) | vp_b);
 		strcpy(sp_b, inet_ntoa(pool_in));
-		
+
 		pool_in.s_addr = htonl((vaddr & vmask) | vp_e);
 		strcpy(sp_e, inet_ntoa(pool_in));
-		
+
 		fprintf(fp, "[lns default]\n");
-		fprintf(fp, "hostname = %s\n", get_our_hostname());
+		fprintf(fp, "hostname = %s\n", hostname);
 		fprintf(fp, "local ip = %s\n", sa_v);
 		fprintf(fp, "ip range = %s-%s\n", sp_b, sp_e);
 		fprintf(fp, "pppoptfile = %s\n", VPN_SERVER_PPPD_OPTIONS);
 		fprintf(fp, "require authentication = no\n");
 		fprintf(fp, "tunnel rws = %d\n", 8);
 		fprintf(fp,
-			    "pass peer = yes\n"
-			    "exclusive = yes\n"
-			    "hidden bit = no\n"
-			    "length bit = yes\n"
-			    "require chap = yes\n"
-			    "refuse pap = yes\n\n");
-		
-		has_lac_lns++;
+			"pass peer = yes\n"
+			"exclusive = yes\n"
+			"hidden bit = no\n"
+			"length bit = yes\n"
+			"require chap = yes\n"
+			"refuse pap = yes\n\n");
+
 	}
 
-	unit = 0; // todo
-	if (get_wan_proto(unit) == IPV4_WAN_PROTO_L2TP
-#if defined (APP_RPL2TP)
-	    && nvram_invmatch("wan_l2tpd", "1")
-#endif
-	    )
-	{
+	if (use_wan_lac) {
 		char options[64], lac_name[8];
-		
+
 		snprintf(lac_name, sizeof(lac_name), "ISP%d", unit);
 		snprintf(options, sizeof(options), "/tmp/ppp/options.wan%d", unit);
-		
+
 		fprintf(fp, "[lac %s]\n", lac_name);
 		fprintf(fp, "pppoptfile = %s\n", options);
-		fprintf(fp, "lns = %s\n", get_wan_ppp_peer(unit));
-		fprintf(fp, "name = %s\n", get_wan_unit_value(unit, "pppoe_username"));
+		fprintf(fp, "lns = %s\n", wan_peer);
+		fprintf(fp, "name = %s\n", wan_user);
 		fprintf(fp, "require authentication = no\n");
 		fprintf(fp, "tunnel rws = %d\n", 8);
 		fprintf(fp, "route_rdgw = %d\n", 1);
 		fprintf(fp,
-			    "autodial = yes\n"
-			    "redial = yes\n"
-			    "redial timeout = 15\n"
-			    "tx bps = 100000000\n"
-			    "rx bps = 100000000\n\n");
-		
-		has_lac_lns++;
+			"autodial = yes\n"
+			"redial = yes\n"
+			"redial timeout = 15\n"
+			"tx bps = 100000000\n"
+			"rx bps = 100000000\n\n");
+
 	}
 
-	if (nvram_match("vpnc_enable", "1") && nvram_match("vpnc_type", "1"))
-	{
+	if (use_vpnc) {
 		fprintf(fp, "[lac %s]\n", "VPNC");
 		fprintf(fp, "pppoptfile = %s\n", VPN_CLIENT_PPPD_OPTIONS);
-		fprintf(fp, "lns = %s\n",  nvram_safe_get("vpnc_peer"));
-		fprintf(fp, "name = %s\n", nvram_safe_get("vpnc_user"));
+		fprintf(fp, "lns = %s\n", vpnc_peer);
+		fprintf(fp, "name = %s\n", vpnc_user);
 		fprintf(fp, "require authentication = no\n");
 		fprintf(fp, "tunnel rws = %d\n", 8);
 		fprintf(fp, "route_rdgw = %d\n", (nvram_match("vpnc_dgw", "1")) ? 2 : 0);
 		fprintf(fp,
-			    "autodial = yes\n"
-			    "redial = yes\n"
-			    "redial timeout = 15\n"
-			    "tx bps = 100000000\n"
-			    "rx bps = 100000000\n\n");
-		
-		nvram_set_int_temp("l2tp_cli_t", 1);
-		
-		has_lac_lns++;
+			"autodial = yes\n"
+			"redial = yes\n"
+			"redial timeout = 15\n"
+			"tx bps = 100000000\n"
+			"rx bps = 100000000\n\n");
+
 	}
 
-	fclose(fp);
-
-	chmod(l2tp_conf, 0644);
+	if (fflush(fp) != 0 || ferror(fp)) {
+		saved_errno = errno ? errno : EIO;
+		(void)fclose(fp);
+		(void)unlink(l2tp_conf);
+		logmessage(LOGNAME, "cannot write L2TP configuration (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (fclose(fp) != 0) {
+		saved_errno = errno ? errno : EIO;
+		(void)unlink(l2tp_conf);
+		logmessage(LOGNAME, "cannot close L2TP configuration (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (chmod(l2tp_conf, 0644) != 0) {
+		saved_errno = errno ? errno : EIO;
+		(void)unlink(l2tp_conf);
+		logmessage(LOGNAME, "cannot set L2TP configuration permissions (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (use_vpnc)
+		nvram_set_int_temp("l2tp_cli_t", 1);
 
 	/* launch xl2tpd */
 	if (!pids("xl2tpd"))
@@ -164,11 +216,18 @@ static int
 start_rpl2tp(int unit)
 {
 	FILE *fp;
-	char options[64];
+	char options[64], peer[256];
+	int status, saved_errno;
 	const char *l2tp_conf = "/etc/l2tp/l2tp.conf";
 
-	mkdir_if_none("/etc/l2tp", "777");
+	if (ppp_config_line_value_copy(get_wan_ppp_peer(unit), peer, sizeof(peer)) != 0) {
+		saved_errno = errno ? errno : EINVAL;
+		logmessage(LOGNAME, "refusing unsafe or oversized rp-l2tp peer (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
 
+	mkdir_if_none("/etc/l2tp", "777");
 	snprintf(options, sizeof(options), "/tmp/ppp/options.wan%d", unit);
 
 	if (!(fp = fopen(l2tp_conf, "w"))) {
@@ -176,8 +235,8 @@ start_rpl2tp(int unit)
 		return -1;
 	}
 
-	fprintf(fp, "# automatically generated\n");
-	fprintf(fp,
+	if (fprintf(fp,
+		"# automatically generated\n"
 		"global\n"
 		"load-handler \"sync-pppd.so\"\n"
 		"load-handler \"cmd.so\"\n\n"
@@ -187,25 +246,56 @@ start_rpl2tp(int unit)
 		"peername %s\n"
 		"lac-handler sync-pppd\n"
 		"persist yes\n"
-		"maxfail 0\n"    // l2tpd re-call count (0=infinite)
-		"holdoff 15\n"   // l2tpd re-call time (15s)
+		"maxfail 0\n"
+		"holdoff 15\n"
 		"route_rdgw 1\n"
 		"hide-avps no\n\n"
 		"section cmd\n\n",
-		options, get_wan_ppp_peer(unit));
+		options, peer) < 0) {
+		saved_errno = errno ? errno : EIO;
+		(void)fclose(fp);
+		(void)unlink(l2tp_conf);
+		logmessage(LOGNAME, "cannot write rp-l2tp configuration (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (fflush(fp) != 0 || ferror(fp)) {
+		saved_errno = errno ? errno : EIO;
+		(void)fclose(fp);
+		(void)unlink(l2tp_conf);
+		logmessage(LOGNAME, "cannot flush rp-l2tp configuration (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (fclose(fp) != 0) {
+		saved_errno = errno ? errno : EIO;
+		(void)unlink(l2tp_conf);
+		logmessage(LOGNAME, "cannot close rp-l2tp configuration (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (chmod(l2tp_conf, 0644) != 0) {
+		saved_errno = errno ? errno : EIO;
+		(void)unlink(l2tp_conf);
+		logmessage(LOGNAME, "cannot set rp-l2tp configuration permissions (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
 
-	fclose(fp);
-
-	chmod(l2tp_conf, 0644);
-
-	/* launch rp-l2tp */
-	eval("/usr/sbin/l2tpd");
+	/* Launch rp-l2tp; do not request a session after a failed daemon start. */
+	status = eval("/usr/sbin/l2tpd");
+	if (status != 0) {
+		logmessage(LOGNAME, "rp-l2tp daemon launch failed (status=%d)", status);
+		return status;
+	}
 
 	sleep(1);
-
-	/* start-session */
-	return system("/usr/sbin/l2tp-control \"start-session 0.0.0.0\"");
+	status = system("/usr/sbin/l2tp-control \"start-session 0.0.0.0\"");
+	if (status != 0)
+		logmessage(LOGNAME, "rp-l2tp start-session failed (status=%d)", status);
+	return status;
 }
+
 #endif
 
 char *

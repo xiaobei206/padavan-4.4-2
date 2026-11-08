@@ -76,4 +76,45 @@ ppp_option_text_escape(const char *value, char *out, size_t out_size)
 	return ppp_option_escape_internal(value, out, out_size, 1);
 }
 
+
+/*
+ * Copy one unquoted scalar into line-oriented L2TP config syntax.
+ * These values are not shell strings: reject all control bytes, CR/LF and
+ * overlong values instead of allowing one configured value to create options
+ * or sections on subsequent lines.
+ */
+static int
+ppp_config_line_value_copy(const char *value, char *out, size_t out_size)
+{
+	const unsigned char *src;
+	size_t used;
+
+	if (!out || out_size == 0) {
+		errno = EINVAL;
+		return -1;
+	}
+	out[0] = '\0';
+	if (!value) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	used = 0;
+	for (src = (const unsigned char *)value; *src; ++src) {
+		if (*src < 0x20 || *src == 0x7f) {
+			out[0] = '\0';
+			errno = EINVAL;
+			return -1;
+		}
+		if (used >= out_size - 1) {
+			out[0] = '\0';
+			errno = EOVERFLOW;
+			return -1;
+		}
+		out[used++] = (char)*src;
+	}
+	out[used] = '\0';
+	return 0;
+}
+
 #endif /* PADAVAN_PPP_OPTION_VALUE_POLICY_H */
