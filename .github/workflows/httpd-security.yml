@@ -1701,7 +1701,7 @@ jobs:
           ip6_filter = firewall[ip6_filter_start:ip6_filter_end]
           assert 'firewall_open_rule_file(ipt_file, "IPv6 filter")' in ip6_filter
           assert 'firewall_finish_rule_file(fp, ipt_file, "IPv6 filter")' in ip6_filter
-          assert 'doSystem("ip6tables-restore %s", ipt_file)' in ip6_filter
+          assert 'firewall_apply_core_restore("IPv6 filter restore", "ip6tables", "filter", ipt_file);' in ip6_filter
           assert '-p %d ! --icmpv6-type %s' in ip6_filter
           assert 'doSystem("iptables-restore %s", ipt_file)' not in ip6_filter
           ip6_mangle_start = firewall.index("ip6t_mangle_rules(")
