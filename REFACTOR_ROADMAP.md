@@ -5,7 +5,7 @@
 - **Change:** removal is status-bearing; failed paths remain tracked, cleanup failure is separate from firewall rollback failure, and a new transaction retries pending cleanup before resetting state. Repeated abort retries cleanup but does not repeat rollback. Rollback-failure snapshots remain preserved.
 - **Coverage:** GNU89 regression cases cover failed cleanup/retry after IPv6 filter commit and IPv6 NAT rollback. Existing family whitelist, reverse rollback, rollback-failure retention and dual-stack forwarding fail-closed checks remain.
 - **IPv6 intent:** no `LWF_LIST` mirror was added because the current LAN-WAN UI and NVRAM schema are IPv4-only; changing this requires a separate IPv6 policy/data-model design. Core restore continues through `ip6tables-restore` and the family-aware transaction.
-- **CI:** exact-head Actions pending at initial push; final run ID/conclusion will be appended after verification. Target MIPS/uClibc, firmware/TRX and live-router tests remain NOT RUN.
+- **CI:** exact-head Actions [run 42453352075](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42453352075) completed **SUCCESS** on implementation commit `47d68c69d5a2e9b1ba5a89a55664bb50410f218c`; all workflow steps passed, including firewall transaction compilation/execution and wiring checks. Target MIPS/uClibc, firmware/TRX and live-router tests remain NOT RUN.
 - **Remaining firewall scope:** Adbyby extension restore remains outside the core transaction; audit partial-apply recovery, ipset lifecycle and other standalone/add-on writers. Keep WAN/PPP, storage/hotplug, HTTPD/auth and system-management in the global risk ledger.
 
 ---

@@ -1,13 +1,13 @@
 ## 2026-11-08 14:08 CST — Retain and retry failed firewall restore snapshot cleanup
 
-- **Base main SHA:** `c49eab3250abe1fd0159ee933609fe862e62e1af`; exact implementation SHA and Actions outcome are to be recorded in the follow-up verification entry.
+- **Base main SHA:** `c49eab3250abe1fd0159ee933609fe862e62e1af`. **Implementation / test / workflow commit:** `47d68c69d5a2e9b1ba5a89a55664bb50410f218c`.
 - **Selection:** resumed the explicit top handoff item: rotate beyond HTTPD into firewall IPv6 restore/cleanup and rollback/fail-closed parity.
 - **Finding:** `firewall_restore_transaction_finish()` and successful rollback cleanup used a void remover and unconditionally cleared `snapshot_count`. A failed `unlink()` left a private snapshot in `/tmp`, but erased its only in-memory path and falsely treated cleanup as complete.
 - **Changes:** `firewall_restore_remove_fn` now returns status; `firewall_restore_transaction_cleanup_snapshots()` removes successes, compacts failed paths for retry and tracks `cleanup_failed` independently. Abort retries cleanup on re-entry without repeating rollback. Both `start_firewall_ex()` and standalone `firewall_apply_core_restore()` retry pending cleanup before transaction reset, but never touch snapshots preserved after rollback failure. The production remover treats ENOENT as already-clean and logs/returns other unlink errors.
 - **Tests:** added cleanup failure/retry cases using IPv6 filter and NAT tables. The abort test asserts rollback executes once, while a second abort retries only removal. Existing reverse cross-table rollback and snapshot-retention tests remain.
 - **IPv6 audit:** core transaction accepts `iptables` and `ip6tables`; startup sequences all three IPv6 tables in the same transaction. LAN-WAN `LWF_LIST` remains IPv4-only by design in the current UI/schema: source and destination address editors use 15-character IPv4 input and IPv4 validation. No IPv6 LWF behavior was invented.
 - **Changed paths:** `trunk/user/rc/src/firewall_restore_transaction.h`; `trunk/user/rc/src/tests/firewall_restore_transaction.c`; `trunk/user/rc/src/firewall_ex.c`; `.github/workflows/httpd-security.yml`; `SESSION_HANDOFF.md`; `REFACTOR_ROADMAP.md`; `dev_log.md`.
-- **CI:** pending exact-head push verification. No production MIPS/uClibc object compile, firmware/TRX artifact, live firewall rollback or physical-router test is claimed.
+- **Exact-head CI:** GitHub Actions [run 42453352075](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42453352075) on `47d68c69d5a2e9b1ba5a89a55664bb50410f218c` completed **SUCCESS**. The 22-step HTTPD/security job passed, including the firewall command/transaction host compile-and-run step and all source contracts. No production MIPS/uClibc object compile, firmware/TRX artifact, live firewall rollback or physical-router test is claimed.
 
 ---
 
