@@ -31,7 +31,7 @@ httpd_direct_ej_requires_trusted_session(const char *name)
 	if (!name || !*name)
 		return 0;
 
-	if (httpd_storage_ej_requires_trusted_session(name))
+	if (!httpd_storage_ej_allowed(name, 0))
 		return 1;
 
 	for (i = 0; privileged_callbacks[i] != NULL; ++i) {
