@@ -60,6 +60,25 @@ else
 	dev_mount="/media/$dev_label"
 fi
 
+# Distinct hotplug workers can race when different disks share a filesystem label.
+# Serialize mountpoint ownership checks and mounting, then release before app hooks.
+automount_lock_file="/var/lock/automount_mountpoint.lock"
+automount_old_umask=`umask`
+umask 077
+if ! ( : >> "$automount_lock_file" ); then
+	umask "$automount_old_umask"
+	logger -t "automount" "Unable to create mountpoint lock $automount_lock_file"
+	exit 1
+fi
+exec 500>>"$automount_lock_file"
+if ! flock 500; then
+	exec 500>&-
+	umask "$automount_old_umask"
+	logger -t "automount" "Unable to acquire mountpoint lock $automount_lock_file"
+	exit 1
+fi
+umask "$automount_old_umask"
+
 # Never unmount a different disk that happens to use the same filesystem label.
 mount_from_device()
 {
@@ -124,14 +143,14 @@ if [ "$ID_FS_TYPE" == "msdos" -o "$ID_FS_TYPE" == "vfat" ] ; then
 	kernel_vfat=`modprobe -l | grep vfat`
 	if [ -n "$kernel_vfat" ] ; then
 		func_load_module vfat
-		mount -t vfat "$dev_full" "$dev_mount" -o noatime,umask=0,iocharset=utf8,codepage=936,shortname=winnt
+		mount -t vfat "$dev_full" "$dev_mount" -o noatime,umask=0,iocharset=utf8,codepage=936,shortname=winnt 500>&-
 	else
 		func_load_module exfat
-		mount -t exfat "$dev_full" "$dev_mount" -o noatime,umask=0,iocharset=utf8
+		mount -t exfat "$dev_full" "$dev_mount" -o noatime,umask=0,iocharset=utf8 500>&-
 	fi
 elif [ "$ID_FS_TYPE" == "exfat" ] ; then
 	func_load_module exfat
-	mount -t exfat "$dev_full" "$dev_mount" -o noatime,umask=0,iocharset=utf8
+	mount -t exfat "$dev_full" "$dev_mount" -o noatime,umask=0,iocharset=utf8 500>&-
 elif [ "$ID_FS_TYPE" == "ntfs" ] ; then
 	if [ "$achk_enable" != "0" ] && [ -x /sbin/chkntfs ] ; then
 		if [ ! -r /sbin/storage_fsck_status.sh ]; then
@@ -152,24 +171,24 @@ elif [ "$ID_FS_TYPE" == "ntfs" ] ; then
 	kernel_antfs=`modprobe -l | grep antfs`
 	if [ -n "$kernel_antfs" ]; then
 		func_load_module antfs
-		mount -t antfs "$dev_full" "$dev_mount" -o noatime,utf8
+		mount -t antfs "$dev_full" "$dev_mount" -o noatime,utf8 500>&-
 	elif [ -n "$kernel_ufsd" ] ; then
 		func_load_module ufsd
-		mount -t ufsd "$dev_full" "$dev_mount" -o noatime,sparse,nls=utf8,force
+		mount -t ufsd "$dev_full" "$dev_mount" -o noatime,sparse,nls=utf8,force 500>&-
 	elif [ -x /sbin/ntfs-3g ] ; then
-		/sbin/ntfs-3g "$dev_full" "$dev_mount" -o noatime,umask=0,big_writes
+		/sbin/ntfs-3g "$dev_full" "$dev_mount" -o noatime,umask=0,big_writes 500>&-
 		if [ $? -ne 0 ] ; then
-			/sbin/ntfs-3g "$dev_full" "$dev_mount" -o noatime,umask=0,ro
+			/sbin/ntfs-3g "$dev_full" "$dev_mount" -o noatime,umask=0,ro 500>&-
 		fi
 	fi
 elif [ "$ID_FS_TYPE" == "hfsplus" -o "$ID_FS_TYPE" == "hfs" ] ; then
 	kernel_hfsplus=`modprobe -l | grep hfsplus`
 	if [ -n "$kernel_hfsplus" ] ; then
 		func_load_module hfsplus
-		mount -t $ID_FS_TYPE -o noatime,umask=0,nls=utf8 "$dev_full" "$dev_mount"
+		mount -t $ID_FS_TYPE -o noatime,umask=0,nls=utf8 "$dev_full" "$dev_mount" 500>&-
 	else
 		func_load_module ufsd
-		mount -t ufsd -o noatime,nls=utf8,force "$dev_full" "$dev_mount"
+		mount -t ufsd -o noatime,nls=utf8,force "$dev_full" "$dev_mount" 500>&-
 	fi
 elif [ "$ID_FS_TYPE" == "ext4" -o "$ID_FS_TYPE" == "ext3" -o "$ID_FS_TYPE" == "ext2" ] ; then
 	if [ "$achk_enable" != "0" ] && [ -x /sbin/e2fsck ] ; then
@@ -202,10 +221,10 @@ elif [ "$ID_FS_TYPE" == "ext4" -o "$ID_FS_TYPE" == "ext3" -o "$ID_FS_TYPE" == "e
 			func_load_module ext4
 		fi
 	fi
-	mount -t $ID_FS_TYPE -o noatime "$dev_full" "$dev_mount"
+	mount -t $ID_FS_TYPE -o noatime "$dev_full" "$dev_mount" 500>&-
 elif [ "$ID_FS_TYPE" == "xfs" ] ; then
 	func_load_module xfs
-	mount -t $ID_FS_TYPE -o noatime "$dev_full" "$dev_mount"
+	mount -t $ID_FS_TYPE -o noatime "$dev_full" "$dev_mount" 500>&-
 fi
 
 # check failed to mount, clean up mountpoint
@@ -216,6 +235,9 @@ if ! mountpoint -q "$dev_mount" ; then
 	rmdir "$dev_mount"
 	exit 1
 fi
+
+# The ownership decision and mount are complete; do not let hooks inherit the lock.
+exec 500>&-
 
 chmod 777 "$dev_mount"
 
