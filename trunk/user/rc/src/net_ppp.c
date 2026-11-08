@@ -33,6 +33,7 @@
 #include "rc.h"
 #include "ppp_options_file.h"
 #include "ppp_option_value_policy.h"
+#include "ppp_callback_identity_policy.h"
 
 static char *
 get_wan_ppp_peer(int unit)
@@ -610,21 +611,25 @@ preset_wan_ppp_routes(char *ppp_ifname, int unit)
 int
 ppp_ifindex(char *ifname)
 {
-	if (strncmp(ifname, "ppp", 3))
+	int index;
+
+	if (ppp_callback_parse_index(ifname, "ppp", VPNC_PPP_UNIT, &index) != 0)
 		return -1;
-	if (!isdigit(ifname[3]))
-		return -1;
-	return atoi(ifname+3);
+
+	return index;
 }
 
 static int
 ppp_wan_unit(char *linkname)
 {
-	if (strncmp(linkname, "wan", 3))
+	int unit;
+
+	/* start_wan() currently manages logical WAN unit 0 only. Reject callbacks
+	 * claiming an unknown WAN unit rather than partially parsing LINKNAME. */
+	if (ppp_callback_parse_index(linkname, "wan", 1, &unit) != 0)
 		return -1;
-	if (!isdigit(linkname[3]))
-		return -1;
-	return atoi(linkname+3);
+
+	return unit;
 }
 
 static int
