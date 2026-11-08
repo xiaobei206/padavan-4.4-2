@@ -1681,8 +1681,8 @@ umount_stor_path(disk_info_t *disks_info, int port, const char *dev_name, int do
 			if (follow_disk->port_root != (u16)port)
 				continue;
 		}
-		if (dev_name && follow_disk->device) {
-			if (strcmp(follow_disk->device, dev_name) != 0)
+		if (dev_name) {
+			if (!follow_disk->device || strcmp(follow_disk->device, dev_name) != 0)
 				continue;
 		}
 
