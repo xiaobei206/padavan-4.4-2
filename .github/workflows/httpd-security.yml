@@ -934,6 +934,7 @@ jobs:
           assert "Skipping extension firewall hooks after built-in table restore failure" in firewall_main[restore_gate:]
           assert "firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction)" in firewall_main
           assert "set_ipv4_forward(0);" in firewall_main
+          assert firewall.count('set_interface_conf_int("ipv6", "all", "forwarding", 0);') == 2
           assert "test_apply_failure_reverse_rollback" in transaction_test
           assert "test_snapshot_failure_rolls_back_prior_tables" in transaction_test
           assert "test_rollback_failure_retains_snapshots" in transaction_test

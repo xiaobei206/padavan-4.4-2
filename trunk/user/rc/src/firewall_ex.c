@@ -210,6 +210,10 @@ firewall_apply_core_restore(const char *operation, const char *family,
 			firewall_log_retained_restore_snapshots(&firewall_core_restore_transaction);
 			logmessage(LOGNAME, "Firewall rollback incomplete outside rebuild; disabling IPv4 forwarding");
 			set_ipv4_forward(0);
+#if defined (USE_IPV6)
+		/* IPv6 forwarding must also fail closed after an incomplete rollback. */
+		set_interface_conf_int("ipv6", "all", "forwarding", 0);
+#endif
 		}
 	}
 	return result;
@@ -2637,6 +2641,10 @@ firewall_restore_complete:
 		logmessage(LOGNAME,
 			   "Firewall rollback incomplete; disabling IPv4 forwarding and skipping remaining setup");
 		set_ipv4_forward(0);
+#if defined (USE_IPV6)
+		/* IPv6 forwarding must also fail closed after an incomplete rollback. */
+		set_interface_conf_int("ipv6", "all", "forwarding", 0);
+#endif
 		return;
 	}
 	if (firewall_restore_transaction_ok(&firewall_core_restore_transaction)) {
