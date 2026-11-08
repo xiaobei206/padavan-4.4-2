@@ -1878,7 +1878,11 @@ safe_remove_stor_device(int port_b, int port_e, const char *dev_name, int do_spi
 
 	if (has_mounted_port) {
 		stop_stor_apps();
-		unmount_status = umount_stor_path(disks_info, port_b, dev_name, do_spindown);
+		unmount_status = 0;
+		for (port = port_b; port <= port_e; port++) {
+			if (umount_stor_path(disks_info, port, dev_name, do_spindown) != 0)
+				unmount_status = -1;
+		}
 		ejected_status = umount_ejected();
 		if (unmount_status != 0 || ejected_status != 0)
 			logmessage("Storage", "safe removal incomplete; one or more mount/swap releases failed");
@@ -1893,7 +1897,12 @@ safe_remove_stor_device(int port_b, int port_e, const char *dev_name, int do_spi
 			logmessage("Storage", "storage state is uncertain; leaving services stopped rather than assuming eject succeeded");
 		}
 	} else if (has_swapon_port) {
-		if (umount_stor_path(disks_info, port_b, dev_name, do_spindown) != 0)
+		unmount_status = 0;
+		for (port = port_b; port <= port_e; port++) {
+			if (umount_stor_path(disks_info, port, dev_name, do_spindown) != 0)
+				unmount_status = -1;
+		}
+		if (unmount_status != 0)
 			logmessage("Storage", "safe removal incomplete; active swap could not be disabled or mounted data could not be unmounted");
 	}
 
