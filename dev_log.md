@@ -1,3 +1,10 @@
+## 2026-11-08 12:40 CST — L2TP config-line validation and launch-error propagation merged
+
+- Integration: PR #7 merged at ad3910f2ef0a88087cacff6f4fa2446f6dc52c11. Exact code/test/workflow head e97f5cb0bfb67f9e3dbdce55ac2f7a8d9704e062; Actions run 42447621156 completed SUCCESS, 23 steps.
+- Finding: safe_start_xl2tpd() wrote active hostname/peer/username values into /etc/xl2tpd.conf without line-control/length validation; start_rpl2tp() failed to consistently check config publication and daemon/session launch statuses.
+- Changes: added shared bounded ppp_config_line_value_copy() and regression coverage; validated active xl2tpd scalars before truncating config; checked flush/close/chmod; checked rp-l2tp peer/config/daemon/session operations; delayed temporary client-state update until xl2tpd config was published.
+- Validation boundary: GNU89 policy regression and source contracts passed on exact tested head. No target MIPS/uClibc, full firmware/TRX, live L2TP/PPP, router or hardware validation.
+- Next: audit WAN/PPP reconnect/watchdog/retry state transitions and transport stop/start status handling, then revisit IPv4 LWF_LIST versus IPv6 firewall policy parity. Adbyby extension-level rollback and storage mount/swap topology races remain open.
 ## 2026-11-08 12:34 CST — WAN/PPP option escaping and launch-failure recovery merged
 
 - **Integration:** PR #6 merged into main at `e7ac7296addf7730dd8d4eee28da2661f638e596`. Exact tested code/test/workflow head `5e90c2c6e3ecac982348457ead64cbd162dbf545`; Actions [run 42447294943](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447294943) completed SUCCESS.
