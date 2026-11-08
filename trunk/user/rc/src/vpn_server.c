@@ -26,6 +26,7 @@
 #include <fcntl.h>
 
 #include "rc.h"
+#include "firewall_ppp_interface_policy.h"
 
 #define VPNS_LOG_NAME		"VPN server"
 #define VPNS_PPP_UP_SCRIPT	"/tmp/ppp/ip-up.vpns"
@@ -360,15 +361,38 @@ reapply_vpn_server(void)
 		gen_vpns_pppd_options(i_type);
 }
 
-static void
+static int
 vpns_firewall_permission(char *ifname, int add)
 {
-	char *argv[] = {
-		"/bin/iptables", add ? "-A" : "-D", IPT_CHAIN_NAME_VPN_LIST,
-		"-i", ifname, "-j", "ACCEPT", NULL
-	};
-	if (ifname && *ifname)
-		_eval(argv, NULL, 0, NULL);
+	char *argv[9];
+	int status;
+
+	/* Keep runtime rule mutation aligned with the strict lease-file parser. */
+	if (!firewall_ppp_interface_is_safe(ifname, VPN_SERVER_PPP_UNIT)) {
+		logmessage(VPNS_LOG_NAME, "rejecting invalid VPN firewall interface token");
+		return -1;
+	}
+
+	argv[0] = "/bin/iptables";
+	argv[1] = add ? "-A" : "-D";
+	argv[2] = IPT_CHAIN_NAME_VPN_LIST;
+	argv[3] = "-i";
+	argv[4] = ifname;
+	argv[5] = "-j";
+	argv[6] = "ACCEPT";
+	argv[7] = NULL;
+
+	/* _eval returns an ordinary exit code (or errno/wait status), not system()'s
+	 * encoded wait status. Surface failed add/delete operations in the RC log. */
+	status = _eval(argv, NULL, 0, NULL);
+	if (status != 0) {
+		logmessage(VPNS_LOG_NAME,
+			   "failed to %s firewall permission for %s (status %d)",
+			   add ? "add" : "remove", ifname, status);
+		return status;
+	}
+
+	return 0;
 }
 
 void
@@ -445,8 +469,14 @@ ipup_vpns_main(int argc, char **argv)
 	char *svcs[] = { "bcrelay", NULL };
 	const char *script_name = VPN_SERVER_UPDOWN_SCRIPT;
 
-	if (argc < 7)
+	if (argc < 7 || !argv)
 		return -1;
+
+	/* Reject malformed tokens before firewall, route, lease or hook side effects. */
+	if (!firewall_ppp_interface_is_safe(argv[1], VPN_SERVER_PPP_UNIT)) {
+		logmessage(VPNS_LOG_NAME, "rejecting VPN up event with invalid PPP interface token");
+		return -1;
+	}
 
 	peer_name = safe_getenv("PEERNAME");
 
@@ -510,8 +540,14 @@ ipdown_vpns_main(int argc, char **argv)
 	char *svcs[] = { "bcrelay", NULL };
 	const char *script_name = VPN_SERVER_UPDOWN_SCRIPT;
 
-	if (argc < 7)
+	if (argc < 7 || !argv)
 		return -1;
+
+	/* Don't let malformed disconnect events mutate routes or lease state. */
+	if (!firewall_ppp_interface_is_safe(argv[1], VPN_SERVER_PPP_UNIT)) {
+		logmessage(VPNS_LOG_NAME, "rejecting VPN down event with invalid PPP interface token");
+		return -1;
+	}
 
 	peer_name = safe_getenv("PEERNAME");
 
