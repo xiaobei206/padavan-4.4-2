@@ -1176,7 +1176,8 @@ jobs:
           assert "rollback_failed" in transaction_helper
           assert "iptables" in transaction_helper and "ip6tables" in transaction_helper
           assert '#include "firewall_restore_transaction.h"' in firewall
-          assert "firewall_restore_transaction_reset(&firewall_core_restore_transaction);" in firewall
+          assert "firewall_restore_transaction_prepare_reset" in transaction_helper
+          assert "firewall_restore_transaction_prepare_reset" in firewall
           assert "firewall_restore_transaction_abort(" in firewall
           assert "Firewall rollback incomplete; recovery snapshot retained" in firewall
           assert 'doSystem("%s-save -t %s > %s", family, table, path)' in firewall
@@ -1227,8 +1228,17 @@ jobs:
               assert restore_gate < firewall_main.index(hook_call), hook_call
           assert "Skipping extension firewall hooks after built-in table restore failure" in firewall_main[restore_gate:]
           assert "firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction)" in firewall_main
-          assert "firewall_restore_transaction_cleanup_snapshots" in firewall_main
-          assert firewall_main.index("firewall_restore_transaction_cleanup_snapshots") < firewall_main.index("firewall_restore_transaction_reset")
+          assert "firewall_restore_transaction_prepare_reset" in firewall_main
+          assert firewall_main.index("firewall_restore_transaction_prepare_reset") < firewall_main.index("ipt_raw_rules();")
+          assert "Refusing firewall rebuild: previous recovery state remains unresolved" in firewall_main
+
+          standalone_start = firewall.index("static int" + chr(10) + "firewall_apply_core_restore(")
+          standalone_end = firewall.index(chr(10) + "static void" + chr(10) + "firewall_log_hook_stage_failure", standalone_start)
+          standalone_restore = firewall[standalone_start:standalone_end]
+          assert "firewall_restore_transaction_prepare_reset" in standalone_restore
+          assert standalone_restore.index("firewall_restore_transaction_prepare_reset") < standalone_restore.index("firewall_restore_transaction_apply")
+          assert "previous recovery state is unresolved" in standalone_restore
+          assert "return -1;" in standalone_restore
           assert "set_ipv4_forward(0);" in firewall_main
           assert firewall.count('set_interface_conf_int("ipv6", "all", "forwarding", 0);') == 2
           assert "test_apply_failure_reverse_rollback" in transaction_test
@@ -1236,6 +1246,8 @@ jobs:
           assert "test_rollback_failure_retains_snapshots" in transaction_test
           assert "test_cleanup_failure_retains_snapshot_for_retry" in transaction_test
           assert "test_abort_cleanup_failure_is_retryable" in transaction_test
+          assert "test_prepare_reset_refuses_cleanup_failure_then_retries" in transaction_test
+          assert "test_prepare_reset_preserves_failed_rollback_recovery_set" in transaction_test
           assert "cleanup_failed" in transaction_helper
           assert "typedef int (*firewall_restore_remove_fn)" in transaction_helper
           assert "firewall_restore_transaction_finish" in transaction_test
