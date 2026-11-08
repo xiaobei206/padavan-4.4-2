@@ -539,6 +539,36 @@ jobs:
           assert "launch_status != 0" in ppp
           assert "errno = 0;" in ppp
 
+          assert "ppp_config_line_value_copy" in value_policy
+          assert "ppp_config_line_value_copy" in value_test
+          xl_start = ppp.index("safe_start_xl2tpd(void)")
+          xl_end = ppp.index("#if defined (APP_RPL2TP)", xl_start)
+          xl2tp = ppp[xl_start:xl_end]
+          for value_copy in (
+              "ppp_config_line_value_copy(get_our_hostname(), hostname, sizeof(hostname))",
+              "ppp_config_line_value_copy(get_wan_ppp_peer(unit), wan_peer, sizeof(wan_peer))",
+              'ppp_config_line_value_copy(get_wan_unit_value(unit, "pppoe_username"), wan_user, sizeof(wan_user))',
+              'ppp_config_line_value_copy(nvram_safe_get("vpnc_peer"), vpnc_peer, sizeof(vpnc_peer))',
+              'ppp_config_line_value_copy(nvram_safe_get("vpnc_user"), vpnc_user, sizeof(vpnc_user))'
+          ):
+              assert value_copy in xl2tp
+          assert 'fprintf(fp, "hostname = %s\\n", hostname);' in xl2tp
+          assert 'fprintf(fp, "lns = %s\\n", wan_peer);' in xl2tp
+          assert 'fprintf(fp, "name = %s\\n", wan_user);' in xl2tp
+          assert 'fprintf(fp, "lns = %s\\n", vpnc_peer);' in xl2tp
+          assert 'fprintf(fp, "name = %s\\n", vpnc_user);' in xl2tp
+          assert "cannot write L2TP configuration" in xl2tp
+          assert "cannot close L2TP configuration" in xl2tp
+
+          rp_start = ppp.index("start_rpl2tp(int unit)")
+          rp_end = ppp.index("\\n#endif", rp_start)
+          rpl2tp = ppp[rp_start:rp_end]
+          assert "ppp_config_line_value_copy(get_wan_ppp_peer(unit), peer, sizeof(peer))" in rpl2tp
+          assert 'fprintf(fp,' in rpl2tp and 'options, peer) < 0' in rpl2tp
+          assert 'status = eval("/usr/sbin/l2tpd");' in rpl2tp
+          assert rpl2tp.index('if (status != 0)') < rpl2tp.index('system("/usr/sbin/l2tp-control')
+          assert "refusing unsafe or oversized rp-l2tp peer" in rpl2tp
+
           assert "if (launch_wan_pppd(unit, wan_proto) != 0)" in wan
           wan_start = wan.index("if (launch_wan_pppd(unit, wan_proto) != 0)")
           wan_end = wan.index("/* Pretend that the WAN interface is up */", wan_start)
