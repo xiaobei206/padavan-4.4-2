@@ -1,93 +1,69 @@
 /*
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
- * MA 02111-1307 USA
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
-
 #include <stdio.h>
-#include <stdlib.h>
 #include <errno.h>
-#include <string.h>
-#include <ctype.h>
-#include <sys/types.h>
 #include <signal.h>
 #include <unistd.h>
-
 #include "notify_rc.h"
+#include "rc_notify_queue.h"
 
-static int
-is_valid_event_name(const char *event_name)
+static void
+notify_rc_internal(const char *event_name, int wait_sec)
 {
-	const unsigned char *p;
-	size_t len;
+	int notify_dir_fd = -1;
+	int incomplete_dir_fd = -1;
+	int incomplete_created = 0;
+	int ret, i, saved_errno;
 
-	if (!event_name || !*event_name ||
-	    !strcmp(event_name, ".") || !strcmp(event_name, ".."))
-		return 0;
-
-	len = strlen(event_name);
-	if (len > 128)
-		return 0;
-	for (p = (const unsigned char *)event_name; *p; ++p) {
-		if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.')
-			return 0;
-	}
-	return 1;
-}
-
-static void notify_rc_internal(const char *event_name, int wait_sec)
-{
-	FILE *fp;
-	int i;
-	char *full_name;
-
-	/* Event names become filenames under the init notification directories. */
-	if (!is_valid_event_name(event_name)) {
+	if (!rc_notify_event_name_is_safe(event_name)) {
+		errno = EINVAL;
 		fprintf(stderr, "notify_rc: invalid event name\\n");
 		return;
 	}
+	notify_dir_fd = rc_notify_queue_open_dir(DIR_RC_NOTIFY, 0);
+	if (notify_dir_fd < 0)
+		goto fail;
+	incomplete_dir_fd = rc_notify_queue_open_dir(DIR_RC_INCOMPLETE, 0);
+	if (incomplete_dir_fd < 0)
+		goto fail;
+	ret = rc_notify_queue_touch_at(incomplete_dir_fd, event_name, 0);
+	if (ret < 0)
+		goto fail;
+	incomplete_created = (ret == 1);
+	if (rc_notify_queue_touch_at(notify_dir_fd, event_name, 0) < 0)
+		goto fail;
 
-	full_name = (char *)(malloc(strlen(event_name) + 32));
-	if (!full_name) {
-		fprintf(stderr, "notify_rc: failed to alloc event memory!\n");
-		return;
-	}
-
-	sprintf(full_name, "%s/%s", DIR_RC_INCOMPLETE, event_name);
-	fp = fopen(full_name, "w");
-	if (fp)
-		fclose(fp);
-
-	sprintf(full_name, "%s/%s", DIR_RC_NOTIFY, event_name);
-	fp = fopen(full_name, "w");
-	if (fp)
-		fclose(fp);
-
-	kill(1, SIGUSR1);
+	close(notify_dir_fd);
+	notify_dir_fd = -1;
+	if (kill(1, SIGUSR1) != 0)
+		fprintf(stderr, "notify_rc: failed to signal init (errno=%d)\\n", errno);
 
 	if (wait_sec > 0) {
-		sprintf(full_name, "%s/%s", DIR_RC_INCOMPLETE, event_name);
-		for(i=0;i<wait_sec;i++) {
-			fp = fopen(full_name, "r");
-			if (!fp)
+		for (i = 0; i < wait_sec; ++i) {
+			if (rc_notify_queue_marker_is_safe_at(incomplete_dir_fd,
+						      event_name, 0) != 0)
 				break;
-			fclose(fp);
 			sleep(1);
 		}
 	}
+	close(incomplete_dir_fd);
+	return;
 
-	free(full_name);
+fail:
+	saved_errno = errno ? errno : EIO;
+	if (incomplete_created && incomplete_dir_fd >= 0)
+		unlinkat(incomplete_dir_fd, event_name, 0);
+	if (notify_dir_fd >= 0)
+		close(notify_dir_fd);
+	if (incomplete_dir_fd >= 0)
+		close(incomplete_dir_fd);
+	errno = saved_errno;
+	fprintf(stderr, "notify_rc: refused unsafe notification queue operation (errno=%d)\\n",
+		 saved_errno);
 }
 
 void notify_rc(const char *event_name)
