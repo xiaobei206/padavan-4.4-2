@@ -900,15 +900,9 @@ stop_services_lan_wan(void)
 #endif
 }
 
-void
+int
 stop_misc(void)
 {
-	char* svcs[] = {
-		"ntpd",
-		"detect_wan",
-		"watchdog",
-		NULL
-	};
-
-	kill_services(svcs, 3, 1);
+	char* svcs[] = { "ntpd", "detect_wan", "watchdog", NULL };
+	return kill_services(svcs, 3, 1);
 }

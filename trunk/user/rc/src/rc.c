@@ -477,19 +477,19 @@ static void
 flash_firmware(void)
 {
 	const char *script_name = SCRIPT_SHUTDOWN;
-	char* svcs[] = { "l2tpd",
-			 "xl2tpd",
-			 "pppd",
-			 "wpa_cli",
-			 "wpa_supplicant",
-			 NULL };
+	char* svcs[] = { "l2tpd", "xl2tpd", "pppd", "wpa_cli", "wpa_supplicant", NULL };
 
-	stop_misc();
-	stop_services(0); // don't stop httpd/telnetd/sshd/vpn
-
+	if (kill_services(svcs, 6, 1) != 0) {
+		logmessage(LOGNAME, "firmware update aborted: L2TP/PPP/wireless services did not stop");
+		return;
+	}
+	if (stop_misc() != 0) {
+		logmessage(LOGNAME, "firmware update aborted: miscellaneous services did not stop");
+		return;
+	}
+	stop_services(0);
 	if (check_if_file_exist(script_name))
 		doSystem("%s %d", script_name, 0);
-
 #if defined (USE_STORAGE)
 	safe_remove_all_stor_devices(0);
 #endif
@@ -497,19 +497,12 @@ flash_firmware(void)
 	stop_usb_printer_spoolers();
 #endif
 	stop_igmpproxy(NULL);
-
-	kill_services(svcs, 6, 1);
-
-	/* save storage (if changed) */
 	storage_save_time(60);
 	write_storage_to_mtd();
-
 	sync();
 	sleep(1);
-
-	if (eval("/tmp/mtd_write", "-r", "write", FW_IMG_NAME, FW_MTD_NAME) != 0) {
+	if (eval("/tmp/mtd_write", "-r", "write", FW_IMG_NAME, FW_MTD_NAME) != 0)
 		start_watchdog();
-	}
 }
 
 static void

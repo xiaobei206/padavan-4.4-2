@@ -1048,114 +1048,85 @@ start_wan(void)
 	set_passthrough_pppoe(1);
 }
 
-static void
+static int
 stop_wan_ppp(void)
 {
-	// stop services only for pppX interface
 	char* svcs_ppp[] = {
-		"ip-up",
-		"ip-down",
+		"ip-up", "ip-down",
 #if defined (USE_IPV6)
-		"ipv6-up",
-		"ipv6-down",
+		"ipv6-up", "ipv6-down",
 #endif
-		"l2tpd",
-		"xl2tpd",
-		"pppd",
-		NULL
+		"l2tpd", "xl2tpd", "pppd", NULL
 	};
-
 	nvram_set_int_temp("deferred_wanup_t", 0);
-
 	notify_pause_detect_internet();
-
 	stop_vpn_client();
-	kill_services(svcs_ppp, 6, 1);
-
+	if (kill_services(svcs_ppp, 6, 1) != 0) {
+		logmessage(LOGNAME, "refusing to clear WAN PPP state while PPP services remain active");
+		return -1;
+	}
 	clear_wan_state();
-
 	control_wan_led_isp_state(0, 0);
+	return 0;
 }
 
-void
+int
 stop_wan(void)
 {
 	int unit, wan_proto;
 	char *man_ifname;
 	char* svcs_ppp[] = {
-		"ip-up",
-		"ip-down",
+		"ip-up", "ip-down",
 #if defined (USE_IPV6)
-		"ipv6-up",
-		"ipv6-down",
+		"ipv6-up", "ipv6-down",
 #endif
-		"l2tpd",
-		"xl2tpd",
-		"pppd",
-		NULL
+		"l2tpd", "xl2tpd", "pppd", NULL
 	};
-	char *svcs_wan[] = {
-		"ntpd",
-		"inadyn",
-		"igmpproxy",
-		"xupnpd",
-		"udpxy",
-		"udhcpc",
-		"zcip",
-		"pppoe-relay",
-		"detect_wan",
-		NULL
+	char* svcs_wan[] = {
+		"ntpd", "inadyn", "igmpproxy", "xupnpd", "udpxy",
+		"udhcpc", "zcip", "pppoe-relay", "detect_wan", NULL
 	};
 
 	unit = 0;
-
 	nvram_set_int_temp("deferred_wanup_t", 0);
-
 	wan_proto = get_wan_proto(unit);
 	man_ifname = get_man_ifname(unit);
-
 	notify_pause_detect_internet();
-
 	stop_vpn_client();
 
+	if (kill_services(svcs_ppp, 6, 1) != 0) {
+		logmessage(LOGNAME, "refusing WAN interface teardown while PPP services remain active");
+		return -1;
+	}
 #if defined (USE_IPV6)
 	if (is_wan_ipv6_type_sit() == 0)
 		wan6_down(man_ifname, unit);
 #endif
-
-	kill_services(svcs_ppp, 6, 1);
-
 	if (pids("udhcpc")) {
 		doSystem("killall %s %s", "-SIGUSR2", "udhcpc");
 		usleep(300000);
+	}
+	if (kill_services(svcs_wan, 3, 1) != 0) {
+		logmessage(LOGNAME, "refusing WAN interface teardown while WAN services remain active");
+		return -1;
 	}
 
 	stop_auth_eapol();
 	stop_auth_kabinet();
 	set_passthrough_pppoe(0);
-
-	kill_services(svcs_wan, 3, 1);
-
 	if (wan_proto == IPV4_WAN_PROTO_IPOE_STATIC &&
 	    strcmp(man_ifname, get_wan_unit_value(unit, "ifname_t")) == 0)
 		wan_down(man_ifname, unit, 1);
-
-	/* Bring down WAN interfaces */
 	ifconfig(man_ifname, 0, "0.0.0.0", NULL);
 	if (strcmp(man_ifname, IFNAME_WAN) != 0)
 		ifconfig(IFNAME_WAN, 0, "0.0.0.0", NULL);
-
 #if defined (USE_USB_SUPPORT)
-	/* Bring down usbnet interface */
 	stop_wan_usbnet();
 #endif
-
-	/* Remove dynamically created links */
 	remove_cb_links();
-
 	clear_wan_state();
-
 	control_wan_led_isp_state(0, 0);
+	return 0;
 }
 
 static int
@@ -1533,34 +1504,25 @@ full_restart_wan(void)
 {
 	if (get_ap_mode())
 		return;
-
-	stop_wan();
-
+	if (stop_wan() != 0) {
+		logmessage(LOGNAME, "aborting full WAN restart because services did not stop");
+		return;
+	}
 	clear_if_route4(get_man_ifname(0));
 	clear_if_route4(IFNAME_BR);
 	flush_route_caches();
-
 	phy_clear_mac_table();
-
 	update_router_mode();
-
 	reset_wan_vars();
-
 	add_static_lan_routes(IFNAME_BR);
-
 	select_usb_modem_to_wan();
-
 	notify_reset_detect_link();
 	switch_config_vlan(0);
-
 #if defined (USE_GMAC2_TO_GPHY) || defined (USE_GMAC2_TO_GSW)
 	disassembly_bridges_wan();
 	config_soft_bridge_lan();
 #endif
-
 	start_wan();
-
-	/* restore L2TP VPN server after L2TP WAN client closed */
 	if (nvram_match("l2tp_srv_t", "1"))
 		safe_start_xl2tpd();
 }
@@ -1570,33 +1532,24 @@ try_wan_reconnect(int try_use_modem, long pause_in_seconds)
 {
 	if (get_ap_mode())
 		return;
-
-	stop_wan();
+	if (stop_wan() != 0) {
+		logmessage(LOGNAME, "aborting WAN reconnect because services did not stop");
+		return;
+	}
 	reset_wan_vars();
-
 	if (pause_in_seconds > 0) {
 		long deferred_up_time = uptime() + pause_in_seconds;
-		
 		if (deferred_up_time == 0)
 			deferred_up_time++;
 		nvram_set_int_temp("deferred_wanup_t", deferred_up_time);
-		
-		/* check watchdog started */
 		start_watchdog();
-		
 		logmessage(LOGNAME, "WAN up delay: %lds.", pause_in_seconds);
-		
 		return;
 	}
-
 	if (try_use_modem)
 		select_usb_modem_to_wan();
-
 	notify_reset_detect_link();
-
 	start_wan();
-
-	/* restore L2TP VPN server after L2TP WAN client closed */
 	if (nvram_match("l2tp_srv_t", "1"))
 		safe_start_xl2tpd();
 }
@@ -1625,31 +1578,24 @@ void
 manual_wan_disconnect(void)
 {
 	int wan_proto;
-
 	logmessage(LOGNAME, "Perform WAN %s %s", "manual", "disconnect");
-
 	if (get_ap_mode())
 		return;
-
 	wan_proto = get_wan_proto(0);
-	if (get_usb_modem_wan(0))
-	{
-		if (nvram_get_int("modem_type") == 3)
-			stop_wan();
-		else
-			stop_wan_ppp();
-	}
-	else if (wan_proto == IPV4_WAN_PROTO_PPPOE ||
-		 wan_proto == IPV4_WAN_PROTO_PPTP ||
-		 wan_proto == IPV4_WAN_PROTO_L2TP)
-	{
-		/* pptp, l2tp, pppoe */
-		stop_wan_ppp();
-	}
-	else
-	{
-		/* dhcp, static */
-		stop_wan();
+	if (get_usb_modem_wan(0)) {
+		if (nvram_get_int("modem_type") == 3) {
+			if (stop_wan() != 0)
+				return;
+		} else if (stop_wan_ppp() != 0) {
+			return;
+		}
+	} else if (wan_proto == IPV4_WAN_PROTO_PPPOE ||
+		   wan_proto == IPV4_WAN_PROTO_PPTP ||
+		   wan_proto == IPV4_WAN_PROTO_L2TP) {
+		if (stop_wan_ppp() != 0)
+			return;
+	} else if (stop_wan() != 0) {
+		return;
 	}
 }
 
