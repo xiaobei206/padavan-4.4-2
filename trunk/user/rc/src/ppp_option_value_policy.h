@@ -102,10 +102,12 @@ ppp_config_line_value_copy(const char *value, char *out, size_t out_size)
 	used = 0;
 	for (src = (const unsigned char *)value; *src; ++src) {
 		if (*src < 0x20 || *src == 0x7f) {
+			out[0] = '\0';
 			errno = EINVAL;
 			return -1;
 		}
 		if (used >= out_size - 1) {
+			out[0] = '\0';
 			errno = EOVERFLOW;
 			return -1;
 		}
