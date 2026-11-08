@@ -665,6 +665,16 @@ jobs:
           assert failed_umount < success_cleanup
           assert "result = -1;" in umount_dev[failed_umount:success_cleanup]
 
+          ejected_start = service.index("umount_ejected(void)")
+          ejected_end = service.index("is_disk_or_partition(const char *candidate, const char *disk, int is_mmc)", ejected_start)
+          ejected = service[ejected_start:ejected_end]
+          assert "if (!procpt)" in ejected and "return -1;" in ejected
+          assert "if (!procpt2)" in ejected
+          assert "partition_read_error = ferror(procpt2);" in ejected
+          assert "if (umount(mpname) != 0)" in ejected
+          assert "result = -1;" in ejected and "return result;" in ejected
+          assert ejected.index("if (umount(mpname) != 0)") < ejected.index("(void)rmdir(mpname)")
+
           path_start = service.index("umount_stor_path(disk_info_t *disks_info, int port, const char *dev_name, int do_spindown)")
           path_end = service.index("stop_stor_apps(void)", path_start)
           unmount_path = service[path_start:path_end]
