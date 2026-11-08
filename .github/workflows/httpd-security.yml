@@ -1496,7 +1496,7 @@ jobs:
           assert asp_guard < asp_callback
           assert "A trusted management session is required." in asp_call
           assert '#include "httpd_direct_ej_policy.h"' in ej_dispatch
-          assert "httpd_storage_ej_requires_trusted_session(name)" in direct_ej_policy
+          assert "httpd_storage_ej_allowed(name, 0)" in direct_ej_policy
 
           storage_mutators = {
               "set_AiDisk_status", "safely_remove_disk", "set_account_permission",
