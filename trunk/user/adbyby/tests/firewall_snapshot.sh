@@ -6,7 +6,16 @@ trap 'rm -rf "$test_root"' EXIT HUP INT TERM
 mkdir -m 700 "$test_root/bin" "$test_root/private"
 cat > "$test_root/bin/nvram" <<'EOF'
 #!/bin/sh
-exit 0
+case "$1" in
+    get)
+        case "$2" in
+            http_username) printf '%s\n' root ;;
+            *) printf '%s\n' 0 ;;
+        esac
+        ;;
+    set) exit 0 ;;
+    *) exit 0 ;;
+esac
 EOF
 cat > "$test_root/bin/logger" <<'EOF'
 #!/bin/sh
