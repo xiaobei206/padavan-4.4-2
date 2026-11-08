@@ -102,8 +102,10 @@ on:
       - "trunk/user/rc/src/net_ppp.c"
       - "trunk/user/rc/src/ppp_options_file.h"
       - "trunk/user/rc/src/ppp_option_value_policy.h"
+      - "trunk/user/rc/src/ppp_callback_identity_policy.h"
       - "trunk/user/rc/src/tests/ppp_options_file.c"
       - "trunk/user/rc/src/tests/ppp_option_value_policy.c"
+      - "trunk/user/rc/src/tests/ppp_callback_identity_policy.c"
       - "trunk/user/rc/src/dnsmasq_file.h"
       - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
@@ -230,8 +232,10 @@ on:
       - "trunk/user/rc/src/net_ppp.c"
       - "trunk/user/rc/src/ppp_options_file.h"
       - "trunk/user/rc/src/ppp_option_value_policy.h"
+      - "trunk/user/rc/src/ppp_callback_identity_policy.h"
       - "trunk/user/rc/src/tests/ppp_options_file.c"
       - "trunk/user/rc/src/tests/ppp_option_value_policy.c"
+      - "trunk/user/rc/src/tests/ppp_callback_identity_policy.c"
       - "trunk/user/rc/src/dnsmasq_file.h"
       - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
@@ -497,6 +501,11 @@ jobs:
             trunk/user/rc/src/tests/ppp_option_value_policy.c \
             -o /tmp/ppp_option_value_policy
           /tmp/ppp_option_value_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/ppp_callback_identity_policy.c \
+            -o /tmp/ppp_callback_identity_policy
+          /tmp/ppp_callback_identity_policy
           python3 - <<'PY'
           from pathlib import Path
 
@@ -506,6 +515,8 @@ jobs:
           test = Path("trunk/user/rc/src/tests/ppp_options_file.c").read_text()
           value_policy = Path("trunk/user/rc/src/ppp_option_value_policy.h").read_text()
           value_test = Path("trunk/user/rc/src/tests/ppp_option_value_policy.c").read_text()
+          identity_policy = Path("trunk/user/rc/src/ppp_callback_identity_policy.h").read_text()
+          identity_test = Path("trunk/user/rc/src/tests/ppp_callback_identity_policy.c").read_text()
 
           assert '#include "ppp_options_file.h"' in ppp
           assert 'ppp_options_directory_ready("/tmp/ppp")' in ppp
@@ -538,6 +549,14 @@ jobs:
           assert 'launch_status = eval("/usr/sbin/pppd", "file", options);' in ppp
           assert "launch_status != 0" in ppp
           assert "errno = 0;" in ppp
+
+          assert '#include "ppp_callback_identity_policy.h"' in ppp
+          assert 'ppp_callback_parse_index(ifname, "ppp", VPNC_PPP_UNIT, &index)' in ppp
+          assert 'ppp_callback_parse_index(linkname, "wan", 1, &unit)' in ppp
+          assert "return atoi(ifname+3);" not in ppp
+          assert "return atoi(linkname+3);" not in ppp
+          assert "ppp0junk" in identity_test and "wan0garbage" in identity_test
+          assert "ppp_callback_parse_index" in identity_policy
 
           assert "ppp_config_line_value_copy" in value_policy
           assert "ppp_config_line_value_copy" in value_test
