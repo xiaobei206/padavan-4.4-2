@@ -112,7 +112,7 @@ function sendWakeUp(mac, $button)
     var $respClass = $button.parents('td').find('div.wol_response');
     if(mac != '')
     {
-        $j.getJSON('/wol_action.asp', {dstmac: mac},
+        $j.post('/wol_action.asp', {dstmac: mac},
             function(response){
                 var respMac = (response != null && typeof response === 'object' && "wol_mac" in response)
                               ? response.wol_mac.toUpperCase()
@@ -142,7 +142,8 @@ function sendWakeUp(mac, $button)
                     $respClass.hide();
                     $button.show();
                 }, 1500);
-            }
+            },
+            'json'
         );
     }
 }
