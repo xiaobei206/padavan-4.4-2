@@ -27,14 +27,17 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "rc.h"
 #include "firewall_filter_policy.h"
 #include "firewall_rule_file.h"
 #include "firewall_command_status.h"
+#include "firewall_restore_transaction.h"
 #include "firewall_hook_file.h"
 
-static firewall_restore_state_t firewall_core_restore_state;
+static firewall_restore_transaction_t firewall_core_restore_transaction;
+static int firewall_core_restore_transaction_active;
 
 #define foreach_x(x)		for (i=0; i<nvram_get_int(x); i++)
 
@@ -75,11 +78,141 @@ firewall_log_command_failure(const char *operation, int status)
 	logmessage(LOGNAME, "%s: command failed with wait status %d", operation, status);
 }
 
-static void
-firewall_log_core_restore_failure(const char *operation, int status)
+
+typedef struct {
+	const char *operation;
+} firewall_restore_command_context_t;
+
+static int
+firewall_snapshot_core_table(const char *family, const char *table,
+			     char *path, size_t path_size, void *context)
 {
-	firewall_restore_state_record(&firewall_core_restore_state, status);
+	char operation[128];
+	int length, fd, status, saved_errno;
+
+	(void)context;
+	if (!path || path_size == 0) {
+		errno = EINVAL;
+		return -1;
+	}
+	length = snprintf(path, path_size, "/tmp/firewall-snapshot.XXXXXX");
+	if (length < 0 || (size_t)length >= path_size) {
+		path[0] = '\0';
+		errno = ENAMETOOLONG;
+		return -1;
+	}
+	fd = mkstemp(path);
+	if (fd < 0) {
+		saved_errno = errno;
+		path[0] = '\0';
+		snprintf(operation, sizeof(operation), "Firewall %s %s snapshot", family, table);
+		logmessage(LOGNAME, "%s: cannot create private snapshot (errno=%d)", operation, saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (fchmod(fd, S_IRUSR | S_IWUSR) != 0) {
+		saved_errno = errno;
+		close(fd);
+		unlink(path);
+		path[0] = '\0';
+		snprintf(operation, sizeof(operation), "Firewall %s %s snapshot", family, table);
+		logmessage(LOGNAME, "%s: cannot secure private snapshot (errno=%d)", operation, saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	if (close(fd) != 0) {
+		saved_errno = errno;
+		unlink(path);
+		path[0] = '\0';
+		snprintf(operation, sizeof(operation), "Firewall %s %s snapshot", family, table);
+		logmessage(LOGNAME, "%s: cannot close private snapshot (errno=%d)", operation, saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
+	snprintf(operation, sizeof(operation), "Firewall %s %s snapshot", family, table);
+	status = doSystem("%s-save -t %s > %s", family, table, path);
+	if (!firewall_command_status_ok(status)) {
+		firewall_log_command_failure(operation, status);
+		unlink(path);
+		path[0] = '\0';
+		return -1;
+	}
+	return 0;
+}
+
+static int
+firewall_restore_core_table(const char *family, const char *table,
+			    const char *path, int rollback, void *context)
+{
+	const firewall_restore_command_context_t *command_context;
+	char operation[128];
+	int status;
+
+	command_context = (const firewall_restore_command_context_t *)context;
+	if (rollback)
+		snprintf(operation, sizeof(operation), "Firewall %s %s rollback", family, table);
+	else if (command_context && command_context->operation)
+		snprintf(operation, sizeof(operation), "%s", command_context->operation);
+	else
+		snprintf(operation, sizeof(operation), "Firewall %s %s restore", family, table);
+	status = doSystem("%s-restore %s", family, path);
 	firewall_log_command_failure(operation, status);
+	return firewall_command_status_ok(status) ? 0 : -1;
+}
+
+static void
+firewall_remove_restore_snapshot(const char *path, void *context)
+{
+	(void)context;
+	if (unlink(path) != 0 && errno != ENOENT)
+		logmessage(LOGNAME, "Cannot remove firewall snapshot %s (errno=%d)", path, errno);
+}
+
+static void
+firewall_log_retained_restore_snapshots(const firewall_restore_transaction_t *tx)
+{
+	size_t i;
+	if (!firewall_restore_transaction_rollback_failed(tx))
+		return;
+	for (i = 0; i < tx->snapshot_count; ++i)
+		logmessage(LOGNAME,
+			   "Firewall rollback incomplete; recovery snapshot retained: %s table %s at %s",
+			   tx->snapshots[i].family, tx->snapshots[i].table, tx->snapshots[i].path);
+}
+
+static void
+firewall_abort_core_restore_after_staging_failure(void)
+{
+	if (firewall_core_restore_transaction_active)
+		(void)firewall_restore_transaction_abort(&firewall_core_restore_transaction,
+			firewall_restore_core_table, firewall_remove_restore_snapshot, NULL);
+}
+
+static int
+firewall_apply_core_restore(const char *operation, const char *family,
+			    const char *table, const char *rule_path)
+{
+	firewall_restore_command_context_t context;
+	int standalone, result;
+
+	standalone = !firewall_core_restore_transaction_active;
+	context.operation = operation;
+	if (standalone)
+		firewall_restore_transaction_reset(&firewall_core_restore_transaction);
+	result = firewall_restore_transaction_apply(&firewall_core_restore_transaction,
+		family, table, rule_path, firewall_snapshot_core_table,
+		firewall_restore_core_table, firewall_remove_restore_snapshot, &context);
+	if (standalone) {
+		if (result == 0)
+			result = firewall_restore_transaction_finish(&firewall_core_restore_transaction,
+				firewall_remove_restore_snapshot, &context);
+		if (firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction)) {
+			firewall_log_retained_restore_snapshots(&firewall_core_restore_transaction);
+			logmessage(LOGNAME, "Firewall rollback incomplete outside rebuild; disabling IPv4 forwarding");
+			set_ipv4_forward(0);
+		}
+	}
+	return result;
 }
 
 static void
@@ -99,7 +232,7 @@ firewall_open_rule_file(char *path, const char *operation)
 
 	fp = firewall_rule_file_open(path);
 	if (!fp) {
-		firewall_restore_state_fail(&firewall_core_restore_state);
+		firewall_abort_core_restore_after_staging_failure();
 		saved_errno = errno ? errno : EIO;
 		logmessage(LOGNAME, "%s: cannot create private rule file (errno=%d)",
 			   operation, saved_errno);
@@ -115,7 +248,7 @@ firewall_finish_rule_file(FILE *fp, char *path, const char *operation)
 
 	result = firewall_rule_file_finish(fp, path);
 	if (result != 0) {
-		firewall_restore_state_fail(&firewall_core_restore_state);
+		firewall_abort_core_restore_after_staging_failure();
 		saved_errno = errno ? errno : EIO;
 		logmessage(LOGNAME, "%s: cannot flush/close private rule file (errno=%d)",
 			   operation, saved_errno);
@@ -1452,7 +1585,7 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 filter") == 0) {
 		if (ret & MODULE_WEBSTR_MASK)
 			module_smart_load("xt_webstr", NULL);
-		firewall_log_core_restore_failure("IPv4 filter restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv4 filter restore", "iptables", "filter", ipt_file);
 	}
 	firewall_rule_file_remove(ipt_file);
 
@@ -1500,7 +1633,7 @@ ipt_filter_default(void)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 default filter") == 0)
-		firewall_log_core_restore_failure("IPv4 default filter restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv4 default filter restore", "iptables", "filter", ipt_file);
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1559,7 +1692,7 @@ ipt_mangle_rules(const char *man_if, const char *wan_if, int use_man)
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 mangle") == 0 &&
 	    (i_wan_ttl_fix || is_module_loaded("iptable_mangle")))
-		firewall_log_core_restore_failure("IPv4 mangle restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv4 mangle restore", "iptables", "mangle", ipt_file);
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1578,7 +1711,7 @@ ipt_raw_rules(void)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 raw") == 0 && is_module_loaded("iptable_raw"))
-		firewall_log_core_restore_failure("IPv4 raw restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv4 raw restore", "iptables", "raw", ipt_file);
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1859,7 +1992,7 @@ ip6t_filter_rules(char *man_if, char *wan_if, char *lan_if,
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv6 filter") == 0) {
 		if (ret & MODULE_WEBSTR_MASK)
 			module_smart_load("xt_webstr", NULL);
-		firewall_log_core_restore_failure("IPv6 filter restore", doSystem("ip6tables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv6 filter restore", "ip6tables", "filter", ipt_file);
 	}
 	firewall_rule_file_remove(ipt_file);
 
@@ -1908,7 +2041,7 @@ ip6t_filter_default(void)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv6 default filter") == 0)
-		firewall_log_core_restore_failure("IPv6 default filter restore", doSystem("ip6tables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv6 default filter restore", "ip6tables", "filter", ipt_file);
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1930,7 +2063,7 @@ ip6t_mangle_rules(char *man_if)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv6 mangle") == 0 && is_module_loaded("ip6table_mangle"))
-		firewall_log_core_restore_failure("IPv6 mangle restore", doSystem("ip6tables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv6 mangle restore", "ip6tables", "mangle", ipt_file);
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1951,7 +2084,7 @@ ip6t_nat_rules(char *man_if)
 	fprintf(fp, "-A POSTROUTING -s fc00:101:101::1/64 -j FULLCONENAT\n");
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv6 NAT") == 0)
-		firewall_log_core_restore_failure("IPv6 NAT restore", doSystem("ip6tables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv6 NAT restore", "ip6tables", "nat", ipt_file);
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -2311,7 +2444,7 @@ ipt_nat_rules(char *man_if, char *man_ip,
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 NAT") == 0)
-		firewall_log_core_restore_failure("IPv4 NAT restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv4 NAT restore", "iptables", "nat", ipt_file);
 	firewall_rule_file_remove(ipt_file);
 
 	return 0;
@@ -2354,7 +2487,7 @@ ipt_nat_default(void)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 default NAT") == 0)
-		firewall_log_core_restore_failure("IPv4 default NAT restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_apply_core_restore("IPv4 default NAT restore", "iptables", "nat", ipt_file);
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -2379,7 +2512,8 @@ start_firewall_ex(void)
 #if defined (APP_ADBYBY)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
 #endif
-	firewall_restore_state_reset(&firewall_core_restore_state);
+	firewall_restore_transaction_reset(&firewall_core_restore_transaction);
+	firewall_core_restore_transaction_active = 0;
 	unit = 0;
 
 	snprintf(lan_if, sizeof(lan_if), "%s", IFNAME_BR);
@@ -2461,27 +2595,51 @@ start_firewall_ex(void)
 	else
 		strcpy(logdrop, "DROP");
 
-	/* IPv4 Raw rules */
+	firewall_core_restore_transaction_active = 1;
+
+	/* Snapshot each existing table immediately before its first core restore. */
 	ipt_raw_rules();
-
-	/* IPv4 Mangle rules */
+	if (!firewall_restore_transaction_ok(&firewall_core_restore_transaction))
+		goto firewall_restore_complete;
 	ipt_mangle_rules(man_if, wan_if, i_use_man);
-
-	/* IPv4 NAT rules */
+	if (!firewall_restore_transaction_ok(&firewall_core_restore_transaction))
+		goto firewall_restore_complete;
 	ipt_nat_rules(man_if, man_ip, wan_if, wan_ip, lan_if, lan_ip, lan_net, i_use_man, wan_proto);
-
-	/* IPv4 Filter rules */
+	if (!firewall_restore_transaction_ok(&firewall_core_restore_transaction))
+		goto firewall_restore_complete;
 	ipt_filter_rules(man_if, wan_if, lan_if, lan_ip, logaccept, logdrop, i_tcp_mss);
+	if (!firewall_restore_transaction_ok(&firewall_core_restore_transaction))
+		goto firewall_restore_complete;
 
 #if defined (USE_IPV6)
-	/* IPv6 Mangle rules */
 	ip6t_mangle_rules(man_if);
+	if (!firewall_restore_transaction_ok(&firewall_core_restore_transaction))
+		goto firewall_restore_complete;
 	ip6t_nat_rules(man_if);
-	/* IPv6 Filter rules */
+	if (!firewall_restore_transaction_ok(&firewall_core_restore_transaction))
+		goto firewall_restore_complete;
 	ip6t_filter_rules(man_if, wan_if, lan_if, logaccept, logdrop, i_tcp_mss);
+	if (!firewall_restore_transaction_ok(&firewall_core_restore_transaction))
+		goto firewall_restore_complete;
 #endif
 
-	if (firewall_restore_state_ok(&firewall_core_restore_state)) {
+firewall_restore_complete:
+	firewall_core_restore_transaction_active = 0;
+	if (firewall_restore_transaction_ok(&firewall_core_restore_transaction))
+		(void)firewall_restore_transaction_finish(&firewall_core_restore_transaction,
+			firewall_remove_restore_snapshot, NULL);
+	else
+		(void)firewall_restore_transaction_abort(&firewall_core_restore_transaction,
+			firewall_restore_core_table, firewall_remove_restore_snapshot, NULL);
+
+	if (firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction)) {
+		firewall_log_retained_restore_snapshots(&firewall_core_restore_transaction);
+		logmessage(LOGNAME,
+			   "Firewall rollback incomplete; disabling IPv4 forwarding and skipping remaining setup");
+		set_ipv4_forward(0);
+		return;
+	}
+	if (firewall_restore_transaction_ok(&firewall_core_restore_transaction)) {
 #if defined (APP_SHADOWSOCKS)
 	/* /tmp is shared-writable: execute only a validated private snapshot. */
 	if (firewall_hook_file_stage(shadowsocks_iptables_script, "/home/root",

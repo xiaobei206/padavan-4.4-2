@@ -111,6 +111,8 @@ on:
       - "trunk/user/rc/src/tests/firewall_hook_file.c"
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
+      - "trunk/user/rc/src/firewall_restore_transaction.h"
+      - "trunk/user/rc/src/tests/firewall_restore_transaction.c"
       - "trunk/user/shared/src/shutils.c"
       - "trunk/user/rc/src/rc.c"
       - "trunk/user/rc/src/tests/pid1_signal_policy.c"
@@ -230,6 +232,8 @@ on:
       - "trunk/user/rc/src/tests/firewall_hook_file.c"
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
+      - "trunk/user/rc/src/firewall_restore_transaction.h"
+      - "trunk/user/rc/src/tests/firewall_restore_transaction.c"
       - "trunk/user/shared/src/shutils.c"
       - "trunk/user/rc/src/rc.c"
       - "trunk/user/rc/src/tests/pid1_signal_policy.c"
@@ -857,6 +861,11 @@ jobs:
             trunk/user/rc/src/tests/firewall_command_status.c \
             -o /tmp/firewall_command_status
           /tmp/firewall_command_status
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -Itrunk/user/rc/src \
+            trunk/user/rc/src/tests/firewall_restore_transaction.c \
+            -o /tmp/firewall_restore_transaction
+          /tmp/firewall_restore_transaction
           python3 - <<'PY'
           import re
           from pathlib import Path
@@ -864,6 +873,8 @@ jobs:
           firewall = Path("trunk/user/rc/src/firewall_ex.c").read_text()
           status_helper = Path("trunk/user/rc/src/firewall_command_status.h").read_text()
           status_test = Path("trunk/user/rc/src/tests/firewall_command_status.c").read_text()
+          transaction_helper = Path("trunk/user/rc/src/firewall_restore_transaction.h").read_text()
+          transaction_test = Path("trunk/user/rc/src/tests/firewall_restore_transaction.c").read_text()
           shutils = Path("trunk/user/shared/src/shutils.c").read_text()
 
           # doSystem() returns system(3)'s encoded wait status, not a plain
@@ -875,13 +886,19 @@ jobs:
           assert "WEXITSTATUS(status)" in status_helper
           assert "WIFSIGNALED(status)" in status_helper
           assert "firewall_command_status_signal(SIGTERM)" in status_test
-          assert "firewall_restore_state_t" in status_helper
-          assert "firewall_restore_state_record" in status_helper
-          assert "firewall_restore_state_record(&firewall_core_restore_state, status);" in firewall
-          assert "firewall_restore_state_fail(&firewall_core_restore_state);" in firewall
-          assert "firewall_restore_state_reset(&firewall_core_restore_state);" in firewall
+          assert "firewall_restore_transaction_t" in transaction_helper
+          assert "firewall_restore_transaction_apply" in transaction_helper
+          assert "firewall_restore_transaction_abort" in transaction_helper
+          assert "rollback_failed" in transaction_helper
+          assert "iptables" in transaction_helper and "ip6tables" in transaction_helper
+          assert '#include "firewall_restore_transaction.h"' in firewall
+          assert "firewall_restore_transaction_reset(&firewall_core_restore_transaction);" in firewall
+          assert "firewall_restore_transaction_abort(" in firewall
+          assert "Firewall rollback incomplete; recovery snapshot retained" in firewall
+          assert 'doSystem("%s-save -t %s > %s", family, table, path)' in firewall
+          assert 'doSystem("%s-restore %s", family, path)' in firewall
           core_restore_calls = re.findall(
-              r'firewall_log_core_restore_failure\("[^"]*restore",\s*doSystem\("(?:ip6tables-restore|iptables-restore)[^"]*"',
+              r'firewall_apply_core_restore\("[^"]+ restore",\s*"(?:ip6tables|iptables)",\s*"(?:filter|nat|mangle|raw)",\s*ipt_file\)',
               firewall
           )
           addon_restore_calls = re.findall(
@@ -890,10 +907,7 @@ jobs:
           )
           assert len(core_restore_calls) == 10, len(core_restore_calls)
           assert len(addon_restore_calls) == 1, len(addon_restore_calls)
-          assert not re.search(r'^\s*doSystem\("(?:ip6tables-restore|iptables-restore)', firewall, re.M)
-          # The custom-hook calls span multiple source lines. Assert the
-          # operation label and staged dispatch separately; the staging step
-          # above verifies the pathname, argument, status wrapper and cleanup.
+          assert not re.search(r'^\s*doSystem\("(?:ip6tables|iptables)-restore', firewall, re.M)
           for call in (
               'firewall_log_command_failure("Shadowsocks firewall hook", doSystem("sh %s", shadowsocks_staged));',
               'firewall_log_command_failure("Adbyby iptables restore", doSystem("iptables-restore -n %s", adbyby_iptables));'
@@ -903,10 +917,12 @@ jobs:
           assert 'doSystem("%s", int_iptables_staged)' in firewall
           assert 'firewall_log_command_failure("Optware iptables update hook",' in firewall
           assert 'doSystem("%s update", opt_iptables_staged)' in firewall
-          assert firewall.count("firewall_log_command_failure(") == 6
-          assert firewall.count("firewall_log_core_restore_failure(") == 11
+          assert firewall.count("firewall_log_command_failure(") == 7
+          assert firewall.count("firewall_apply_core_restore(") == 11
           firewall_main = firewall[firewall.index("start_firewall_ex(void)"):]
-          restore_gate = firewall_main.index("if (firewall_restore_state_ok(&firewall_core_restore_state))")
+          restore_gate = firewall_main.index("if (firewall_restore_transaction_ok(&firewall_core_restore_transaction))")
+          assert firewall_main.index("firewall_core_restore_transaction_active = 1;") < firewall_main.index("ipt_raw_rules();")
+          assert firewall_main.index("ipt_raw_rules();") < firewall_main.index("goto firewall_restore_complete;")
           for table_call in ("ipt_raw_rules();", "ipt_mangle_rules(", "ipt_nat_rules(", "ipt_filter_rules(",
                              "ip6t_mangle_rules(", "ip6t_nat_rules(", "ip6t_filter_rules("):
               assert firewall_main.index(table_call) < restore_gate, table_call
@@ -916,7 +932,13 @@ jobs:
                             "firewall_hook_file_stage(opt_iptables_script"):
               assert restore_gate < firewall_main.index(hook_call), hook_call
           assert "Skipping extension firewall hooks after built-in table restore failure" in firewall_main[restore_gate:]
-          print("Firewall restore failures are latched and extension hooks fail closed: OK")
+          assert "firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction)" in firewall_main
+          assert "set_ipv4_forward(0);" in firewall_main
+          assert "test_apply_failure_reverse_rollback" in transaction_test
+          assert "test_snapshot_failure_rolls_back_prior_tables" in transaction_test
+          assert "test_rollback_failure_retains_snapshots" in transaction_test
+          assert "firewall_restore_transaction_finish" in transaction_test
+          print("Firewall table restore transaction, reverse rollback and fail-closed recovery contracts: OK")
           print("Firewall restore and extension command failures are reported: OK")
           PY
 
