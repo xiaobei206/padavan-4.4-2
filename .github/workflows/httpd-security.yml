@@ -9,6 +9,15 @@ on:
       - "trunk/user/httpd/src/aidisk.c"
       - "trunk/user/httpd/src/httpd_storage_ej_policy.h"
       - "trunk/user/httpd/src/tests/httpd_storage_ej_policy.c"
+      - "trunk/user/httpd/src/httpd_direct_ej_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_direct_ej_policy.c"
+      - "trunk/user/www/n56u_ribbon_fixed/Advanced_WOL_Content.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/wol_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Shadowsocks_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/mentohust_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/scutclient_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Ad_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/bit_action.asp"
       - "trunk/user/www/n56u_ribbon_fixed/aidisk.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Advanced_AiDisk_samba.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Advanced_AiDisk_ftp.asp"
@@ -146,6 +155,15 @@ on:
       - "trunk/user/httpd/src/aidisk.c"
       - "trunk/user/httpd/src/httpd_storage_ej_policy.h"
       - "trunk/user/httpd/src/tests/httpd_storage_ej_policy.c"
+      - "trunk/user/httpd/src/httpd_direct_ej_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_direct_ej_policy.c"
+      - "trunk/user/www/n56u_ribbon_fixed/Advanced_WOL_Content.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/wol_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Shadowsocks_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/mentohust_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/scutclient_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Ad_action.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/bit_action.asp"
       - "trunk/user/www/n56u_ribbon_fixed/aidisk.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Advanced_AiDisk_samba.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Advanced_AiDisk_ftp.asp"
@@ -346,6 +364,11 @@ jobs:
             trunk/user/httpd/src/tests/httpd_storage_ej_policy.c \
             -o /tmp/httpd_storage_ej_policy
           /tmp/httpd_storage_ej_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_direct_ej_policy.c \
+            -o /tmp/httpd_direct_ej_policy
+          /tmp/httpd_direct_ej_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
             -I trunk/user/httpd/src \
             trunk/user/httpd/src/tests/httpd_csrf_policy.c \
@@ -1263,6 +1286,8 @@ jobs:
           aidisk = (root / "aidisk.c").read_text()
           storage_policy = (root / "httpd_storage_ej_policy.h").read_text()
           storage_policy_test = (root / "tests/httpd_storage_ej_policy.c").read_text()
+          direct_ej_policy = (root / "httpd_direct_ej_policy.h").read_text()
+          direct_ej_policy_test = (root / "tests/httpd_direct_ej_policy.c").read_text()
           common = (root / "common.c").read_text()
           variables = (root / "variables.c").read_text()
           script_policy = (root / "httpd_script_policy.h").read_text()
@@ -1440,6 +1465,16 @@ jobs:
               "notify_services", "wan_action", "wol_action",
           ):
               assert f'"{name}"' in ej_table
+
+          privileged_direct_ej = {
+              "asus_nvram_commit", "notify_services", "wan_action", "wol_action",
+              "scutclient_action", "mentohust_action", "shadowsocks_action",
+              "adbyby_action", "update_action",
+          }
+          for name in privileged_direct_ej:
+              assert f'"{name}"' in direct_ej_policy
+              assert f'"{name}"' in direct_ej_policy_test
+              assert f'"{name}"' in ej_table
           dump_start = web.index("static int\nej_dump(")
           dump_end = web.index("\nstatic void\nvalidate_cgi", dump_start)
           assert "sys_script(script)" in web[dump_start:dump_end]
@@ -1455,12 +1490,13 @@ jobs:
           asp_dispatch_end = ej_dispatch.index("\nstatic char *\nprocess_asp", asp_dispatch_start)
           asp_call = ej_dispatch[asp_dispatch_start:asp_dispatch_end]
           asp_guard = asp_call.index(
-              "httpd_storage_ej_allowed(handler->pattern, get_login_safe())"
+              "httpd_direct_ej_allowed(handler->pattern, get_login_safe())"
           )
           asp_callback = asp_call.index("handler->output(0, stream, argc, argv)")
           assert asp_guard < asp_callback
           assert "A trusted management session is required." in asp_call
-          assert '#include "httpd_storage_ej_policy.h"' in ej_dispatch
+          assert '#include "httpd_direct_ej_policy.h"' in ej_dispatch
+          assert "httpd_storage_ej_requires_trusted_session(name)" in direct_ej_policy
 
           storage_mutators = {
               "set_AiDisk_status", "safely_remove_disk", "set_account_permission",
@@ -1525,6 +1561,35 @@ jobs:
               assert 'form method="post" name="aidiskForm"' in page
               assert "/aidisk/set_account_permission.asp" in page
           print("HTTPD direct storage EJ authorization and POST-only route contracts: OK")
+
+          # These standalone ASP wrappers dispatch side-effecting EJ callbacks.
+          # They bypass update.cgi's selector policy, so require a trusted session
+          # at EJ dispatch and reject GET/HEAD before template execution.
+          action_routes = {
+              "wol_action.asp": "wol_action",
+              "Shadowsocks_action.asp": "shadowsocks_action",
+              "mentohust_action.asp": "mentohust_action",
+              "scutclient_action.asp": "scutclient_action",
+              "Ad_action.asp": "adbyby_action",
+              "bit_action.asp": "update_action",
+          }
+          method_start = method_policy.index("httpd_cgi_method_allowed(")
+          method_end = method_policy.index("\\n}\\n", method_start)
+          post_only_routes = set(re.findall(
+              r'"((?:[A-Za-z0-9_]+/)?[A-Za-z0-9_.-]+\\.asp)"',
+              method_policy[method_start:method_end]
+          ))
+          assert post_only_routes >= set(action_routes)
+          for route, callback_name in action_routes.items():
+              assert route in method_policy_test
+              assert f'"{route}"' in method_policy
+              template = (ui_root / route).read_text()
+              assert f"<% {callback_name}(); %>" in template
+
+          wol_page = (ui_root / "Advanced_WOL_Content.asp").read_text()
+          assert "$j.post('/wol_action.asp'" in wol_page
+          assert "$j.getJSON('/wol_action.asp'" not in wol_page
+          print("HTTPD direct EJ action privilege and POST-only route contracts: OK")
 
           # All application-owned update.cgi requests must use POST. Keep the
           # complete caller inventory in CI so a new GET caller cannot silently
