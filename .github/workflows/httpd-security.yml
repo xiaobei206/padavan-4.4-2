@@ -77,6 +77,8 @@ on:
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/shared/src/shutils.c"
+      - "trunk/user/rc/src/rc.c"
+
       - "trunk/user/shared/src/notify_rc.c"
       - "trunk/user/shared/src/notify_rc.h"
       - "trunk/user/shared/src/rc_notify_queue.h"
