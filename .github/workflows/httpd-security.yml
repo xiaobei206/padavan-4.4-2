@@ -935,6 +935,8 @@ jobs:
           status_test = Path("trunk/user/rc/src/tests/firewall_command_status.c").read_text()
           transaction_helper = Path("trunk/user/rc/src/firewall_restore_transaction.h").read_text()
           transaction_test = Path("trunk/user/rc/src/tests/firewall_restore_transaction.c").read_text()
+          adbyby_policy = Path("trunk/user/rc/src/firewall_adbyby_restore_policy.h").read_text()
+          adbyby_policy_test = Path("trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c").read_text()
           shutils = Path("trunk/user/shared/src/shutils.c").read_text()
 
           # doSystem() returns system(3)'s encoded wait status, not a plain
@@ -966,11 +968,21 @@ jobs:
               firewall
           )
           assert len(core_restore_calls) == 10, len(core_restore_calls)
-          assert len(addon_restore_calls) == 1, len(addon_restore_calls)
+          assert len(addon_restore_calls) == 0, len(addon_restore_calls)
+          assert "firewall_adbyby_restore_policy_apply" in adbyby_policy
+          assert "firewall_adbyby_restore_policy_apply" in firewall
+          assert "test_missing_snapshot_is_noop" in adbyby_policy_test
+          assert "test_missing_ipset_skips_restore" in adbyby_policy_test
+          assert "test_failed_extension_restore_is_reported" in adbyby_policy_test
+          assert "test_successful_restore" in adbyby_policy_test
+          assert 'return doSystem("ipset list blockip >/dev/null 2>&1");' in firewall
+          assert 'return doSystem("iptables-restore -n %s", snapshot);' in firewall
+          assert "firewall_log_command_failure(operation, status);" in firewall
+          assert '"Adbyby blockip ipset preflight"' in adbyby_policy
+          assert '"Adbyby iptables restore"' in adbyby_policy
           assert not re.search(r'^\s*doSystem\("(?:ip6tables|iptables)-restore', firewall, re.M)
           for call in (
               'firewall_log_command_failure("Shadowsocks firewall hook", doSystem("sh %s", shadowsocks_staged));',
-              'firewall_log_command_failure("Adbyby iptables restore", doSystem("iptables-restore -n %s", adbyby_iptables));'
           ):
               assert call in firewall
           assert 'firewall_log_command_failure("Persistent post-firewall hook",' in firewall
@@ -987,7 +999,7 @@ jobs:
                              "ip6t_mangle_rules(", "ip6t_nat_rules(", "ip6t_filter_rules("):
               assert firewall_main.index(table_call) < restore_gate, table_call
           for hook_call in ("firewall_hook_file_stage(shadowsocks_iptables_script",
-                            'firewall_log_command_failure("Adbyby iptables restore"',
+                            "firewall_adbyby_restore_policy_apply(",
                             "firewall_hook_file_stage(int_iptables_script",
                             "firewall_hook_file_stage(opt_iptables_script"):
               assert restore_gate < firewall_main.index(hook_call), hook_call
