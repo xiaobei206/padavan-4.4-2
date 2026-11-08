@@ -3,6 +3,7 @@
 
 #include <arpa/inet.h>
 #include <string.h>
+#include "firewall_ppp_interface_policy.h"
 
 /* IPv4 values are emitted as unquoted tokens in iptables-restore input. */
 static int
@@ -45,43 +46,6 @@ firewall_interface_name_is_safe(const char *value)
 	}
 
 	return 1;
-}
-
-/* VPN lease interface names must be exact ppp<decimal-unit> tokens. */
-static int
-firewall_ppp_interface_is_safe(const char *value, unsigned int min_unit)
-{
-	const unsigned char *p;
-	size_t len;
-	unsigned int unit = 0;
-
-	if (!value)
-		return 0;
-
-	len = strlen(value);
-	if (len < 4 || len >= 16 || strncmp(value, "ppp", 3) != 0)
-		return 0;
-
-	p = (const unsigned char *)value + 3;
-	if (p[0] == '0' && p[1] != '\0')
-		return 0;
-	if (!*p)
-		return 0;
-
-	for (; *p; ++p) {
-		unsigned int digit;
-
-		if (*p < '0' || *p > '9')
-			return 0;
-
-		digit = (unsigned int)(*p - '0');
-		if (unit > (65535U - digit) / 10U)
-			return 0;
-
-		unit = unit * 10U + digit;
-	}
-
-	return (unit >= min_unit);
 }
 
 /* URL patterns are embedded in a quoted iptables-restore rule. */
