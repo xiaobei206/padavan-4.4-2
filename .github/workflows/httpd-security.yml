@@ -542,7 +542,7 @@ jobs:
           assert "ppp_config_line_value_copy" in value_policy
           assert "ppp_config_line_value_copy" in value_test
           xl_start = ppp.index("safe_start_xl2tpd(void)")
-          xl_end = ppp.index("#if defined (APP_RPL2TP)", xl_start)
+          xl_end = ppp.index("\n#if defined (APP_RPL2TP)\nstatic int\nstart_rpl2tp", xl_start)
           xl2tp = ppp[xl_start:xl_end]
           for value_copy in (
               "ppp_config_line_value_copy(get_our_hostname(), hostname, sizeof(hostname))",
