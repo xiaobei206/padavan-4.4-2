@@ -1,3 +1,13 @@
+## 2026-11-08 09:29 CST — Gate side-effecting fixed script handlers
+
+- **Base main SHA:** `696dc2555292619e16cab281b25c8d9a370098ef`; **policy/test implementation commit:** `feec5d70bc04fb832578f8aebb1bf811c6b24e90`; **final policy/workflow commit:** `34a79933b16ad8e977744f37bb541867a58b5e05`.
+- **P1 finding:** `sys_script()`'s fixed-name compatibility allowlist treated all fixed handlers as accessible to any authenticated web session. Six entries had privileged side effects without the existing `get_login_safe()` gate: `lpr_remove` signals the printer daemon; `mfp_requeue`/`mfp_monopolize` set temporary NVRAM and write the USB-printer FIFO; `ddnsclient` signals inadyn; `hostname_check` and `dlna_rescan` enqueue privileged RC work. The generic `/tmp/<script>` fallback was already trusted-session-only.
+- **Change:** added `httpd_script_name_requires_trusted_session()` and require the existing dispatch predicate for those six names. Read/no-op fixed handlers retain historical behavior. `syscmd.sh` remains dispatchable so its branch can clear a stale process-global command buffer; actual command execution remains separately gated by `get_login_safe()`. The implementation preserves existing HTTPS session semantics.
+- **Regression/CI:** expanded the GNU89 policy test across all fixed names and trusted/untrusted cases, including null/empty/unknown input and the `syscmd.sh` exception. Added a source-contract check that the top-of-function dispatch guard precedes each of the six production sinks. Local `cc -std=gnu89 -Wall -Wextra -Werror` compile/run PASS. Exact-head Actions [run 42434403138](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42434403138) SUCCESS on `34a79933b16ad8e977744f37bb541867a58b5e05`; all 21 steps passed.
+- **Changed paths:** `trunk/user/httpd/src/httpd_script_policy.h`; `trunk/user/httpd/src/tests/httpd_script_policy.c`; `.github/workflows/httpd-security.yml`.
+- **Limits:** this fixes only the fixed `sys_script()` operations listed above. Direct `apply.cgi`/ `networkmap_refresh` branches, storage EJ mutators, CSRF/session/Origin/Referer, broader shell/filesystem sinks and target runtime remain open. Production MIPS/uClibc HTTPD build, firmware/TRX, live daemon and hardware tests NOT RUN.
+- **Next:** audit direct `apply.cgi` and `action_script` authorization (especially `networkmap_refresh`), then storage EJ write/remove paths and CSRF/session behavior; preserve whole-userland coverage and do not pivot to SkipDBv2-only work.
+
 ## 2026-11-08 09:22 CST — Require POST for dynamic update.cgi dispatch
 
 - **Base main SHA:** `f29db134a56cb129c8b634fe1a9c76d99dd20b6b`; **code/test/UI/workflow commit:** `c10f839cd6b9a94c85e350e07a31f9fff07ba925`.
