@@ -1735,7 +1735,7 @@ jobs:
           assert "firewall_ppp_interface_is_safe" not in firewall_policy[firewall_policy.index("/* URL patterns"):]
 
           permission_start = vpn_server.index("vpns_firewall_permission(char *ifname, int add)")
-          permission_end = vpn_server.index("\\nvoid\\nget_vpns_pool", permission_start)
+          permission_end = vpn_server.index("\nvoid\nget_vpns_pool", permission_start)
           permission = vpn_server[permission_start:permission_end]
           assert "firewall_ppp_interface_is_safe(ifname, VPN_SERVER_PPP_UNIT)" in permission
           assert "status = _eval(argv, NULL, 0, NULL);" in permission
