@@ -70,6 +70,6 @@ extern void free_disk_data(disk_info_t *disk_info_list);
 extern int get_mount_path(const char *const pool, char **mount_path);
 extern int is_usb_storage_mounted(void);
 extern int try_device_swapoff(const char *dev_name);
-extern void umount_all_storage(void);
+extern int umount_all_storage(void);
 
 #endif // _DISK_INITIAL_
