@@ -103,7 +103,23 @@ achk_enable=`nvram get achk_enable`
 
 if [ "$ID_FS_TYPE" == "msdos" -o "$ID_FS_TYPE" == "vfat" ] ; then
 	if [ "$achk_enable" != "0" ] && [ -x /sbin/fsck.fat ] ; then
+		if [ ! -r /sbin/storage_fsck_status.sh ]; then
+			logger -t "automount" "Missing FAT checker status policy; refusing to mount $dev_full"
+			rmdir "$dev_mount"
+			exit 1
+		fi
+		. /sbin/storage_fsck_status.sh
 		/sbin/fsck.fat -a -v "$dev_full" > "/tmp/fsck.fat_result_$1" 2>&1
+		fsck_fat_status=$?
+		if storage_fsck_fat_status_needs_verification "$fsck_fat_status"; then
+			/sbin/fsck.fat -a -v "$dev_full" >> "/tmp/fsck.fat_result_$1" 2>&1
+			fsck_fat_status=$?
+		fi
+		if ! storage_fsck_fat_status_allows_mount "$fsck_fat_status"; then
+			logger -t "automount" "Refusing to mount $dev_full after fsck.fat status $fsck_fat_status"
+			rmdir "$dev_mount"
+			exit 1
+		fi
 	fi
 	kernel_vfat=`modprobe -l | grep vfat`
 	if [ -n "$kernel_vfat" ] ; then
@@ -118,7 +134,19 @@ elif [ "$ID_FS_TYPE" == "exfat" ] ; then
 	mount -t exfat "$dev_full" "$dev_mount" -o noatime,umask=0,iocharset=utf8
 elif [ "$ID_FS_TYPE" == "ntfs" ] ; then
 	if [ "$achk_enable" != "0" ] && [ -x /sbin/chkntfs ] ; then
+		if [ ! -r /sbin/storage_fsck_status.sh ]; then
+			logger -t "automount" "Missing NTFS checker status policy; refusing to mount $dev_full"
+			rmdir "$dev_mount"
+			exit 1
+		fi
+		. /sbin/storage_fsck_status.sh
 		/sbin/chkntfs -a -f --verbose "$dev_full" > "/tmp/chkntfs_result_$1" 2>&1
+		chkntfs_status=$?
+		if ! storage_chkntfs_status_allows_mount "$chkntfs_status"; then
+			logger -t "automount" "Refusing to mount $dev_full after chkntfs status $chkntfs_status"
+			rmdir "$dev_mount"
+			exit 1
+		fi
 	fi
 	kernel_ufsd=`modprobe -l | grep ufsd`
 	kernel_antfs=`modprobe -l | grep antfs`

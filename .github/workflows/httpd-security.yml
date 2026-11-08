@@ -58,6 +58,7 @@ on:
       - "trunk/user/scripts/files/sbin/automount.sh"
       - "trunk/user/scripts/files/sbin/storage_fsck_status.sh"
       - "trunk/user/scripts/tests/storage_e2fsck_status.sh"
+      - "trunk/user/scripts/tests/storage_checker_status.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script.sh"
       - "trunk/user/scripts/files/usr/bin/autostart.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script_migrate.sh"
@@ -212,6 +213,7 @@ on:
       - "trunk/user/scripts/files/sbin/automount.sh"
       - "trunk/user/scripts/files/sbin/storage_fsck_status.sh"
       - "trunk/user/scripts/tests/storage_e2fsck_status.sh"
+      - "trunk/user/scripts/tests/storage_checker_status.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script.sh"
       - "trunk/user/scripts/files/usr/bin/autostart.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script_migrate.sh"
@@ -967,21 +969,27 @@ jobs:
           print("Storage mount inventory I/O failures remain distinct from an empty inventory: OK")
           PY
 
-      - name: Verify ext filesystem repair failure blocks automount
+      - name: Verify filesystem checker statuses gate read-write automount
         run: |
           set -eu
           sh -n trunk/user/scripts/files/sbin/storage_fsck_status.sh
+          sh -n trunk/user/scripts/files/sbin/automount.sh
           sh -n trunk/user/scripts/tests/storage_e2fsck_status.sh
+          sh -n trunk/user/scripts/tests/storage_checker_status.sh
           sh trunk/user/scripts/tests/storage_e2fsck_status.sh
+          sh trunk/user/scripts/tests/storage_checker_status.sh
           python3 - <<'PY'
           from pathlib import Path
 
           automount = Path("trunk/user/scripts/files/sbin/automount.sh").read_text()
           policy = Path("trunk/user/scripts/files/sbin/storage_fsck_status.sh").read_text()
-          test = Path("trunk/user/scripts/tests/storage_e2fsck_status.sh").read_text()
+          fat_test = Path("trunk/user/scripts/tests/storage_checker_status.sh").read_text()
+          ext_test = Path("trunk/user/scripts/tests/storage_e2fsck_status.sh").read_text()
           scripts_make = Path("trunk/user/scripts/Makefile").read_text()
 
-          ext_branch = automount.split('elif [ "$ID_FS_TYPE" == "ext4"', 1)[1].split('elif [ "$ID_FS_TYPE" == "xfs"', 1)[0]
+          ext_start = automount.index('elif [ "$ID_FS_TYPE" == "ext4"')
+          ext_end = automount.index('elif [ "$ID_FS_TYPE" == "xfs"', ext_start)
+          ext_branch = automount[ext_start:ext_end]
           assert ". /sbin/storage_fsck_status.sh" in ext_branch
           assert "e2fsck_status=$?" in ext_branch
           assert ext_branch.index("/sbin/e2fsck -p -v") < ext_branch.index("e2fsck_status=$?")
@@ -989,9 +997,42 @@ jobs:
           assert ext_branch.index("storage_e2fsck_status_allows_mount") < ext_branch.index('mount -t $ID_FS_TYPE')
           assert "0|1) return 0 ;;" in policy
           assert "*) return 1 ;;" in policy
-          assert " 2 3 4 8 16 32 128 255 invalid" in test
+          assert " 2 3 4 8 16 32 128 255 invalid" in ext_test
+
+          fat_start = automount.index('if [ "$ID_FS_TYPE" == "msdos" -o "$ID_FS_TYPE" == "vfat" ]')
+          fat_end = automount.index('elif [ "$ID_FS_TYPE" == "exfat" ]', fat_start)
+          fat_branch = automount[fat_start:fat_end]
+          first_fat_check = fat_branch.index("/sbin/fsck.fat -a -v")
+          first_fat_status = fat_branch.index("fsck_fat_status=$?", first_fat_check)
+          verify_gate = fat_branch.index("storage_fsck_fat_status_needs_verification", first_fat_status)
+          second_fat_check = fat_branch.rindex("/sbin/fsck.fat -a -v")
+          second_fat_status = fat_branch.index("fsck_fat_status=$?", second_fat_check)
+          final_fat_gate = fat_branch.index("storage_fsck_fat_status_allows_mount", second_fat_status)
+          assert first_fat_check < first_fat_status < verify_gate < second_fat_check < second_fat_status < final_fat_gate
+          assert fat_branch.count("/sbin/fsck.fat -a -v") == 2
+          for mount in ("mount -t vfat", "mount -t exfat"):
+              if mount in fat_branch:
+                  assert final_fat_gate < fat_branch.index(mount), f"FAT status gate occurs after {mount}"
+          assert "Refusing to mount $dev_full after fsck.fat status" in fat_branch
+
+          ntfs_start = automount.index('elif [ "$ID_FS_TYPE" == "ntfs" ]')
+          ntfs_end = automount.index('elif [ "$ID_FS_TYPE" == "hfsplus"', ntfs_start)
+          ntfs_branch = automount[ntfs_start:ntfs_end]
+          checker = ntfs_branch.index("/sbin/chkntfs -a -f --verbose")
+          status_capture = ntfs_branch.index("chkntfs_status=$?", checker)
+          ntfs_gate = ntfs_branch.index("storage_chkntfs_status_allows_mount", status_capture)
+          assert checker < status_capture < ntfs_gate
+          for mount in ("mount -t antfs", "mount -t ufsd", "/sbin/ntfs-3g"):
+              if mount in ntfs_branch:
+                  assert ntfs_gate < ntfs_branch.index(mount), f"NTFS checker gate occurs after {mount}"
+          assert "Refusing to mount $dev_full after chkntfs status" in ntfs_branch
+          assert "storage_fsck_fat_status_needs_verification" in policy
+          assert "storage_fsck_fat_status_allows_mount" in policy
+          assert "storage_chkntfs_status_allows_mount" in policy
+          assert "storage_chkntfs_status_allows_mount 0" in fat_test
+          assert "storage_fsck_fat_status_allows_mount 1" in fat_test
           assert "$(CP) $(PKG_BUILD_DIR)/files/* $(ROMFSDIR)/" in scripts_make
-          print("ext2/3/4 automount refuses e2fsck statuses requiring reboot or manual/operational recovery: OK")
+          print("FAT repair verification and fail-closed NTFS checker gates precede RW/RO mount paths: OK")
           PY
 
       - name: Verify Samba share configuration trust boundaries
