@@ -282,6 +282,8 @@ jobs:
           consumer = Path("trunk/user/rc/src/rc.c").read_text()
           helper = Path("trunk/user/shared/src/rc_notify_queue.h").read_text()
           test = Path("trunk/user/shared/src/tests/rc_notify_queue.c").read_text()
+          shared_make = Path("trunk/user/shared/src/Makefile").read_text()
+          rc_make = Path("trunk/user/rc/src/Makefile").read_text()
           workflow = Path(".github/workflows/httpd-security.yml").read_text()
 
           create_queue = init.index("mkdir -p -m 700 /tmp/rc_notification")
@@ -295,6 +297,10 @@ jobs:
           assert notify.index("rc_notify_queue_touch_at(incomplete_dir_fd") < notify.index("rc_notify_queue_touch_at(notify_dir_fd") < notify.index("kill(1, SIGUSR1)")
           assert "O_EXCL | O_NOFOLLOW" in helper and "openat(" in helper
           assert "st.st_nlink != 1" in helper and "(st.st_mode & 0777) != 0600" in helper
+          assert "HEADERS := $(shell ls *.h)" in shared_make
+          assert "$(INSTALL) -m 644 $(HEADERS) $(DESTDIR)/include/shared" in shared_make
+          assert "-I$(STAGING_DIR)/include/shared" in rc_make
+          assert "#ifndef _GNU_SOURCE" in consumer
           assert "fdopendir(notify_dir_fd)" in consumer
           assert "rc_notify_queue_marker_is_safe_at(queue_fd, entry->d_name, 0)" in consumer
           assert "unlinkat(queue_fd, entry->d_name, 0)" in consumer
