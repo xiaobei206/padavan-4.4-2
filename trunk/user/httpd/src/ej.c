@@ -24,6 +24,7 @@
 #include <limits.h>
 
 #include <httpd.h>
+#include "httpd_storage_ej_policy.h"
 
 #define MAX_PATTERN_LENGTH	1024
 
@@ -99,10 +100,19 @@ call_asp(char *func, FILE *stream)
 			break;
 	}
 
-	/* Call handler */
+	/* Call handler. Direct ASP template callbacks are an independent
+	 * dispatch path from update.cgi; protect storage mutations here too.
+	 */
 	for (handler = &ej_handlers[0]; handler->pattern; handler++) {
-		if (strcmp(handler->pattern, func) == 0){
-			handler->output(0, stream, argc, argv);
+		if (strcmp(handler->pattern, func) == 0) {
+			if (httpd_storage_ej_allowed(handler->pattern, get_login_safe())) {
+				handler->output(0, stream, argc, argv);
+			} else {
+				websWrite(stream, "%s",
+					  "<script>if(window.parent&&window.parent.alert_error_msg)"
+					  "window.parent.alert_error_msg('A trusted management session is required.');"
+					  "</script>\n");
+			}
 			success = 1;
 			break;
 		}
