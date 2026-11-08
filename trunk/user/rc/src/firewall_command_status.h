@@ -30,4 +30,36 @@ firewall_command_status_signal(int status)
 	return WTERMSIG(status);
 }
 
+typedef struct {
+	int failed;
+} firewall_restore_state_t;
+
+/* Preserve the first core-table staging/restore failure for this rebuild. */
+static void
+firewall_restore_state_reset(firewall_restore_state_t *state)
+{
+	if (state)
+		state->failed = 0;
+}
+
+static void
+firewall_restore_state_fail(firewall_restore_state_t *state)
+{
+	if (state)
+		state->failed = 1;
+}
+
+static void
+firewall_restore_state_record(firewall_restore_state_t *state, int status)
+{
+	if (state && !firewall_command_status_ok(status))
+		state->failed = 1;
+}
+
+static int
+firewall_restore_state_ok(const firewall_restore_state_t *state)
+{
+	return state && !state->failed;
+}
+
 #endif

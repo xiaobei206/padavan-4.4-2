@@ -34,6 +34,8 @@
 #include "firewall_command_status.h"
 #include "firewall_hook_file.h"
 
+static firewall_restore_state_t firewall_core_restore_state;
+
 #define foreach_x(x)		for (i=0; i<nvram_get_int(x); i++)
 
 #define BATTLENET_PORT		6112
@@ -74,6 +76,13 @@ firewall_log_command_failure(const char *operation, int status)
 }
 
 static void
+firewall_log_core_restore_failure(const char *operation, int status)
+{
+	firewall_restore_state_record(&firewall_core_restore_state, status);
+	firewall_log_command_failure(operation, status);
+}
+
+static void
 firewall_log_hook_stage_failure(const char *operation, int error_number)
 {
 	logmessage(LOGNAME, "%s: hook validation or staging failed (errno=%d)",
@@ -90,6 +99,7 @@ firewall_open_rule_file(char *path, const char *operation)
 
 	fp = firewall_rule_file_open(path);
 	if (!fp) {
+		firewall_restore_state_fail(&firewall_core_restore_state);
 		saved_errno = errno ? errno : EIO;
 		logmessage(LOGNAME, "%s: cannot create private rule file (errno=%d)",
 			   operation, saved_errno);
@@ -105,6 +115,7 @@ firewall_finish_rule_file(FILE *fp, char *path, const char *operation)
 
 	result = firewall_rule_file_finish(fp, path);
 	if (result != 0) {
+		firewall_restore_state_fail(&firewall_core_restore_state);
 		saved_errno = errno ? errno : EIO;
 		logmessage(LOGNAME, "%s: cannot flush/close private rule file (errno=%d)",
 			   operation, saved_errno);
@@ -1441,7 +1452,7 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 filter") == 0) {
 		if (ret & MODULE_WEBSTR_MASK)
 			module_smart_load("xt_webstr", NULL);
-		firewall_log_command_failure("IPv4 filter restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv4 filter restore", doSystem("iptables-restore %s", ipt_file));
 	}
 	firewall_rule_file_remove(ipt_file);
 
@@ -1489,7 +1500,7 @@ ipt_filter_default(void)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 default filter") == 0)
-		firewall_log_command_failure("IPv4 default filter restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv4 default filter restore", doSystem("iptables-restore %s", ipt_file));
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1548,7 +1559,7 @@ ipt_mangle_rules(const char *man_if, const char *wan_if, int use_man)
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 mangle") == 0 &&
 	    (i_wan_ttl_fix || is_module_loaded("iptable_mangle")))
-		firewall_log_command_failure("IPv4 mangle restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv4 mangle restore", doSystem("iptables-restore %s", ipt_file));
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1567,7 +1578,7 @@ ipt_raw_rules(void)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 raw") == 0 && is_module_loaded("iptable_raw"))
-		firewall_log_command_failure("IPv4 raw restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv4 raw restore", doSystem("iptables-restore %s", ipt_file));
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1848,7 +1859,7 @@ ip6t_filter_rules(char *man_if, char *wan_if, char *lan_if,
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv6 filter") == 0) {
 		if (ret & MODULE_WEBSTR_MASK)
 			module_smart_load("xt_webstr", NULL);
-		firewall_log_command_failure("IPv6 filter restore", doSystem("ip6tables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv6 filter restore", doSystem("ip6tables-restore %s", ipt_file));
 	}
 	firewall_rule_file_remove(ipt_file);
 
@@ -1897,7 +1908,7 @@ ip6t_filter_default(void)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv6 default filter") == 0)
-		firewall_log_command_failure("IPv6 default filter restore", doSystem("ip6tables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv6 default filter restore", doSystem("ip6tables-restore %s", ipt_file));
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1919,7 +1930,7 @@ ip6t_mangle_rules(char *man_if)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv6 mangle") == 0 && is_module_loaded("ip6table_mangle"))
-		firewall_log_command_failure("IPv6 mangle restore", doSystem("ip6tables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv6 mangle restore", doSystem("ip6tables-restore %s", ipt_file));
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -1940,7 +1951,7 @@ ip6t_nat_rules(char *man_if)
 	fprintf(fp, "-A POSTROUTING -s fc00:101:101::1/64 -j FULLCONENAT\n");
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv6 NAT") == 0)
-		firewall_log_command_failure("IPv6 NAT restore", doSystem("ip6tables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv6 NAT restore", doSystem("ip6tables-restore %s", ipt_file));
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -2300,7 +2311,7 @@ ipt_nat_rules(char *man_if, char *man_ip,
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 NAT") == 0)
-		firewall_log_command_failure("IPv4 NAT restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv4 NAT restore", doSystem("iptables-restore %s", ipt_file));
 	firewall_rule_file_remove(ipt_file);
 
 	return 0;
@@ -2343,7 +2354,7 @@ ipt_nat_default(void)
 
 	fprintf(fp, "COMMIT\n\n");
 	if (firewall_finish_rule_file(fp, ipt_file, "IPv4 default NAT") == 0)
-		firewall_log_command_failure("IPv4 default NAT restore", doSystem("iptables-restore %s", ipt_file));
+		firewall_log_core_restore_failure("IPv4 default NAT restore", doSystem("iptables-restore %s", ipt_file));
 	firewall_rule_file_remove(ipt_file);
 }
 
@@ -2368,6 +2379,7 @@ start_firewall_ex(void)
 #if defined (APP_ADBYBY)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
 #endif
+	firewall_restore_state_reset(&firewall_core_restore_state);
 	unit = 0;
 
 	snprintf(lan_if, sizeof(lan_if), "%s", IFNAME_BR);
@@ -2469,6 +2481,7 @@ start_firewall_ex(void)
 	ip6t_filter_rules(man_if, wan_if, lan_if, logaccept, logdrop, i_tcp_mss);
 #endif
 
+	if (firewall_restore_state_ok(&firewall_core_restore_state)) {
 #if defined (APP_SHADOWSOCKS)
 	/* /tmp is shared-writable: execute only a validated private snapshot. */
 	if (firewall_hook_file_stage(shadowsocks_iptables_script, "/home/root",
@@ -2501,6 +2514,9 @@ start_firewall_ex(void)
 		firewall_hook_file_remove(opt_iptables_staged);
 	} else if (errno != ENOENT) {
 		firewall_log_hook_stage_failure("Optware iptables update hook", errno);
+	}
+	} else {
+		logmessage(LOGNAME, "Skipping extension firewall hooks after built-in table restore failure");
 	}
 
 	/* enable IPv4 forward */

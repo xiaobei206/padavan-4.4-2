@@ -24,5 +24,29 @@ main(void)
 	assert(!firewall_command_status_ok(status));
 	assert(firewall_command_status_exit_code(status) == 127);
 
+	{
+		firewall_restore_state_t state;
+
+		firewall_restore_state_reset(&state);
+		assert(firewall_restore_state_ok(&state));
+
+		firewall_restore_state_record(&state, 0);
+		assert(firewall_restore_state_ok(&state));
+
+		firewall_restore_state_record(&state, 7 << 8);
+		assert(!firewall_restore_state_ok(&state));
+
+		/* Later table success must not clear an earlier failure. */
+		firewall_restore_state_record(&state, 0);
+		assert(!firewall_restore_state_ok(&state));
+
+		firewall_restore_state_fail(&state);
+		assert(!firewall_restore_state_ok(&state));
+
+		firewall_restore_state_reset(&state);
+		assert(firewall_restore_state_ok(&state));
+		assert(!firewall_restore_state_ok(NULL));
+	}
+
 	return 0;
 }
