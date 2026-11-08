@@ -6,6 +6,17 @@
 **Governance bootstrap commit:** 84e2fb77973393dd2804b9feb2d94b2ce74933c4 (verified on main)  
 **Roadmap status:** Direct storage ASP mutation routes and server-side EJ callback dispatch are now committed on `main` at `177c60102b26e735ddf3fd784da8a2eeb36eb127`. The exact PR source head `5dfca9b8be8c865367243561d8cee6aef7db408a` passed GitHub Actions run [42437383770](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42437383770), SUCCESS, all 21/21 job steps; both focused GNU89 policy regressions and the new HTTPD source-contract checks passed. The ten storage mutation ASP routes are POST-only and additionally require the existing `get_login_safe()` predicate before dispatch; `ej.c::call_asp()` applies a second exact-name gate to 11 storage mutators. HTTPD/CGI/auth remains AUDITING: CSRF/session/Origin/Referer/ACL, alternate shell/file sinks, full HTTPD/TLS/archive semantics and target/runtime behavior remain open. MIPS/uClibc object/firmware/TRX and hardware validation NOT RUN. Preserve firewall rollback/IPv6, WAN/PPP, storage unmount/swap and broad userland coverage; routine SkipDBv2-only work remains paused.
 
+
+## 2026-11-08 10:18 CST — HTTPD authenticated POST Origin/Referer validation
+
+- **Code/test/workflow commit:** `9110854745aced73ffb91318dc0e095099623d8e`; baseline `9cd980aaa74f7eddca67d8f59001a31ac04ab851`. The exact-head GitHub Actions run [42437940928](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42437940928) completed SUCCESS on `9110854745aced73ffb91318dc0e095099623d8e`, all 21 job steps passed.
+- **Module status:** HTTPD/CGI/auth/session — `AUDITING`, not complete. Finding addressed in this bounded round: authenticated POST routing lacked Host/Origin/Referer checks before auth-session establishment/refresh.
+- **Implementation and coverage:** added bounded header copies/duplicate detection and pre-auth route-level same-origin checks in `httpd.c`; new `httpd_csrf_policy.h` checks scheme, host/effective port, Referer path and bracketed IPv6 authority; new GNU89 test `tests/httpd_csrf_policy.c`; workflow compiles/runs the test and checks source guard order/path filters.
+- **Policy semantics:** present malformed/duplicate/cross-origin Origin or Referer fails closed with 403. Origin takes precedence. Absence of both metadata headers remains allowed for legacy client compatibility, so the change is only best-effort browser CSRF mitigation, not full token-based CSRF protection.
+- **Validation:** focused host regression `cc -std=gnu89 -Wall -Wextra -Werror` PASS; exact-head Actions PASS, 21/21 steps (run 42437940928). Production MIPS/uClibc HTTPD object, complete firmware/TRX/image, live HTTP integration and target hardware are NOT RUN.
+- **Follow-up:** map all state-changing endpoints and UI callers; decide synchronizer/request-token coverage without breaking supported clients; review Host/reverse-proxy assumptions and IP/NAT/ACL/logout/credential-change semantics. Continue remaining command/file sinks, then rotate to firewall rollback/IPv6 and WAN/PPP. Preserve whole-userland coverage; do not return to routine SkipDBv2-only work.
+
+
 ## Latest audit checkpoint — 2026-11-08 10:12 CST — Confirm direct storage EJ authorization CI and merge
 
 - **Merged main SHA:** `177c60102b26e735ddf3fd784da8a2eeb36eb127` (`security(httpd): protect direct storage EJ mutations`), squash-merged from PR [#2](https://github.com/xiaobei206/padavan-4.4-2/pull/2). The exact tested PR source head was `5dfca9b8be8c865367243561d8cee6aef7db408a`.
