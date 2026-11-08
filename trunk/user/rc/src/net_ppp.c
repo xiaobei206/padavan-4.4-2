@@ -48,7 +48,6 @@ int
 safe_start_xl2tpd(void)
 {
 	FILE *fp;
-	int unit, has_lac_lns;
 	int use_vpn_server, use_wan_lac, use_vpnc;
 	int saved_errno;
 	const char *invalid_value = NULL;
@@ -98,7 +97,6 @@ safe_start_xl2tpd(void)
 		return -1;
 	}
 
-	has_lac_lns = 0;
 
 	fprintf(fp,
 		"[global]\n"
@@ -137,7 +135,6 @@ safe_start_xl2tpd(void)
 			"require chap = yes\n"
 			"refuse pap = yes\n\n");
 
-		has_lac_lns++;
 	}
 
 	if (use_wan_lac) {
@@ -160,7 +157,6 @@ safe_start_xl2tpd(void)
 			"tx bps = 100000000\n"
 			"rx bps = 100000000\n\n");
 
-		has_lac_lns++;
 	}
 
 	if (use_vpnc) {
@@ -179,7 +175,6 @@ safe_start_xl2tpd(void)
 			"rx bps = 100000000\n\n");
 
 		nvram_set_int_temp("l2tp_cli_t", 1);
-		has_lac_lns++;
 	}
 
 	if (fflush(fp) != 0 || ferror(fp)) {
@@ -204,6 +199,8 @@ safe_start_xl2tpd(void)
 		errno = saved_errno;
 		return -1;
 	}
+	if (use_vpnc)
+		nvram_set_int_temp("l2tp_cli_t", 1);
 
 	/* launch xl2tpd */
 	if (!pids("xl2tpd"))
