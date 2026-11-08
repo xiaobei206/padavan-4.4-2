@@ -1077,13 +1077,25 @@ jobs:
           adbyby_restore = dispatch[adbyby_restore_start:adbyby_restore_end]
           assert "firewall_adbyby_blockip_preflight" in adbyby_restore
           assert "firewall_adbyby_restore_snapshot_command" in adbyby_restore
+          assert "firewall_adbyby_snapshot_table" in adbyby_restore
+          assert "firewall_adbyby_restore_table_command" in adbyby_restore
+          assert "&firewall_adbyby_restore_transaction" in adbyby_restore
           assert "firewall_adbyby_report_restore_failure" in adbyby_restore
+          assert "FIREWALL_ADBYBY_RESTORE_RECOVERY_FAILED" in adbyby_restore
+          assert "firewall_log_retained_adbyby_restore_snapshots" in adbyby_restore
+          assert "set_ipv4_forward(0)" in adbyby_restore
           assert "firewall_restore_transaction_abort" not in adbyby_restore
+          assert "firewall_adbyby_restore_policy_prepare_reset" in adbyby_policy
+          assert "firewall_adbyby_restore_policy_cleanup" in adbyby_policy
           assert "Adbyby blockip ipset preflight" in adbyby_policy
           assert "Adbyby iptables restore" in adbyby_policy
+          assert '"filter", "nat"' in adbyby_policy
           assert "test_missing_snapshot_is_noop" in adbyby_policy_test
           assert "test_missing_ipset_skips_restore" in adbyby_policy_test
-          assert "test_failed_extension_restore_is_reported" in adbyby_policy_test
+          assert "test_snapshot_failure_cleans_staged_snapshot" in adbyby_policy_test
+          assert "test_partial_extension_restore_rolls_back_tables" in adbyby_policy_test
+          assert "test_rollback_failure_retains_recovery_snapshots" in adbyby_policy_test
+          assert "test_cleanup_failure_retries_before_next_apply" in adbyby_policy_test
           assert "test_successful_restore" in adbyby_policy_test
           assert "symlink(src,linkp)" in helper_test
           assert "S_IWGRP | S_IWOTH" in helper
@@ -1196,10 +1208,12 @@ jobs:
           assert "firewall_adbyby_restore_policy_apply" in firewall
           assert "test_missing_snapshot_is_noop" in adbyby_policy_test
           assert "test_missing_ipset_skips_restore" in adbyby_policy_test
-          assert "test_failed_extension_restore_is_reported" in adbyby_policy_test
-          assert "test_successful_restore" in adbyby_policy_test
+          assert "test_partial_extension_restore_rolls_back_tables" in adbyby_policy_test
+          assert "test_rollback_failure_retains_recovery_snapshots" in adbyby_policy_test
+          assert "test_cleanup_failure_retries_before_next_apply" in adbyby_policy_test
           assert 'return doSystem("ipset list blockip >/dev/null 2>&1");' in firewall
           assert 'return doSystem("iptables-restore -n %s", snapshot);' in firewall
+          assert 'return doSystem("iptables-restore %s", path);' in firewall
           assert "firewall_log_command_failure(operation, status);" in firewall
           assert '"Adbyby blockip ipset preflight"' in adbyby_policy
           assert '"Adbyby iptables restore"' in adbyby_policy

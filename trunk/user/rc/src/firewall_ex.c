@@ -41,6 +41,9 @@
 
 static firewall_restore_transaction_t firewall_core_restore_transaction;
 static int firewall_core_restore_transaction_active;
+#if defined (APP_ADBYBY)
+static firewall_adbyby_restore_transaction_t firewall_adbyby_restore_transaction;
+#endif
 
 #define foreach_x(x)		for (i=0; i<nvram_get_int(x); i++)
 
@@ -199,6 +202,42 @@ firewall_remove_restore_snapshot(const char *path, void *context)
 	logmessage(LOGNAME, "Cannot remove firewall snapshot %s (errno=%d)", path, errno);
 	return -1;
 }
+
+#if defined (APP_ADBYBY)
+static int
+firewall_adbyby_snapshot_table(const char *table, char *path,
+			       size_t path_size, void *context)
+{
+	(void)context;
+	return firewall_snapshot_core_table("iptables", table, path, path_size, NULL);
+}
+
+/* Unlike the extension restore, rollback must flush and recreate the whole
+ * table from the complete iptables-save snapshot. */
+static int
+firewall_adbyby_restore_table_command(const char *table, const char *path,
+				      int rollback, void *context)
+{
+	(void)context;
+	if (!rollback)
+		return -1;
+	return doSystem("iptables-restore %s", path);
+}
+
+static void
+firewall_log_retained_adbyby_restore_snapshots(
+	const firewall_adbyby_restore_transaction_t *tx)
+{
+	size_t i;
+
+	if (!tx || !tx->rollback_failed)
+		return;
+	for (i = 0; i < tx->snapshot_count; ++i)
+		logmessage(LOGNAME,
+			   "Adbyby extension rollback incomplete; recovery snapshot retained: %s table at %s",
+			   tx->snapshots[i].table, tx->snapshots[i].path);
+}
+#endif
 
 static void
 firewall_log_retained_restore_snapshots(const firewall_restore_transaction_t *tx)
@@ -2555,6 +2594,7 @@ start_firewall_ex(void)
 #if defined (APP_ADBYBY)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
 	int adbyby_snapshot_exists;
+	int adbyby_restore_result;
 #endif
 	/* A previous cleanup failure or incomplete rollback is persistent
 	 * recovery state. Do not discard its paths or start another ruleset apply. */
@@ -2710,14 +2750,26 @@ firewall_restore_complete:
 #endif
 #if defined (APP_ADBYBY)
 	adbyby_snapshot_exists = check_if_file_exist(adbyby_iptables);
-	/* The saved rules reference blockip. The policy skips stale snapshots when
-	 * Adbyby has removed that ipset and reports a failed extension restore.
-	 * The add-on is deliberately outside the core table rollback transaction. */
-	(void)firewall_adbyby_restore_policy_apply(adbyby_snapshot_exists,
+	/* The saved multi-table file may commit filter before a later table fails.
+	 * Snapshot both affected IPv4 tables and restore their complete prior state
+	 * on any partial extension-restore failure. */
+	adbyby_restore_result = firewall_adbyby_restore_policy_apply(
+		adbyby_snapshot_exists, &firewall_adbyby_restore_transaction,
 		firewall_adbyby_blockip_preflight,
 		firewall_adbyby_restore_snapshot_command,
+		firewall_adbyby_snapshot_table,
+		firewall_adbyby_restore_table_command,
+		firewall_remove_restore_snapshot,
 		firewall_adbyby_report_restore_failure,
 		(void *)adbyby_iptables);
+	if (adbyby_restore_result == FIREWALL_ADBYBY_RESTORE_RECOVERY_FAILED) {
+		firewall_log_retained_adbyby_restore_snapshots(
+			&firewall_adbyby_restore_transaction);
+		logmessage(LOGNAME,
+			   "Adbyby firewall rollback incomplete; disabling IPv4 forwarding and aborting remaining extension hooks");
+		set_ipv4_forward(0);
+		return;
+	}
 #endif
 	/* Storage-restored hooks are privileged programs: reject links and unsafe
 	 * metadata, then execute only a root-private snapshot of the opened inode. */
