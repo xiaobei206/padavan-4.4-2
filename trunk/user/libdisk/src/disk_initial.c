@@ -614,22 +614,35 @@ get_mount_path(const char *const pool, char **mount_path)
 	return 0;
 }
 
-void
+int
 umount_all_storage(void)
 {
 	FILE *fp;
 	char line[512], devname[32], mpname[256];
+	int result, saved_errno;
 
+	result = 0;
 	fp = fopen(PROC_SWAPS_FILE, "r");
 	if (fp) {
 		/* skip one line */
-		fgets(line, sizeof(line), fp);
-		while (fgets(line, sizeof(line), fp)) {
-			if (sscanf(line, "%255s %*[^\n]", mpname) != 1)
-				continue;
-			swapoff(mpname);
+		if (!fgets(line, sizeof(line), fp)) {
+			result = -1;
+		} else {
+			while (fgets(line, sizeof(line), fp)) {
+				if (sscanf(line, "%255s %*[^\n]", mpname) != 1)
+					continue;
+				if (swapoff(mpname) != 0) {
+					saved_errno = errno;
+					(void)saved_errno;
+					result = -1;
+				}
+			}
+			if (ferror(fp))
+				result = -1;
 		}
 		fclose(fp);
+	} else {
+		result = -1;
 	}
 
 	fp = fopen(PROC_MOUNTS_FILE, "r");
@@ -639,11 +652,22 @@ umount_all_storage(void)
 				continue;
 			if (strncmp(devname, "/dev/sd", 7) != 0 && strncmp(devname, "/dev/mmcblk", 11) != 0)
 				continue;
-			umount(mpname);
-			rmdir(mpname);
+			if (umount(mpname) != 0) {
+				saved_errno = errno;
+				(void)saved_errno;
+				result = -1;
+			} else {
+				(void)rmdir(mpname);
+			}
 		}
+		if (ferror(fp))
+			result = -1;
 		fclose(fp);
+	} else {
+		result = -1;
 	}
+
+	return result;
 }
 
 int
