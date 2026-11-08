@@ -1,3 +1,11 @@
+## 2026-11-08 12:34 CST — WAN/PPP option escaping and launch-failure recovery merged
+
+- **Integration:** PR #6 merged into main at `e7ac7296addf7730dd8d4eee28da2661f638e596`. Exact tested code/test/workflow head `5e90c2c6e3ecac982348457ead64cbd162dbf545`; Actions [run 42447294943](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447294943) completed SUCCESS.
+- **Finding:** PPP scalar serialization had raw-fallback and silent-truncation paths on overflow; PPTP/PPPoE peer/service values were not escaped before being embedded inside quoted pppd options. WAN startup ignored PPP launcher status.
+- **Change:** added `ppp_option_value_policy.h` and GNU89 regression tests. Scalar values are now quoted/escaped and reject controls/overflow; custom `ppp_pppd` multiline text preserves LF/TAB only while rejecting CR/other controls. PPP launch results are checked; if launch fails, WAN state falls back to the physical interface and firewall rules are rebuilt.
+- **Validation:** exact-head Actions compiled/runs both the credential-file tests and option-policy regression under `-std=gnu89 -Wall -Wextra -Werror` and passed source contracts. No target MIPS/uClibc build, firmware/TRX, live PPP test or hardware validation.
+- **Next issue found while reviewing PPP config writers:** `safe_start_xl2tpd()` and conditional `start_rpl2tp()` write NVRAM-derived hostname, peer and username values directly into L2TP config syntax. Audit and add a bounded control-character/line-length policy before the next behavior change; preserve valid printable credentials/peer names. Broader PPP reconnect/watchdog and IPv6 firewall parity remain open.
+
 ## 2026-11-08 12:28 CST — Storage safe-eject failure propagation merged; exact-head Actions PASS
 
 - **Integration:** PR #5, “fix(storage): prevent spindown after failed swapoff or unmount,” merged into main at 9d638965de658e4d2c40d26db2296f7c69e1c26d. The newest code/test/workflow SHA before merge was dd178c82ba05b916446d755193f0079fe76cad6c.
