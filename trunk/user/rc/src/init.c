@@ -38,24 +38,28 @@
 
 #include "rc.h"
 #include "gpio_pins.h"
+#include "pid1_signal_policy.h"
 
 #define CONSOLE_TERMINAL	"vt100"
 #define INIT_HOME_PATH		"/home/root"
 
-static volatile sig_atomic_t sig_term_received = 0;
-static volatile sig_atomic_t sig_usr1_received = 0;
-static volatile sig_atomic_t sig_alrm_received = 0;
+static pid1_signal_state_t signal_state = { 0, 0, 0, 0 };
 static int noconsole = 0;
 
+/* Synchronous faults cannot safely return to the faulting instruction. */
 static const int signals_fatal[] = {
 	SIGILL,
 	SIGSEGV,
 	SIGABRT,
 	SIGFPE,
-	SIGPIPE,
 	SIGBUS,
 	SIGSYS,
-	SIGTRAP,
+	SIGTRAP
+};
+
+/* Ordinary termination requests are handled later in the main loop. */
+static const int signals_shutdown[] = {
+	SIGPIPE,
 	SIGPWR,
 	SIGQUIT,
 	SIGTERM
@@ -81,15 +85,8 @@ static void
 reset_signals(void);
 
 static void
-notify_shutdown(void)
-{ }
-
-/* signals handling */
-static void
-catch_sig_fatal(int sig)
+handle_sig_fatal(int sig)
 {
-	sig_term_received = 1;
-
 	printf("%s signal: %s\n", "fatal", strsignal(sig));
 
 	if (sig == SIGQUIT) {
@@ -116,37 +113,46 @@ catch_sig_fatal(int sig)
 	} while (1);
 }
 
+/*
+ * Synchronous CPU faults cannot be deferred: returning would normally
+ * re-enter the faulting instruction. Keep the legacy emergency shutdown
+ * path for these signals; ordinary termination signals never use it.
+ */
+static void
+catch_sig_fatal(int sig)
+{
+	pid1_signal_record_shutdown(&signal_state, sig);
+	handle_sig_fatal(sig);
+}
+
+/* Async termination handlers only publish sig_atomic_t state. */
+static void
+catch_sig_shutdown(int sig)
+{
+	pid1_signal_record_shutdown(&signal_state, sig);
+}
+
 static void
 catch_sig_event(int sig)
 {
-	printf("%s signal: %s\n", "event", strsignal(sig));
-
-	if (sig_term_received)
-		return;
-
-	switch (sig)
-	{
-	case SIGHUP:
-		break;
-	case SIGUSR1:
-		sig_usr1_received = 1;
-		break;
-	case SIGUSR2:
-		notify_shutdown();
-		break;
-	case SIGALRM:
-		sig_alrm_received = 1;
-		break;
-	}
+	pid1_signal_record_event(&signal_state, sig);
 }
 
+/* waitpid is async-signal-safe; stdio logging is deliberately omitted. */
 static void
 catch_sig_reap(int sig)
 {
 	pid_t pid;
 
-	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0)
-		dprintf("Reaped %d\n", pid);
+	(void)sig;
+	for (;;) {
+		pid = waitpid(-1, NULL, WNOHANG);
+		if (pid > 0)
+			continue;
+		if (pid < 0 && errno == EINTR)
+			continue;
+		break;
+	}
 }
 
 /* Set terminal settings to reasonable defaults */
@@ -310,27 +316,37 @@ init_signals(void)
 	int i;
 	struct sigaction sa;
 
-	/* Setup fatal signals (block fatal handler from all own signals) */
+	/* Prevent nested lifecycle handlers from observing partial state. */
 	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = catch_sig_fatal;
 	sigemptyset(&sa.sa_mask);
 	for (i = 0; i < ARRAY_SIZE(signals_event); i++)
 		sigaddset(&sa.sa_mask, signals_event[i]);
+	for (i = 0; i < ARRAY_SIZE(signals_shutdown); i++)
+		sigaddset(&sa.sa_mask, signals_shutdown[i]);
 	for (i = 0; i < ARRAY_SIZE(signals_fatal); i++)
 		sigaddset(&sa.sa_mask, signals_fatal[i]);
+
+	/* Synchronous faults retain the emergency path; shutdown requests defer. */
+	sa.sa_handler = catch_sig_fatal;
 	for (i = 0; i < ARRAY_SIZE(signals_fatal); i++)
 		sigaction(signals_fatal[i], &sa, NULL);
 
-	/* Setup SIGCHLD signal */
+	sa.sa_handler = catch_sig_shutdown;
+	for (i = 0; i < ARRAY_SIZE(signals_shutdown); i++)
+		sigaction(signals_shutdown[i], &sa, NULL);
+
+	/* SIGCHLD reaping performs waitpid only; no stdio in signal context. */
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_handler = catch_sig_reap;
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGCHLD, &sa, NULL);
 
-	/* Setup event signals */
+	/* Event handlers only set their corresponding sig_atomic_t flags. */
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_handler = catch_sig_event;
 	sigemptyset(&sa.sa_mask);
+	for (i = 0; i < ARRAY_SIZE(signals_event); i++)
+		sigaddset(&sa.sa_mask, signals_event[i]);
 	for (i = 0; i < ARRAY_SIZE(signals_event); i++)
 		sigaction(signals_event[i], &sa, NULL);
 }
@@ -440,6 +456,7 @@ void
 init_main_loop(void)
 {
 	pid_t shell_pid = 0;
+	int shutdown_handled = 0;
 
 	umask(0000);
 
@@ -475,7 +492,7 @@ init_main_loop(void)
 	/* block SIGUSR1 during init_router() */
 	control_signal(SIGUSR1, SIG_BLOCK);
 
-	/* block SIGUSR2 during notify_shutdown() */
+	/* SIGUSR2 remains a reserved, currently no-op event signal. */
 	control_signal(SIGUSR2, SIG_BLOCK);
 
 	/* Router init and start */
@@ -488,25 +505,33 @@ init_main_loop(void)
 	for (;;) {
 		sigset_t ss;
 		sigemptyset(&ss);
-		
-		/* Wait for user input or state change */
-		while ( !sig_usr1_received &&
-			!sig_alrm_received ) {
+
+		/* Wait until an event or a deferred shutdown request is pending. */
+		while (!signal_state.usr1_pending &&
+		       !signal_state.alarm_pending &&
+		       (!signal_state.shutdown_pending || shutdown_handled)) {
 			if (!noconsole && (!shell_pid || kill(shell_pid, 0) != 0))
 				shell_pid = run_shell(0, 1);
 			else
 				sigsuspend(&ss);
 		}
-		
+
+		/* Ordinary termination signals are handled outside signal context. */
+		if (signal_state.shutdown_pending && !shutdown_handled) {
+			shutdown_handled = 1;
+			handle_sig_fatal((int)signal_state.shutdown_signal);
+			continue;
+		}
+
 		/* Handle SIGUSR1 signal */
-		if (sig_usr1_received) {
-			sig_usr1_received = 0;
+		if (signal_state.usr1_pending) {
+			signal_state.usr1_pending = 0;
 			handle_notifications();
 		}
-		
+
 		/* Handle SIGALRM signal */
-		if (sig_alrm_received) {
-			sig_alrm_received = 0;
+		if (signal_state.alarm_pending) {
+			signal_state.alarm_pending = 0;
 #if defined (USE_USB_SUPPORT) || defined (USE_STORAGE)
 			on_deferred_hotplug_dev();
 #endif

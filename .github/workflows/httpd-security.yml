@@ -78,6 +78,9 @@ on:
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/shared/src/shutils.c"
       - "trunk/user/rc/src/rc.c"
+      - "trunk/user/rc/src/tests/pid1_signal_policy.c"
+      - "trunk/user/rc/src/pid1_signal_policy.h"
+      - "trunk/user/rc/src/init.c"
 
       - "trunk/user/shared/src/notify_rc.c"
       - "trunk/user/shared/src/notify_rc.h"
@@ -162,6 +165,9 @@ on:
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/shared/src/shutils.c"
       - "trunk/user/rc/src/rc.c"
+      - "trunk/user/rc/src/tests/pid1_signal_policy.c"
+      - "trunk/user/rc/src/pid1_signal_policy.h"
+      - "trunk/user/rc/src/init.c"
       - "trunk/user/shared/src/notify_rc.c"
       - "trunk/user/shared/src/notify_rc.h"
       - "trunk/user/shared/src/rc_notify_queue.h"
@@ -1476,3 +1482,77 @@ jobs:
           ))
           print("Samba storage-account and Unix passwd/group identity contracts: OK")
           PY
+      - name: Verify PID 1 signal deferral and child reaping safety
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/pid1_signal_policy.c \
+            -o /tmp/pid1_signal_policy
+          /tmp/pid1_signal_policy
+          python3 - <<'PY'
+          from pathlib import Path
+
+          init = Path("trunk/user/rc/src/init.c").read_text()
+          policy = Path("trunk/user/rc/src/pid1_signal_policy.h").read_text()
+          workflow = Path(".github/workflows/httpd-security.yml").read_text()
+
+          def body(source, signature):
+              start = source.index(signature)
+              brace = source.index("{", start)
+              depth = 0
+              for pos in range(brace, len(source)):
+                  if source[pos] == "{":
+                      depth += 1
+                  elif source[pos] == "}":
+                      depth -= 1
+                      if depth == 0:
+                          return source[brace + 1:pos]
+              raise AssertionError("unterminated function: " + signature)
+
+          def array_items(source, name):
+              start = source.index("static const int " + name + "[]")
+              end = source.index("};", start)
+              return set(source[start:end].split("{", 1)[1].replace(",", " ").split())
+
+          event = body(init, "catch_sig_event(int sig)")
+          shutdown = body(init, "catch_sig_shutdown(int sig)")
+          reap = body(init, "catch_sig_reap(int sig)")
+          fatal = body(init, "handle_sig_fatal(int sig)")
+          main_loop = body(init, "init_main_loop(void)")
+          setup = body(init, "init_signals(void)")
+
+          assert "pid1_signal_record_event(&signal_state, sig);" in event
+          assert not any(token in event for token in ("printf(", "dprintf(", "strsignal(", "notify_shutdown", "shutdown_router("))
+          assert "pid1_signal_record_shutdown(&signal_state, sig);" in shutdown
+          assert not any(token in shutdown for token in ("printf(", "dprintf(", "strsignal(", "shutdown_router(", "system("))
+          assert "waitpid(-1, NULL, WNOHANG)" in reap and "errno == EINTR" in reap
+          assert not any(token in reap for token in ("printf(", "dprintf(", "perror(", "fprintf("))
+
+          assert array_items(init, "signals_fatal") == {
+              "SIGILL", "SIGSEGV", "SIGABRT", "SIGFPE", "SIGBUS", "SIGSYS", "SIGTRAP"
+          }
+          assert array_items(init, "signals_shutdown") == {"SIGPIPE", "SIGPWR", "SIGQUIT", "SIGTERM"}
+          assert "sa.sa_handler = catch_sig_shutdown;" in setup
+          assert "sigaction(signals_shutdown[i], &sa, NULL);" in setup
+          assert "handle_sig_fatal((int)signal_state.shutdown_signal);" in main_loop
+          assert "signal_state.shutdown_pending && !shutdown_handled" in main_loop
+          assert "shutdown_router(0);" in fatal and "reboot(RB_AUTOBOOT);" in fatal
+          assert "static inline void" in policy
+          assert "volatile sig_atomic_t shutdown_pending;" in policy
+          assert "state->shutdown_pending" in policy
+
+          triggers = (
+              "trunk/user/rc/src/init.c",
+              "trunk/user/rc/src/pid1_signal_policy.h",
+              "trunk/user/rc/src/tests/pid1_signal_policy.c",
+          )
+          push = workflow.split("  pull_request:", 1)[0]
+          pr = workflow.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
+          for path in triggers:
+              assert '"' + path + '"' in push
+              assert '"' + path + '"' in pr
+
+          print("PID 1 async signal deferral and SIGCHLD reaping contracts: OK")
+          PY
+
