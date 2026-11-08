@@ -78,6 +78,11 @@ main(void)
 	check_text(victim, "do-not-truncate\n");
 	assert(unlink(marker) == 0);
 
+	write_text(marker, "wrong-mode\n");
+	assert(chmod(marker, 0644) == 0);
+	assert(rc_notify_queue_touch_at(dir_fd, "restart_firewall", owner) < 0);
+	assert(unlink(marker) == 0);
+
 	write_text(marker, "hard-linked\n");
 	assert(link(marker, hardlink) == 0);
 	assert(rc_notify_queue_touch_at(dir_fd, "restart_firewall", owner) < 0);
