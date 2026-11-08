@@ -1,3 +1,14 @@
+## 2026-11-08 15:51 CST — Use POSIX-compatible file descriptors in automount locks
+
+- **Base / current source-test checkpoint:** the then-current main was `84013d94812460b66e92c611686722e2320497a3`; the affected automation/source-contract checkpoint was `97c91cff20070c451a04f6c7fff4a3fa496d6588`. Fix commit: `2f4828c42a1a0a449f92aa2f9f5fd3ab6dbdaa09`.
+- **Recovered CI defect:** exact-head Actions run [42460044825](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42460044825) failed on `97c91cff20070c451a04f6c7fff4a3fa496d6588`, step 14, because `sh -n` reported `automount.sh: 15: Syntax error: word unexpected (expecting "}")`. The red runs [42458961923](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42458961923) and [42460028622](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42460028622) showed the same high-fd shell portability issue.
+- **Change / paths:** `trunk/user/scripts/files/sbin/automount.sh` now uses fd 9 for the nested `fs_module.lock` and fd 8 for the outer `automount_mountpoint.lock`. The lock descriptors remain distinct; all mount helpers close fd 8. Updated source assertions in `.github/workflows/httpd-security.yml` to check fd 8/9 and reject fd 500.
+- **Validation:** local `dash -n` reproduced fd-500 syntax failure (exit 2) and passed the fd-8/fd-9 replacement. Exact-head Actions [run 42460430403](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42460430403) completed **SUCCESS** on exact SHA `2f4828c42a1a0a449f92aa2f9f5fd3ab6dbdaa09`; job `128668345502` completed 25/25 steps, including the FAT/NTFS checker and mount-inventory contracts. L1/source and L2 workflow evidence only.
+- **Not run / residual:** no MIPS/uClibc compile, complete firmware/TRX, target BusyBox runtime, actual-router or hardware validation.
+- **Next:** inspect both ignored `try_device_swapoff(device_name)` calls in `trunk/user/rc/src/hotplug_stor.c`. First distinguish inactive devices from active swap and unreadable `/proc/swaps` before adding failure propagation; do not simply log every raw nonzero `swapoff()` result as a defect. Then audit `services_stor.c::umount_ejected()` stream close/read failures.
+
+---
+
 ## 2026-11-08 15:46 CST — Serialize concurrent automount mountpoint ownership
 
 - **Base / current code-test workflow checkpoint:** began from FAT/NTFS checker fix `d6d49f45f465ae1560f6a6a7436172e4cde4840a`; production script fix `4021adee8359e77382e0bf8b07450c9d6475227d`; new concurrency regression `bdf40b45cf500e024f230ea82a91cdcdbe7e5865`; source-contract/workflow integration `97c91cff20070c451a04f6c7fff4a3fa496d6588`.
