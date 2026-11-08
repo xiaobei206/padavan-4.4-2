@@ -81,6 +81,10 @@ on:
       - "trunk/user/rc/src/tests/modem_node_file.c"
       - "trunk/user/rc/src/hotplug_stor.c"
       - "trunk/user/rc/src/storage_partition_probe.h"
+      - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/rc.h"
+      - "trunk/user/libdisk/src/disk_initial.c"
+      - "trunk/user/libdisk/src/disk_initial.h"
       - "trunk/user/rc/src/tests/storage_partition_probe.c"
       - "trunk/user/rc/src/samba_passdb_policy.h"
       - "trunk/user/rc/src/tests/samba_passdb_policy.c"
@@ -637,6 +641,58 @@ jobs:
           assert "storage_disk_has_partitions(NULL, \"sda\", 0) == -1" in regression
           assert "mmcblk0p1" in regression and "sdaa1" in regression
           print("Block-storage whole-disk mounting is fail-closed on unavailable partition inventory: OK")
+          PY
+
+      - name: Verify storage safe-eject failure gates spindown
+        run: |
+          set -eu
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service = Path("trunk/user/rc/src/services_stor.c").read_text()
+          disk_initial = Path("trunk/user/libdisk/src/disk_initial.c").read_text()
+          disk_header = Path("trunk/user/libdisk/src/disk_initial.h").read_text()
+          rc_header = Path("trunk/user/rc/src/rc.h").read_text()
+
+          umount_dev_start = service.index("umount_dev(const char *dev_name, int is_root_dev)")
+          umount_dev_end = service.index("count_stor_mountpoint(void)", umount_dev_start)
+          umount_dev = service[umount_dev_start:umount_dev_end]
+          assert "static int" in service[max(0, umount_dev_start - 24):umount_dev_start]
+          assert "if (!procpt)" in umount_dev and "return -1;" in umount_dev
+          assert "if (umount(mpname) != 0)" in umount_dev
+          failed_umount = umount_dev.index("if (umount(mpname) != 0)")
+          success_cleanup = umount_dev.index("(void)rmdir(mpname)", failed_umount)
+          assert failed_umount < success_cleanup
+          assert "result = -1;" in umount_dev[failed_umount:success_cleanup]
+
+          path_start = service.index("umount_stor_path(disk_info_t *disks_info, int port, const char *dev_name, int do_spindown)")
+          path_end = service.index("stop_stor_apps(void)", path_start)
+          unmount_path = service[path_start:path_end]
+          assert "try_device_swapoff(follow_partition->device)" in unmount_path
+          assert "if (umount_dev(follow_partition->device, 0) != 0)" in unmount_path
+          assert "if (umount_dev(follow_disk->device, 1) != 0)" in unmount_path
+          assert unmount_path.index("if (disk_status == 0)") < unmount_path.index("spindown_hdd(follow_disk->device)")
+          assert "skipping spindown" in unmount_path
+
+          all_start = disk_initial.index("umount_all_storage(void)")
+          all_end = disk_initial.index("try_device_swapoff(const char *dev_name)", all_start)
+          global_cleanup = disk_initial[all_start:all_end]
+          assert "if (swapoff(mpname) != 0)" in global_cleanup
+          assert "if (umount(mpname) != 0)" in global_cleanup
+          assert "return result;" in global_cleanup
+          assert "extern int umount_all_storage(void);" in disk_header
+          assert "int umount_stor_path(" in rc_header and "int umount_ejected(void);" in rc_header
+
+          safe_start = service.index("safe_remove_stor_device(int port_b, int port_e, const char *dev_name, int do_spindown)")
+          safe_end = service.index("safe_remove_all_stor_devices(int do_spindown)", safe_start)
+          safe_remove = service[safe_start:safe_end]
+          assert "umount_stor_path(disks_info, port, dev_name, do_spindown) != 0" in safe_remove
+          assert "mount_count == 0 && unmount_status == 0 && ejected_status == 0" in safe_remove
+          all_remove_start = service.index("safe_remove_all_stor_devices(int do_spindown)")
+          all_remove = service[all_remove_start:]
+          assert "fallback_status = umount_all_storage();" in all_remove
+          assert "if (fallback_status != 0)" in all_remove
+          print("Storage safe removal propagates swapoff/unmount failures and blocks unsafe spindown: OK")
           PY
 
       - name: Verify ext filesystem repair failure blocks automount
