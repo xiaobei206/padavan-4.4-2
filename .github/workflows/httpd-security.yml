@@ -152,6 +152,7 @@ on:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
       - "trunk/user/httpd/src/ej.c"
+      - "trunk/user/httpd/src/web_ex.c"
       - "trunk/user/httpd/src/aidisk.c"
       - "trunk/user/httpd/src/httpd_storage_ej_policy.h"
       - "trunk/user/httpd/src/tests/httpd_storage_ej_policy.c"
@@ -1525,9 +1526,9 @@ jobs:
           direct_template_callbacks = set()
           for asp_path in asp_template_files:
               source = asp_path.read_text()
-              for template_block in re.findall(r"<%([\\s\\S]*?)%>", source):
+              for template_block in re.findall(r"<%([\s\S]*?)%>", source):
                   direct_template_callbacks.update(
-                      re.findall(r"\\b([A-Za-z_][A-Za-z0-9_]*)\\s*\\(", template_block)
+                      re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", template_block)
                   )
           assert len(asp_template_files) >= 120, (
               f"direct ASP inventory unexpectedly shrank: {len(asp_template_files)}"
