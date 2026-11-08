@@ -70,7 +70,7 @@ main(void)
 	assert(errno == EINVAL);
 	assert(ppp_config_line_value_copy(long_value, out, sizeof(out)) == -1);
 	assert(errno == EOVERFLOW);
-	assert(out[0] == '\\0');
+	assert(out[0] == '\0');
 	assert(ppp_config_line_value_copy(NULL, out, sizeof(out)) == -1);
 	assert(errno == EINVAL);
 
