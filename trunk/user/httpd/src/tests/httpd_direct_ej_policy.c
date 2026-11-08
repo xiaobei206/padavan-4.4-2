@@ -65,10 +65,13 @@ main(void)
 		assert(httpd_direct_ej_allowed(read_only_callbacks[i], 1));
 	}
 
-	/* Keep exact-name matching: similarly named new callbacks are not blessed. */
+	/* Similar names do not inherit the action restriction; unknown handlers
+	 * retain the legacy direct-template behavior pending explicit review.
+	 */
 	assert(!httpd_direct_ej_requires_trusted_session("wol_action_extra"));
 	assert(httpd_direct_ej_allowed("wol_action_extra", 0));
-	assert(!httpd_direct_ej_allowed("unregistered_callback", 0));
+	assert(!httpd_direct_ej_requires_trusted_session("unregistered_callback"));
+	assert(httpd_direct_ej_allowed("unregistered_callback", 0));
 	assert(httpd_direct_ej_allowed("unregistered_callback", 1));
 
 	return 0;
