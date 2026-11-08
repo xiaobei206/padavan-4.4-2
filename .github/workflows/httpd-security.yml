@@ -1523,17 +1523,18 @@ jobs:
               "HTTPD_DIRECT_EJ_TRUSTED_MUTATION",
           }
           parameter_start = web.index("static int ej_get_parameter(")
-          parameter_end = web.index("\\nstatic int login_state_hook", parameter_start)
+          parameter_end = web.index("\nstatic int login_state_hook", parameter_start)
           parameter_callback = web[parameter_start:parameter_end]
           assert "write_js_string_contents(wp, value);" in parameter_callback
           assert 'websWrite(wp, "%s", value)' not in parameter_callback
           assert "httpd_js_escape_next" in web
           js_output_header = (root / "httpd_js_output_policy.h").read_text()
           js_output_test = (root / "tests/httpd_js_output_policy.c").read_text()
-          for escaped_case in ("case '<':", "case '\\\\'':", "case '\\\\\\\\':"):
-              assert escaped_case in js_output_header
-          for escape_contract in ("\\\\x3c", "\\\\u2028", "\\\\u2029", "\\\\x%02x"):
-              assert escape_contract in js_output_test or escape_contract in js_output_header
+          assert "case '<':" in js_output_header
+          assert "input[2] == 0xa8" in js_output_header
+          assert "input[2] == 0xa9" in js_output_header
+          assert "assert_escaped(unicode_separators" in js_output_test
+          assert "assert_escaped(controls" in js_output_test
           assert "httpd_js_escape_next" in js_output_test
           parameter_callers = {
               "aidisk.asp", "index.asp", "aidisk/getfolderarray.asp",
@@ -1546,7 +1547,7 @@ jobs:
           assert actual_parameter_callers == parameter_callers, actual_parameter_callers
           for caller in parameter_callers:
               template = (ui_root / caller).read_text()
-              assert re.search(r"'\\s*<%\\s*get_parameter\\(", template), caller
+              assert re.search(r"'\s*<%\s*get_parameter\(", template), caller
 
           for name in (
               "nvram_dump", "update_variables", "asus_nvram_commit",

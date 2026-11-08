@@ -41,6 +41,7 @@ main(void)
 		NULL
 	};
 	static const char * const escaped_output_callbacks[] = {
+		"get_parameter",
 		NULL
 	};
 	static const char * const read_only_callbacks[] = {
@@ -62,7 +63,6 @@ main(void)
 		"wanlink",
 		"lanlink",
 		"nf_values",
-		"get_parameter",
 		"get_nvram_list",
 		"get_flash_time",
 		"get_static_client",
