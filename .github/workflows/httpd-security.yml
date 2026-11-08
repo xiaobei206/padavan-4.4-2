@@ -1538,7 +1538,8 @@ jobs:
           assert "httpd_js_escape_next" in js_output_test
           parameter_callers = {
               "aidisk.asp", "index.asp", "aidisk/getfolderarray.asp",
-              "aidisk/getsharearray.asp", "Restarting.asp",
+              "aidisk/getsharearray.asp", "aidisk/set_account_permission.asp",
+              "Restarting.asp",
           }
           actual_parameter_callers = set()
           for asp_path in ui_root.rglob("*.asp"):
