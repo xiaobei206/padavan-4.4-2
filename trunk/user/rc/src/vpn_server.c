@@ -364,7 +364,7 @@ reapply_vpn_server(void)
 static int
 vpns_firewall_permission(char *ifname, int add)
 {
-	char *argv[9];
+	char *argv[8];
 	int status;
 
 	/* Keep runtime rule mutation aligned with the strict lease-file parser. */
