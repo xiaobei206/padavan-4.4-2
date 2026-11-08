@@ -92,7 +92,7 @@ save_adbyby_rule_snapshot()
 : > "$TEST_COMMAND_LOG"
 : > "$TEST_IPSET_LOG"
 : > "$TEST_SNAPSHOT_LOG"
-FAIL_IPTABLES_MATCH='-t nat -A ADBYBY -d 10.0.0.0/8'
+FAIL_IPTABLES_MATCH='-t nat -A ADBYBY -d 10.0.0.0/8 -j RETURN'
 export FAIL_IPTABLES_MATCH
 if add_rule; then
     echo "unexpectedly accepted a failed ADBYBY chain mutation" >&2
