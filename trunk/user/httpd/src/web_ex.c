@@ -4616,7 +4616,7 @@ do_update_cgi(const char *url, FILE *stream)
 	 */
 	if (!httpd_update_output_allowed(pattern, get_login_safe())) {
 		websError(stream, 403,
-			  "This output is restricted to trusted management sessions.\\n");
+			  "This output is restricted to trusted management sessions.\n");
 		return;
 	}
 
