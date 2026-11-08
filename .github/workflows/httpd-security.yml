@@ -1574,9 +1574,9 @@ jobs:
               "bit_action.asp": "update_action",
           }
           method_start = method_policy.index("httpd_cgi_method_allowed(")
-          method_end = method_policy.index("\\n}\\n", method_start)
+          method_end = method_policy.index("\n}\n", method_start)
           post_only_routes = set(re.findall(
-              r'"((?:[A-Za-z0-9_]+/)?[A-Za-z0-9_.-]+\\.asp)"',
+              r'"((?:[A-Za-z0-9_]+/)?[A-Za-z0-9_.-]+\.asp)"',
               method_policy[method_start:method_end]
           ))
           assert post_only_routes >= set(action_routes)
