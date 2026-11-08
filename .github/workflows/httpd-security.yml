@@ -283,7 +283,7 @@ jobs:
           helper = Path("trunk/user/shared/src/rc_notify_queue.h").read_text()
           test = Path("trunk/user/shared/src/tests/rc_notify_queue.c").read_text()
           shared_make = Path("trunk/user/shared/src/Makefile").read_text()
-          rc_make = Path("trunk/user/rc/src/Makefile").read_text()
+          rc_make = Path("trunk/user/rc/Makefile").read_text()
           workflow = Path(".github/workflows/httpd-security.yml").read_text()
 
           create_queue = init.index("mkdir -p -m 700 /tmp/rc_notification")
