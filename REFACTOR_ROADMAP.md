@@ -1,3 +1,13 @@
+## 2026-11-08 13:37 CST — Classify the complete direct ASP EJ registry
+
+- **Status change:** HTTPD direct ASP EJ authorization is now COMPLETE for the current source registry at the policy/host-regression layer; the broader HTTPD security audit remains PARTIAL pending target and browser integration.
+- **Coverage:** 88/88 web_ex.c::ej_handlers[] entries have exactly one explicit class. The classifications are 63 READ_ONLY, 3 BOUNDED_REFRESH, 2 SELF_GUARDED and 20 TRUSTED_MUTATION. Storage mutators continue to compose the separate storage authorization policy.
+- **Default deny:** call_asp() cannot dispatch an unknown or newly added callback unless the new registry name is classified. CI compares the policy inventory against the full conditional EJ registry, rejects duplicates/missing/stale names, and scans all 129 current direct ASP templates (including nested Aidisk pages) for callback references absent from the registry.
+- **Important callback distinctions:** nvram_dump retains its own script-dispatch and private-key output controls; update_variables retains its apply-request guard. bandwidth, nvram_get_ddns and detect_internet are explicitly bounded refresh operations, not silently conflated with pure reads.
+- **Regression / CI:** exact code HEAD 0b7e26f916e79550d2242bf3ee7437f41483f6d5 passed GNU89 policy compile/run and the full HTTPD/security workflow, including the registry/category and ASP-caller source assertions: run 42451502904 (https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42451502904). Corrected ASP-template scan passed on 5d690dfe2b27ec08849caf46c74a3a358b9c109d: run 42451377434 (https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42451377434).
+- **Limitations:** no MIPS/uClibc target build, firmware, browser-based session/CSRF test, router or hardware run. The result is not a claim that all HTTPD handlers or the whole repository have completed security review.
+- **Next action:** rotate to firewall IPv6 restore/cleanup parity and related error/rollback paths; retain the remaining WAN/PPP lifecycle, storage, authentication/upload/restore and system-management items in the repository-wide risk ledger. Continue beyond SkipDBv2 and HTTPD.
+
 # Repository-Wide Modernization Roadmap
 
 ## 2026-11-08 13:27 CST — Gate privileged direct ASP EJ actions
