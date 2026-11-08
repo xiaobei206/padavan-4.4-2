@@ -860,6 +860,8 @@ jobs:
           assert "iptables-restore -n" not in adbyby_restore[guard_else:]
           assert 'firewall_log_command_failure("Adbyby blockip ipset preflight", adbyby_blockip_status)' in adbyby_restore
           assert "Skipping Adbyby firewall restore: required blockip ipset is unavailable" in adbyby_restore
+          assert 'firewall_log_command_failure("Adbyby iptables restore",' in adbyby_restore
+          assert "firewall_restore_transaction_abort" not in adbyby_restore
           assert "firewall_adbyby_restore_is_allowed(1, 0)" in adbyby_policy_test
           assert "symlink(src,linkp)" in helper_test
           assert "S_IWGRP | S_IWOTH" in helper
