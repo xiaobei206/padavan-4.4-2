@@ -692,6 +692,7 @@ void stop_aria(void);
 void run_aria(void);
 void restart_aria(void);
 #endif
+/* Returns mounted-device count, or -1 if /proc/mounts is incomplete. */
 int count_stor_mountpoint(void);
 int umount_stor_path(struct disk_info_t *disks_info, int port, const char *dev_name, int do_spindown);
 int umount_ejected(void);

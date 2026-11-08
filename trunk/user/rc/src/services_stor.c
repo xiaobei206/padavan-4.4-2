@@ -41,6 +41,7 @@
 #include "samba_share_policy.h"
 #include "samba_passdb_policy.h"
 #include "ftp_share_policy.h"
+#include "storage_mount_inventory_policy.h"
 #include "switch.h"
 
 void
@@ -71,6 +72,25 @@ is_valid_storage_device(const char *devname)
 		return 1;
 
 	return 0;
+}
+
+/*
+ * A failed mount inventory must never be confused with an empty one.
+ * Dependent services stay stopped until /proc/mounts can be read reliably.
+ */
+static int
+storage_has_mounted_devices(const char *operation)
+{
+	int mount_count;
+
+	mount_count = count_stor_mountpoint();
+	if (mount_count < 0) {
+		logmessage("Storage", "cannot determine mounted storage from %s while %s; refusing storage-dependent service start",
+			   PROC_MOUNTS_FILE, operation);
+		return 0;
+	}
+
+	return storage_mount_inventory_has_mounts(mount_count);
 }
 
 #if defined (APP_FTPD)
@@ -195,7 +215,7 @@ restart_ftpd(void)
 
 	stop_ftp();
 
-	if (count_stor_mountpoint()) {
+	if (storage_has_mounted_devices("restarting FTP")) {
 		run_ftp();
 		control_ftp_fw(is_run_before);
 	}
@@ -836,7 +856,7 @@ void restart_smbd(void)
 {
 	stop_samba(1);
 
-	if (count_stor_mountpoint())
+	if (storage_has_mounted_devices("restarting Samba"))
 		run_samba();
 
 	if (!pids("nmbd"))
@@ -976,9 +996,19 @@ void reload_nfsd(void)
 
 void restart_nfsd(void)
 {
+	int mount_count;
+
 	stop_nfsd();
 
-	if (nvram_match("nfsd_enable", "1") && count_stor_mountpoint()) {
+	mount_count = count_stor_mountpoint();
+	if (mount_count < 0) {
+		logmessage("Storage", "cannot determine mounted storage from %s during NFS restart; keeping NFS support loaded",
+			   PROC_MOUNTS_FILE);
+		return;
+	}
+
+	if (nvram_match("nfsd_enable", "1") &&
+	    storage_mount_inventory_has_mounts(mount_count)) {
 		sleep(1);
 		run_nfsd();
 	} else {
@@ -1182,7 +1212,7 @@ void run_dms(int force_rescan)
 void restart_dms(int force_rescan)
 {
 	stop_dms();
-	if (count_stor_mountpoint())
+	if (storage_has_mounted_devices("restarting DLNA"))
 		run_dms(force_rescan);
 }
 #endif
@@ -1323,7 +1353,7 @@ void run_itunes(void)
 void restart_itunes(void)
 {
 	stop_itunes();
-	if (count_stor_mountpoint())
+	if (storage_has_mounted_devices("restarting Firefly"))
 		run_itunes();
 }
 #endif
@@ -1383,7 +1413,7 @@ void restart_torrent(void)
 	int is_run_after;
 
 	stop_torrent();
-	if (count_stor_mountpoint())
+	if (storage_has_mounted_devices("restarting Transmission"))
 		run_torrent();
 
 	is_run_after = is_torrent_run();
@@ -1448,7 +1478,7 @@ void restart_aria(void)
 	int is_run_after;
 
 	stop_aria();
-	if (count_stor_mountpoint())
+	if (storage_has_mounted_devices("restarting Aria"))
 		run_aria();
 
 	is_run_after = is_aria_run();
@@ -1645,22 +1675,45 @@ count_stor_mountpoint(void)
 {
 	FILE *procpt;
 	char line[512], devname[32];
-	int count = 0;
+	int count = 0, read_error, close_status;
+	int read_errno, close_errno, saved_errno;
 
 	procpt = fopen(PROC_MOUNTS_FILE, "r");
-	if (procpt) {
-		while (fgets(line, sizeof(line), procpt)) {
-			if (sscanf(line, "%31s %*[^\n]", devname) != 1)
-				continue;
-			
-			if (is_valid_storage_device(devname))
-				count++;
-		}
-		
-		fclose(procpt);
+	if (!procpt) {
+		saved_errno = errno ? errno : EIO;
+		logmessage("Storage", "cannot open %s to count mounted storage (errno %d)",
+			   PROC_MOUNTS_FILE, saved_errno);
+		errno = saved_errno;
+		return storage_mount_inventory_result(0, 1);
 	}
 
-	return count;
+	errno = 0;
+	while (fgets(line, sizeof(line), procpt)) {
+		if (sscanf(line, "%31s %*[^\n]", devname) != 1)
+			continue;
+
+		if (is_valid_storage_device(devname))
+			count++;
+	}
+	read_error = ferror(procpt);
+	read_errno = errno;
+
+	errno = 0;
+	close_status = fclose(procpt);
+	close_errno = errno;
+	if (read_error || close_status != 0) {
+		saved_errno = read_errno;
+		if (saved_errno == 0 && close_status != 0)
+			saved_errno = close_errno;
+		if (saved_errno == 0)
+			saved_errno = EIO;
+		logmessage("Storage", "incomplete read of %s while counting mounted storage (errno %d)",
+			   PROC_MOUNTS_FILE, saved_errno);
+		errno = saved_errno;
+		return storage_mount_inventory_result(count, 1);
+	}
+
+	return storage_mount_inventory_result(count, 0);
 }
 
 int
@@ -1794,7 +1847,7 @@ static void
 try_start_stor_apps(void)
 {
 	// start apps if needed
-	if (count_stor_mountpoint()) {
+	if (storage_has_mounted_devices("starting storage applications")) {
 		start_stor_apps();
 		if (nvram_get_int("usb_opt_start"))
 			system("/usr/bin/opt-start.sh &");

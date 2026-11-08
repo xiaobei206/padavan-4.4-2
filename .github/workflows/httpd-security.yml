@@ -86,6 +86,8 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
       - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/storage_mount_inventory_policy.h"
+      - "trunk/user/rc/src/tests/storage_mount_inventory_policy.c"
       - "trunk/user/rc/src/hotplug_usb.c"
       - "trunk/user/rc/src/usb_modem.c"
       - "trunk/user/rc/src/modem_node_file.h"
@@ -236,6 +238,8 @@ on:
       - "trunk/user/rc/src/firewall_ex.c"
       - "trunk/user/rc/src/services_ex.c"
       - "trunk/user/rc/src/services_stor.c"
+      - "trunk/user/rc/src/storage_mount_inventory_policy.h"
+      - "trunk/user/rc/src/tests/storage_mount_inventory_policy.c"
       - "trunk/user/rc/src/hotplug_usb.c"
       - "trunk/user/rc/src/usb_modem.c"
       - "trunk/user/rc/src/modem_node_file.h"
@@ -910,6 +914,57 @@ jobs:
           assert "fallback_status = umount_all_storage();" in all_remove
           assert "if (fallback_status != 0)" in all_remove
           print("Storage safe removal propagates swapoff/unmount failures and blocks unsafe spindown: OK")
+          PY
+
+      - name: Verify storage mount inventory distinguishes I/O failure from no mounts
+        run: |
+          set -eu
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/storage_mount_inventory_policy.c \
+            -o /tmp/storage_mount_inventory_policy
+          /tmp/storage_mount_inventory_policy
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service = Path("trunk/user/rc/src/services_stor.c").read_text()
+          policy = Path("trunk/user/rc/src/storage_mount_inventory_policy.h").read_text()
+          regression = Path("trunk/user/rc/src/tests/storage_mount_inventory_policy.c").read_text()
+          rc_header = Path("trunk/user/rc/src/rc.h").read_text()
+
+          count_start = service.index("count_stor_mountpoint(void)")
+          count_end = service.index("umount_stor_path(", count_start)
+          count_fn = service[count_start:count_end]
+          assert "storage_mount_inventory_result(0, 1)" in count_fn
+          assert "ferror(procpt)" in count_fn and "fclose(procpt)" in count_fn
+          assert "storage_mount_inventory_result(count, 1)" in count_fn
+          assert "storage_mount_inventory_result(count, 0)" in count_fn
+          assert "Returns mounted-device count, or -1" in rc_header
+          assert "return io_failed ? -1 : count;" in policy
+          assert "storage_mount_inventory_result(0, 1) == -1" in regression
+          assert "storage_mount_inventory_result(0, 0) == 0" in regression
+
+          helper_start = service.index("storage_has_mounted_devices(const char *operation)")
+          helper_end = service.index("#if defined (APP_FTPD)", helper_start)
+          helper = service[helper_start:helper_end]
+          assert "if (mount_count < 0)" in helper
+          assert "refusing storage-dependent service start" in helper
+
+          nfs_start = service.index("void restart_nfsd(void)")
+          nfs_end = service.index("#endif", nfs_start)
+          nfs = service[nfs_start:nfs_end]
+          assert "if (mount_count < 0)" in nfs
+          assert nfs.index("return;") < nfs.index("unload_nfsd();")
+
+          safe_start = service.index("safe_remove_stor_device(int port_b")
+          safe_end = service.index("safe_remove_all_stor_devices(int do_spindown)", safe_start)
+          safe_remove = service[safe_start:safe_end]
+          assert "mount_count < 0" in safe_remove
+          assert "mount_count == 0 && unmount_status == 0 && ejected_status == 0" in safe_remove
+
+          assert "if (count_stor_mountpoint())" not in service
+          assert service.count("count_stor_mountpoint()") == 3
+          print("Storage mount inventory I/O failures remain distinct from an empty inventory: OK")
           PY
 
       - name: Verify ext filesystem repair failure blocks automount
