@@ -561,7 +561,7 @@ jobs:
           assert "cannot close L2TP configuration" in xl2tp
 
           rp_start = ppp.index("start_rpl2tp(int unit)")
-          rp_end = ppp.index("\\n#endif", rp_start)
+          rp_end = ppp.index("\n#endif", rp_start)
           rpl2tp = ppp[rp_start:rp_end]
           assert "ppp_config_line_value_copy(get_wan_ppp_peer(unit), peer, sizeof(peer))" in rpl2tp
           assert 'fprintf(fp,' in rpl2tp and 'options, peer) < 0' in rpl2tp
