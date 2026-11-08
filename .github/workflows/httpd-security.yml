@@ -576,7 +576,7 @@ jobs:
           assert 'set_wan_unit_value(unit, "ifname_t", wan_ifname);' in failure_path
           assert failure_path.index('set_wan_unit_value(unit, "ifname_t", wan_ifname);') < failure_path.index("start_firewall_ex();") < failure_path.index("continue;")
           wait_start = wan.index("wait_ppp_up(char *ppp_ifname, int unit)")
-          wait_end = wan.index("\\nstatic void\\ncreate_cb_links", wait_start)
+          wait_end = wan.index("\nstatic void\ncreate_cb_links", wait_start)
           wait_body = wan[wait_start:wait_end]
           assert "while (ifconfig(ppp_ifname, IFUP, NULL, NULL) && timeout--)" not in wait_body
           timeout_guard = "if (timeout-- <= 0)"
