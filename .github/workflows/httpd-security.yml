@@ -11,6 +11,8 @@ on:
       - "trunk/user/httpd/src/tests/httpd_storage_ej_policy.c"
       - "trunk/user/httpd/src/httpd_direct_ej_policy.h"
       - "trunk/user/httpd/src/tests/httpd_direct_ej_policy.c"
+      - "trunk/user/httpd/src/httpd_js_output_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_js_output_policy.c"
       - "trunk/user/www/n56u_ribbon_fixed/Advanced_WOL_Content.asp"
       - "trunk/user/www/n56u_ribbon_fixed/wol_action.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Shadowsocks_action.asp"
@@ -158,6 +160,8 @@ on:
       - "trunk/user/httpd/src/tests/httpd_storage_ej_policy.c"
       - "trunk/user/httpd/src/httpd_direct_ej_policy.h"
       - "trunk/user/httpd/src/tests/httpd_direct_ej_policy.c"
+      - "trunk/user/httpd/src/httpd_js_output_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_js_output_policy.c"
       - "trunk/user/www/n56u_ribbon_fixed/Advanced_WOL_Content.asp"
       - "trunk/user/www/n56u_ribbon_fixed/wol_action.asp"
       - "trunk/user/www/n56u_ribbon_fixed/Shadowsocks_action.asp"
@@ -370,6 +374,11 @@ jobs:
             trunk/user/httpd/src/tests/httpd_direct_ej_policy.c \
             -o /tmp/httpd_direct_ej_policy
           /tmp/httpd_direct_ej_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_js_output_policy.c \
+            -o /tmp/httpd_js_output_policy
+          /tmp/httpd_js_output_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
             -I trunk/user/httpd/src \
             trunk/user/httpd/src/tests/httpd_csrf_policy.c \
@@ -1502,12 +1511,43 @@ jobs:
               name for name, classification in policy_classifications.items()
               if classification == "HTTPD_DIRECT_EJ_BOUNDED_REFRESH"
           } == {"bandwidth", "nvram_get_ddns", "detect_internet"}
+          assert {
+              name for name, classification in policy_classifications.items()
+              if classification == "HTTPD_DIRECT_EJ_ESCAPED_OUTPUT"
+          } == {"get_parameter"}
           assert set(policy_classifications.values()) == {
               "HTTPD_DIRECT_EJ_READ_ONLY",
+              "HTTPD_DIRECT_EJ_ESCAPED_OUTPUT",
               "HTTPD_DIRECT_EJ_BOUNDED_REFRESH",
               "HTTPD_DIRECT_EJ_SELF_GUARDED",
               "HTTPD_DIRECT_EJ_TRUSTED_MUTATION",
           }
+          parameter_start = web.index("static int ej_get_parameter(")
+          parameter_end = web.index("\\nstatic int login_state_hook", parameter_start)
+          parameter_callback = web[parameter_start:parameter_end]
+          assert "write_js_string_contents(wp, value);" in parameter_callback
+          assert 'websWrite(wp, "%s", value)' not in parameter_callback
+          assert "httpd_js_escape_next" in web
+          js_output_header = (root / "httpd_js_output_policy.h").read_text()
+          js_output_test = (root / "tests/httpd_js_output_policy.c").read_text()
+          for escaped_case in ("case '<':", "case '\\\\'':", "case '\\\\\\\\':"):
+              assert escaped_case in js_output_header
+          for escape_contract in ("\\\\x3c", "\\\\u2028", "\\\\u2029", "\\\\x%02x"):
+              assert escape_contract in js_output_test or escape_contract in js_output_header
+          assert "httpd_js_escape_next" in js_output_test
+          parameter_callers = {
+              "aidisk.asp", "index.asp", "aidisk/getfolderarray.asp",
+              "aidisk/getsharearray.asp", "Restarting.asp",
+          }
+          actual_parameter_callers = set()
+          for asp_path in ui_root.rglob("*.asp"):
+              if "get_parameter(" in asp_path.read_text():
+                  actual_parameter_callers.add(asp_path.relative_to(ui_root).as_posix())
+          assert actual_parameter_callers == parameter_callers, actual_parameter_callers
+          for caller in parameter_callers:
+              template = (ui_root / caller).read_text()
+              assert re.search(r"'\\s*<%\\s*get_parameter\\(", template), caller
+
           for name in (
               "nvram_dump", "update_variables", "asus_nvram_commit",
               "notify_services", "wan_action", "wol_action",

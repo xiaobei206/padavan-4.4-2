@@ -23,6 +23,7 @@
 enum {
 	HTTPD_DIRECT_EJ_UNKNOWN = 0,
 	HTTPD_DIRECT_EJ_READ_ONLY,
+	HTTPD_DIRECT_EJ_ESCAPED_OUTPUT,
 	HTTPD_DIRECT_EJ_BOUNDED_REFRESH,
 	HTTPD_DIRECT_EJ_SELF_GUARDED,
 	HTTPD_DIRECT_EJ_TRUSTED_MUTATION
@@ -61,7 +62,7 @@ httpd_direct_ej_classify(const char *name)
 		{ "wan_action", HTTPD_DIRECT_EJ_TRUSTED_MUTATION },
 		{ "wol_action", HTTPD_DIRECT_EJ_TRUSTED_MUTATION },
 		{ "nf_values", HTTPD_DIRECT_EJ_READ_ONLY },
-		{ "get_parameter", HTTPD_DIRECT_EJ_READ_ONLY },
+		{ "get_parameter", HTTPD_DIRECT_EJ_ESCAPED_OUTPUT },
 		{ "get_nvram_list", HTTPD_DIRECT_EJ_READ_ONLY },
 		{ "get_flash_time", HTTPD_DIRECT_EJ_READ_ONLY },
 		{ "get_static_client", HTTPD_DIRECT_EJ_READ_ONLY },

@@ -59,6 +59,7 @@
 #include "httpd_script_policy.h"
 #include "httpd_apply_request_policy.h"
 #include "httpd_update_output_policy.h"
+#include "httpd_js_output_policy.h"
 #include "dbapi.h"
 #define GROUP_FLAG_REFRESH 	0
 #define GROUP_FLAG_DELETE 	1
@@ -2251,46 +2252,28 @@ is_valid_js_identifier(const char *name)
 }
 
 static void
-write_js_string(webs_t wp, const char *value)
+write_js_string_contents(webs_t wp, const char *value)
 {
 	const unsigned char *p;
 
-	websWrite(wp, "%s", "'");
-	for (p = (const unsigned char *)(value ? value : ""); *p; ++p) {
-		switch (*p) {
-		case '\'':
-			websWrite(wp, "%s", "\\'");
+	for (p = (const unsigned char *)(value ? value : ""); *p; ) {
+		char escaped[6];
+		size_t consumed = 0;
+		size_t output_len = httpd_js_escape_next(p, escaped, &consumed);
+
+		if (consumed == 0 || output_len == 0)
 			break;
-		case '\\':
-			websWrite(wp, "%s", "\\\\");
-			break;
-		case '<':
-			/* Prevent untrusted text from ending an inline script. */
-			websWrite(wp, "%s", "\\x3c");
-			break;
-		case '\b':
-			websWrite(wp, "%s", "\\b");
-			break;
-		case '\f':
-			websWrite(wp, "%s", "\\f");
-			break;
-		case '\n':
-			websWrite(wp, "%s", "\\n");
-			break;
-		case '\r':
-			websWrite(wp, "%s", "\\r");
-			break;
-		case '\t':
-			websWrite(wp, "%s", "\\t");
-			break;
-		default:
-			if (*p < 0x20 || *p == 0x7f)
-				websWrite(wp, "\\x%02x", (unsigned int)*p);
-			else
-				fputc(*p, wp);
-			break;
-		}
+
+		fwrite(escaped, 1, output_len, wp);
+		p += consumed;
 	}
+}
+
+static void
+write_js_string(webs_t wp, const char *value)
+{
+	websWrite(wp, "%s", "'");
+	write_js_string_contents(wp, value);
 	websWrite(wp, "%s", "'");
 }
 
@@ -3365,14 +3348,15 @@ static int openvpn_cli_cert_hook(int eid, webs_t wp, int argc, char **argv)
 }
 
 static int ej_get_parameter(int eid, webs_t wp, int argc, char **argv) {
-	int ret = 0;
+	char *value;
 
 	if (argc < 1)
 		return -1;
 
-	char *value = websGetVar(wp, argv[0], "");
-	websWrite(wp, "%s", value);
-	return ret;
+	value = websGetVar(wp, argv[0], "");
+	/* Templates supply the surrounding quotes; emit escaped JS contents only. */
+	write_js_string_contents(wp, value);
+	return 0;
 }
 
 static int login_state_hook(int eid, webs_t wp, int argc, char **argv) {

@@ -40,6 +40,9 @@ main(void)
 		"detect_internet",
 		NULL
 	};
+	static const char * const escaped_output_callbacks[] = {
+		NULL
+	};
 	static const char * const read_only_callbacks[] = {
 		"nvram_get_x",
 		"nvram_get_list_x",
@@ -133,6 +136,13 @@ main(void)
 
 	for (name = bounded_refresh_callbacks; *name != NULL; ++name) {
 		assert(httpd_direct_ej_classify(*name) == HTTPD_DIRECT_EJ_BOUNDED_REFRESH);
+		assert(!httpd_direct_ej_requires_trusted_session(*name));
+		assert(httpd_direct_ej_allowed(*name, 0));
+		assert(httpd_direct_ej_allowed(*name, 1));
+	}
+
+	for (name = escaped_output_callbacks; *name != NULL; ++name) {
+		assert(httpd_direct_ej_classify(*name) == HTTPD_DIRECT_EJ_ESCAPED_OUTPUT);
 		assert(!httpd_direct_ej_requires_trusted_session(*name));
 		assert(httpd_direct_ej_allowed(*name, 0));
 		assert(httpd_direct_ej_allowed(*name, 1));
