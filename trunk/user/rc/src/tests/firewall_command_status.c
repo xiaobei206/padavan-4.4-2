@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stddef.h>
 #include <signal.h>
 #include "../firewall_command_status.h"
 
