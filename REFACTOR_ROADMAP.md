@@ -4,9 +4,23 @@
 **Primary branch:** main  
 **Initial baseline before this governance bootstrap:** 412eebb4d0c36f9cbaf43921b4ce1f2056665984
 **Governance bootstrap commit:** 84e2fb77973393dd2804b9feb2d94b2ce74933c4 (verified on main)  
-**Roadmap status:** LATEST: HTTPD CGI method enforcement now also makes the APP_SHADOWSOCKS `applydb.cgi*` state-mutating API POST-only; GET/HEAD are rejected before query/input/output dispatch. Code/test/workflow SHA `bd33ec6eb608f4890fde6e4593d4d29f62ad2b70`; exact-head Actions run [42432570226](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42432570226) SUCCESS; local GNU89 policy regression PASS. This closes the proven GET-to-dbus/helper-script path only. `update.cgi*` remains AUDITING because its `output` parameter dynamically selects EJ callbacks, including potentially mutating handlers; HTTPD route semantics, session/ACL, TLS, and broader shell/filesystem sinks remain incomplete. MIPS/firmware/hardware NOT RUN. Continue HTTPD/CGI and whole-userland rotation; preserve firewall rollback/IPv6, WAN/PPP and storage residuals. Routine SkipDBv2-only work remains paused.
+**Roadmap status:** LATEST: HTTPD `update.cgi*` dynamic EJ dispatch is now POST-only; GET/HEAD are rejected by the existing authentication-ordered method gate. All three in-tree traffic-monitor callers were migrated to POST. Code/test/UI/workflow SHA `c10f839cd6b9a94c85e350e07a31f9fff07ba925`; exact-head Actions run [42433921605](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42433921605) SUCCESS (21 steps); local GNU89 policy regression PASS. This closes the GET-based callback dispatch path only: handler-level authorization, CSRF, session/ACL, SystemCmd/action_script and broader HTTPD sinks remain AUDITING. MIPS/firmware/hardware NOT RUN. Continue whole-userland rotation; preserve firewall rollback/IPv6, WAN/PPP and storage unmount/swap residuals. Routine SkipDBv2-only work remains paused.
 
-## Latest audit checkpoint — 2026-11-08 09:03 CST — Require POST for Shadowsocks database mutations
+## Latest audit checkpoint — 2026-11-08 09:22 CST — Require POST for dynamic update.cgi dispatch
+
+### Finding and implementation
+- **Base main SHA:** `f29db134a56cb129c8b634fe1a9c76d99dd20b6b`; **code/test/UI/workflow SHA:** `c10f839cd6b9a94c85e350e07a31f9fff07ba925`.
+- **P1 finding:** the authenticated `update.cgi*` route dispatches the caller-selected `output` value through the entire `ej_handlers[]` table. The available callbacks include NVRAM update/commit, service notification/reboot, WAN and WOL actions; `nvram_dump` reaches `ej_dump()`/`sys_script()`, and `bandwidth` itself writes temporary NVRAM, removes a result file and signals rstats. An authenticated GET can therefore reach state-changing handlers.
+- **Change:** `update.cgi` is now in the POST-only route policy. The existing authentication gate executes first, then the method gate rejects GET/HEAD with 405 before CGI parsing or callback dispatch. The policy regression covers exact routes, GET/HEAD rejection, POST acceptance and a prefix suffix.
+- **UI audit:** inspected 160 non-vendor ASP/JS/HTM sources and found three callers: daily and last-24-hour traffic history use `bandwidth`; realtime traffic uses `netdev`. All three were changed from GET to POST. The workflow now recursively checks every ASP/JS/HTM/HTML caller in the UI tree, checks callback wiring/sinks, and watches the three changed pages in both push and PR filters.
+- **Changed paths:** HTTPD method policy/header test, the three traffic-monitor ASP pages, and `.github/workflows/httpd-security.yml`.
+- **Validation:** local GNU89 `-Wall -Wextra -Werror` policy test compile/run PASS. Exact-head Actions [42433921605](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42433921605) SUCCESS on `c10f839cd6b9a94c85e350e07a31f9fff07ba925`; all 21 job steps passed. L1 and L2 PASS. Production MIPS/uClibc compile, firmware/TRX, HTTP daemon integration and hardware tests NOT RUN.
+- **Residuals:** POST-only is not CSRF protection and does not constrain the EJ callback selector by operation or privilege. Continue auditing per-handler authorization, request/session identity, SystemCmd/script dispatch, storage EJ mutations, firewall/IPv6, WAN/PPP and storage lifecycle.
+
+### Next bounded task
+- Continue the HTTPD/CGI per-operation authorization and CSRF/session/ACL audit. Trace the remaining `SystemCmd`, `sys_script()`, `action_script` and storage EJ write/remove paths; keep the other userland risks on the governance ledger rather than narrowing the program to SkipDBv2.
+
+## Previous audit checkpoint — 2026-11-08 09:03 CST — Require POST for Shadowsocks database mutations
 
 ### Finding and implementation
 - **Base main SHA:** `fa7c236da26ce0b059671eaae4b32fdd5db41562`; **code/test/workflow SHA:** `bd33ec6eb608f4890fde6e4593d4d29f62ad2b70`. The method guard is in `httpd.c::handle_request()`, after the existing protected-route authentication checks and before `do_uncgi_query()`, route input callbacks and CGI output callbacks.

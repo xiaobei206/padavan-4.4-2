@@ -1,3 +1,15 @@
+## 2026-11-08 09:22 CST — Require POST for dynamic update.cgi dispatch
+
+- **Base main SHA:** `f29db134a56cb129c8b634fe1a9c76d99dd20b6b`; **code/test/UI/workflow commit:** `c10f839cd6b9a94c85e350e07a31f9fff07ba925`.
+- **P1 finding:** the authenticated `update.cgi*` MIME route allowed GET and selected an arbitrary registered EJ callback through the request's `output` field. The registry includes NVRAM writes/commit, service restart/reboot, WAN/WOL actions, and `nvram_dump` can call `sys_script()`. The `bandwidth` handler also mutates temporary NVRAM and shared runtime files and signals rstats.
+- **Implementation:** added `update.cgi` to the existing POST-only method policy. The request path still authenticates first, then denies GET/HEAD before input/query/output dispatch. Expanded the GNU89 policy test to cover the route and suffix matching. Updated the three application UI callsites (daily bandwidth history, last-24-hour bandwidth speed and realtime netdev) from GET to POST.
+- **Workflow:** both push and pull-request path filters now cover all three modified ASP pages. The HTTPD source contract verifies the route is authenticated, the request-controlled dynamic callback dispatch and side-effect examples remain visible, and a recursive scan of UI ASP/JS/HTM/HTML source requires every update.cgi AJAX caller to POST; only the three expected traffic-monitor callers are present.
+- **Changed paths:** `trunk/user/httpd/src/httpd_cgi_method_policy.h`; `trunk/user/httpd/src/tests/httpd_cgi_method_policy.c`; `trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_daily.asp`; `Main_TrafficMonitor_last24.asp`; `Main_TrafficMonitor_realtime.asp`; `.github/workflows/httpd-security.yml`.
+- **Local validation:** `cc -std=gnu89 -Wall -Wextra -Werror` compile and execute of `httpd_cgi_method_policy.c`: PASS.
+- **Remote validation:** exact-head GitHub Actions [42433921605](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42433921605) completed SUCCESS on code/test/workflow SHA `c10f839cd6b9a94c85e350e07a31f9fff07ba925`; all 21 steps completed successfully, including the method regression and route/caller source contracts. L1 source review and L2 host/Actions evidence PASS.
+- **Limits:** POST-only is not a general CSRF defense and leaves per-callback authorization/allowlisting open. Production MIPS/uClibc build, firmware/TRX, live HTTP daemon integration and physical-router validation NOT RUN.
+- **Next:** audit operation-specific HTTPD authorization and CSRF/session/ACL behavior across `SystemCmd`, `sys_script()`, `action_script`, dynamic EJ callbacks and storage mutators; retain firewall rollback/IPv6, WAN/PPP, storage unmount/swap and whole-userland rotation.
+
 ## 2026-11-08 09:03:39 CST — Require POST for Shadowsocks database mutations
 
 - **Base main SHA:** `fa7c236da26ce0b059671eaae4b32fdd5db41562`; **code/test/workflow commit:** `bd33ec6eb608f4890fde6e4593d4d29f62ad2b70`. This resumes the latest HTTPD method-enforcement work and does not merge or expand any SkipDBv2 branch.
