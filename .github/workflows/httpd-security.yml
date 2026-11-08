@@ -1034,8 +1034,8 @@ jobs:
           assert sorted(update_outputs) == ["bandwidth", "bandwidth", "netdev"]
 
           # Fixed sys_script handlers that signal daemons, mutate temporary
-          # NVRAM or enqueue privileged RC actions must require a trusted
-          # management network, even when the web login itself is valid.
+          # NVRAM or enqueue privileged RC actions must require the
+          # existing HTTPD trusted-session predicate, not merely a valid login.
           script_start = web.index("static void\nsys_script(char *name)")
           script_end = web.index("\nstatic ", script_start + 1)
           script_dispatch = web[script_start:script_end]

@@ -60,9 +60,10 @@ httpd_script_name_is_fixed(const char *name)
 
 /*
  * These fixed handlers are not read-only: they signal daemons, alter
- * temporary NVRAM state, or enqueue privileged RC work. A valid login from
- * an untrusted network is not sufficient to invoke them. The remaining
- * fixed handlers preserve their historical compatibility behavior.
+ * temporary NVRAM state, or enqueue privileged RC work. A valid login
+ * that does not satisfy the existing HTTPD trusted-session predicate is
+ * not sufficient to invoke them. Remaining fixed handlers preserve their
+ * historical compatibility behavior.
  */
 static int
 httpd_script_name_requires_trusted_session(const char *name)
