@@ -1158,6 +1158,18 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 		return;
 	}
 
+	/* Direct storage ASP wrappers mutate accounts, shares, services or disks.
+	 * Require the same trusted-session predicate as the EJ callback guard.
+	 */
+	if (httpd_storage_route_requires_trusted_session(file) && !get_login_safe()) {
+		if (method_id == HTTP_METHOD_POST)
+			eat_post_data(conn_fp, clen);
+		send_error(403, "Forbidden", NULL,
+			   "A trusted management session is required for this storage operation.",
+			   conn_fp);
+		return;
+	}
+
 	if (method_id == HTTP_METHOD_POST) {
 		if (handler->input)
 			handler->input(file, conn_fp, clen, boundary);
