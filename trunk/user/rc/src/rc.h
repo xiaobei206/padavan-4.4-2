@@ -692,8 +692,8 @@ void run_aria(void);
 void restart_aria(void);
 #endif
 int count_stor_mountpoint(void);
-void umount_stor_path(struct disk_info_t *disks_info, int port, const char *dev_name, int do_spindown);
-void umount_ejected(void);
+int umount_stor_path(struct disk_info_t *disks_info, int port, const char *dev_name, int do_spindown);
+int umount_ejected(void);
 void start_stor_apps(void);
 void stop_stor_apps(void);
 void on_deferred_hotplug_dev(void);
