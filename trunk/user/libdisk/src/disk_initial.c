@@ -619,7 +619,7 @@ umount_all_storage(void)
 {
 	FILE *fp;
 	char line[512], devname[32], mpname[256];
-	int result, saved_errno;
+	int result;
 
 	result = 0;
 	fp = fopen(PROC_SWAPS_FILE, "r");
@@ -631,11 +631,8 @@ umount_all_storage(void)
 			while (fgets(line, sizeof(line), fp)) {
 				if (sscanf(line, "%255s %*[^\n]", mpname) != 1)
 					continue;
-				if (swapoff(mpname) != 0) {
-					saved_errno = errno;
-					(void)saved_errno;
+				if (swapoff(mpname) != 0)
 					result = -1;
-				}
 			}
 			if (ferror(fp))
 				result = -1;
@@ -653,8 +650,6 @@ umount_all_storage(void)
 			if (strncmp(devname, "/dev/sd", 7) != 0 && strncmp(devname, "/dev/mmcblk", 11) != 0)
 				continue;
 			if (umount(mpname) != 0) {
-				saved_errno = errno;
-				(void)saved_errno;
 				result = -1;
 			} else {
 				(void)rmdir(mpname);
