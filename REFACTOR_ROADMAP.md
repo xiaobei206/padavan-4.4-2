@@ -4,7 +4,16 @@
 **Primary branch:** main  
 **Initial baseline before this governance bootstrap:** 412eebb4d0c36f9cbaf43921b4ce1f2056665984
 **Governance bootstrap commit:** 84e2fb77973393dd2804b9feb2d94b2ce74933c4 (verified on main)  
-**Roadmap status:** PR #3 is merged into main (integration merge `88d0d014579ad6453b1cdc8b10bd53968f5b14ee`). Exact code/test/workflow SHA `9728bd602fc7001bde9b6ee644cdab8874db502c` passed GitHub Actions run `42446015897` with 21/21 steps successful. The bounded Adbyby stale-ipset restore/preflight and failure-regression task is closed; full firewall writer inventory and IPv6 semantic parity remain AUDITING / NOT VERIFIED, and the add-on restore still has no rollback transaction. HTTPD/CGI/auth retains the Origin/Referer-absent compatibility exception. Next: remaining direct/add-on `iptables`/`ip6tables` writers and IPv6 policy parity, then WAN/PPP and storage unmount/swap; routine SkipDBv2-only expansion remains paused.
+**Roadmap status:** PR #3 Adbyby restore guard and PR #4 VPN per-client firewall mutation guard are merged to main. PR #4 integration merge `1cea183b39cc02bfb9bf307970b6bb32746db2ed`; exact code/test/workflow SHA `f7d8598dee5c9c306152b5521ac0c4dae900ecbd` passed Actions run `42446364345` (22/22 steps). Runtime VPN up/down now shares the strict `ppp<N>` validator with lease-based firewall rebuild, rejects malformed tokens before side effects, and logs `_eval()` failures. Full firewall writer inventory and IPv6 semantic parity remain AUDITING; Adbyby add-on restore still lacks extension-level rollback. HTTPD/CGI/auth retains the documented Origin/Referer-absent compatibility exception. Next bounded area: storage unmount/eject/swap lifecycle, then WAN/PPP lifecycle and IPv6 parity; routine SkipDBv2-only expansion remains paused.
+
+## 2026-11-08 12:20 CST — Guard runtime VPN firewall mutations with the shared PPP policy
+
+- **Integration:** PR #4 merged at `1cea183b39cc02bfb9bf307970b6bb32746db2ed`; code/test/workflow head `f7d8598dee5c9c306152b5521ac0c4dae900ecbd`.
+- **Finding:** direct `iptables -A/-D vpnlist -i <ifname> -j ACCEPT` in `vpn_server.c` was not aligned with the strict `ppp<N>` validator used by lease-based firewall rebuild, and ignored `_eval()` failures.
+- **Change:** extract `firewall_ppp_interface_is_safe()` to `firewall_ppp_interface_policy.h`, include it in both the restore-policy header and runtime VPN handler, reject invalid interface tokens before up/down side effects, and log failed per-client firewall rule changes. Extend workflow contracts and trigger filters for the new header.
+- **Validation:** exact-head Actions [run 42446364345](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42446364345) SUCCESS, 22/22 steps. Includes GNU89 compile/run of the shared validator tests and source-contract checks for early guard ordering and status logging. Target MIPS/uClibc, full firmware/TRX, live router and hardware validation NOT RUN.
+- **Scope boundary:** does not complete whole-firewall inventory or IPv6 semantic parity. IPv4 `LWF_LIST` has no corresponding IPv6 rule path; confirm intended product behavior before changing. Adbyby restore remains outside the core rollback transaction.
+- **Next:** rotate to storage lifecycle—unmount/eject/swap and filesystem/automount state consistency—then WAN/PPP lifecycle. Keep remaining firewall/IPv6 questions in the ledger, not marked closed.
 
 ## 2026-11-08 12:16 CST — Complete Adbyby stale-ipset restore guard
 
