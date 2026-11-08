@@ -57,6 +57,7 @@
 #include "nvram_x.h"
 #include "httpd.h"
 #include "httpd_script_policy.h"
+#include "httpd_apply_request_policy.h"
 #include "dbapi.h"
 #define GROUP_FLAG_REFRESH 	0
 #define GROUP_FLAG_DELETE 	1
@@ -1394,12 +1395,21 @@ update_variables_ex(int eid, webs_t wp, int argc, char **argv)
 	char *serviceId;
 	int result;
 
-	restart_needed_bits = 0;
-
-	// assign control variables
+	// assign control variables before applying any values or dispatching scripts.
 	action_mode = websGetVar(wp, "action_mode", "");
 	script = websGetVar(wp, "action_script", "");
 	sid_list = websGetVar(wp, "sid_list", "");
+
+	/* update.cgi can invoke a privileged direct-eval special case as well as
+	 * sys_script(). Apply operation policy before validating or changing any
+	 * service variables, so a denied script cannot piggyback on config edits.
+	 */
+	if (!httpd_apply_request_allowed(action_mode, script, get_login_safe())) {
+		websError(wp, 403, "This action is restricted to trusted management sessions.\\n");
+		return 0;
+	}
+
+	restart_needed_bits = 0;
 
 	while ((serviceId = svc_pop_list(sid_list, ';')) != NULL) {
 		sid = LookupServiceId(serviceId);
@@ -3973,6 +3983,16 @@ apply_cgi(const char *url, webs_t wp)
 	current_url = websGetVar(wp, "current_page", "");
 	next_url = websGetVar(wp, "next_page", "");
 	script = websGetVar(wp, "action_script","");
+
+	/* Guard every high-impact fixed action and every script execution path
+	 * before the callback reaches any filesystem, NVRAM, reboot or eval sink.
+	 */
+	if (!httpd_apply_request_allowed(value, script, get_login_safe())) {
+		if (!strcmp(value, " SystemCmd "))
+			SystemCmd[0] = '\\0';
+		websError(wp, 403, "This action is restricted to trusted management sessions.\\n");
+		return 0;
+	}
 
 	snprintf(next_host, sizeof(next_host), "%s", websGetVar(wp, "next_host", ""));
 
