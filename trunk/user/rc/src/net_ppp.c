@@ -32,6 +32,7 @@
 
 #include "rc.h"
 #include "ppp_options_file.h"
+#include "ppp_option_value_policy.h"
 
 static char *
 get_wan_ppp_peer(int unit)
@@ -210,29 +211,43 @@ start_rpl2tp(int unit)
 char *
 safe_pppd_line(const char *line, char *buf, size_t buf_size)
 {
-	const char special_chars[] = "'\\";
-	char *src, *dst;
-	size_t dst_len;
-
-	if (!buf || buf_size <= strlen(line))
-		return (char *)line;
-
-	dst = buf;
-	dst_len = buf_size;
-	src = (char *)line;
-
-	while (*src != '\0' && dst_len > 2) {
-		if (strchr(special_chars, *src)) {
-			*dst++ = '\\';
-			dst_len--;
-		}
-		*dst++ = *src++;
-		dst_len--;
-	}
-
-	*dst = '\0';
+	if (ppp_option_text_escape(line, buf, buf_size) != 0)
+		return NULL;
 
 	return buf;
+}
+
+static int
+ppp_options_write_quoted(FILE *fp, const char *option, const char *value,
+			 char *buf, size_t buf_size)
+{
+	if (!fp || !option || ppp_option_value_escape(value, buf, buf_size) != 0)
+		return -1;
+
+	if (fprintf(fp, "%s '%s'\n", option, buf) < 0) {
+		if (!errno)
+			errno = EIO;
+		return -1;
+	}
+	return 0;
+}
+
+static int
+ppp_options_write_text(FILE *fp, const char *value, char *buf, size_t buf_size)
+{
+	char *escaped;
+
+	if (!fp)
+		return -1;
+	escaped = safe_pppd_line(value, buf, buf_size);
+	if (!escaped)
+		return -1;
+	if (fprintf(fp, "%s\n", escaped) < 0) {
+		if (!errno)
+			errno = EIO;
+		return -1;
+	}
+	return 0;
 }
 
 int
@@ -240,7 +255,8 @@ launch_wan_pppd(int unit, int wan_proto)
 {
 	FILE *fp;
 	int auth_type, mtu, mru, mtu_max, mru_max, mtu_def, mru_def;
-	int saved_errno;
+	int saved_errno, launch_status;
+	const char *failed_option = "unknown";
 	char options[64], tmp[256];
 	char *svcs[] = { NULL, NULL };
 
@@ -265,8 +281,12 @@ launch_wan_pppd(int unit, int wan_proto)
 
 	/* do not authenticate peer and do not use eap */
 	fprintf(fp, "noauth\n");
-	fprintf(fp, "user '%s'\n", safe_pppd_line(get_wan_unit_value(unit, "pppoe_username"), tmp, sizeof(tmp)));
-	fprintf(fp, "password '%s'\n", safe_pppd_line(get_wan_unit_value(unit, "pppoe_passwd"), tmp, sizeof(tmp)));
+	failed_option = "user";
+	if (ppp_options_write_quoted(fp, "user", get_wan_unit_value(unit, "pppoe_username"), tmp, sizeof(tmp)) != 0)
+		goto invalid_options;
+	failed_option = "password";
+	if (ppp_options_write_quoted(fp, "password", get_wan_unit_value(unit, "pppoe_passwd"), tmp, sizeof(tmp)) != 0)
+		goto invalid_options;
 	fprintf(fp, "refuse-eap\n");
 
 	auth_type = get_wan_unit_value_int(unit, "ppp_auth");
@@ -306,7 +326,9 @@ launch_wan_pppd(int unit, int wan_proto)
 		mru = get_wan_unit_value_int(unit, "pptp_mru");
 		
 		fprintf(fp, "plugin pptp.so\n");
-		fprintf(fp, "pptp_server '%s'\n", get_wan_ppp_peer(unit));
+		failed_option = "pptp_server";
+		if (ppp_options_write_quoted(fp, "pptp_server", get_wan_ppp_peer(unit), tmp, sizeof(tmp)) != 0)
+			goto invalid_options;
 		fprintf(fp, "route_rdgw %d\n", 1);
 	}
 
@@ -333,12 +355,18 @@ launch_wan_pppd(int unit, int wan_proto)
 		fprintf(fp, "nic-%s\n", get_man_ifname(unit));
 		
 		pppoe_ac = get_wan_unit_value(unit, "pppoe_ac");
-		if (*pppoe_ac)
-			fprintf(fp, "rp_pppoe_ac '%s'\n", pppoe_ac);
+		if (*pppoe_ac) {
+			failed_option = "rp_pppoe_ac";
+			if (ppp_options_write_quoted(fp, "rp_pppoe_ac", pppoe_ac, tmp, sizeof(tmp)) != 0)
+				goto invalid_options;
+		}
 		
 		pppoe_sv = get_wan_unit_value(unit, "pppoe_service");
-		if (*pppoe_sv)
-			fprintf(fp, "rp_pppoe_service '%s'\n", pppoe_sv);
+		if (*pppoe_sv) {
+			failed_option = "rp_pppoe_service";
+			if (ppp_options_write_quoted(fp, "rp_pppoe_service", pppoe_sv, tmp, sizeof(tmp)) != 0)
+				goto invalid_options;
+		}
 		
 		demand = get_wan_unit_value_int(unit, "pppoe_idletime");
 		if (demand > 0 && get_wan_unit_value_int(unit, "pppoe_demand") > 0) {
@@ -420,7 +448,9 @@ launch_wan_pppd(int unit, int wan_proto)
 #endif
 
 	/* user specific options */
-	fprintf(fp, "%s\n", safe_pppd_line(get_wan_unit_value(unit, "ppp_pppd"), tmp, sizeof(tmp)));
+	failed_option = "ppp_pppd";
+	if (ppp_options_write_text(fp, get_wan_unit_value(unit, "ppp_pppd"), tmp, sizeof(tmp)) != 0)
+		goto invalid_options;
 
 	if (ppp_options_file_finish(fp, options) != 0) {
 		saved_errno = errno ? errno : EIO;
@@ -429,6 +459,7 @@ launch_wan_pppd(int unit, int wan_proto)
 		return -1;
 	}
 
+	launch_status = 0;
 	if (wan_proto == IPV4_WAN_PROTO_L2TP) {
 #if defined (APP_RPL2TP)
 		if (nvram_match("wan_l2tpd", "1")) {
@@ -437,7 +468,7 @@ launch_wan_pppd(int unit, int wan_proto)
 			
 			nvram_set_int_temp("l2tp_wan_t", 0);
 			
-			start_rpl2tp(unit);
+			launch_status = start_rpl2tp(unit);
 		} else
 #endif
 		{
@@ -446,18 +477,34 @@ launch_wan_pppd(int unit, int wan_proto)
 			
 			nvram_set_int_temp("l2tp_wan_t", 1);
 			
-			safe_start_xl2tpd();
+			launch_status = safe_start_xl2tpd();
 		}
 	} else {
 		if (nvram_match("pppoemwan_enable", "1"))
-			{doSystem("/usr/bin/mwan.sh");}
+			launch_status = doSystem("/usr/bin/mwan.sh");
 		else
-		{eval("/usr/sbin/pppd", "file", options);}
+			launch_status = eval("/usr/sbin/pppd", "file", options);
+	}
+
+	if (launch_status != 0) {
+		saved_errno = errno ? errno : EIO;
+		logmessage(LOGNAME, "WAN PPP launch command failed (status=%d, errno=%d)",
+			   launch_status, saved_errno);
+		errno = saved_errno;
+		return -1;
 	}
 
 	return 0;
-}
 
+invalid_options:
+	saved_errno = errno ? errno : EINVAL;
+	(void)fclose(fp);
+	(void)unlink(options);
+	logmessage(LOGNAME, "refusing unsafe or oversized PPP option %s (errno=%d)",
+		   failed_option, saved_errno);
+	errno = saved_errno;
+	return -1;
+}
 void
 preset_wan_ppp_routes(char *ppp_ifname, int unit)
 {
