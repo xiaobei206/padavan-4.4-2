@@ -1227,11 +1227,17 @@ jobs:
               assert restore_gate < firewall_main.index(hook_call), hook_call
           assert "Skipping extension firewall hooks after built-in table restore failure" in firewall_main[restore_gate:]
           assert "firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction)" in firewall_main
+          assert "firewall_restore_transaction_cleanup_snapshots" in firewall_main
+          assert firewall_main.index("firewall_restore_transaction_cleanup_snapshots") < firewall_main.index("firewall_restore_transaction_reset")
           assert "set_ipv4_forward(0);" in firewall_main
           assert firewall.count('set_interface_conf_int("ipv6", "all", "forwarding", 0);') == 2
           assert "test_apply_failure_reverse_rollback" in transaction_test
           assert "test_snapshot_failure_rolls_back_prior_tables" in transaction_test
           assert "test_rollback_failure_retains_snapshots" in transaction_test
+          assert "test_cleanup_failure_retains_snapshot_for_retry" in transaction_test
+          assert "test_abort_cleanup_failure_is_retryable" in transaction_test
+          assert "cleanup_failed" in transaction_helper
+          assert "typedef int (*firewall_restore_remove_fn)" in transaction_helper
           assert "firewall_restore_transaction_finish" in transaction_test
           print("Firewall table restore transaction, reverse rollback and fail-closed recovery contracts: OK")
           print("Firewall restore and extension command failures are reported: OK")

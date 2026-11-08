@@ -18,13 +18,14 @@ typedef struct {
 	int failed;
 	int rollback_failed;
 	int rollback_attempted;
+	int cleanup_failed;
 	size_t snapshot_count;
 	firewall_restore_snapshot_t snapshots[FIREWALL_RESTORE_TX_MAX_SNAPSHOTS];
 } firewall_restore_transaction_t;
 
 typedef int (*firewall_restore_snapshot_fn)(const char *, const char *, char *, size_t, void *);
 typedef int (*firewall_restore_command_fn)(const char *, const char *, const char *, int, void *);
-typedef void (*firewall_restore_remove_fn)(const char *, void *);
+typedef int (*firewall_restore_remove_fn)(const char *, void *);
 
 static int
 firewall_restore_transaction_family_is_safe(const char *family)
@@ -101,6 +102,39 @@ firewall_restore_transaction_rollback_failed(const firewall_restore_transaction_
  * Roll back every known table in reverse application order. If any rollback
  * fails, retain all original snapshots so the mixed state remains recoverable.
  */
+/*
+ * Remove completed snapshots without forgetting paths that could not be
+ * unlinked. Failed rollback snapshots never enter this cleanup path.
+ */
+static int
+firewall_restore_transaction_cleanup_snapshots(firewall_restore_transaction_t *tx,
+						firewall_restore_remove_fn remove_fn,
+						void *context)
+{
+	size_t i, retained;
+	int failed;
+
+	if (!tx)
+		return -1;
+	if (tx->snapshot_count && !remove_fn) {
+		tx->cleanup_failed = 1;
+		return -1;
+	}
+	retained = 0;
+	failed = 0;
+	for (i = 0; i < tx->snapshot_count; ++i) {
+		if (remove_fn(tx->snapshots[i].path, context) != 0) {
+			if (retained != i)
+				tx->snapshots[retained] = tx->snapshots[i];
+			++retained;
+			failed = 1;
+		}
+	}
+	tx->snapshot_count = retained;
+	tx->cleanup_failed = failed;
+	return failed ? -1 : 0;
+}
+
 static int
 firewall_restore_transaction_abort(firewall_restore_transaction_t *tx,
 				   firewall_restore_command_fn command_fn,
@@ -113,7 +147,8 @@ firewall_restore_transaction_abort(firewall_restore_transaction_t *tx,
 		return -1;
 	tx->failed = 1;
 	if (tx->rollback_attempted)
-		return tx->rollback_failed ? -1 : 0;
+		return tx->rollback_failed ? -1 :
+			firewall_restore_transaction_cleanup_snapshots(tx, remove_fn, context);
 
 	tx->rollback_attempted = 1;
 	if (tx->snapshot_count && (!command_fn || !remove_fn))
@@ -132,10 +167,7 @@ firewall_restore_transaction_abort(firewall_restore_transaction_t *tx,
 	if (tx->rollback_failed)
 		return -1;
 
-	for (i = tx->snapshot_count; i > 0; --i)
-		remove_fn(tx->snapshots[i - 1].path, context);
-	tx->snapshot_count = 0;
-	return 0;
+	return firewall_restore_transaction_cleanup_snapshots(tx, remove_fn, context);
 }
 
 /*
@@ -216,16 +248,8 @@ firewall_restore_transaction_finish(firewall_restore_transaction_t *tx,
 				    firewall_restore_remove_fn remove_fn,
 				    void *context)
 {
-	size_t i;
 	if (!tx || tx->failed)
 		return -1;
-	if (tx->snapshot_count && !remove_fn) {
-		tx->failed = 1;
-		return -1;
-	}
-	for (i = tx->snapshot_count; i > 0; --i)
-		remove_fn(tx->snapshots[i - 1].path, context);
-	tx->snapshot_count = 0;
-	return 0;
+	return firewall_restore_transaction_cleanup_snapshots(tx, remove_fn, context);
 }
 #endif

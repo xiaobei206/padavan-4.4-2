@@ -190,12 +190,14 @@ firewall_restore_core_table(const char *family, const char *table,
 	return firewall_command_status_ok(status) ? 0 : -1;
 }
 
-static void
+static int
 firewall_remove_restore_snapshot(const char *path, void *context)
 {
 	(void)context;
-	if (unlink(path) != 0 && errno != ENOENT)
-		logmessage(LOGNAME, "Cannot remove firewall snapshot %s (errno=%d)", path, errno);
+	if (unlink(path) == 0 || errno == ENOENT)
+		return 0;
+	logmessage(LOGNAME, "Cannot remove firewall snapshot %s (errno=%d)", path, errno);
+	return -1;
 }
 
 static void
@@ -227,8 +229,13 @@ firewall_apply_core_restore(const char *operation, const char *family,
 
 	standalone = !firewall_core_restore_transaction_active;
 	context.operation = operation;
-	if (standalone)
+	if (standalone) {
+		if (firewall_core_restore_transaction.snapshot_count > 0 &&
+		    !firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction))
+			(void)firewall_restore_transaction_cleanup_snapshots(&firewall_core_restore_transaction,
+				firewall_remove_restore_snapshot, NULL);
 		firewall_restore_transaction_reset(&firewall_core_restore_transaction);
+	}
 	result = firewall_restore_transaction_apply(&firewall_core_restore_transaction,
 		family, table, rule_path, firewall_snapshot_core_table,
 		firewall_restore_core_table, firewall_remove_restore_snapshot, &context);
@@ -2547,6 +2554,12 @@ start_firewall_ex(void)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
 	int adbyby_snapshot_exists;
 #endif
+/* Retry snapshot unlinks left by an earlier successful commit or rollback.
+	 * Never remove the recovery set after the rollback itself has failed. */
+	if (firewall_core_restore_transaction.snapshot_count > 0 &&
+	    !firewall_restore_transaction_rollback_failed(&firewall_core_restore_transaction))
+		(void)firewall_restore_transaction_cleanup_snapshots(&firewall_core_restore_transaction,
+			firewall_remove_restore_snapshot, NULL);
 	firewall_restore_transaction_reset(&firewall_core_restore_transaction);
 	firewall_core_restore_transaction_active = 0;
 	unit = 0;

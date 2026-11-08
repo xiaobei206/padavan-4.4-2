@@ -1,3 +1,15 @@
+## Latest resumable checkpoint — Retry failed firewall restore snapshot cleanup
+
+- **Main baseline:** `c49eab3250abe1fd0159ee933609fe862e62e1af`; this round continues the top handoff item after the direct ASP query-output fix.
+- **Finding:** `firewall_restore_transaction_finish()` and successful rollback cleanup called a void remover and always cleared `snapshot_count`. If `unlink()` failed, a 0600 recovery snapshot remained in `/tmp` but the transaction forgot its path and treated cleanup as complete. Repeated firewall rebuilds could accumulate stale tmpfs files.
+- **Implementation:** the remove callback now returns status; cleanup compacts and retains paths that failed to unlink, and tracks `cleanup_failed` separately from apply/rollback failure. Both full rebuild and standalone-table transaction resets retry pending cleanup. Re-entering abort retries cleanup without re-running rollback. A failed rollback still preserves all recovery snapshots.
+- **Regression additions:** GNU89 transaction tests cover failed cleanup after a successful IPv6 filter apply, retry on finish, failed cleanup after a successful IPv6 NAT rollback, and retry on repeated abort while asserting rollback runs exactly once. Workflow contracts require these tests and the pre-reset retry wiring.
+- **IPv6 scope review:** core table restore is family-aware for both `iptables` and `ip6tables`; startup order covers IPv6 mangle/NAT/filter and rollback is reverse application order across families. The IPv4-only `LWF_LIST` was not copied into IPv6 because the current LAN-WAN UI/schema exposes IPv4-only address inputs (15-character fields plus IPv4 validators), with no IPv6 rule data model. Treat this as a product-scope boundary, not a proven missing IPv6 setting.
+- **Validation state:** implementation/test/workflow commit is pushed to `main`; exact commit SHA and GitHub Actions result are pending verification. No MIPS/uClibc target build, firmware/TRX, live firewall restore or router/hardware test is claimed.
+- **Next action:** verify exact-head Actions, then continue the broad firewall writer/ipset/extension audit (Adbyby restore remains outside the core transaction); afterward rotate into storage/mount/swap or network/system-management while preserving WAN/PPP generation fencing and whole-userland scope.
+
+---
+
 ## Latest resumable checkpoint — Escape reflected query values in direct ASP JavaScript
 
 - **Code checkpoint on main:** exact validated source/workflow head is `de5418e7024db61842ec624014bed510e80a57fa`. The implementation was introduced in `b68ecd147bfd7543e802142aa7cc3e7c417bce59`, its policy test correction is `84c325f3563eeca96b326aa6a71f1317d8f17720`, and the final caller-inventory/CI contract is `de5418e7024db61842ec624014bed510e80a57fa`.

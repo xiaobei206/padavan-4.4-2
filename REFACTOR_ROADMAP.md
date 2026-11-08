@@ -1,3 +1,15 @@
+## 2026-11-08 14:08 CST — Make firewall snapshot cleanup failures retryable
+
+- **Module:** Firewall / NAT / QoS (P1 AUDITING), focused on restore snapshot lifecycle across IPv4 and IPv6.
+- **Reliability defect:** the transaction discarded snapshot paths and returned success after unsuccessful `unlink()`. This could leave orphaned 0600 snapshots in router `/tmp` tmpfs after repeated restore/rollback cycles.
+- **Change:** removal is status-bearing; failed paths remain tracked, cleanup failure is separate from firewall rollback failure, and a new transaction retries pending cleanup before resetting state. Repeated abort retries cleanup but does not repeat rollback. Rollback-failure snapshots remain preserved.
+- **Coverage:** GNU89 regression cases cover failed cleanup/retry after IPv6 filter commit and IPv6 NAT rollback. Existing family whitelist, reverse rollback, rollback-failure retention and dual-stack forwarding fail-closed checks remain.
+- **IPv6 intent:** no `LWF_LIST` mirror was added because the current LAN-WAN UI and NVRAM schema are IPv4-only; changing this requires a separate IPv6 policy/data-model design. Core restore continues through `ip6tables-restore` and the family-aware transaction.
+- **CI:** exact-head Actions pending at initial push; final run ID/conclusion will be appended after verification. Target MIPS/uClibc, firmware/TRX and live-router tests remain NOT RUN.
+- **Remaining firewall scope:** Adbyby extension restore remains outside the core transaction; audit partial-apply recovery, ipset lifecycle and other standalone/add-on writers. Keep WAN/PPP, storage/hotplug, HTTPD/auth and system-management in the global risk ledger.
+
+---
+
 ## 2026-11-08 13:55 CST — Escape reflected query values in direct ASP JavaScript
 
 - **Finding:** `get_parameter` returned URL-decoded CGI query values raw into six inline JavaScript string literals. This exposed a reflected script-injection sink in direct ASP pages.

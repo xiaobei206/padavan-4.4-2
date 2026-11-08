@@ -11,6 +11,8 @@ typedef struct {
 	char fail_snapshot_family[16], fail_snapshot_table[16];
 	char fail_apply_family[16], fail_apply_table[16];
 	char fail_rollback_family[16], fail_rollback_table[16];
+	char fail_remove_path[FIREWALL_RESTORE_TX_PATH_SIZE];
+	int remove_attempt_count;
 } test_context_t;
 
 static void
@@ -63,13 +65,19 @@ test_command(const char *family, const char *table, const char *path,
 	return 0;
 }
 
-static void
+static int
 test_remove(const char *path, void *context)
 {
 	test_context_t *t = (test_context_t *)context;
 	assert(firewall_restore_transaction_path_is_safe(path));
+	++t->remove_attempt_count;
+	if (strcmp(t->fail_remove_path, path) == 0) {
+		record_call(t, "remove-fail", "", "", path);
+		return -1;
+	}
 	record_call(t, "remove", "", "", path);
 	++t->remove_count;
+	return 0;
 }
 
 static void
@@ -177,9 +185,52 @@ test_abort_and_invalid_tokens(void)
 	assert(!firewall_restore_transaction_path_is_safe("/var/tmp/filter.rules"));
 }
 
+static void
+test_cleanup_failure_retains_snapshot_for_retry(void)
+{
+	firewall_restore_transaction_t tx;
+	test_context_t t = {0};
+
+	firewall_restore_transaction_reset(&tx);
+	assert(firewall_restore_transaction_apply(&tx, "ip6tables", "filter", "/tmp/ip6-filter.rules",
+		test_snapshot, test_command, test_remove, &t) == 0);
+	strcpy(t.fail_remove_path, "/tmp/snapshot-0");
+	assert(firewall_restore_transaction_finish(&tx, test_remove, &t) == -1);
+	assert(firewall_restore_transaction_ok(&tx));
+	assert(tx.cleanup_failed && tx.snapshot_count == 1);
+	assert(strcmp(tx.snapshots[0].path, "/tmp/snapshot-0") == 0);
+	assert(t.remove_attempt_count == 1 && t.remove_count == 0);
+	t.fail_remove_path[0] = '\0';
+	assert(firewall_restore_transaction_finish(&tx, test_remove, &t) == 0);
+	assert(!tx.cleanup_failed && tx.snapshot_count == 0);
+	assert(t.remove_attempt_count == 2 && t.remove_count == 1);
+}
+
+static void
+test_abort_cleanup_failure_is_retryable(void)
+{
+	firewall_restore_transaction_t tx;
+	test_context_t t = {0};
+
+	firewall_restore_transaction_reset(&tx);
+	assert(firewall_restore_transaction_apply(&tx, "ip6tables", "nat", "/tmp/ip6-nat.rules",
+		test_snapshot, test_command, test_remove, &t) == 0);
+	strcpy(t.fail_remove_path, "/tmp/snapshot-0");
+	assert(firewall_restore_transaction_abort(&tx, test_command, test_remove, &t) == -1);
+	assert(!firewall_restore_transaction_rollback_failed(&tx));
+	assert(tx.cleanup_failed && tx.snapshot_count == 1);
+	assert(t.rollback_count == 1 && t.remove_attempt_count == 1);
+	t.fail_remove_path[0] = '\0';
+	assert(firewall_restore_transaction_abort(&tx, test_command, test_remove, &t) == 0);
+	assert(t.rollback_count == 1 && t.remove_attempt_count == 2 && t.remove_count == 1);
+	assert(!tx.cleanup_failed && tx.snapshot_count == 0);
+}
+
 int
 main(void)
 {
+	test_cleanup_failure_retains_snapshot_for_retry();
+	test_abort_cleanup_failure_is_retryable();
 	test_success();
 	test_apply_failure_reverse_rollback();
 	test_snapshot_failure_rolls_back_prior_tables();
