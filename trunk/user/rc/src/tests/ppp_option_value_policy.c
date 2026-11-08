@@ -51,6 +51,12 @@ main(void)
 	assert(ppp_option_text_escape("bad\rline", out, sizeof(out)) == -1);
 	assert(errno == EINVAL);
 
+	assert(ppp_config_line_value_copy("1234", exact, sizeof(exact)) == 0);
+	assert(strcmp(exact, "1234") == 0);
+	assert(ppp_config_line_value_copy("12345", exact, sizeof(exact)) == -1);
+	assert(errno == EOVERFLOW);
+	assert(exact[0] == '\0');
+
 	assert(ppp_config_line_value_copy("peer.example", out, sizeof(out)) == 0);
 	assert(strcmp(out, "peer.example") == 0);
 	assert(ppp_config_line_value_copy("user name", out, sizeof(out)) == 0);
