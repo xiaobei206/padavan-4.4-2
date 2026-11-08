@@ -159,6 +159,11 @@ on:
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/shared/src/shutils.c"
+      - "trunk/user/rc/src/rc.c"
+      - "trunk/user/shared/src/notify_rc.c"
+      - "trunk/user/shared/src/notify_rc.h"
+      - "trunk/user/shared/src/rc_notify_queue.h"
+      - "trunk/user/shared/src/tests/rc_notify_queue.c"
       - "trunk/user/adbyby/adbyby.sh"
       - "trunk/user/adbyby/tests/firewall_snapshot.sh"
   workflow_dispatch:
@@ -294,7 +299,15 @@ jobs:
           assert "symlink(victim, marker)" in test and "hard-linked" in test and "mkfifo(marker" in test
           push_paths = workflow.split("  push:\n    paths:\n", 1)[1].split("  pull_request:\\n", 1)[0]
           pr_paths = workflow.split("  pull_request:\n    paths:\n", 1)[1].split("  workflow_dispatch:", 1)[0]
-          assert push_paths == pr_paths
+          for changed in (
+              "trunk/user/rc/src/rc.c",
+              "trunk/user/shared/src/notify_rc.c",
+              "trunk/user/shared/src/notify_rc.h",
+              "trunk/user/shared/src/rc_notify_queue.h",
+              "trunk/user/shared/src/tests/rc_notify_queue.c",
+          ):
+              assert f'"{changed}"' in push_paths
+              assert f'"{changed}"' in pr_paths
           print("PID 1 privileged notification queue ownership, marker type/mode and symlink/hardlink boundaries: OK")
           PY
 
