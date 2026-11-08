@@ -1460,6 +1460,24 @@ jobs:
           ej_table_start = web.index("struct ej_handler ej_handlers[]")
           ej_table_end = web.index("\n};", ej_table_start)
           ej_table = web[ej_table_start:ej_table_end]
+          registered_policy_start = direct_ej_policy.index("registered_callbacks[]")
+          registered_policy_end = direct_ej_policy.index("\n\t};", registered_policy_start)
+          policy_registered_callbacks = set(re.findall(
+              r'"([A-Za-z0-9_]+)"',
+              direct_ej_policy[registered_policy_start:registered_policy_end],
+          ))
+          source_registered_callbacks = set(re.findall(
+              r'\{\s*"([^"]+)"\s*,\s*[A-Za-z_][A-Za-z0-9_]*\s*\}',
+              ej_table,
+          ))
+          assert policy_registered_callbacks == source_registered_callbacks, (
+              "every EJ handler registration must be classified in the direct ASP policy; "
+              f"missing={source_registered_callbacks - policy_registered_callbacks}, "
+              f"stale={policy_registered_callbacks - source_registered_callbacks}"
+          )
+          assert len(source_registered_callbacks) == 88, (
+              f"review the EJ registry inventory when its size changes: {len(source_registered_callbacks)}"
+          )
           for name in (
               "nvram_dump", "update_variables", "asus_nvram_commit",
               "notify_services", "wan_action", "wol_action",
@@ -1497,6 +1515,32 @@ jobs:
           assert "A trusted management session is required." in asp_call
           assert '#include "httpd_direct_ej_policy.h"' in ej_dispatch
           assert "httpd_storage_ej_allowed(name, 0)" in direct_ej_policy
+          assert "if (!httpd_direct_ej_registered(name))" in direct_ej_policy
+          assert "return 0;" in direct_ej_policy
+
+          # Enumerate every direct-template EJ expression, including nested
+          # aidisk templates. Each callback must resolve to the registered,
+          # explicitly classified web_ex.c handler table.
+          asp_template_files = list(ui_root.rglob("*.asp"))
+          direct_template_callbacks = set()
+          for asp_path in asp_template_files:
+              source = asp_path.read_text()
+              for template_block in re.findall(r"<%([\\s\\S]*?)%>", source):
+                  direct_template_callbacks.update(
+                      re.findall(r"\\b([A-Za-z_][A-Za-z0-9_]*)\\s*\\(", template_block)
+                  )
+          assert len(asp_template_files) >= 120, (
+              f"direct ASP inventory unexpectedly shrank: {len(asp_template_files)}"
+          )
+          assert direct_template_callbacks <= source_registered_callbacks, (
+              "ASP template references an unregistered EJ callback: "
+              f"{direct_template_callbacks - source_registered_callbacks}"
+          )
+          print(
+              f"HTTPD direct ASP EJ registry: {len(source_registered_callbacks)} callbacks, "
+              f"{len(asp_template_files)} templates, "
+              f"{len(direct_template_callbacks)} referenced names: OK"
+          )
 
           storage_mutators = {
               "set_AiDisk_status", "safely_remove_disk", "set_account_permission",
