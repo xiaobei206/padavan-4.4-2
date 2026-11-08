@@ -77,6 +77,10 @@ on:
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/shared/src/shutils.c"
+      - "trunk/user/shared/src/notify_rc.c"
+      - "trunk/user/shared/src/notify_rc.h"
+      - "trunk/user/shared/src/rc_notify_queue.h"
+      - "trunk/user/shared/src/tests/rc_notify_queue.c"
       - "trunk/user/adbyby/adbyby.sh"
       - "trunk/user/adbyby/tests/firewall_snapshot.sh"
   pull_request:
@@ -253,6 +257,46 @@ jobs:
           set -eu
           sh -n trunk/user/scripts/files/sbin/mtd_storage.sh
           sh -n trunk/user/scripts/files/sbin/dev_init.sh
+
+      - name: Verify privileged RC notification queue isolation
+        run: |
+          set -eu
+          sh -n trunk/user/scripts/files/sbin/dev_init.sh
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/shared/src \
+            trunk/user/shared/src/tests/rc_notify_queue.c \
+            -o /tmp/rc_notify_queue
+          /tmp/rc_notify_queue
+          python3 - <<'PY'
+          from pathlib import Path
+
+          init = Path("trunk/user/scripts/files/sbin/dev_init.sh").read_text()
+          notify = Path("trunk/user/shared/src/notify_rc.c").read_text()
+          consumer = Path("trunk/user/rc/src/rc.c").read_text()
+          helper = Path("trunk/user/shared/src/rc_notify_queue.h").read_text()
+          test = Path("trunk/user/shared/src/tests/rc_notify_queue.c").read_text()
+          workflow = Path(".github/workflows/httpd-security.yml").read_text()
+
+          create_queue = init.index("mkdir -p -m 700 /tmp/rc_notification")
+          chmod_queue = init.index("chmod 700 /tmp/rc_notification /tmp/rc_action_incomplete")
+          enumerate_devices = init.index("mdev -s")
+          assert init.index("chmod 1777 /tmp") < create_queue < chmod_queue < enumerate_devices
+          assert "mkdir -p -m 777 /tmp/rc_notification" not in init
+          assert "mkdir -p -m 777 /tmp/rc_action_incomplete" not in init
+          assert "rc_notify_queue_open_dir(DIR_RC_NOTIFY, 0)" in notify
+          assert "rc_notify_queue_open_dir(DIR_RC_INCOMPLETE, 0)" in notify
+          assert notify.index("rc_notify_queue_touch_at(incomplete_dir_fd") < notify.index("rc_notify_queue_touch_at(notify_dir_fd") < notify.index("kill(1, SIGUSR1)")
+          assert "O_EXCL | O_NOFOLLOW" in helper and "openat(" in helper
+          assert "st.st_nlink != 1" in helper and "(st.st_mode & 0777) != 0600" in helper
+          assert "fdopendir(notify_dir_fd)" in consumer
+          assert "rc_notify_queue_marker_is_safe_at(queue_fd, entry->d_name, 0)" in consumer
+          assert "unlinkat(queue_fd, entry->d_name, 0)" in consumer
+          assert "symlink(victim, marker)" in test and "hard-linked" in test and "mkfifo(marker" in test
+          push_paths = workflow.split("  push:\\n    paths:\\n", 1)[1].split("  pull_request:\\n", 1)[0]
+          pr_paths = workflow.split("  pull_request:\\n    paths:\\n", 1)[1].split("  workflow_dispatch:", 1)[0]
+          assert push_paths == pr_paths
+          print("PID 1 privileged notification queue ownership, marker type/mode and symlink/hardlink boundaries: OK")
+          PY
 
       - name: Verify DNSMasq generated file trust boundaries
         run: |
