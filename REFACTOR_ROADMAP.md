@@ -1,3 +1,15 @@
+## 2026-11-08 14:20 CST — Gate firewall transaction reset on recovery completion
+
+- **Module / priority:** Firewall, NAT and QoS; P1 reliability and recovery-state integrity; still AUDITING.
+- **Base:** prior snapshot-cleanup retry implementation `47d68c69d5a2e9b1ba5a89a55664bb50410f218c` (its exact-head Actions run 42453352075 was SUCCESS). Follow-up source/test/workflow integration on main: `98f8e6d0af89a898e371f403ce087cbfeb6e7753`.
+- **Residual defect found:** both firewall transaction entry paths attempted pending snapshot cleanup and then reset transaction state unconditionally. A repeated `unlink()` failure therefore still lost the tracked path. If `rollback_failed` was set, cleanup was intentionally skipped, but reset still discarded all references to the recovery snapshots.
+- **Change:** centralized reset admission in `firewall_restore_transaction_prepare_reset()`: refuse when rollback is incomplete; retry cleanup when snapshots remain; reset only after every tracked snapshot is removed. Both standalone table restore and full firewall rebuild now fail closed with `EBUSY` and a log message while prior recovery state is unresolved. The incomplete rollback snapshots remain preserved/logged.
+- **Regression:** added `test_prepare_reset_refuses_cleanup_failure_then_retries` and `test_prepare_reset_preserves_failed_rollback_recovery_set`; preserved existing IPv6 filter/NAT cleanup retry, reverse rollback and snapshot retention tests. Workflow source contracts now check reset gating in both production entry paths and the two new regression cases.
+- **Validation:** focused local GNU89 `-Wall -Wextra -Werror` harness for the new reset-gate state transitions PASS. Full repository unit-test executable and Actions run for `98f8e6d...` are NOT YET VERIFIED; the previously verified run 42453352075 applies only to base `47d68c69...`. No target MIPS/uClibc compile, firmware/TRX, router or hardware test.
+- **Next firewall work:** audit Adbyby persistent snapshot restore, `blockip` ipset creation/removal ordering and partial extension-restore failure; then inventory remaining standalone `iptables`/`ip6tables` writers. Keep storage/hotplug, network services, WAN/PPP, HTTPD/authentication, upload/restore and system-management in the global P1/P2 ledger.
+
+---
+
 ## 2026-11-08 14:08 CST — Make firewall snapshot cleanup failures retryable
 
 - **Module:** Firewall / NAT / QoS (P1 AUDITING), focused on restore snapshot lifecycle across IPv4 and IPv6.
