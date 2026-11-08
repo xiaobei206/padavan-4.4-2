@@ -1,3 +1,13 @@
+## 2026-11-08 12:28 CST — Storage safe-eject failure propagation merged; exact-head Actions PASS
+
+- **Integration:** PR #5, “fix(storage): prevent spindown after failed swapoff or unmount,” merged into main at 9d638965de658e4d2c40d26db2296f7c69e1c26d. The newest code/test/workflow SHA before merge was dd178c82ba05b916446d755193f0079fe76cad6c.
+- **Exact-head validation:** GitHub Actions run 42446872182 completed SUCCESS with all 23 job steps successful. This covered the new source contract for failed ejected-device inventory, propagation of swapoff/unmount errors, cleanup ordering, spindown gating, caller orchestration and path filters.
+- **Finding:** services_stor.c previously ignored umount() and swapoff() failures on the safe-eject path, proceeded with rmdir() regardless of umount status, and requested disk spindown regardless of whether active swap/mounts had been released. libdisk global cleanup also ignored its failures.
+- **Changes:** services_stor.c functions umount_ejected(), umount_dev() and umount_stor_path() now return failure state; disk_initial.c umount_all_storage() returns failure state through the updated public header. Mountpoint directory removal only follows successful umount. Per-disk swapoff/unmount failure blocks spindown. The device-name filter is conservative when disk identity is missing, port-range traversal is preserved, and NFSD teardown is gated on a successful cleanup status.
+- **Changed paths:** .github/workflows/httpd-security.yml; trunk/user/rc/src/services_stor.c; trunk/user/rc/src/rc.h; trunk/user/libdisk/src/disk_initial.c; trunk/user/libdisk/src/disk_initial.h.
+- **Validation boundary:** L1 review and L2 exact-head source-contract CI PASS. No MIPS/uClibc target build, firmware/TRX image, artifact inspection, live kernel mount/swap simulation, live router testing or hardware validation.
+- **Residual / next:** count_stor_mountpoint() legacy semantics remain unchanged (it returns zero when proc mounts cannot be opened, and existing callers use nonzero as a boolean), while safe-eject now combines explicit swap/unmount/ejected status before considering the operation successful. Other service-restart callers and real mount topology races still need review. Next area: WAN/PPP lifecycle, reconnect/watchdog and generated PPP configuration. The IPv4 LWF_LIST vs IPv6 filter parity question remains open; Adbyby extension rollback remains outside the core firewall transaction.
+
 ## 2026-11-08 12:20 CST — VPN runtime firewall interface guard merged; exact-head Actions PASS
 
 - **Integration:** PR #4 `fix(vpn): validate PPP interface firewall mutations` merged into main at `1cea183b39cc02bfb9bf307970b6bb32746db2ed`. This entry and the handoff/roadmap are governance-only commits.
