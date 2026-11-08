@@ -35,7 +35,9 @@
 #include "firewall_command_status.h"
 #include "firewall_restore_transaction.h"
 #include "firewall_hook_file.h"
+#if defined (APP_ADBYBY)
 #include "firewall_adbyby_restore_policy.h"
+#endif
 
 static firewall_restore_transaction_t firewall_core_restore_transaction;
 static int firewall_core_restore_transaction_active;
