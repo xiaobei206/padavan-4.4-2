@@ -14,6 +14,7 @@ main(void)
 	static const char * const post_only_routes[] = {
 		"apply.cgi",
 		"applydb.cgi",
+		"update.cgi",
 		"upgrade.cgi",
 		"restore_nv.cgi",
 		"restore_st.cgi",
@@ -37,6 +38,9 @@ main(void)
 	assert(!httpd_cgi_method_allowed("apply.cgi.extra",
 					 TEST_HTTP_METHOD_GET,
 					 TEST_HTTP_METHOD_POST));
+	assert(!httpd_cgi_method_allowed("update.cgi.extra",
+					 TEST_HTTP_METHOD_GET,
+					 TEST_HTTP_METHOD_POST));
 
 	/* applydb.cgi accepts GET-shaped legacy input but mutates persisted
 	 * database state and invokes helper scripts, so it must be POST-only.
@@ -54,10 +58,6 @@ main(void)
 					 TEST_HTTP_METHOD_GET,
 					 TEST_HTTP_METHOD_POST));
 
-	/* update.cgi remains outside the narrow list pending its dynamic EJ audit. */
-	assert(httpd_cgi_method_allowed("update.cgi",
-					TEST_HTTP_METHOD_GET,
-					TEST_HTTP_METHOD_POST));
 	assert(httpd_cgi_method_allowed("system_status_data.asp",
 					TEST_HTTP_METHOD_GET,
 					TEST_HTTP_METHOD_POST));

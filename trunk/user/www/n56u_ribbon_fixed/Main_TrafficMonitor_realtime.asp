@@ -302,7 +302,7 @@ function prepare_array_chart(){
 function load_netdevs(){
 	clearTimeout(idTimerPoll);
 	$j.ajax({
-		type: "get",
+		type: "post",
 		url: "/update.cgi",
 		data: {
 			output: "netdev"

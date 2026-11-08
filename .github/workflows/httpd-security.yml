@@ -8,6 +8,9 @@ on:
       - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
       - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
       - "trunk/user/www/n56u_ribbon_fixed/Shadowsocks.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_daily.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_last24.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_realtime.asp"
       - "trunk/user/httpd/src/upload.c"
       - "trunk/user/httpd/src/httpd_upload_file.h"
       - "trunk/user/httpd/src/tests/httpd_upload_file.c"
@@ -97,6 +100,9 @@ on:
       - "trunk/user/httpd/src/httpd.c"
       - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
       - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
+      - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_daily.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_last24.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_realtime.asp"
       - "trunk/user/httpd/src/upload.c"
       - "trunk/user/httpd/src/httpd_upload_file.h"
       - "trunk/user/httpd/src/tests/httpd_upload_file.c"
@@ -877,6 +883,7 @@ jobs:
           method_policy = (root / "httpd_cgi_method_policy.h").read_text()
           method_policy_test = (root / "tests/httpd_cgi_method_policy.c").read_text()
           service_id_test = (root / "tests/httpd_service_id.c").read_text()
+          ui_root = Path("trunk/user/www/n56u_ribbon_fixed")
           upload = (root / "upload.c").read_text()
           archive_root = Path("trunk/user/busybox/busybox-1.24.x/archival/libarchive")
           data_extract = (archive_root / "data_extract_all.c").read_text()
@@ -939,7 +946,7 @@ jobs:
           assert "apply.cgi" in method_policy and "applydb.cgi" in method_policy
           assert "upgrade.cgi" in method_policy
           assert "restore_nv.cgi" in method_policy and "restore_st.cgi" in method_policy
-          assert "update.cgi" not in method_policy
+          assert "update.cgi" in method_policy
 
           # applydb.cgi is not read-only: GET query data reaches the persistent
           # dbus write/removal and helper-script dispatch code.
@@ -964,6 +971,67 @@ jobs:
               assert re.search(r"type\s*:\s*['\"]post['\"]", call_text, re.IGNORECASE)
           assert "TEST_HTTP_METHOD_HEAD" in method_policy_test
           assert "applydb.cgi" in method_policy_test and "update.cgi" in method_policy_test
+
+          # update.cgi is authenticated but its output parameter chooses any
+          # registered EJ callback. Several callbacks mutate settings/services;
+          # nvram_dump can also dispatch scripts, so this route is not GET-safe.
+          update_routes = [
+              line for line in web.splitlines()
+              if '"update.cgi*"' in line and "do_update_cgi" in line
+          ]
+          assert len(update_routes) == 1
+          assert update_routes[0].rstrip().endswith("do_update_cgi, 1 },")
+          dispatch_start = web.index("static void\ndo_update_cgi(")
+          dispatch_end = web.index("\nstatic void\ndo_apply_cgi", dispatch_start)
+          dispatcher = web[dispatch_start:dispatch_end]
+          assert 'pattern = get_cgi("output")' in dispatcher
+          assert "handler->output(0, stream, argc, argv)" in dispatcher
+
+          ej_table_start = web.index("struct ej_handler ej_handlers[]")
+          ej_table_end = web.index("\n};", ej_table_start)
+          ej_table = web[ej_table_start:ej_table_end]
+          for name in (
+              "nvram_dump", "update_variables", "asus_nvram_commit",
+              "notify_services", "wan_action", "wol_action",
+          ):
+              assert f'"{name}"' in ej_table
+          dump_start = web.index("static int\nej_dump(")
+          dump_end = web.index("\nstatic void\nvalidate_cgi", dump_start)
+          assert "sys_script(script)" in web[dump_start:dump_end]
+          bandwidth_start = web.index("static int\nej_bandwidth(")
+          bandwidth_end = web.index("\nstatic int\nej_backup_nvram", bandwidth_start)
+          bandwidth = web[bandwidth_start:bandwidth_end]
+          assert "nvram_set_temp" in bandwidth and "unlink(fname)" in bandwidth
+          assert "kill_pidfile_s" in bandwidth
+
+          # All application-owned update.cgi requests must use POST. Keep the
+          # complete caller inventory in CI so a new GET caller cannot silently
+          # re-open the privileged dynamic callback endpoint.
+          update_call_sites = []
+          update_outputs = []
+          for ui_path in ui_root.rglob("*"):
+              if not ui_path.is_file() or ui_path.suffix.lower() not in {
+                  ".asp", ".js", ".htm", ".html"
+              }:
+                  continue
+              source = ui_path.read_text()
+              for match in re.finditer(r"""url\s*:\s*["']/update\.cgi["']""", source, re.IGNORECASE):
+                  ajax_start = source.rfind(".ajax({", 0, match.start())
+                  ajax_end = source.find("});", match.end())
+                  assert ajax_start >= 0 and ajax_end > match.start(), ui_path
+                  call = source[ajax_start:ajax_end]
+                  method = re.search(r"""type\s*:\s*["'](get|post)["']""", call, re.IGNORECASE)
+                  assert method and method.group(1).lower() == "post", ui_path
+                  outputs = re.findall(r"""output\s*:\s*["']([^"']+)["']""", call)
+                  assert len(outputs) == 1 and outputs[0] in {"bandwidth", "netdev"}, ui_path
+                  update_call_sites.append(ui_path.relative_to(ui_root).as_posix())
+                  update_outputs.extend(outputs)
+          assert sorted(update_call_sites) == [
+              "Main_TrafficMonitor_daily.asp",
+              "Main_TrafficMonitor_last24.asp",
+              "Main_TrafficMonitor_realtime.asp",
+          ]
+          assert sorted(update_outputs) == ["bandwidth", "bandwidth", "netdev"]
 
           # Preserve the existing HTTPS allowance for unrelated remote-admin
           # operations; the private-key policy is intentionally narrower.

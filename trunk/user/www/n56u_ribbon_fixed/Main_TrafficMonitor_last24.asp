@@ -188,7 +188,7 @@ function eval_netdevs(response){
 function load_netdevs(){
 	clearTimeout(idTimerPoll);
 	$j.ajax({
-		type: "get",
+		type: "post",
 		url: "/update.cgi",
 		data: {
 			output: "bandwidth",

@@ -199,7 +199,7 @@ function eval_history(response){
 function load_history(){
 	clearTimeout(idTimerPoll);
 	$j.ajax({
-		type: "get",
+		type: "post",
 		url: "/update.cgi",
 		data: {
 			output: "bandwidth",
