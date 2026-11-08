@@ -1,3 +1,13 @@
+## Development direction update — 2026-11-08
+
+- Primary direction: find and fix stability bugs across the whole integrated Padavan user space. Continue security review in parallel; critical security vulnerabilities, data corruption, boot blockers and severe system failures are immediate priorities.
+- Preserve the existing handoff process and all historical checkpoints. Do not rewrite the handoff architecture or discard the active task below.
+- **Resume first:** complete the active Adbyby multi-table restore/rollback task recorded in the latest checkpoint below, including a regression for partial table application and rollback/recovery failure. Do not treat the earlier snapshot-cleanup tests as verification of this separate issue.
+- After that task is closed, rotate to the next highest-value stability defect in the whole-userland ledger. Candidate areas include WAN/PPP callback-generation fencing, storage/mount/swap/hotplug, service lifecycle, DHCP/DNS/routing, configuration persistence and boot/system management; do not stay indefinitely in firewall or HTTPD.
+- Routine validation: source analysis, static checks, focused host tests and exact-head Actions. Full MIPS firmware/image build and physical XY-C1 testing are consolidated toward the later project stage, unless a particular finding requires earlier target validation. Clearly label unverified target and hardware behavior.
+
+---
+
 ## Latest resumable checkpoint — Block firewall reset while recovery state remains
 
 - **Base code checkpoint:** `47d68c69d5a2e9b1ba5a89a55664bb50410f218c` (snapshot cleanup retry implementation; exact-head Actions run `42453352075` was SUCCESS on that SHA). The follow-up reset-gate helper, tests, production wiring and workflow contract landed in `2ba59280...`, `d85bd280...`, `3a329e93...` and `98f8e6d0...`; a final comment-only alignment is `cceb1c757b0354bc5541be903d4353244d2a15e3`. Current main may advance with the documentation updates below.
