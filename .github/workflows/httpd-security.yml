@@ -112,6 +112,8 @@ on:
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/rc/src/firewall_restore_transaction.h"
+      - "trunk/user/rc/src/firewall_adbyby_restore_policy.h"
+      - "trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c"
       - "trunk/user/rc/src/tests/firewall_restore_transaction.c"
       - "trunk/user/shared/src/shutils.c"
       - "trunk/user/rc/src/rc.c"
@@ -233,6 +235,8 @@ on:
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/rc/src/firewall_restore_transaction.h"
+      - "trunk/user/rc/src/firewall_adbyby_restore_policy.h"
+      - "trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c"
       - "trunk/user/rc/src/tests/firewall_restore_transaction.c"
       - "trunk/user/shared/src/shutils.c"
       - "trunk/user/rc/src/rc.c"
@@ -819,6 +823,8 @@ jobs:
           helper_test = Path("trunk/user/rc/src/tests/firewall_hook_file.c").read_text()
           adbyby = Path("trunk/user/adbyby/adbyby.sh").read_text()
           dev_init = Path("trunk/user/scripts/files/sbin/dev_init.sh").read_text()
+          adbyby_policy = Path("trunk/user/rc/src/firewall_adbyby_restore_policy.h").read_text()
+          adbyby_policy_test = Path("trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c").read_text()
           dispatch = firewall[firewall.index("start_firewall_ex(void)"):]
           assert '#include "firewall_hook_file.h"' in firewall
           assert "O_NOFOLLOW" in helper and "st_uid != geteuid()" in helper
@@ -843,6 +849,16 @@ jobs:
           assert '"/tmp/shadowsocks_iptables.save"' in dispatch
           assert '"/home/root/.adbyby.save"' in dispatch
           assert '"/tmp/adbyby.save"' not in dispatch
+          assert '#include "firewall_adbyby_restore_policy.h"' in firewall
+          assert "firewall_adbyby_restore_is_allowed" in adbyby_policy
+          adbyby_restore_start = dispatch.index("adbyby_snapshot_exists = check_if_file_exist(adbyby_iptables);")
+          adbyby_restore_end = dispatch.index("#endif", adbyby_restore_start)
+          adbyby_restore = dispatch[adbyby_restore_start:adbyby_restore_end]
+          assert adbyby_restore.index('doSystem("ipset list blockip >/dev/null 2>&1")') < adbyby_restore.index('doSystem("iptables-restore -n %s", adbyby_iptables)')
+          assert "firewall_adbyby_restore_is_allowed(adbyby_snapshot_exists" in adbyby_restore
+          assert 'firewall_log_command_failure("Adbyby blockip ipset preflight", adbyby_blockip_status)' in adbyby_restore
+          assert "Skipping Adbyby firewall restore: required blockip ipset is unavailable" in adbyby_restore
+          assert "firewall_adbyby_restore_is_allowed(1, 0)" in adbyby_policy_test
           assert "symlink(src,linkp)" in helper_test
           assert "S_IWGRP | S_IWOTH" in helper
           assert "save_adbyby_rule_snapshot" in adbyby
@@ -862,6 +878,14 @@ jobs:
               "if ! ipset -! restore < \"$blockip_file\" 2>/dev/null; then",
           ):
               assert guarded in ip_rule, guarded
+          remove_snapshot_start = adbyby.index("adbyby_remove_rule_snapshot()" + chr(10) + "(")
+          remove_snapshot_end = adbyby.index(chr(10) + "adbyby_abort_rule_setup()", remove_snapshot_start)
+          remove_snapshot = adbyby[remove_snapshot_start:remove_snapshot_end]
+          assert 'final_file' not in remove_snapshot or 'rm -f "$save_dir/.adbyby.save"' in remove_snapshot
+          del_rule_start = adbyby.index("del_rule()" + chr(10) + "{")
+          del_rule_end = adbyby.index(chr(10) + "reload_rule()", del_rule_start)
+          del_rule = adbyby[del_rule_start:del_rule_end]
+          assert del_rule.index("adbyby_remove_rule_snapshot") < del_rule.index("ipset -X blockip")
           add_rule_start = adbyby.index("add_rule()" + chr(10) + "{")
           add_rule_end = adbyby.index(chr(10) + "del_rule()", add_rule_start)
           add_rule = adbyby[add_rule_start:add_rule_end]
@@ -879,6 +903,11 @@ jobs:
           set -eu
           sh -n trunk/user/adbyby/adbyby.sh
           sh trunk/user/adbyby/tests/firewall_snapshot.sh
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -Itrunk/user/rc/src \
+            trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c \
+            -o /tmp/firewall_adbyby_restore_policy
+          /tmp/firewall_adbyby_restore_policy
 
       - name: Check firewall command status reporting
         run: |
