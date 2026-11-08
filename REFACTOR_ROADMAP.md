@@ -1,6 +1,7 @@
 ## 2026-11-08 13:55 CST — Escape reflected query values in direct ASP JavaScript
 
 - **Finding:** `get_parameter` returned URL-decoded CGI query values raw into six inline JavaScript string literals. This exposed a reflected script-injection sink in direct ASP pages.
+- **Remote checkpoint:** the old `security/storage-ej-authorization-20261108` branch is divergent and stale; its storage policy/header and unit-test blobs are already identical to main, and there is no open PR to resume from it.
 - **Fix:** introduced `httpd_js_output_policy.h`, routed `ej_get_parameter()` through the JS string-content encoder, and reused it in the existing full-string writer. Encoding covers apostrophe, backslash, `<`/script termination, controls, and U+2028/U+2029.
 - **Policy:** the full 88-entry EJ table now assigns `get_parameter` the explicit ESCAPED_OUTPUT class. Category distribution: 62 READ_ONLY, 1 ESCAPED_OUTPUT, 3 BOUNDED_REFRESH, 2 SELF_GUARDED, 20 TRUSTED_MUTATION. Unknown callback names still fail closed.
 - **Regression:** unit tests cover attacker-shaped `'\\</script>` input, control bytes, Unicode separators and ordinary UTF-8. CI enumerates the six exact ASP caller paths and checks quoted JS-string use. Exact-head Actions [run 42452014769](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42452014769) passed on `de5418e7024db61842ec624014bed510e80a57fa`.
