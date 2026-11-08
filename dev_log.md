@@ -1,3 +1,16 @@
+## 2026-11-08 14:44 CST — Roll back partial Adbyby multi-table firewall restores
+
+- **Base / implementation:** main base `3e11346dface4f8b65ddf50cfcc2ff313ceedc2f`; code commit `c9de00d89e44068c53b687bb66fe5c269f3863d1` (`fix(firewall): roll back partial Adbyby table restores`).
+- **P1 stability finding:** Adbyby's one saved `iptables-restore -n` input spans IPv4 filter and NAT. A later-table failure can follow an earlier table commit; the previous helper only reported failure and did not restore the pre-extension state.
+- **Implementation:** add an Adbyby-specific bounded transaction. Take private complete `iptables-save -t filter` and `iptables-save -t nat` snapshots before the extension restore. On failure, restore full tables in reverse order (NAT then filter), without `--noflush`. If a rollback fails, retain both snapshots, log their paths, disable IPv4 forwarding and abort remaining extension hooks. Failed snapshot cleanup remains tracked and is retried before another extension restore. Missing `blockip` remains a preflight no-op.
+- **Files:** `trunk/user/rc/src/firewall_adbyby_restore_policy.h`, `trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c`, `trunk/user/rc/src/firewall_ex.c`, `.github/workflows/httpd-security.yml`.
+- **Host regression:** added tests for snapshot stage failure and cleanup, partial extension restore with reverse multi-table rollback, rollback failure retaining both snapshots and blocking a second restore, cleanup retry before next apply, missing snapshot/ipset and success.
+- **Exact-head CI:** [Actions run 42455968821](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42455968821) completed **SUCCESS** on code SHA `c9de00d89e44068c53b687bb66fe5c269f3863d1`; workflow's GNU89 `-Wall -Wextra -Werror` compile/run and all other host/static checks passed. No local clone/standalone host execution was performed in this environment; the recorded test execution is the exact-head GitHub Actions job.
+- **Validation limits:** source/CI L1 and host-regression L2 only. No MIPS/uClibc production compile, firmware/TRX, router runtime or hardware validation. Concurrent external iptables writers are not serialized across snapshot/apply/rollback and may be overwritten by rollback; this remains a firewall residual.
+- **Next task:** WAN/PPP callback-generation fencing. Trace `stop_wan_ppp()` / `stop_wan()` service termination order against `ipup_main()`, `ipdown_main()`, IPv6 callback handlers, pppd's script producer and all start/stop callers. Determine whether a callback may be spawned after its callback worker was checked or may finish after a replacement session starts; design a generation fence from proven callback provenance and add a stale-session host regression. Storage unmount/swap/hotplug residuals remain the next rotation after WAN/PPP.
+
+---
+
 ## 2026-11-08 22:00 CST — Set stability-first development direction
 
 - **Governance change only:** aligned the bootstrap prompt and development protocol so stability bug discovery/fixing is the primary direction, with security hardening continuing in parallel. Confirmed critical security vulnerabilities, data corruption, boot blockers and severe system failures remain immediate priorities.
