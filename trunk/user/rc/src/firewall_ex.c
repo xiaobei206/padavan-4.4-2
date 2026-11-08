@@ -35,6 +35,7 @@
 #include "firewall_command_status.h"
 #include "firewall_restore_transaction.h"
 #include "firewall_hook_file.h"
+#include "firewall_adbyby_restore_policy.h"
 
 static firewall_restore_transaction_t firewall_core_restore_transaction;
 static int firewall_core_restore_transaction_active;
@@ -2515,6 +2516,7 @@ start_firewall_ex(void)
 #endif
 #if defined (APP_ADBYBY)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
+	int adbyby_blockip_status, adbyby_snapshot_exists;
 #endif
 	firewall_restore_transaction_reset(&firewall_core_restore_transaction);
 	firewall_core_restore_transaction_active = 0;
@@ -2658,8 +2660,22 @@ firewall_restore_complete:
 	}
 #endif
 #if defined (APP_ADBYBY)
-	if (check_if_file_exist(adbyby_iptables))
-		firewall_log_command_failure("Adbyby iptables restore", doSystem("iptables-restore -n %s", adbyby_iptables));
+	adbyby_snapshot_exists = check_if_file_exist(adbyby_iptables);
+	if (adbyby_snapshot_exists) {
+		/* The saved rules reference blockip. Do not replay them after the
+		 * Adbyby stop/failure path has removed that ipset. A later rebuild can
+		 * retry if the set is recreated; this does not alter core rollback. */
+		adbyby_blockip_status = doSystem("ipset list blockip >/dev/null 2>&1");
+		if (firewall_adbyby_restore_is_allowed(adbyby_snapshot_exists,
+				firewall_command_status_ok(adbyby_blockip_status))) {
+			firewall_log_command_failure("Adbyby iptables restore",
+					     doSystem("iptables-restore -n %s", adbyby_iptables));
+		} else {
+			firewall_log_command_failure("Adbyby blockip ipset preflight", adbyby_blockip_status);
+			logmessage(LOGNAME,
+				   "Skipping Adbyby firewall restore: required blockip ipset is unavailable");
+		}
+	}
 #endif
 	/* Storage-restored hooks are privileged programs: reject links and unsafe
 	 * metadata, then execute only a root-private snapshot of the opened inode. */
