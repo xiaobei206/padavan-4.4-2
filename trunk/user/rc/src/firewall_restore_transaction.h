@@ -135,6 +135,28 @@ firewall_restore_transaction_cleanup_snapshots(firewall_restore_transaction_t *t
 	return failed ? -1 : 0;
 }
 
+/*
+ * Do not forget a prior transaction when starting a new one. A failed
+ * rollback is an operator-recovery condition; otherwise retry pending
+ * snapshot cleanup and reset only after every tracked path is gone.
+ */
+static int
+firewall_restore_transaction_prepare_reset(firewall_restore_transaction_t *tx,
+					   firewall_restore_remove_fn remove_fn,
+					   void *context)
+{
+	if (!tx || tx->rollback_failed)
+		return -1;
+	if (tx->snapshot_count &&
+	    firewall_restore_transaction_cleanup_snapshots(tx, remove_fn, context) != 0)
+		return -1;
+	if (tx->snapshot_count)
+		return -1;
+
+	firewall_restore_transaction_reset(tx);
+	return 0;
+}
+
 static int
 firewall_restore_transaction_abort(firewall_restore_transaction_t *tx,
 				   firewall_restore_command_fn command_fn,
