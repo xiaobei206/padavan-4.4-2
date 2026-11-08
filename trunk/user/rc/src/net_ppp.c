@@ -459,6 +459,7 @@ launch_wan_pppd(int unit, int wan_proto)
 		return -1;
 	}
 
+	errno = 0;
 	launch_status = 0;
 	if (wan_proto == IPV4_WAN_PROTO_L2TP) {
 #if defined (APP_RPL2TP)
