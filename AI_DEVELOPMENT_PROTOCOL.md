@@ -2,13 +2,15 @@
 
 **Repository:** https://github.com/xiaobei206/padavan-4.4-2  
 **Primary branch:** main  
-**Mission:** repository-wide security, reliability, compatibility, and maintainability modernization.
+**Mission:** repository-wide Padavan user-space stability bug discovery and repair first, with security hardening progressing in parallel; also improve performance, resource management, compatibility, and maintainability. Critical security vulnerabilities and severe system failures take immediate priority.
 
 This file is the durable source of development rules. Every new ChatGPT conversation must read this file and the current handoff/roadmap before changing code. Repository state, commits, CI runs, and these documents take precedence over chat memory.
 
 ## 1. Operating principles
 
 - Work autonomously within the connected GitHub permissions and available tools. Do not ask for redundant permission or repeat questions already answered.
+- **Primary direction is stability:** actively find and fix reproducible or source-demonstrable reliability defects across the whole Padavan user space. Security work continues in parallel; confirmed critical security vulnerabilities, data corruption, boot failures, and severe service outages override ordinary stability work.
+- Consider performance and resource management where they cause or materially worsen failures: leaks, stale state, unbounded retries, deadlocks, race conditions, unchecked return values, partial updates, cleanup failures, process lifecycle errors, and recovery paths.
 - Do actual repository work; a plan or audit report alone is not a completed task.
 - Never claim a change, build, test, CI result, firmware image, or hardware validation that was not actually verified.
 - Do not optimize for commit count, line count, test count, or green badges.
@@ -33,20 +35,24 @@ At minimum inspect these areas:
 
 Do not let an already well-tested subsystem monopolize development merely because it is easy to inspect. Whole-repository coverage outranks polishing a subsystem that has already received many rounds of work.
 
-## 3. Risk-based selection
+## 3. Stability-first risk-based selection
 
-Choose the next module from REFACTOR_ROADMAP.md using this order:
+Select work from the whole-repository ledger in `REFACTOR_ROADMAP.md`, not from habit or from whichever module is easiest to inspect.
 
-- P0: confirmed critical security flaw, data corruption, boot blocker, or release blocker.
-- P1: remote/LAN management attack surface, authentication/authorization, privileged command/configuration paths, untrusted network/file input.
-- P2: core service reliability, persistence, lifecycle, concurrency, error handling, and important code without meaningful tests.
-- P3: cleanup, deduplication, non-critical performance/style improvements.
+Use this priority order:
 
-Prioritize by demonstrated exposure and impact, not by how attractive a refactor looks. HTTPD/CGI/auth/session/authorization and privileged command paths require explicit audit coverage. Lack of existing tests is a reason to add focused tests or document a justified manual validation path, not a reason to skip the module.
+- **P0 — immediate:** confirmed critical security vulnerability; data corruption or loss; boot/recovery blocker; severe system-wide failure; release blocker.
+- **P1 — stability:** reproducible or strongly evidenced failures in core paths such as WAN/PPP/DHCP/DNS/routing, firewall/NAT, service lifecycle, configuration persistence, storage/mount/hotplug, wireless, HTTPD management, or startup/shutdown. Also include serious security flaws and exposed privileged paths.
+- **P2 — preventive reliability/security:** unchecked errors, race windows, stale callbacks/state, incomplete rollback, resource leaks, unsafe retry/backoff, missing regression coverage, and important unaudited attack surfaces.
+- **P3 — performance/maintainability:** measurable resource/performance improvements, safe deduplication, cleanup, and style work that does not displace higher-impact defects.
 
-Avoid consecutive rounds on the same heavily worked subsystem unless a new P0/P1 issue, regression, or necessary dependency justifies it. Record the reason for any exception.
+Security remains an active parallel workstream; do not defer a confirmed serious vulnerability merely because the current round is stability-focused. Conversely, do not let security-only work crowd out stability defects indefinitely.
 
-## 4. One bounded module per round
+Do not let SkipDBv2, HTTPD, firewall, or any other already heavily worked subsystem monopolize the project. Rotate across real modules in the source tree and prioritize unaddressed stability risks. Keep an explicit whole-userland inventory and record why each selected task outranks the alternatives. Resume the exact unfinished task or pending/failed CI first; once it is closed, select the next highest-value stability defect from the global ledger, unless a P0 security/system failure requires immediate action.
+
+## 4. Bounded, continuous delivery
+
+Each round should deliver one coherent, independently reviewable fix or tightly related set of fixes. Keep the change bounded to protect handoff reliability; do not turn a conversation into an unbounded rewrite. A round may inspect several areas to choose the best issue, but implementation should stay focused and the roadmap must keep the broader rotation visible.
 
 Each round has one primary independent module. Before editing:
 
@@ -93,7 +99,7 @@ Do not poll indefinitely. If a run remains pending when the current execution bu
 
 ## 7. Validation levels — never conflate them
 
-Record each level separately:
+Record each level separately. During ongoing development, prioritize repeatable L1/L2 checks and exact-HEAD Actions feedback. Schedule full MIPS firmware/image builds and physical-device validation as consolidated milestones in the later stage of the main development programme, and before any release claim that requires them. Pull a target build or hardware test forward when a specific defect cannot be responsibly assessed without it; record the reason and any blocker honestly.
 
 - **L1 Static review:** source inspection, static checks, declarations, dependency and contract checks.
 - **L2 Host regression:** host build, unit tests, CTest, relevant integration tests.
@@ -184,6 +190,8 @@ The project is not complete merely because there are many commits or one compone
 
 A credible completion assessment requires:
 - repository-wide module inventory;
+- broad stability-defect triage and fixes across core services, lifecycle, persistence, networking, storage, management, and other integrated user-space modules;
+- ongoing parallel security review with confirmed critical/high-impact findings handled promptly;
 - documented audits of critical attack surfaces and services;
 - evidenced fixes and regression coverage for confirmed defects;
 - build/integration verification;
@@ -199,4 +207,4 @@ At every stop, report briefly:
 - what remains unverified;
 - the next highest-priority action.
 
-**Non-negotiable:** do not keep polishing a familiar subsystem while high-risk parts of the firmware remain unaudited. Do not lose unfinished work when a ChatGPT conversation ends. Do not equate local tests with a working firmware image.
+**Non-negotiable:** stability bug discovery and repair is the primary development direction; security hardening continues in parallel and urgent security issues remain immediate priorities. Do not keep polishing a familiar subsystem while high-risk or failure-prone parts of the firmware remain unaudited. Do not lose unfinished work when a ChatGPT conversation ends. Do not equate local tests with a working firmware image.
