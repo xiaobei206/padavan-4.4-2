@@ -58,6 +58,7 @@
 #include "httpd.h"
 #include "httpd_script_policy.h"
 #include "httpd_apply_request_policy.h"
+#include "httpd_update_output_policy.h"
 #include "dbapi.h"
 #define GROUP_FLAG_REFRESH 	0
 #define GROUP_FLAG_DELETE 	1
@@ -4605,17 +4606,29 @@ do_update_cgi(const char *url, FILE *stream)
 	char *argv[16];
 
 	pattern = get_cgi("output");
-	if (pattern != NULL) {
-		for (handler = &ej_handlers[0]; handler->pattern; handler++) {
-			if (strcmp(handler->pattern, pattern) == 0) {
-				for (argc = 0; argc < 16; ++argc) {
-					sprintf(args, "arg%d", argc);
-					if ((argv[argc] = (char *)get_cgi(args)) == NULL)
-						break;
-				}
-				handler->output(0, stream, argc, argv);
-				break;
+	if (pattern == NULL)
+		return;
+
+	/* The output parameter selects from the entire EJ registry. Only the two
+	 * traffic-monitor callbacks used by the shipped UI are available to an
+	 * ordinary authenticated session; every other callback requires the
+	 * existing trusted-session predicate.
+	 */
+	if (!httpd_update_output_allowed(pattern, get_login_safe())) {
+		websError(stream, 403,
+			  "This output is restricted to trusted management sessions.\\n");
+		return;
+	}
+
+	for (handler = &ej_handlers[0]; handler->pattern; handler++) {
+		if (strcmp(handler->pattern, pattern) == 0) {
+			for (argc = 0; argc < 16; ++argc) {
+				sprintf(args, "arg%d", argc);
+				if ((argv[argc] = (char *)get_cgi(args)) == NULL)
+					break;
 			}
+			handler->output(0, stream, argc, argv);
+			break;
 		}
 	}
 }

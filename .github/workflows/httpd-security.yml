@@ -41,6 +41,8 @@ on:
       - "trunk/user/httpd/src/tests/httpd_script_policy.c"
       - "trunk/user/httpd/src/httpd_apply_request_policy.h"
       - "trunk/user/httpd/src/tests/httpd_apply_request_policy.c"
+      - "trunk/user/httpd/src/httpd_update_output_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_update_output_policy.c"
       - "trunk/user/httpd/src/common.c"
       - "trunk/user/httpd/src/tests/httpd_service_id.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
@@ -254,6 +256,11 @@ jobs:
             trunk/user/httpd/src/tests/httpd_apply_request_policy.c \
             -o /tmp/httpd_apply_request_policy
           /tmp/httpd_apply_request_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_update_output_policy.c \
+            -o /tmp/httpd_update_output_policy
+          /tmp/httpd_update_output_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
             -I trunk/user/httpd/src \
             trunk/user/httpd/src/tests/httpd_cgi_method_policy.c \
@@ -891,6 +898,8 @@ jobs:
           script_policy_test = (root / "tests/httpd_script_policy.c").read_text()
           apply_policy = (root / "httpd_apply_request_policy.h").read_text()
           apply_policy_test = (root / "tests/httpd_apply_request_policy.c").read_text()
+          update_policy = (root / "httpd_update_output_policy.h").read_text()
+          update_policy_test = (root / "tests/httpd_update_output_policy.c").read_text()
           method_policy = (root / "httpd_cgi_method_policy.h").read_text()
           method_policy_test = (root / "tests/httpd_cgi_method_policy.c").read_text()
           service_id_test = (root / "tests/httpd_service_id.c").read_text()
@@ -997,6 +1006,27 @@ jobs:
           dispatcher = web[dispatch_start:dispatch_end]
           assert 'pattern = get_cgi("output")' in dispatcher
           assert "handler->output(0, stream, argc, argv)" in dispatcher
+
+          update_output_guard = dispatcher.index(
+              "httpd_update_output_allowed(pattern, get_login_safe())"
+          )
+          update_callback = dispatcher.index("handler->output(0, stream, argc, argv)")
+          assert update_output_guard < update_callback
+          assert 'websError(stream, 403' in dispatcher
+          assert 'return;' in dispatcher[dispatcher.index('websError(stream, 403'):update_callback]
+          public_update_outputs = set(re.findall(
+              r'strcmp\(pattern, "([^"]+)"\)', update_policy
+          ))
+          assert public_update_outputs == {"netdev", "bandwidth"}
+          assert "return (trusted_session != 0);" in update_policy
+          assert "netdev_extra" in update_policy_test
+          for protected_output in (
+              "update_variables", "asus_nvram_commit", "notify_services",
+              "wan_action", "wol_action", "nvram_dump", "set_AiDisk_status",
+              "safely_remove_disk", "create_account", "delete_account",
+              "shadowsocks_action", "update_action", "openvpn_srv_cert_hook",
+          ):
+              assert protected_output in update_policy_test
 
           ej_table_start = web.index("struct ej_handler ej_handlers[]")
           ej_table_end = web.index("\n};", ej_table_start)
