@@ -763,8 +763,14 @@ wait_ppp_up(char *ppp_ifname, int unit)
 
 	/* Wait for pppX to be created */
 	timeout = 5;
-	while (ifconfig(ppp_ifname, IFUP, NULL, NULL) && timeout--)
+	while (ifconfig(ppp_ifname, IFUP, NULL, NULL)) {
+		/* Six failed probes (five one-second waits) mean the interface never appeared. */
+		if (timeout-- <= 0) {
+			logmessage(LOGNAME, "PPP interface %s did not appear before startup timeout", ppp_ifname);
+			return 0;
+		}
 		sleep(1);
+	}
 
 	/* Retrieve IP info */
 	if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) < 0)
