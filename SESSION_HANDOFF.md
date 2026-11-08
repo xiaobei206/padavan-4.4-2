@@ -1,4 +1,14 @@
-## Latest resumable checkpoint — L2TP config-line validation and launcher error propagation (merged)
+## Latest resumable checkpoint — PPP callback identity validation (merged)
+
+- **Main integration:** PR [#9](https://github.com/xiaobei206/padavan-4.4-2/pull/9) merged to main at `3ad86ac7a295c2894570e47828a8a8fcc30a848b`. Re-fetch `main` before new code changes.
+- **Exact tested code/test/workflow head:** `7ba4c6b46227ec91f2a60ae18b4946e394650718`. Exact-head Actions [run 42447865765](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447865765) completed **SUCCESS**, all 23 steps.
+- **Finding:** `ppp_ifindex()` and `ppp_wan_unit()` only checked the identity prefix and first digit before `atoi()`, accepting partial parse inputs such as `ppp0junk` and `wan0garbage`. Those callback identities are consumed before WAN/interface state changes.
+- **Implemented:** new `ppp_callback_identity_policy.h` parses exact `<prefix><decimal-index>` tokens, rejects missing data, suffixes, signs, empty index, leading-zero aliases, overflow and out-of-range indices, and leaves index output at -1 on failure. `ppp_ifindex()` now uses the strict parser bounded by `VPNC_PPP_UNIT`; `ppp_wan_unit()` currently accepts only `wan0`, consistent with `start_wan()` managing one logical WAN unit. New GNU89 regression tests and source contracts run in Actions.
+- **Changed paths:** `.github/workflows/httpd-security.yml`, `trunk/user/rc/src/net_ppp.c`, new `trunk/user/rc/src/ppp_callback_identity_policy.h`, and new `trunk/user/rc/src/tests/ppp_callback_identity_policy.c`.
+- **Validation boundary:** host parser test compiled/run with `-std=gnu89 -Wall -Wextra -Werror`; exact-head CI PASS. MIPS/uClibc target build, complete firmware/TRX, real PPP callback/runtime, live router and hardware tests are **NOT RUN**.
+- **Remaining risk:** reconnect/watchdog/retry state machine and transport stop/start result handling are not fully audited. IPv4 `LWF_LIST` versus IPv6 firewall parity remains unresolved; Adbyby extension rollback and storage mount/swap topology races remain open.
+- **Next exact action:** continue WAN/PPP reconnect/watchdog/retry path review, checking ignored start/stop failures and stale NVRAM interface state; then revisit IPv6 firewall parity after confirming intended behavior. Keep source-control-flow tests distinct from target firmware/hardware validation.
+## Previous checkpoint — L2TP config-line validation and launcher error propagation (merged)
 
 - **Main integration:** PR [#7](https://github.com/xiaobei206/padavan-4.4-2/pull/7) merged to main at `ad3910f2ef0a88087cacff6f4fa2446f6dc52c11`. Re-fetch current `main` before new work.
 - **Exact tested code/test/workflow head:** `e97f5cb0bfb67f9e3dbdce55ac2f7a8d9704e062`. Exact-head Actions [run 42447621156](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447621156) completed **SUCCESS**, 23/23 steps.
