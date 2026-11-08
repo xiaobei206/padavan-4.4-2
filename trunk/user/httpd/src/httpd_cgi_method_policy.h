@@ -15,6 +15,7 @@ httpd_cgi_method_allowed(const char *path, int method_id, int post_method_id)
 {
 	static const char * const post_only_routes[] = {
 		"apply.cgi",
+		"applydb.cgi",
 		"upgrade.cgi",
 		"restore_nv.cgi",
 		"restore_st.cgi",

@@ -1147,9 +1147,10 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			login_last_activity = (unsigned long)uptime();
 	}
 
-	/* System actions and upload consumers must never be triggered by a
-	 * browser's implicit GET/HEAD request. Keep query-compatible read APIs
-	 * (for example applydb.cgi and update.cgi) outside this narrow policy.
+	/* System actions, persistent database updates and upload consumers must
+	 * never be triggered by an implicit GET/HEAD request. applydb.cgi accepts
+	 * GET-shaped payloads for legacy parsing, but persists dbus values and
+	 * invokes helper scripts, so it is explicitly POST-only here.
 	 */
 	if (!httpd_cgi_method_allowed(file, method_id, HTTP_METHOD_POST)) {
 		send_error(405, "Method Not Allowed", "Allow: POST",

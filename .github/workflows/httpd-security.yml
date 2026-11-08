@@ -7,6 +7,7 @@ on:
       - "trunk/user/httpd/src/httpd.c"
       - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
       - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
+      - "trunk/user/www/n56u_ribbon_fixed/Shadowsocks.asp"
       - "trunk/user/httpd/src/upload.c"
       - "trunk/user/httpd/src/httpd_upload_file.h"
       - "trunk/user/httpd/src/tests/httpd_upload_file.c"
@@ -935,9 +936,32 @@ jobs:
           query_dispatch = request.index("do_uncgi_query(query)")
           assert auth_gate < method_guard < method_reject < input_dispatch < query_dispatch
           assert '#include "httpd_cgi_method_policy.h"' in httpd
-          assert "apply.cgi" in method_policy and "upgrade.cgi" in method_policy
+          assert "apply.cgi" in method_policy and "applydb.cgi" in method_policy
+          assert "upgrade.cgi" in method_policy
           assert "restore_nv.cgi" in method_policy and "restore_st.cgi" in method_policy
-          assert "applydb.cgi" not in method_policy and "update.cgi" not in method_policy
+          assert "update.cgi" not in method_policy
+
+          # applydb.cgi is not read-only: GET query data reaches the persistent
+          # dbus write/removal and helper-script dispatch code.
+          applydb_start = web.index("static int\napplydb_cgi(")
+          applydb_end = web.index("\nstatic void\ndo_applydb_cgi", applydb_start)
+          applydb = web[applydb_start:applydb_end]
+          assert "GET requests carry the form data in the saved query string" in applydb
+          assert 'eval("dbus", "remove", dbvar)' in applydb
+          assert 'eval("dbus", "set", dbvar, dbval)' in applydb
+          assert 'eval("/etc_ro/ss/ping.sh", dbvar)' in applydb
+          assert 'eval("/usr/bin/update_dlink.sh", "start")' in applydb
+
+          # Every repository UI request to this state-changing endpoint uses POST.
+          shadowsocks_ui = Path("trunk/user/www/n56u_ribbon_fixed/Shadowsocks.asp").read_text()
+          applydb_urls = list(re.finditer(r'url\s*:\s*["\']/applydb\.cgi', shadowsocks_ui))
+          assert applydb_urls
+          for match in applydb_urls:
+              call_start = shadowsocks_ui.rfind("$j.ajax({", 0, match.start())
+              call_end = shadowsocks_ui.find("});", match.start())
+              assert call_start >= 0 and call_end > match.start()
+              call_text = shadowsocks_ui[call_start:call_end]
+              assert re.search(r"type\s*:\s*['\"]post['\"]", call_text, re.IGNORECASE)
           assert "TEST_HTTP_METHOD_HEAD" in method_policy_test
           assert "applydb.cgi" in method_policy_test and "update.cgi" in method_policy_test
 
