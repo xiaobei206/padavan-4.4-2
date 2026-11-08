@@ -85,8 +85,8 @@ unset FAIL_IPTABLES_SAVE
 [ "$(cat "$snapshot")" = "known-good" ]
 
 # Disabling Adbyby removes the restore snapshot and abandoned staging files.
-printf 'partial\\n' > "$test_root/private/.adbyby-save.raw.dead"
-printf 'partial\\n' > "$test_root/private/.adbyby-save.next.dead"
+printf 'partial\n' > "$test_root/private/.adbyby-save.raw.dead"
+printf 'partial\n' > "$test_root/private/.adbyby-save.next.dead"
 if ! adbyby_remove_rule_snapshot "$test_root/private"; then
     echo "failed to remove private Adbyby restore snapshot" >&2
     exit 1
@@ -96,7 +96,7 @@ fi
 [ ! -e "$test_root/private/.adbyby-save.next.dead" ]
 # A symlinked save directory must not redirect cleanup into its target.
 mkdir -m 700 "$test_root/snapshot-target"
-printf 'keep\\n' > "$test_root/snapshot-target/.adbyby.save"
+printf 'keep\n' > "$test_root/snapshot-target/.adbyby.save"
 ln -s "$test_root/snapshot-target" "$test_root/snapshot-link"
 if adbyby_remove_rule_snapshot "$test_root/snapshot-link"; then
     echo "unexpectedly cleaned a symlinked save directory" >&2
