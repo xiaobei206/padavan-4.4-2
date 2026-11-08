@@ -85,10 +85,8 @@ ppp_wan_session_state_lock(unsigned long *generation, int allow_empty)
 			locked = 1;
 			break;
 		}
-		if (errno == EINTR) {
-			--attempt;
+		if (errno == EINTR)
 			continue;
-		}
 		if (errno != EACCES && errno != EAGAIN)
 			goto failed;
 		usleep(10000);

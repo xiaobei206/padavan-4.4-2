@@ -2589,7 +2589,8 @@ jobs:
           assert "if (kill_services(svcs_ppp, 6, 1) != 0)" in stop_ppp
           assert stop_ppp.index("return -1;") < stop_ppp.index("clear_wan_state();")
           assert stop_wan.count("if (kill_services(") == 2
-          assert stop_wan.count("return -1;") == 2
+          assert stop_wan.count("return -1;") == 3
+          assert stop_wan.index("invalidate_wan_ppp_callback_session()") < stop_wan.index("kill_services(svcs_ppp, 6, 1)")
           assert "if (stop_wan() != 0)" in full_restart
           assert full_restart.index("if (stop_wan() != 0)") < full_restart.index("reset_wan_vars();")
           assert "if (stop_wan() != 0)" in reconnect
