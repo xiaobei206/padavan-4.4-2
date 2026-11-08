@@ -38,6 +38,7 @@
 #include <flash_mtd.h>
 
 #include "rc.h"
+#include "service_lifecycle_policy.h"
 
 #define XSTR(s) STR(s)
 #define STR(s) #s
@@ -838,43 +839,51 @@ inline void umount_rwfs_partition(void) {}
 inline void start_rwfs_optware(void) {}
 #endif
 
-void
+static int
+service_lifecycle_is_running(void *context, const char *service_name)
+{
+	(void)context;
+	return pids((char *)service_name);
+}
+
+static int
+service_lifecycle_send_signal(void *context, const char *service_name, int signal_number)
+{
+	const char *signal_option;
+	(void)context;
+	if (signal_number == SIGKILL)
+		signal_option = "-SIGKILL";
+	else if (signal_number == SIGTERM)
+		signal_option = "-q";
+	else
+		return -1;
+	return doSystem("killall %s %s", signal_option, service_name);
+}
+
+static void
+service_lifecycle_sleep(void *context, unsigned int seconds)
+{
+	(void)context;
+	sleep(seconds);
+}
+
+int
 kill_services(char* svc_name[], int wtimeout, int forcekill)
 {
-	int i, k, i_waited, i_killed;
-
-	if (wtimeout < 1)
-		wtimeout = 1;
-
-	for (i=0;svc_name[i] && *svc_name[i];i++)
-		doSystem("killall %s %s", "-q", svc_name[i]);
-
-	for (k=0;k<wtimeout;k++) {
-		i_waited = 0;
-		for (i=0;svc_name[i] && *svc_name[i];i++) {
-			if (pids(svc_name[i])) {
-				i_waited = 1;
-				break;
-			}
+	static const struct service_lifecycle_ops ops = {
+		service_lifecycle_is_running,
+		service_lifecycle_send_signal,
+		service_lifecycle_sleep
+	};
+	int i, result;
+	result = service_lifecycle_stop(svc_name, wtimeout, forcekill, &ops, NULL);
+	if (result != 0) {
+		for (i = 0; svc_name && svc_name[i] && *svc_name[i]; i++) {
+			if (pids(svc_name[i]))
+				logmessage(LOGNAME, "service stop incomplete: %s remains active", svc_name[i]);
 		}
-		
-		if (!i_waited)
-			break;
-		
-		sleep(1);
 	}
-
-	if (forcekill) {
-		i_killed = 0;
-		for (i=0;svc_name[i] && *svc_name[i];i++) {
-			if (pids(svc_name[i])) {
-				i_killed = 1;
-				doSystem("killall %s %s", "-SIGKILL", svc_name[i]);
-			}
-		}
-		if (i_killed)
-			sleep(1);
-	}
+	return result;
 }
 
 int
