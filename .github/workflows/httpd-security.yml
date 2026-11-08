@@ -101,7 +101,9 @@ on:
       - "trunk/user/rc/src/tests/dhcp_lease_policy.c"
       - "trunk/user/rc/src/net_ppp.c"
       - "trunk/user/rc/src/ppp_options_file.h"
+      - "trunk/user/rc/src/ppp_option_value_policy.h"
       - "trunk/user/rc/src/tests/ppp_options_file.c"
+      - "trunk/user/rc/src/tests/ppp_option_value_policy.c"
       - "trunk/user/rc/src/dnsmasq_file.h"
       - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
@@ -227,7 +229,9 @@ on:
       - "trunk/user/rc/src/tests/dhcp_lease_policy.c"
       - "trunk/user/rc/src/net_ppp.c"
       - "trunk/user/rc/src/ppp_options_file.h"
+      - "trunk/user/rc/src/ppp_option_value_policy.h"
       - "trunk/user/rc/src/tests/ppp_options_file.c"
+      - "trunk/user/rc/src/tests/ppp_option_value_policy.c"
       - "trunk/user/rc/src/dnsmasq_file.h"
       - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
@@ -488,12 +492,20 @@ jobs:
             trunk/user/rc/src/tests/ppp_options_file.c \
             -o /tmp/ppp_options_file
           /tmp/ppp_options_file
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/ppp_option_value_policy.c \
+            -o /tmp/ppp_option_value_policy
+          /tmp/ppp_option_value_policy
           python3 - <<'PY'
           from pathlib import Path
 
           ppp = Path("trunk/user/rc/src/net_ppp.c").read_text()
+          wan = Path("trunk/user/rc/src/net_wan.c").read_text()
           helper = Path("trunk/user/rc/src/ppp_options_file.h").read_text()
           test = Path("trunk/user/rc/src/tests/ppp_options_file.c").read_text()
+          value_policy = Path("trunk/user/rc/src/ppp_option_value_policy.h").read_text()
+          value_test = Path("trunk/user/rc/src/tests/ppp_option_value_policy.c").read_text()
 
           assert '#include "ppp_options_file.h"' in ppp
           assert 'ppp_options_directory_ready("/tmp/ppp")' in ppp
@@ -509,7 +521,31 @@ jobs:
           assert 'assert(ppp_options_file_open(symlink_path) == NULL)' in test
           assert 'assert(ppp_options_file_open(hardlink_path) == NULL)' in test
           assert 'assert(ppp_options_file_open(fifo_path) == NULL)' in test
-          print("PPP credential-file mode, directory, symlink, hardlink, FIFO and finalization regressions: OK")
+
+          assert '#include "ppp_option_value_policy.h"' in ppp
+          assert "ppp_option_text_escape(line, buf, buf_size)" in ppp
+          assert "return (char *)line;" not in ppp
+          assert "while (*src != '\\0' && dst_len > 2)" not in ppp
+          for option in ("user", "password", "pptp_server", "rp_pppoe_ac", "rp_pppoe_service"):
+              assert 'ppp_options_write_quoted(fp, "' + option + '"' in ppp
+          assert 'ppp_options_write_text(fp, get_wan_unit_value(unit, "ppp_pppd")' in ppp
+          assert "ppp_option_value_escape" in value_policy
+          assert "ppp_option_text_escape" in value_policy
+          for case in ("EOVERFLOW", "EINVAL", "name\\npassword attacker", "bad\\rline"):
+              assert case in value_test
+          assert "goto invalid_options;" in ppp
+          assert "refusing unsafe or oversized PPP option" in ppp
+          assert 'launch_status = eval("/usr/sbin/pppd", "file", options);' in ppp
+          assert "launch_status != 0" in ppp
+          assert "errno = 0;" in ppp
+
+          assert "if (launch_wan_pppd(unit, wan_proto) != 0)" in wan
+          wan_start = wan.index("if (launch_wan_pppd(unit, wan_proto) != 0)")
+          wan_end = wan.index("/* Pretend that the WAN interface is up */", wan_start)
+          failure_path = wan[wan_start:wan_end]
+          assert 'set_wan_unit_value(unit, "ifname_t", wan_ifname);' in failure_path
+          assert failure_path.index('set_wan_unit_value(unit, "ifname_t", wan_ifname);') < failure_path.index("start_firewall_ex();") < failure_path.index("continue;")
+          print("PPP credential-file and fail-closed option escaping/launcher regressions: OK")
           PY
 
       - name: Verify DHCP lease input and renewal reconciliation
