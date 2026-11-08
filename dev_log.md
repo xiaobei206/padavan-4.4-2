@@ -1,3 +1,15 @@
+## 2026-11-08 13:00 CST — Verify WAN stop completion before clearing interface state
+
+- **Base main SHA:** acfb164a4d0d5ec1b2109dfa0245e73508da1d1f. **Merged main SHA:** bec69e232901e81ce937eb89ec1c05a0905293fc (PR #10, squash merge). Exact tested PR source head: b98f95574e0cee8b2f238dced474f7c54dae8c8d.
+- **Selection:** resumed the explicit next action in the WAN/PPP handoff, reviewing stop_wan(), stop_wan_ppp(), common_ex.c::kill_services(), reconnect callers and firmware-flash orchestration. No SkipDBv2 source changes.
+- **Finding:** kill_services() returned no status; after SIGKILL it slept once but did not recheck process inventory. WAN callers then cleared connection state and full restart/reconnect could start another session while an old PPP/DHCP process remained alive. Firmware-flash cleanup similarly ignored the stop result.
+- **Changes:** new service_lifecycle_policy.h provides callback-driven process inventory, SIGTERM grace wait, SIGKILL escalation and a bounded 3-second post-kill recheck. kill_services() now returns failure while named processes remain and logs survivors. stop_wan_ppp() and stop_wan() propagate that failure; manual disconnect, full restart and reconnect stop before further state mutation. stop_misc() now returns status, and flash_firmware() aborts before storage cleanup/flash if critical daemons do not stop.
+- **Changed paths:** .github/workflows/httpd-security.yml, trunk/user/rc/src/common_ex.c, net_wan.c, rc.c, rc.h, services.c, new service_lifecycle_policy.h, and new tests/service_lifecycle_policy.c.
+- **Tests:** six policy tests cover graceful exit, forced exit, delayed exit, stubborn survivor, non-forced timeout and empty list. PR Actions run 42449267653 completed SUCCESS on exact PR head b98f95574e0cee8b2f238dced474f7c54dae8c8d, including GNU89 -Wall -Wextra -Werror compile/run and production source contracts. Independent SkipDBv2 regression Actions run 42449267646 also completed SUCCESS; no SkipDBv2 source was touched.
+- **Remote persistence:** PR #10 merged by squash; main now contains bec69e232901e81ce937eb89ec1c05a0905293fc. The tested PR head and squash commit contain the same change set. A separate push-event Actions run on the squash SHA was not confirmed.
+- **Validation boundary:** L1 source/control-flow review PASS, L2 exact PR-head host CI PASS. No production MIPS/uClibc RC compile, complete firmware/TRX, live WAN/PPP, BusyBox uninterruptible-process, router or hardware validation.
+- **Remaining / next:** service name inventory and target pids()/killall behavior need MIPS validation; not every kill_services() caller is gated (shutdown remains best-effort). Continue callback-generation versus stop ordering, udhcpc SIGUSR2 and ifconfig/route return propagation, reconnect/watchdog/backoff. Then revisit IPv4 LWF_LIST vs IPv6 intent and continue the repository-wide userland risk ledger.
+
 ## 2026-11-08 12:50 CST — Restore WAN selection after demand-PPP readiness failure
 
 - **Base main SHA:** `ca3a9862ba753de53bbba5cf29d376a6de942670`; implementation + workflow + governance commit `f11eb828b6d337121cf11fd2bc910ff869264fe7` is a direct child of that head.
