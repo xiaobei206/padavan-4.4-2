@@ -990,7 +990,7 @@ jobs:
           assert 'doSystem("%s", int_iptables_staged)' in firewall
           assert 'firewall_log_command_failure("Optware iptables update hook",' in firewall
           assert 'doSystem("%s update", opt_iptables_staged)' in firewall
-          assert firewall.count("firewall_log_command_failure(") == 8
+          assert firewall.count("firewall_log_command_failure(") == 7
           assert firewall.count("firewall_apply_core_restore(") == 11
           firewall_main = firewall[firewall.index("start_firewall_ex(void)"):]
           restore_gate = firewall_main.index("if (firewall_restore_transaction_ok(&firewall_core_restore_transaction))")
