@@ -25,6 +25,12 @@ cat > "$test_root/bin/iptables-save" <<'EOF'
 #!/bin/sh
 if [ "${FAIL_IPTABLES_SAVE:-0}" = "1" ]; then exit 1; fi
 cat <<'RULES'
+*filter
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A FORWARD -m set --match-set blockip dst -j DROP
+-A OUTPUT -m set --match-set blockip dst -j DROP
+COMMIT
 *nat
 :PREROUTING ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
@@ -64,6 +70,8 @@ save_adbyby_rule_snapshot "$test_root/private"
 [ -f "$snapshot" ]&&[ ! -L "$snapshot" ];[ "$(stat -c %a "$snapshot")" = "600" ]
 grep -F -- "-I OUTPUT 1 -p tcp -j ADBYBY" "$snapshot" >/dev/null
 grep -F -- "-I PREROUTING 1 -p tcp -j ADBYBY" "$snapshot" >/dev/null
+grep -F -- "-I FORWARD 1 -m set --match-set blockip dst -j DROP" "$snapshot" >/dev/null
+grep -F -- "-I OUTPUT 1 -m set --match-set blockip dst -j DROP" "$snapshot" >/dev/null
 grep -F -- ":ADBYBY - [0:0]" "$snapshot" >/dev/null
 [ "$(cat "$sentinel")" = "preserve-me" ]
 printf 'known-good\n' > "$snapshot"

@@ -293,11 +293,11 @@ save_adbyby_rule_snapshot()
 	if ! iptables-save > "$raw_file"; then
 		rm -f "$raw_file" "$next_file"; return 1
 	fi
-	if ! grep -E "ADBYBY|^\\*|^COMMIT" "$raw_file" >/dev/null; then
+	if ! grep -E "ADBYBY|--match-set blockip|^\\*|^COMMIT" "$raw_file" >/dev/null; then
 		rm -f "$raw_file" "$next_file"; return 1
 	fi
 	( set -C; : > "$next_file" ) 2>/dev/null || { rm -f "$raw_file"; return 1; }
-	if ! grep -E "ADBYBY|^\\*|^COMMIT" "$raw_file" | sed -e "s/^-A \\(OUTPUT\\|PREROUTING\\)/-I \\1 1/" > "$next_file"; then
+	if ! grep -E "ADBYBY|--match-set blockip|^\\*|^COMMIT" "$raw_file" | sed -e "s/^-A \\(FORWARD\\|OUTPUT\\|PREROUTING\\)/-I \\1 1/" > "$next_file"; then
 		rm -f "$raw_file" "$next_file"; return 1
 	fi
 	if [ ! -s "$next_file" ] || ! chmod 600 "$next_file" ||
