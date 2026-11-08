@@ -1,15 +1,15 @@
 ## Latest resumable checkpoint — Restore physical WAN state after demand-PPP readiness failure
 
-- **Base main SHA:** `ca3a9862ba753de53bbba5cf29d376a6de942670`; implementation commit and resulting SHA will be recorded in the follow-up governance update. Active branch: `main`.
+- **Base main SHA:** `ca3a9862ba753de53bbba5cf29d376a6de942670`; exact code/test/workflow commit on `main`: `f11eb828b6d337121cf11fd2bc910ff869264fe7`. Active branch: `main`.
 - **Current task / module:** WAN / PPP startup state reconciliation, `trunk/user/rc/src/net_wan.c`.
 - **Files/functions reviewed:** `net_wan.c::start_wan()`, `wait_ppp_up()`, PPP launcher-failure branch, `restore_wan_after_ppp_start_failure()` helper as introduced in this round; `net_ppp.c::launch_wan_pppd()`, `ipup_main()`, `ipdown_main()`; RC notification dispatch in `rc.c`; relevant PPP source contracts in `.github/workflows/httpd-security.yml`.
 - **Finding:** the previous demand PPP timeout fix made `wait_ppp_up()` return failure before socket/IP/route setup. Its caller only executed `continue`, leaving `wan0_ifname_t`, UPnP selection and first-stage firewall state set to `ppp0` despite PPP not becoming ready. The distinct launcher-failure path already restored the physical WAN path.
 - **Implemented:** a shared rollback helper is now used by both launcher failure and demand-interface readiness failure. It restores UPnP selection to `wan_ifname`, restores `ifname_t`, and rebuilds firewall state. The demand-mode pppd process is intentionally not killed; a later successful `ip-up` callback can publish the PPP interface.
 - **Changed paths:** `trunk/user/rc/src/net_wan.c`, `.github/workflows/httpd-security.yml`, `REFACTOR_ROADMAP.md`, `dev_log.md`, `SESSION_HANDOFF.md`.
-- **Validation:** L1 source/control-flow review PASS. L2 exact-head Actions **PENDING**; update this checkpoint with the run ID, URL, exact tested SHA and conclusion. No production MIPS/uClibc compile, full firmware/TRX build, live PPP/PPPoE, router or hardware validation is claimed.
-- **Remote persistence:** main integration is committed from the recorded base; refresh main SHA before any further code work. The pending exact-head Action is expected to be triggered by the changed `net_wan.c` and workflow.
+- **Validation:** L1 source/control-flow review PASS. L2 exact-head GitHub Actions [run 42448372736](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42448372736) completed **SUCCESS** on exact tested SHA `f11eb828b6d337121cf11fd2bc910ff869264fe7` (23/23 job steps). No production MIPS/uClibc compile, full firmware/TRX build, live PPP/PPPoE, router or hardware validation was performed.
+- **Remote persistence:** commit `f11eb828b6d337121cf11fd2bc910ff869264fe7` is present on `main`, as a direct child of the recorded base. The exact-head workflow was triggered by the changed `net_wan.c` and workflow and completed successfully.
 - **Remaining risks:** full WAN/PPP reconnect/watchdog/backoff and service stop/start result propagation; IPv4 `LWF_LIST` versus IPv6 policy intent; Adbyby extension rollback; storage mount/swap topology races. WAN/PPP remains PARTIAL/AUDITING, not closed.
-- **Exact first action for next conversation:** inspect the exact-head Actions run for this change and update the run/result SHA in this handoff/dev log; then continue WAN/PPP reconnect/watchdog/backoff and `kill_services()` stop/start return semantics. Do not return to routine SkipDBv2-only work.
+- **Exact first action for next conversation:** continue the bounded WAN/PPP reconnect/watchdog/backoff audit, starting with `stop_wan()` / `stop_wan_ppp()` and `common_ex.c::kill_services()`: it is currently `void`, ignores the initial/forced kill command results and does not re-check survivors after SIGKILL. Establish a concrete caller-visible safety defect before changing that shared system helper. Then confirm IPv4 `LWF_LIST` versus IPv6 firewall intent. Do not return to routine SkipDBv2-only work.
 
 ---
 
