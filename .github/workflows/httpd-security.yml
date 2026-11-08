@@ -5,6 +5,8 @@ on:
     paths:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
       - "trunk/user/httpd/src/upload.c"
       - "trunk/user/httpd/src/httpd_upload_file.h"
       - "trunk/user/httpd/src/tests/httpd_upload_file.c"
@@ -92,6 +94,8 @@ on:
     paths:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
       - "trunk/user/httpd/src/upload.c"
       - "trunk/user/httpd/src/httpd_upload_file.h"
       - "trunk/user/httpd/src/tests/httpd_upload_file.c"
@@ -234,6 +238,11 @@ jobs:
             trunk/user/httpd/src/tests/httpd_script_policy.c \
             -o /tmp/httpd_script_policy
           /tmp/httpd_script_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_cgi_method_policy.c \
+            -o /tmp/httpd_cgi_method_policy
+          /tmp/httpd_cgi_method_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
             -I trunk/user/httpd/src \
             trunk/user/httpd/src/common.c \
@@ -864,6 +873,8 @@ jobs:
           variables = (root / "variables.c").read_text()
           script_policy = (root / "httpd_script_policy.h").read_text()
           script_policy_test = (root / "tests/httpd_script_policy.c").read_text()
+          method_policy = (root / "httpd_cgi_method_policy.h").read_text()
+          method_policy_test = (root / "tests/httpd_cgi_method_policy.c").read_text()
           service_id_test = (root / "tests/httpd_service_id.c").read_text()
           upload = (root / "upload.c").read_text()
           archive_root = Path("trunk/user/busybox/busybox-1.24.x/archival/libarchive")
@@ -911,6 +922,24 @@ jobs:
           output_call = request.index("handler->output(file, conn_fp)")
           assert auth_gate < output_call
           assert "auth_check(authorization)" in request[auth_gate:output_call]
+
+          # Mutating apply/upload endpoints must reject GET/HEAD before query
+          # parsing, input callbacks, or privileged CGI output handlers run.
+          method_guard = request.index(
+              "httpd_cgi_method_allowed(file, method_id, HTTP_METHOD_POST)"
+          )
+          method_reject = request.index(
+              'send_error(405, "Method Not Allowed", "Allow: POST"', method_guard
+          )
+          input_dispatch = request.index("handler->input(file, conn_fp, clen, boundary)")
+          query_dispatch = request.index("do_uncgi_query(query)")
+          assert auth_gate < method_guard < method_reject < input_dispatch < query_dispatch
+          assert '#include "httpd_cgi_method_policy.h"' in httpd
+          assert "apply.cgi" in method_policy and "upgrade.cgi" in method_policy
+          assert "restore_nv.cgi" in method_policy and "restore_st.cgi" in method_policy
+          assert "applydb.cgi" not in method_policy and "update.cgi" not in method_policy
+          assert "TEST_HTTP_METHOD_HEAD" in method_policy_test
+          assert "applydb.cgi" in method_policy_test and "update.cgi" in method_policy_test
 
           # Preserve the existing HTTPS allowance for unrelated remote-admin
           # operations; the private-key policy is intentionally narrower.

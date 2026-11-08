@@ -48,6 +48,7 @@
 #include "httpd_access_policy.h"
 #include "httpd_basic_auth.h"
 #include "httpd_login_policy.h"
+#include "httpd_cgi_method_policy.h"
 
 #define LOGIN_TIMEOUT		30
 #define SERVER_NAME		"httpd"
@@ -1144,6 +1145,16 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 			http_login(&conn_ip);
 		else if (login_state == 3)
 			login_last_activity = (unsigned long)uptime();
+	}
+
+	/* System actions and upload consumers must never be triggered by a
+	 * browser's implicit GET/HEAD request. Keep query-compatible read APIs
+	 * (for example applydb.cgi and update.cgi) outside this narrow policy.
+	 */
+	if (!httpd_cgi_method_allowed(file, method_id, HTTP_METHOD_POST)) {
+		send_error(405, "Method Not Allowed", "Allow: POST",
+			   "This endpoint requires POST.", conn_fp);
+		return;
 	}
 
 	if (method_id == HTTP_METHOD_POST) {
