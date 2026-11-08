@@ -347,37 +347,12 @@ launch_wan_pppd(int unit, int wan_proto)
 	FILE *fp;
 	int auth_type, mtu, mru, mtu_max, mru_max, mtu_def, mru_def;
 	int saved_errno, launch_status;
-#if defined (APP_RPL2TP)
-	int use_rpl2tp = 0;
-#endif
 	const char *failed_option = "unknown";
 	char options[64], tmp[256];
 	char *svcs[] = { NULL, NULL };
 
 	if (unit < 0)
 		return -1;
-
-	/*
-	 * Stop the previous L2TP transport before opening/truncating the shared
-	 * PPP options file. A surviving daemon may still read this file when it
-	 * starts a session, so a failed stop must prevent all config publication.
-	 */
-	if (wan_proto == IPV4_WAN_PROTO_L2TP) {
-#if defined (APP_RPL2TP)
-		use_rpl2tp = nvram_match("wan_l2tpd", "1");
-		if (use_rpl2tp)
-			svcs[0] = "l2tpd";
-		else
-#endif
-			svcs[0] = "xl2tpd";
-
-		if (kill_services(svcs, 5, 1) != 0) {
-			saved_errno = EBUSY;
-			logmessage(LOGNAME, "refusing L2TP WAN launch: %s did not stop", svcs[0]);
-			errno = saved_errno;
-			return -1;
-		}
-	}
 
 	snprintf(options, sizeof(options), "/tmp/ppp/options.wan%d", unit);
 
@@ -579,13 +554,21 @@ launch_wan_pppd(int unit, int wan_proto)
 	launch_status = 0;
 	if (wan_proto == IPV4_WAN_PROTO_L2TP) {
 #if defined (APP_RPL2TP)
-		if (use_rpl2tp) {
+		if (nvram_match("wan_l2tpd", "1")) {
+			svcs[0] = "l2tpd";
+			kill_services(svcs, 5, 1);
+			
 			nvram_set_int_temp("l2tp_wan_t", 0);
+			
 			launch_status = start_rpl2tp(unit);
 		} else
 #endif
 		{
+			svcs[0] = "xl2tpd";
+			kill_services(svcs, 5, 1);
+			
 			nvram_set_int_temp("l2tp_wan_t", 1);
+			
 			launch_status = safe_start_xl2tpd();
 		}
 	} else {
