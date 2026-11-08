@@ -1461,24 +1461,53 @@ jobs:
           ej_table_start = web.index("struct ej_handler ej_handlers[]")
           ej_table_end = web.index("\n};", ej_table_start)
           ej_table = web[ej_table_start:ej_table_end]
-          registered_policy_start = direct_ej_policy.index("registered_callbacks[]")
-          registered_policy_end = direct_ej_policy.index("\n\t};", registered_policy_start)
-          policy_registered_callbacks = set(re.findall(
-              r'"([A-Za-z0-9_]+)"',
-              direct_ej_policy[registered_policy_start:registered_policy_end],
-          ))
+          callback_policy_start = direct_ej_policy.index("callback_policies[]")
+          callback_policy_end = direct_ej_policy.index("\n\t};", callback_policy_start)
+          callback_policy_entries = re.findall(
+              r'\{\s*"([^"]+)"\s*,\s*(HTTPD_DIRECT_EJ_[A-Z_]+)\s*\}',
+              direct_ej_policy[callback_policy_start:callback_policy_end],
+          )
+          policy_classifications = dict(callback_policy_entries)
           source_registered_callbacks = set(re.findall(
               r'\{\s*"([^"]+)"\s*,\s*[A-Za-z_][A-Za-z0-9_]*\s*\}',
               ej_table,
           ))
-          assert policy_registered_callbacks == source_registered_callbacks, (
-              "every EJ handler registration must be classified in the direct ASP policy; "
-              f"missing={source_registered_callbacks - policy_registered_callbacks}, "
-              f"stale={policy_registered_callbacks - source_registered_callbacks}"
+          assert len(policy_classifications) == len(callback_policy_entries), (
+              "duplicate direct EJ policy entry"
+          )
+          assert set(policy_classifications) == source_registered_callbacks, (
+              "every EJ handler registration must have exactly one explicit class; "
+              f"missing={source_registered_callbacks - set(policy_classifications)}, "
+              f"stale={set(policy_classifications) - source_registered_callbacks}"
           )
           assert len(source_registered_callbacks) == 88, (
               f"review the EJ registry inventory when its size changes: {len(source_registered_callbacks)}"
           )
+          assert {
+              name for name, classification in policy_classifications.items()
+              if classification == "HTTPD_DIRECT_EJ_TRUSTED_MUTATION"
+          } == {
+              "asus_nvram_commit", "notify_services", "wan_action", "wol_action",
+              "scutclient_action", "mentohust_action", "shadowsocks_action",
+              "adbyby_action", "update_action", "set_AiDisk_status", "safely_remove_disk",
+              "set_account_permission", "initial_account", "create_account", "delete_account",
+              "modify_account", "create_sharedfolder", "delete_sharedfolder",
+              "modify_sharedfolder", "set_share_mode",
+          }
+          assert {
+              name for name, classification in policy_classifications.items()
+              if classification == "HTTPD_DIRECT_EJ_SELF_GUARDED"
+          } == {"nvram_dump", "update_variables"}
+          assert {
+              name for name, classification in policy_classifications.items()
+              if classification == "HTTPD_DIRECT_EJ_BOUNDED_REFRESH"
+          } == {"bandwidth", "nvram_get_ddns", "detect_internet"}
+          assert set(policy_classifications.values()) == {
+              "HTTPD_DIRECT_EJ_READ_ONLY",
+              "HTTPD_DIRECT_EJ_BOUNDED_REFRESH",
+              "HTTPD_DIRECT_EJ_SELF_GUARDED",
+              "HTTPD_DIRECT_EJ_TRUSTED_MUTATION",
+          }
           for name in (
               "nvram_dump", "update_variables", "asus_nvram_commit",
               "notify_services", "wan_action", "wol_action",
@@ -1516,8 +1545,8 @@ jobs:
           assert "A trusted management session is required." in asp_call
           assert '#include "httpd_direct_ej_policy.h"' in ej_dispatch
           assert "httpd_storage_ej_allowed(name, 0)" in direct_ej_policy
-          assert "if (!httpd_direct_ej_registered(name))" in direct_ej_policy
-          assert "return 0;" in direct_ej_policy
+          assert "HTTPD_DIRECT_EJ_UNKNOWN" in direct_ej_policy
+          assert "if (classification == HTTPD_DIRECT_EJ_UNKNOWN)" in direct_ej_policy
 
           # Enumerate every direct-template EJ expression, including nested
           # aidisk templates. Each callback must resolve to the registered,

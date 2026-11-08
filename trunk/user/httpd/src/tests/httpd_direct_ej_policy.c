@@ -6,7 +6,7 @@
 int
 main(void)
 {
-	static const char * const privileged_callbacks[] = {
+	static const char * const trusted_callbacks[] = {
 		"asus_nvram_commit",
 		"notify_services",
 		"wan_action",
@@ -29,7 +29,18 @@ main(void)
 		"set_share_mode",
 		NULL
 	};
-	static const char * const public_callbacks[] = {
+	static const char * const self_guarded_callbacks[] = {
+		"nvram_dump",
+		"update_variables",
+		NULL
+	};
+	static const char * const bounded_refresh_callbacks[] = {
+		"bandwidth",
+		"nvram_get_ddns",
+		"detect_internet",
+		NULL
+	};
+	static const char * const read_only_callbacks[] = {
 		"nvram_get_x",
 		"nvram_get_list_x",
 		"nvram_get_buf_x",
@@ -39,15 +50,11 @@ main(void)
 		"nvram_match_both_x",
 		"nvram_match_list_x",
 		"uptime",
-		"nvram_dump",
 		"firmware_caps_hook",
 		"json_system_status",
 		"netdev",
-		"bandwidth",
 		"nvram",
-		"nvram_get_ddns",
 		"nvram_char_to_ascii",
-		"update_variables",
 		"login_state_hook",
 		"wanlink",
 		"lanlink",
@@ -65,7 +72,6 @@ main(void)
 		"wl_scan_2g",
 		"shown_language_option",
 		"hardware_pins",
-		"detect_internet",
 		"dump_syslog",
 		"dump_eth_mib",
 		"get_usb_ports_info",
@@ -100,34 +106,51 @@ main(void)
 		"openvpn_cli_cert_hook",
 		NULL
 	};
+	const char * const *name;
 	int i;
 
-	assert(!httpd_direct_ej_registered(NULL));
-	assert(!httpd_direct_ej_registered(""));
 	assert(!httpd_direct_ej_allowed(NULL, 0));
 	assert(!httpd_direct_ej_allowed(NULL, 1));
 	assert(!httpd_direct_ej_allowed("", 0));
 	assert(!httpd_direct_ej_allowed("", 1));
+	assert(httpd_direct_ej_classify(NULL) == HTTPD_DIRECT_EJ_UNKNOWN);
+	assert(httpd_direct_ej_classify("") == HTTPD_DIRECT_EJ_UNKNOWN);
 
-	for (i = 0; privileged_callbacks[i] != NULL; ++i) {
-		assert(httpd_direct_ej_registered(privileged_callbacks[i]));
-		assert(httpd_direct_ej_requires_trusted_session(privileged_callbacks[i]));
-		assert(!httpd_direct_ej_allowed(privileged_callbacks[i], 0));
-		assert(httpd_direct_ej_allowed(privileged_callbacks[i], 1));
+	for (i = 0; trusted_callbacks[i] != NULL; ++i) {
+		assert(httpd_direct_ej_classify(trusted_callbacks[i]) ==
+		       HTTPD_DIRECT_EJ_TRUSTED_MUTATION);
+		assert(httpd_direct_ej_requires_trusted_session(trusted_callbacks[i]));
+		assert(!httpd_direct_ej_allowed(trusted_callbacks[i], 0));
+		assert(httpd_direct_ej_allowed(trusted_callbacks[i], 1));
 	}
 
-	for (i = 0; public_callbacks[i] != NULL; ++i) {
-		assert(httpd_direct_ej_registered(public_callbacks[i]));
-		assert(!httpd_direct_ej_requires_trusted_session(public_callbacks[i]));
-		assert(httpd_direct_ej_allowed(public_callbacks[i], 0));
-		assert(httpd_direct_ej_allowed(public_callbacks[i], 1));
+	for (name = self_guarded_callbacks; *name != NULL; ++name) {
+		assert(httpd_direct_ej_classify(*name) == HTTPD_DIRECT_EJ_SELF_GUARDED);
+		assert(!httpd_direct_ej_requires_trusted_session(*name));
+		assert(httpd_direct_ej_allowed(*name, 0));
+		assert(httpd_direct_ej_allowed(*name, 1));
 	}
 
-	/* Similar-looking and future callback names fail closed until reviewed. */
-	assert(!httpd_direct_ej_registered("wol_action_extra"));
+	for (name = bounded_refresh_callbacks; *name != NULL; ++name) {
+		assert(httpd_direct_ej_classify(*name) == HTTPD_DIRECT_EJ_BOUNDED_REFRESH);
+		assert(!httpd_direct_ej_requires_trusted_session(*name));
+		assert(httpd_direct_ej_allowed(*name, 0));
+		assert(httpd_direct_ej_allowed(*name, 1));
+	}
+
+	for (name = read_only_callbacks; *name != NULL; ++name) {
+		assert(httpd_direct_ej_classify(*name) == HTTPD_DIRECT_EJ_READ_ONLY);
+		assert(!httpd_direct_ej_requires_trusted_session(*name));
+		assert(httpd_direct_ej_allowed(*name, 0));
+		assert(httpd_direct_ej_allowed(*name, 1));
+	}
+
+	/* Unknown, look-alike and future registrations fail closed. */
+	assert(httpd_direct_ej_classify("wol_action_extra") == HTTPD_DIRECT_EJ_UNKNOWN);
+	assert(httpd_direct_ej_classify("unregistered_callback") == HTTPD_DIRECT_EJ_UNKNOWN);
+	assert(httpd_direct_ej_requires_trusted_session("unregistered_callback"));
 	assert(!httpd_direct_ej_allowed("wol_action_extra", 0));
 	assert(!httpd_direct_ej_allowed("wol_action_extra", 1));
-	assert(!httpd_direct_ej_registered("unregistered_callback"));
 	assert(!httpd_direct_ej_allowed("unregistered_callback", 0));
 	assert(!httpd_direct_ej_allowed("unregistered_callback", 1));
 
