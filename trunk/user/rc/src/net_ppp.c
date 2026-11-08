@@ -28,12 +28,239 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <ctype.h>
 
 #include "rc.h"
 #include "ppp_options_file.h"
 #include "ppp_option_value_policy.h"
 #include "ppp_callback_identity_policy.h"
+#include "ppp_callback_generation_policy.h"
+
+#define PPP_WAN_SESSION_STATE_FILE "/tmp/ppp/wan-session.state"
+#define PPP_WAN_SESSION_LOCK_ATTEMPTS 500
+
+/* The state file is also the inter-process lock. Holding it for a complete
+ * callback makes session invalidation wait for all in-flight WAN mutations. */
+static int
+ppp_wan_session_state_lock(unsigned long *generation, int allow_empty)
+{
+	int fd, attempt, locked;
+	struct stat st;
+	struct flock file_lock;
+	char state_text[sizeof(unsigned long) * CHAR_BIT + 2];
+	size_t used;
+	ssize_t count;
+
+	if (!generation) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (ppp_options_directory_ready("/tmp/ppp") != 0)
+		return -1;
+
+	fd = open(PPP_WAN_SESSION_STATE_FILE,
+		  O_RDWR | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600);
+	if (fd < 0)
+		return -1;
+	if (fstat(fd, &st) != 0)
+		goto failed;
+	if (!S_ISREG(st.st_mode) || st.st_uid != geteuid() || st.st_nlink != 1) {
+		errno = !S_ISREG(st.st_mode) ? EINVAL :
+			(st.st_uid != geteuid() ? EPERM : EMLINK);
+		goto failed;
+	}
+	if (fchmod(fd, S_IRUSR | S_IWUSR) != 0)
+		goto failed;
+
+	memset(&file_lock, 0, sizeof(file_lock));
+	file_lock.l_type = F_WRLCK;
+	file_lock.l_whence = SEEK_SET;
+	file_lock.l_start = 0;
+	file_lock.l_len = 0;
+	locked = 0;
+	for (attempt = 0; attempt < PPP_WAN_SESSION_LOCK_ATTEMPTS; ++attempt) {
+		if (fcntl(fd, F_SETLK, &file_lock) == 0) {
+			locked = 1;
+			break;
+		}
+		if (errno == EINTR) {
+			--attempt;
+			continue;
+		}
+		if (errno != EACCES && errno != EAGAIN)
+			goto failed;
+		usleep(10000);
+	}
+	if (!locked) {
+		errno = EBUSY;
+		goto failed;
+	}
+
+	if (lseek(fd, 0, SEEK_SET) < 0)
+		goto failed_locked;
+	used = 0;
+	for (;;) {
+		count = read(fd, state_text + used, sizeof(state_text) - 1 - used);
+		if (count < 0) {
+			if (errno == EINTR)
+				continue;
+			goto failed_locked;
+		}
+		if (count == 0)
+			break;
+		used += (size_t)count;
+		if (used >= sizeof(state_text) - 1) {
+			errno = EOVERFLOW;
+			goto failed_locked;
+		}
+	}
+	state_text[used] = '\0';
+	if (used > 0 && state_text[used - 1] == '\n')
+		state_text[--used] = '\0';
+	if (used == 0) {
+		if (!allow_empty) {
+			errno = ENOENT;
+			goto failed_locked;
+		}
+		*generation = 0;
+	} else if (ppp_callback_generation_parse(state_text, generation) != 0) {
+		goto failed_locked;
+	}
+
+	return fd;
+
+failed_locked:
+	file_lock.l_type = F_UNLCK;
+	(void)fcntl(fd, F_SETLK, &file_lock);
+failed:
+	{
+		int saved_errno = errno ? errno : EIO;
+		(void)close(fd);
+		errno = saved_errno;
+	}
+	return -1;
+}
+
+static int
+ppp_wan_session_state_unlock(int fd)
+{
+	struct flock file_lock;
+	int result = 0;
+	int saved_errno = 0;
+
+	if (fd < 0) {
+		errno = EINVAL;
+		return -1;
+	}
+	memset(&file_lock, 0, sizeof(file_lock));
+	file_lock.l_type = F_UNLCK;
+	file_lock.l_whence = SEEK_SET;
+	file_lock.l_start = 0;
+	file_lock.l_len = 0;
+	if (fcntl(fd, F_SETLK, &file_lock) != 0) {
+		result = -1;
+		saved_errno = errno ? errno : EIO;
+	}
+	if (close(fd) != 0 && result == 0) {
+		result = -1;
+		saved_errno = errno ? errno : EIO;
+	}
+	if (result != 0)
+		errno = saved_errno;
+	return result;
+}
+
+static int
+ppp_wan_session_generation_change(unsigned long *generation_out)
+{
+	int fd, saved_errno;
+	unsigned long current, next;
+	char state_text[sizeof(unsigned long) * CHAR_BIT + 2];
+	size_t length, written;
+	ssize_t count;
+
+	fd = ppp_wan_session_state_lock(&current, 1);
+	if (fd < 0)
+		return -1;
+	if (ppp_callback_generation_next(current, &next) != 0)
+		goto failed_locked;
+	if (ppp_callback_generation_format(next, state_text, sizeof(state_text)) != 0)
+		goto failed_locked;
+	length = strlen(state_text);
+	state_text[length++] = '\n';
+
+	if (lseek(fd, 0, SEEK_SET) < 0 || ftruncate(fd, 0) != 0)
+		goto failed_locked;
+	written = 0;
+	while (written < length) {
+		count = write(fd, state_text + written, length - written);
+		if (count < 0) {
+			if (errno == EINTR)
+				continue;
+			goto failed_locked;
+		}
+		if (count == 0) {
+			errno = EIO;
+			goto failed_locked;
+		}
+		written += (size_t)count;
+	}
+	if (fsync(fd) != 0)
+		goto failed_locked;
+	if (ppp_wan_session_state_unlock(fd) != 0)
+		return -1;
+	if (generation_out)
+		*generation_out = next;
+	return 0;
+
+failed_locked:
+	saved_errno = errno ? errno : EIO;
+	(void)ppp_wan_session_state_unlock(fd);
+	errno = saved_errno;
+	return -1;
+}
+
+int
+invalidate_wan_ppp_callback_session(void)
+{
+	if (ppp_wan_session_generation_change(NULL) != 0) {
+		logmessage(LOGNAME,
+			   "refusing WAN teardown: cannot invalidate PPP callback session (errno=%d)",
+			   errno ? errno : EIO);
+		return -1;
+	}
+	return 0;
+}
+
+static int
+ppp_wan_callback_session_enter(int argc, char **argv, int *state_fd)
+{
+	int fd;
+	unsigned long current;
+
+	if (!state_fd) {
+		errno = EINVAL;
+		return -1;
+	}
+	*state_fd = -1;
+	if (argc < 7 || !argv || !argv[6] || !argv[6][0]) {
+		errno = EINVAL;
+		return -1;
+	}
+	fd = ppp_wan_session_state_lock(&current, 0);
+	if (fd < 0)
+		return -1;
+	if (!ppp_callback_generation_matches(argv[6], current)) {
+		if (ppp_wan_session_state_unlock(fd) != 0)
+			return -1;
+		return 0;
+	}
+	*state_fd = fd;
+	return 1;
+}
+
 
 static char *
 get_wan_ppp_peer(int unit)
@@ -347,6 +574,8 @@ launch_wan_pppd(int unit, int wan_proto)
 	FILE *fp;
 	int auth_type, mtu, mru, mtu_max, mru_max, mtu_def, mru_def;
 	int saved_errno, launch_status;
+	unsigned long callback_generation;
+	char callback_generation_text[sizeof(unsigned long) * CHAR_BIT + 1];
 #if defined (APP_RPL2TP)
 	int use_rpl2tp = 0;
 #endif
@@ -356,6 +585,16 @@ launch_wan_pppd(int unit, int wan_proto)
 
 	if (unit < 0)
 		return -1;
+
+	/* Fence callbacks from the prior session before reusing shared options. */
+	if (ppp_wan_session_generation_change(&callback_generation) != 0 ||
+	    ppp_callback_generation_format(callback_generation, callback_generation_text,
+					   sizeof(callback_generation_text)) != 0) {
+		saved_errno = errno ? errno : EIO;
+		logmessage(LOGNAME, "cannot establish WAN PPP callback generation (errno=%d)", saved_errno);
+		errno = saved_errno;
+		return -1;
+	}
 
 	/*
 	 * Stop the previous L2TP transport before opening/truncating the shared
@@ -567,6 +806,11 @@ launch_wan_pppd(int unit, int wan_proto)
 	failed_option = "ppp_pppd";
 	if (ppp_options_write_text(fp, get_wan_unit_value(unit, "ppp_pppd"), tmp, sizeof(tmp)) != 0)
 		goto invalid_options;
+	if (fprintf(fp, "ipparam %s\n", callback_generation_text) < 0) {
+		if (!errno)
+			errno = EIO;
+		goto invalid_options;
+	}
 
 	if (ppp_options_file_finish(fp, options) != 0) {
 		saved_errno = errno ? errno : EIO;
@@ -599,6 +843,8 @@ launch_wan_pppd(int unit, int wan_proto)
 		saved_errno = errno ? errno : EIO;
 		logmessage(LOGNAME, "WAN PPP launch command failed (status=%d, errno=%d)",
 			   launch_status, saved_errno);
+		if (ppp_wan_session_generation_change(NULL) != 0)
+			logmessage(LOGNAME, "failed to invalidate callback token after PPP launch failure (errno=%d)", errno);
 		errno = saved_errno;
 		return -1;
 	}
@@ -661,6 +907,7 @@ int
 ipup_main(int argc, char **argv)
 {
 	int unit, ppp_idx;
+	int callback_fd, callback_state;
 	char buf[256], *value;
 	char *ppp_ifname = safe_getenv("IFNAME");
 	char *ppp_linkname = safe_getenv("LINKNAME");
@@ -673,6 +920,10 @@ ipup_main(int argc, char **argv)
 	unit = ppp_wan_unit(ppp_linkname);
 	if (unit < 0)
 		return -1;
+
+	callback_state = ppp_wan_callback_session_enter(argc, argv, &callback_fd);
+	if (callback_state <= 0)
+		return callback_state == 0 ? 0 : -1;
 
 	/* update ifname_t */
 	set_wan_unit_value(unit, "ifname_t", ppp_ifname);
@@ -706,6 +957,8 @@ ipup_main(int argc, char **argv)
 
 	logmessage(get_wan_unit_value(unit, "proto_t"), "Connected");
 
+	if (ppp_wan_session_state_unlock(callback_fd) != 0)
+		return -1;
 	return 0;
 }
 
@@ -713,6 +966,7 @@ int
 ipdown_main(int argc, char **argv)
 {
 	int unit, ppp_idx;
+	int callback_fd, callback_state;
 	char *ppp_ifname = safe_getenv("IFNAME");
 	char *ppp_linkname = safe_getenv("LINKNAME");
 
@@ -723,6 +977,10 @@ ipdown_main(int argc, char **argv)
 	unit = ppp_wan_unit(ppp_linkname);
 	if (unit < 0)
 		return -1;
+
+	callback_state = ppp_wan_callback_session_enter(argc, argv, &callback_fd);
+	if (callback_state <= 0)
+		return callback_state == 0 ? 0 : -1;
 
 	umask(0000);
 
@@ -732,6 +990,8 @@ ipdown_main(int argc, char **argv)
 
 	logmessage(get_wan_unit_value(unit, "proto_t"), "Disconnected");
 
+	if (ppp_wan_session_state_unlock(callback_fd) != 0)
+		return -1;
 	return 0;
 }
 
@@ -740,6 +1000,7 @@ int
 ipv6up_main(int argc, char **argv)
 {
 	int unit, ppp_idx;
+	int callback_fd, callback_state;
 	char *ppp_ifname = safe_getenv("IFNAME");
 	char *ppp_linkname = safe_getenv("LINKNAME");
 
@@ -751,13 +1012,20 @@ ipv6up_main(int argc, char **argv)
 	if (unit < 0)
 		return -1;
 
-	if (!is_wan_ipv6_if_ppp())
-		return 0;
+	callback_state = ppp_wan_callback_session_enter(argc, argv, &callback_fd);
+	if (callback_state <= 0)
+		return callback_state == 0 ? 0 : -1;
+	if (!is_wan_ipv6_if_ppp()) {
+		return ppp_wan_session_state_unlock(callback_fd);
+	}
+
 
 	umask(0000);
 
 	wan6_up(ppp_ifname, unit);
 
+	if (ppp_wan_session_state_unlock(callback_fd) != 0)
+		return -1;
 	return 0;
 }
 
@@ -765,6 +1033,7 @@ int
 ipv6down_main(int argc, char **argv)
 {
 	int unit, ppp_idx;
+	int callback_fd, callback_state;
 	char *ppp_ifname = safe_getenv("IFNAME");
 	char *ppp_linkname = safe_getenv("LINKNAME");
 
@@ -776,8 +1045,13 @@ ipv6down_main(int argc, char **argv)
 	if (unit < 0)
 		return -1;
 
-	if (!is_wan_ipv6_if_ppp())
-		return 0;
+	callback_state = ppp_wan_callback_session_enter(argc, argv, &callback_fd);
+	if (callback_state <= 0)
+		return callback_state == 0 ? 0 : -1;
+	if (!is_wan_ipv6_if_ppp()) {
+		return ppp_wan_session_state_unlock(callback_fd);
+	}
+
 
 	umask(0000);
 
@@ -785,6 +1059,8 @@ ipv6down_main(int argc, char **argv)
 
 	update_resolvconf(0, 0);
 
+	if (ppp_wan_session_state_unlock(callback_fd) != 0)
+		return -1;
 	return 0;
 }
 #endif

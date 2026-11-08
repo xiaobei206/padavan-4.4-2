@@ -50,6 +50,12 @@ main(void)
 	assert(strcmp(out, "option \\'quoted\\'\\\\value") == 0);
 	assert(ppp_option_text_escape("bad\rline", out, sizeof(out)) == -1);
 	assert(errno == EINVAL);
+	assert(ppp_option_text_escape("ipparam attacker", out, sizeof(out)) == -1);
+	assert(errno == EPERM);
+	assert(ppp_option_text_escape("debug\nipparam=attacker", out, sizeof(out)) == -1);
+	assert(errno == EPERM);
+	assert(ppp_option_text_escape("# ipparam is documented\ndebug", out, sizeof(out)) == 0);
+	assert(strcmp(out, "# ipparam is documented\ndebug") == 0);
 
 	assert(ppp_config_line_value_copy("1234", exact, sizeof(exact)) == 0);
 	assert(strcmp(exact, "1234") == 0);

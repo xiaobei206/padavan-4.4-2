@@ -118,9 +118,13 @@ on:
       - "trunk/user/rc/src/ppp_options_file.h"
       - "trunk/user/rc/src/ppp_option_value_policy.h"
       - "trunk/user/rc/src/ppp_callback_identity_policy.h"
+      - "trunk/user/rc/src/ppp_callback_generation_policy.h"
       - "trunk/user/rc/src/tests/ppp_options_file.c"
       - "trunk/user/rc/src/tests/ppp_option_value_policy.c"
       - "trunk/user/rc/src/tests/ppp_callback_identity_policy.c"
+      - "trunk/user/rc/src/tests/ppp_callback_generation_policy.c"
+      - "trunk/user/pppd/ppp-2.4.7/pppd/ipcp.c"
+      - "trunk/user/pppd/ppp-2.4.7/pppd/ipv6cp.c"
       - "trunk/user/rc/src/dnsmasq_file.h"
       - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
@@ -264,9 +268,13 @@ on:
       - "trunk/user/rc/src/ppp_options_file.h"
       - "trunk/user/rc/src/ppp_option_value_policy.h"
       - "trunk/user/rc/src/ppp_callback_identity_policy.h"
+      - "trunk/user/rc/src/ppp_callback_generation_policy.h"
       - "trunk/user/rc/src/tests/ppp_options_file.c"
       - "trunk/user/rc/src/tests/ppp_option_value_policy.c"
       - "trunk/user/rc/src/tests/ppp_callback_identity_policy.c"
+      - "trunk/user/rc/src/tests/ppp_callback_generation_policy.c"
+      - "trunk/user/pppd/ppp-2.4.7/pppd/ipcp.c"
+      - "trunk/user/pppd/ppp-2.4.7/pppd/ipv6cp.c"
       - "trunk/user/rc/src/dnsmasq_file.h"
       - "trunk/user/rc/src/tests/dnsmasq_file.c"
       - "trunk/user/rc/src/vpn_server.c"
@@ -547,6 +555,11 @@ jobs:
             trunk/user/rc/src/tests/ppp_callback_identity_policy.c \
             -o /tmp/ppp_callback_identity_policy
           /tmp/ppp_callback_identity_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/rc/src \
+            trunk/user/rc/src/tests/ppp_callback_generation_policy.c \
+            -o /tmp/ppp_callback_generation_policy
+          /tmp/ppp_callback_generation_policy
           python3 - <<'PY'
           from pathlib import Path
 
@@ -558,6 +571,10 @@ jobs:
           value_test = Path("trunk/user/rc/src/tests/ppp_option_value_policy.c").read_text()
           identity_policy = Path("trunk/user/rc/src/ppp_callback_identity_policy.h").read_text()
           identity_test = Path("trunk/user/rc/src/tests/ppp_callback_identity_policy.c").read_text()
+          generation_policy = Path("trunk/user/rc/src/ppp_callback_generation_policy.h").read_text()
+          generation_test = Path("trunk/user/rc/src/tests/ppp_callback_generation_policy.c").read_text()
+          ipcp = Path("trunk/user/pppd/ppp-2.4.7/pppd/ipcp.c").read_text()
+          ipv6cp = Path("trunk/user/pppd/ppp-2.4.7/pppd/ipv6cp.c").read_text()
 
           assert '#include "ppp_options_file.h"' in ppp
           assert 'ppp_options_directory_ready("/tmp/ppp")' in ppp
@@ -598,6 +615,40 @@ jobs:
           assert "return atoi(linkname+3);" not in ppp
           assert "ppp0junk" in identity_test and "wan0garbage" in identity_test
           assert "ppp_callback_parse_index" in identity_policy
+
+          assert '#include "ppp_callback_generation_policy.h"' in ppp
+          assert "ppp_wan_session_generation_change(&callback_generation)" in ppp
+          assert 'fprintf(fp, "ipparam %s\\n", callback_generation_text)' in ppp
+          assert "ppp_wan_callback_session_enter(argc, argv, &callback_fd)" in ppp
+          assert "ppp_callback_generation_matches(argv[6], current)" in ppp
+          assert "PPP_WAN_SESSION_LOCK_ATTEMPTS" in ppp
+          assert "O_NOFOLLOW | O_NONBLOCK" in ppp
+          assert "ppp_option_text_reject_ipparam" in value_policy
+          assert "ipparam attacker" in value_test
+          assert "ppp_callback_generation_parse" in generation_policy
+          assert "stop advances the generation" in generation_test
+          assert "argv[6] = ipparam;" in ipcp
+          assert "argv[6] = ipparam;" in ipv6cp
+
+          for callback, first_effect in (
+              ("ipup_main(int argc, char **argv)", 'set_wan_unit_value(unit, "ifname_t"'),
+              ("ipdown_main(int argc, char **argv)", "wan_down(ppp_ifname, unit, 0);"),
+              ("ipv6up_main(int argc, char **argv)", "wan6_up(ppp_ifname, unit);"),
+              ("ipv6down_main(int argc, char **argv)", "wan6_down(ppp_ifname, unit);"),
+          ):
+              start = ppp.index(callback)
+              end = ppp.index("\n}", start)
+              body = ppp[start:end]
+              assert body.index("ppp_wan_callback_session_enter") < body.index(first_effect)
+
+          stop_ppp_start = wan.index("stop_wan_ppp(void)")
+          stop_ppp_end = wan.index("\nint\nstop_wan(void)", stop_ppp_start)
+          stop_ppp_body = wan[stop_ppp_start:stop_ppp_end]
+          assert stop_ppp_body.index("invalidate_wan_ppp_callback_session()") < stop_ppp_body.index("kill_services(svcs_ppp")
+          stop_wan_start = wan.index("stop_wan(void)")
+          stop_wan_end = wan.index("\nstatic int\nget_wan_unit", stop_wan_start)
+          stop_wan_body = wan[stop_wan_start:stop_wan_end]
+          assert stop_wan_body.index("invalidate_wan_ppp_callback_session()") < stop_wan_body.index("kill_services(svcs_ppp")
 
           assert "ppp_config_line_value_copy" in value_policy
           assert "ppp_config_line_value_copy" in value_test

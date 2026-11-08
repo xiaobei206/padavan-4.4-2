@@ -1058,6 +1058,10 @@ stop_wan_ppp(void)
 #endif
 		"l2tpd", "xl2tpd", "pppd", NULL
 	};
+	if (invalidate_wan_ppp_callback_session() != 0) {
+		logmessage(LOGNAME, "refusing to stop WAN PPP without callback-session fencing");
+		return -1;
+	}
 	nvram_set_int_temp("deferred_wanup_t", 0);
 	notify_pause_detect_internet();
 	stop_vpn_client();
@@ -1088,6 +1092,10 @@ stop_wan(void)
 	};
 
 	unit = 0;
+	if (invalidate_wan_ppp_callback_session() != 0) {
+		logmessage(LOGNAME, "refusing WAN teardown without PPP callback-session fencing");
+		return -1;
+	}
 	nvram_set_int_temp("deferred_wanup_t", 0);
 	wan_proto = get_wan_proto(unit);
 	man_ifname = get_man_ifname(unit);

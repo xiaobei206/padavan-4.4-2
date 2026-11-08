@@ -323,6 +323,7 @@ int start_zcip_viptv(char *man_ifname);
 int  safe_start_xl2tpd(void);
 char *safe_pppd_line(const char *line, char *buf, size_t buf_size);
 int  launch_wan_pppd(int unit, int wan_proto);
+int  invalidate_wan_ppp_callback_session(void);
 void preset_wan_ppp_routes(char *ppp_ifname, int unit);
 int  ppp_ifindex(char *ifname);
 int  ipup_main(int argc, char **argv);
