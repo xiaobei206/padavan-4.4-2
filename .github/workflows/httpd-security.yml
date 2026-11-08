@@ -39,6 +39,8 @@ on:
       - "trunk/user/httpd/src/variables.c"
       - "trunk/user/httpd/src/httpd_script_policy.h"
       - "trunk/user/httpd/src/tests/httpd_script_policy.c"
+      - "trunk/user/httpd/src/httpd_apply_request_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_apply_request_policy.c"
       - "trunk/user/httpd/src/common.c"
       - "trunk/user/httpd/src/tests/httpd_service_id.c"
       - "trunk/user/httpd/src/httpd_access_policy.h"
@@ -130,6 +132,8 @@ on:
       - "trunk/user/httpd/src/web_ex.c"
       - "trunk/user/httpd/src/httpd_script_policy.h"
       - "trunk/user/httpd/src/tests/httpd_script_policy.c"
+      - "trunk/user/httpd/src/httpd_apply_request_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_apply_request_policy.c"
       - "trunk/user/httpd/src/variables.c"
       - "trunk/user/httpd/src/common.c"
       - "trunk/user/httpd/src/tests/httpd_service_id.c"
@@ -245,6 +249,11 @@ jobs:
             trunk/user/httpd/src/tests/httpd_script_policy.c \
             -o /tmp/httpd_script_policy
           /tmp/httpd_script_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_apply_request_policy.c \
+            -o /tmp/httpd_apply_request_policy
+          /tmp/httpd_apply_request_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
             -I trunk/user/httpd/src \
             trunk/user/httpd/src/tests/httpd_cgi_method_policy.c \
@@ -880,6 +889,8 @@ jobs:
           variables = (root / "variables.c").read_text()
           script_policy = (root / "httpd_script_policy.h").read_text()
           script_policy_test = (root / "tests/httpd_script_policy.c").read_text()
+          apply_policy = (root / "httpd_apply_request_policy.h").read_text()
+          apply_policy_test = (root / "tests/httpd_apply_request_policy.c").read_text()
           method_policy = (root / "httpd_cgi_method_policy.h").read_text()
           method_policy_test = (root / "tests/httpd_cgi_method_policy.c").read_text()
           service_id_test = (root / "tests/httpd_service_id.c").read_text()
@@ -1501,6 +1512,36 @@ jobs:
           assert 'if (SystemCmd[0] && get_login_safe())' in syscmd
           assert syscmd.index("SystemCmd[0] =", syscmd.index("} else {")) > syscmd.index("} else {")
           print("HTTPD SystemCmd trusted-session queue and stale-command guard: OK")
+
+          # Direct apply.cgi actions and action_script values must pass a
+          # per-operation trusted-session gate before any request mutation or
+          # privileged sink. update.cgi has a direct eval special case for
+          # networkmap_refresh, so its gate must precede that call as well.
+          assert '#include "httpd_apply_request_policy.h"' in web
+          apply_gate = apply_handler.index(
+              "httpd_apply_request_allowed(value, script, get_login_safe())"
+          )
+          assert apply_gate < apply_handler.index("snprintf(next_host,")
+          assert apply_gate < apply_handler.index('if (!strcmp(value, " SystemCmd "))')
+          update_gate = update_handler.index(
+              "httpd_apply_request_allowed(action_mode, script, get_login_safe())"
+          )
+          networkmap_eval = update_handler.index('eval("restart_networkmap");')
+          service_loop = update_handler.index("while ((serviceId = svc_pop_list")
+          assert update_gate < service_loop < networkmap_eval
+          privileged_modes = (
+              " SystemCmd ", " ClearLog ", " ClearssrplusLog ", " Reboot ",
+              " Shutdown ", " FreeMemory ", " RestoreNVRAM ", " RestoreStorage ",
+              " CommitFlash ", " ExportConfOVPNC ", " CreateCertOVPNS ",
+              " CreateCertHTTPS ", " NTPSyncNow ",
+          )
+          for mode in privileged_modes:
+              assert f'"{mode}"' in apply_policy
+              assert f'"{mode}"' in apply_policy_test
+          assert 'strcmp(action_script, "networkmap_refresh") == 0' in apply_policy
+          assert 'httpd_apply_request_allowed(" Apply ", "networkmap_refresh", 0)' in apply_policy_test
+          assert 'httpd_apply_request_allowed(" Apply ", "unknown_script.sh", 0)' in apply_policy_test
+          print("HTTPD apply.cgi action and action_script trusted-session policy: OK")
 
           # The generic sys_script fallback executes /tmp/<name> through _eval
           # as root. action_script is POST-controlled on authenticated CGI routes,
