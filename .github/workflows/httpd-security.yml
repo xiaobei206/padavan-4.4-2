@@ -594,6 +594,19 @@ jobs:
           failure_path = wan[wan_start:wan_end]
           assert 'set_wan_unit_value(unit, "ifname_t", wan_ifname);' in failure_path
           assert failure_path.index('set_wan_unit_value(unit, "ifname_t", wan_ifname);') < failure_path.index("start_firewall_ex();") < failure_path.index("continue;")
+          wait_start = wan.index("wait_ppp_up(char *ppp_ifname, int unit)")
+          wait_end = wan.index("\nstatic void\ncreate_cb_links", wait_start)
+          wait_body = wan[wait_start:wait_end]
+          assert "while (ifconfig(ppp_ifname, IFUP, NULL, NULL) && timeout--)" not in wait_body
+          timeout_guard = "if (timeout-- <= 0)"
+          timeout_pos = wait_body.index(timeout_guard)
+          timeout_return = wait_body.index("return 0;", timeout_pos)
+          socket_pos = wait_body.index("socket(AF_INET, SOCK_RAW, IPPROTO_RAW)")
+          routes_pos = wait_body.index("preset_wan_ppp_routes(ppp_ifname, unit)")
+          assert timeout_pos < timeout_return < socket_pos < routes_pos
+          assert "PPP interface %s did not appear before startup timeout" in wait_body
+          print("WAN PPP demand-mode timeout/fail-closed regression: OK")
+          
           print("PPP credential-file and fail-closed option escaping/launcher regressions: OK")
           PY
 
