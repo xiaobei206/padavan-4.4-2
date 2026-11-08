@@ -1,3 +1,12 @@
+## 2026-11-08 12:13 CST — Adbyby restore preflight and failure-path regression
+
+- **Baseline:** `main` SHA `a6c2045e1a734f3d690d09d35da05377cd1b4f63`. Work continues on PR #3, branch `fix/adbyby-ipset-restore-20261108`; do not merge until validation is complete.
+- **Defect / risk:** Adbyby's `blockip` DROP rules refer to a volatile ipset that teardown can remove while `/home/root/.adbyby.save` persists. A later core firewall rebuild could replay stale ipset matches. The extension restore itself is outside the core ten-table rollback.
+- **Changes:** policy callback interface in `trunk/user/rc/src/firewall_adbyby_restore_policy.h`; callback regression tests in `trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c`; guarded RC integration in `trunk/user/rc/src/firewall_ex.c`; CI source contract adjusted in `.github/workflows/httpd-security.yml`. Existing branch changes also remove the snapshot/staging files before teardown destroys ipsets and expand shell regression coverage.
+- **Change commits:** `bcd50436decd7f793fb581f2ccbc10615cfcb965`; `da59de0d440c2b956de3e6aba8e29eb1d64815c1`; `f5a29edfd756cc97c5ffd4e09c943ef4f0a761fe`; `531e5d074204ff218742ddb2bc45b51d91288762`. This sequence is on the existing branch and does not rewrite published history.
+- **Validation:** earlier exact-head run `42445383396` failed on the old brittle assertion after the shell and boolean-policy regression steps passed. The contract was updated. New Actions run `42445884729` for exact head `531e5d074204ff218742ddb2bc45b51d91288762` was IN_PROGRESS at recording time; no success claim yet. No target MIPS/uClibc build, firmware/TRX artifact validation or hardware run.
+- **Next / remaining risk:** read the latest run logs and record its exact conclusion. Extension failures remain log-only (no extension rollback); confirm correct handling if a preflight command fails, keep IPv6 semantic parity and all remaining firewall writers under audit, then move on to WAN/PPP and storage unmount/swap.
+
 ## 2026-11-08 11:54 CST — Preserve Adbyby blockip firewall rules in the restore snapshot
 
 - **Base main SHA:** `bb4d0e2faa5ee5d0d5f622103296d36e1f869e9b`. **Code/test SHA:** `10c81b096b45c97b4494843e1997a45c5138a5d7` (`fix(adbyby): persist blockip firewall rules`).
