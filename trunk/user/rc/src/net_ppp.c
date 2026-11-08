@@ -48,6 +48,7 @@ int
 safe_start_xl2tpd(void)
 {
 	FILE *fp;
+	int unit;
 	int use_vpn_server, use_wan_lac, use_vpnc;
 	int saved_errno;
 	const char *invalid_value = NULL;
@@ -176,7 +177,6 @@ safe_start_xl2tpd(void)
 			"tx bps = 100000000\n"
 			"rx bps = 100000000\n\n");
 
-		nvram_set_int_temp("l2tp_cli_t", 1);
 	}
 
 	if (fflush(fp) != 0 || ferror(fp)) {
