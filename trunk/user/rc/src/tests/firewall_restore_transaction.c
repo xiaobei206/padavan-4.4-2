@@ -226,11 +226,64 @@ test_abort_cleanup_failure_is_retryable(void)
 	assert(!tx.cleanup_failed && tx.snapshot_count == 0);
 }
 
+static void
+test_prepare_reset_refuses_cleanup_failure_then_retries(void)
+{
+	firewall_restore_transaction_t tx;
+	test_context_t t = {0};
+
+	firewall_restore_transaction_reset(&tx);
+	assert(firewall_restore_transaction_apply(&tx, "ip6tables", "filter", "/tmp/ip6-filter.rules",
+		test_snapshot, test_command, test_remove, &t) == 0);
+	strcpy(t.fail_remove_path, "/tmp/snapshot-0");
+	assert(firewall_restore_transaction_finish(&tx, test_remove, &t) == -1);
+	assert(tx.cleanup_failed && tx.snapshot_count == 1);
+
+	/* A failed retry must not reset or lose the still-present snapshot path. */
+	assert(firewall_restore_transaction_prepare_reset(&tx, test_remove, &t) == -1);
+	assert(tx.cleanup_failed && tx.snapshot_count == 1);
+	assert(strcmp(tx.snapshots[0].path, "/tmp/snapshot-0") == 0);
+	assert(t.remove_attempt_count == 2 && t.remove_count == 0);
+
+	t.fail_remove_path[0] = '\0';
+	assert(firewall_restore_transaction_prepare_reset(&tx, test_remove, &t) == 0);
+	assert(tx.snapshot_count == 0 && !tx.cleanup_failed && !tx.failed);
+	assert(t.remove_attempt_count == 3 && t.remove_count == 1);
+}
+
+static void
+test_prepare_reset_preserves_failed_rollback_recovery_set(void)
+{
+	firewall_restore_transaction_t tx;
+	test_context_t t = {0};
+
+	strcpy(t.fail_apply_family, "iptables");
+	strcpy(t.fail_apply_table, "nat");
+	strcpy(t.fail_rollback_family, "iptables");
+	strcpy(t.fail_rollback_table, "nat");
+	firewall_restore_transaction_reset(&tx);
+	assert(firewall_restore_transaction_apply(&tx, "iptables", "filter", "/tmp/filter.rules",
+		test_snapshot, test_command, test_remove, &t) == 0);
+	assert(firewall_restore_transaction_apply(&tx, "iptables", "nat", "/tmp/nat.rules",
+		test_snapshot, test_command, test_remove, &t) == -1);
+	assert(firewall_restore_transaction_rollback_failed(&tx));
+	assert(tx.snapshot_count == 2 && t.remove_attempt_count == 0);
+
+	/* Recovery snapshots are evidence for an incomplete rollback, not garbage. */
+	assert(firewall_restore_transaction_prepare_reset(&tx, test_remove, &t) == -1);
+	assert(firewall_restore_transaction_rollback_failed(&tx));
+	assert(tx.snapshot_count == 2 && t.remove_attempt_count == 0);
+	assert(strcmp(tx.snapshots[0].path, "/tmp/snapshot-0") == 0);
+	assert(strcmp(tx.snapshots[1].path, "/tmp/snapshot-1") == 0);
+}
+
 int
 main(void)
 {
 	test_cleanup_failure_retains_snapshot_for_retry();
 	test_abort_cleanup_failure_is_retryable();
+	test_prepare_reset_refuses_cleanup_failure_then_retries();
+	test_prepare_reset_preserves_failed_rollback_recovery_set();
 	test_success();
 	test_apply_failure_reverse_rollback();
 	test_snapshot_failure_rolls_back_prior_tables();
