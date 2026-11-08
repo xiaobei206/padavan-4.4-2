@@ -43,7 +43,7 @@ main(void)
 		"get_permissions_of_account",
 		"get_folder_tree",
 		"get_share_tree",
-		"system_status_data",
+		"json_system_status",
 		NULL
 	};
 	int i;
