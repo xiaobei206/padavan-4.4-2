@@ -35,6 +35,9 @@
 #include "firewall_command_status.h"
 #include "firewall_restore_transaction.h"
 #include "firewall_hook_file.h"
+#if defined (APP_ADBYBY)
+#include "firewall_adbyby_restore_policy.h"
+#endif
 
 static firewall_restore_transaction_t firewall_core_restore_transaction;
 static int firewall_core_restore_transaction_active;
@@ -77,6 +80,33 @@ firewall_log_command_failure(const char *operation, int status)
 
 	logmessage(LOGNAME, "%s: command failed with wait status %d", operation, status);
 }
+
+#if defined (APP_ADBYBY)
+static int
+firewall_adbyby_blockip_preflight(void *context)
+{
+	(void)context;
+	return doSystem("ipset list blockip >/dev/null 2>&1");
+}
+
+static int
+firewall_adbyby_restore_snapshot_command(void *context)
+{
+	const char *snapshot = (const char *)context;
+	return doSystem("iptables-restore -n %s", snapshot);
+}
+
+static void
+firewall_adbyby_report_restore_failure(const char *operation, int status,
+				       void *context)
+{
+	(void)context;
+	firewall_log_command_failure(operation, status);
+	if (strcmp(operation, "Adbyby blockip ipset preflight") == 0)
+		logmessage(LOGNAME,
+			   "Skipping Adbyby firewall restore: required blockip ipset is unavailable");
+}
+#endif
 
 
 typedef struct {
@@ -2515,6 +2545,7 @@ start_firewall_ex(void)
 #endif
 #if defined (APP_ADBYBY)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
+	int adbyby_snapshot_exists;
 #endif
 	firewall_restore_transaction_reset(&firewall_core_restore_transaction);
 	firewall_core_restore_transaction_active = 0;
@@ -2658,8 +2689,15 @@ firewall_restore_complete:
 	}
 #endif
 #if defined (APP_ADBYBY)
-	if (check_if_file_exist(adbyby_iptables))
-		firewall_log_command_failure("Adbyby iptables restore", doSystem("iptables-restore -n %s", adbyby_iptables));
+	adbyby_snapshot_exists = check_if_file_exist(adbyby_iptables);
+	/* The saved rules reference blockip. The policy skips stale snapshots when
+	 * Adbyby has removed that ipset and reports a failed extension restore.
+	 * The add-on is deliberately outside the core table rollback transaction. */
+	(void)firewall_adbyby_restore_policy_apply(adbyby_snapshot_exists,
+		firewall_adbyby_blockip_preflight,
+		firewall_adbyby_restore_snapshot_command,
+		firewall_adbyby_report_restore_failure,
+		(void *)adbyby_iptables);
 #endif
 	/* Storage-restored hooks are privileged programs: reject links and unsafe
 	 * metadata, then execute only a root-private snapshot of the opened inode. */

@@ -112,6 +112,8 @@ on:
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/rc/src/firewall_restore_transaction.h"
+      - "trunk/user/rc/src/firewall_adbyby_restore_policy.h"
+      - "trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c"
       - "trunk/user/rc/src/tests/firewall_restore_transaction.c"
       - "trunk/user/shared/src/shutils.c"
       - "trunk/user/rc/src/rc.c"
@@ -233,6 +235,8 @@ on:
       - "trunk/user/rc/src/firewall_command_status.h"
       - "trunk/user/rc/src/tests/firewall_command_status.c"
       - "trunk/user/rc/src/firewall_restore_transaction.h"
+      - "trunk/user/rc/src/firewall_adbyby_restore_policy.h"
+      - "trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c"
       - "trunk/user/rc/src/tests/firewall_restore_transaction.c"
       - "trunk/user/shared/src/shutils.c"
       - "trunk/user/rc/src/rc.c"
@@ -819,6 +823,8 @@ jobs:
           helper_test = Path("trunk/user/rc/src/tests/firewall_hook_file.c").read_text()
           adbyby = Path("trunk/user/adbyby/adbyby.sh").read_text()
           dev_init = Path("trunk/user/scripts/files/sbin/dev_init.sh").read_text()
+          adbyby_policy = Path("trunk/user/rc/src/firewall_adbyby_restore_policy.h").read_text()
+          adbyby_policy_test = Path("trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c").read_text()
           dispatch = firewall[firewall.index("start_firewall_ex(void)"):]
           assert '#include "firewall_hook_file.h"' in firewall
           assert "O_NOFOLLOW" in helper and "st_uid != geteuid()" in helper
@@ -843,6 +849,21 @@ jobs:
           assert '"/tmp/shadowsocks_iptables.save"' in dispatch
           assert '"/home/root/.adbyby.save"' in dispatch
           assert '"/tmp/adbyby.save"' not in dispatch
+          assert '#include "firewall_adbyby_restore_policy.h"' in firewall
+          assert "firewall_adbyby_restore_policy_apply" in adbyby_policy
+          adbyby_restore_start = dispatch.index("firewall_adbyby_restore_policy_apply(")
+          adbyby_restore_end = dispatch.index("#endif", adbyby_restore_start)
+          adbyby_restore = dispatch[adbyby_restore_start:adbyby_restore_end]
+          assert "firewall_adbyby_blockip_preflight" in adbyby_restore
+          assert "firewall_adbyby_restore_snapshot_command" in adbyby_restore
+          assert "firewall_adbyby_report_restore_failure" in adbyby_restore
+          assert "firewall_restore_transaction_abort" not in adbyby_restore
+          assert "Adbyby blockip ipset preflight" in adbyby_policy
+          assert "Adbyby iptables restore" in adbyby_policy
+          assert "test_missing_snapshot_is_noop" in adbyby_policy_test
+          assert "test_missing_ipset_skips_restore" in adbyby_policy_test
+          assert "test_failed_extension_restore_is_reported" in adbyby_policy_test
+          assert "test_successful_restore" in adbyby_policy_test
           assert "symlink(src,linkp)" in helper_test
           assert "S_IWGRP | S_IWOTH" in helper
           assert "save_adbyby_rule_snapshot" in adbyby
@@ -862,6 +883,14 @@ jobs:
               "if ! ipset -! restore < \"$blockip_file\" 2>/dev/null; then",
           ):
               assert guarded in ip_rule, guarded
+          remove_snapshot_start = adbyby.index("adbyby_remove_rule_snapshot()" + chr(10) + "(")
+          remove_snapshot_end = adbyby.index(chr(10) + "adbyby_abort_rule_setup()", remove_snapshot_start)
+          remove_snapshot = adbyby[remove_snapshot_start:remove_snapshot_end]
+          assert 'rm -f "$save_dir/.adbyby.save"' in remove_snapshot
+          del_rule_start = adbyby.index("del_rule()" + chr(10) + "{")
+          del_rule_end = adbyby.index(chr(10) + "reload_rule()", del_rule_start)
+          del_rule = adbyby[del_rule_start:del_rule_end]
+          assert del_rule.index("adbyby_remove_rule_snapshot") < del_rule.index("ipset -X blockip")
           add_rule_start = adbyby.index("add_rule()" + chr(10) + "{")
           add_rule_end = adbyby.index(chr(10) + "del_rule()", add_rule_start)
           add_rule = adbyby[add_rule_start:add_rule_end]
@@ -879,6 +908,11 @@ jobs:
           set -eu
           sh -n trunk/user/adbyby/adbyby.sh
           sh trunk/user/adbyby/tests/firewall_snapshot.sh
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -Itrunk/user/rc/src \
+            trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c \
+            -o /tmp/firewall_adbyby_restore_policy
+          /tmp/firewall_adbyby_restore_policy
 
       - name: Check firewall command status reporting
         run: |
@@ -902,6 +936,8 @@ jobs:
           status_test = Path("trunk/user/rc/src/tests/firewall_command_status.c").read_text()
           transaction_helper = Path("trunk/user/rc/src/firewall_restore_transaction.h").read_text()
           transaction_test = Path("trunk/user/rc/src/tests/firewall_restore_transaction.c").read_text()
+          adbyby_policy = Path("trunk/user/rc/src/firewall_adbyby_restore_policy.h").read_text()
+          adbyby_policy_test = Path("trunk/user/rc/src/tests/firewall_adbyby_restore_policy.c").read_text()
           shutils = Path("trunk/user/shared/src/shutils.c").read_text()
 
           # doSystem() returns system(3)'s encoded wait status, not a plain
@@ -933,11 +969,21 @@ jobs:
               firewall
           )
           assert len(core_restore_calls) == 10, len(core_restore_calls)
-          assert len(addon_restore_calls) == 1, len(addon_restore_calls)
+          assert len(addon_restore_calls) == 0, len(addon_restore_calls)
+          assert "firewall_adbyby_restore_policy_apply" in adbyby_policy
+          assert "firewall_adbyby_restore_policy_apply" in firewall
+          assert "test_missing_snapshot_is_noop" in adbyby_policy_test
+          assert "test_missing_ipset_skips_restore" in adbyby_policy_test
+          assert "test_failed_extension_restore_is_reported" in adbyby_policy_test
+          assert "test_successful_restore" in adbyby_policy_test
+          assert 'return doSystem("ipset list blockip >/dev/null 2>&1");' in firewall
+          assert 'return doSystem("iptables-restore -n %s", snapshot);' in firewall
+          assert "firewall_log_command_failure(operation, status);" in firewall
+          assert '"Adbyby blockip ipset preflight"' in adbyby_policy
+          assert '"Adbyby iptables restore"' in adbyby_policy
           assert not re.search(r'^\s*doSystem\("(?:ip6tables|iptables)-restore', firewall, re.M)
           for call in (
               'firewall_log_command_failure("Shadowsocks firewall hook", doSystem("sh %s", shadowsocks_staged));',
-              'firewall_log_command_failure("Adbyby iptables restore", doSystem("iptables-restore -n %s", adbyby_iptables));'
           ):
               assert call in firewall
           assert 'firewall_log_command_failure("Persistent post-firewall hook",' in firewall
@@ -954,7 +1000,7 @@ jobs:
                              "ip6t_mangle_rules(", "ip6t_nat_rules(", "ip6t_filter_rules("):
               assert firewall_main.index(table_call) < restore_gate, table_call
           for hook_call in ("firewall_hook_file_stage(shadowsocks_iptables_script",
-                            'firewall_log_command_failure("Adbyby iptables restore"',
+                            "firewall_adbyby_restore_policy_apply(",
                             "firewall_hook_file_stage(int_iptables_script",
                             "firewall_hook_file_stage(opt_iptables_script"):
               assert restore_gate < firewall_main.index(hook_call), hook_call

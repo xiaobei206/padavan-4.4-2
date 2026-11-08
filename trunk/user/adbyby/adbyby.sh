@@ -307,6 +307,19 @@ save_adbyby_rule_snapshot()
 	rm -f "$raw_file"
 )
 
+adbyby_remove_rule_snapshot()
+(
+	# A deleted add-on must not leave a stale privileged iptables-restore input.
+	# Do not follow a path that redirects cleanup outside the private directory.
+	save_dir="${1:-/home/root}"
+	[ ! -L "$save_dir" ] || return 1
+	if [ ! -e "$save_dir" ]; then
+		return 0
+	fi
+	[ -d "$save_dir" ] || return 1
+	rm -f "$save_dir/.adbyby.save" "$save_dir"/.adbyby-save.raw.* "$save_dir"/.adbyby-save.next.*
+)
+
 adbyby_abort_rule_setup()
 {
 	reason="$1"
@@ -353,6 +366,9 @@ add_rule()
 
 del_rule()
 {
+	if ! adbyby_remove_rule_snapshot; then
+		logger -t "adbyby" "清理防火墙规则快照失败；后续防火墙重建可能仍尝试恢复旧规则。"
+	fi
 	$ipt_n -D PREROUTING -p tcp --dport 80 -j ADBYBY 2>/dev/null
 	$ipt_n -F ADBYBY 2>/dev/null
 	$ipt_n -X ADBYBY 2>/dev/null

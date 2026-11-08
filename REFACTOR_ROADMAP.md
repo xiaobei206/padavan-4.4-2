@@ -4,7 +4,17 @@
 **Primary branch:** main  
 **Initial baseline before this governance bootstrap:** 412eebb4d0c36f9cbaf43921b4ce1f2056665984
 **Governance bootstrap commit:** 84e2fb77973393dd2804b9feb2d94b2ce74933c4 (verified on main)  
-**Roadmap status:** Tested code/test/workflow head `10c81b096b45c97b4494843e1997a45c5138a5d7` fixes an Adbyby persistence gap: the private `.adbyby.save` snapshot now includes the `blockip` DROP rules installed in IPv4 `FORWARD`/`OUTPUT` and preserves first-rule insertion semantics for those chains. Exact-head Actions [run 42444613823](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42444613823) completed SUCCESS on that SHA. The built-in ten-table IPv4/IPv6 rollback work remains bounded to `start_firewall_ex()`; Adbyby/ipset restore ordering, failures across the add-on restore boundary, remaining firewall mutation coverage and IPv6 semantic parity remain AUDITING / NOT VERIFIED. HTTPD/CGI/auth is not complete: Origin/Referer absence remains a documented compatibility exception pending client evidence/request-token design. Continue the remaining add-on firewall review, then rotate to WAN/PPP and storage unmount/swap; routine SkipDBv2-only work remains paused.
+**Roadmap status:** The last completed mainline code/test head `10c81b096b45c97b4494843e1997a45c5138a5d7` has exact-head Actions PASS (run `42444613823`). The follow-up Adbyby stale-ipset restore task is active on PR #3, branch `fix/adbyby-ipset-restore-20261108`; code/test/workflow SHA `531e5d074204ff218742ddb2bc45b51d91288762` has Actions run `42445884729` observed IN_PROGRESS. Do not mark the follow-up verified until that exact run completes. The implementation removes stale snapshot state before ipset teardown, preflights `blockip` before replay, and tests missing-set and extension-restore failure callbacks. Core firewall transaction does not cover the add-on restore; full firewall mutation inventory and IPv6 semantic parity remain AUDITING / NOT VERIFIED. HTTPD/CGI/auth still has the documented Origin/Referer-absent compatibility exception. Next areas after this bounded task: WAN/PPP and storage unmount/swap; routine SkipDBv2-only work remains paused.
+
+## 2026-11-08 12:13 CST — Continue Adbyby stale-ipset restore audit
+
+- **Baseline:** current main before the follow-up was `a6c2045e1a734f3d690d09d35da05377cd1b4f63`; follow-up is on PR #3, active branch `fix/adbyby-ipset-restore-20261108`.
+- **Finding:** the saved Adbyby firewall snapshot references `blockip`; Adbyby teardown removes the ipset, while the main firewall rebuild can still find and replay the saved restore file.
+- **Implementation/test contract:** snapshot cleanup precedes ipset destruction; `start_firewall_ex()` now goes through a policy that skips a missing prerequisite and reports restore-command failure. Callback tests cover absent snapshot, absent set/no restore, failed extension restore reporting, and success. The workflow contract now asserts the callback integration rather than a brittle historical one-line call.
+- **Validation:** source review performed. Exact-head Actions run `42445884729` on `531e5d074204ff218742ddb2bc45b51d91288762` was still IN_PROGRESS when this entry was prepared; leave the row unverified until it completes. No MIPS/TRX/hardware validation.
+- **Next:** resolve any actual Actions failure, then verify mainline integration and proceed to remaining firewall writers/IPv6 parity before WAN/PPP and storage lifecycle.
+
+
 
 
 ## 2026-11-08 11:54 CST — Preserve Adbyby blockip firewall rules in the restore snapshot
