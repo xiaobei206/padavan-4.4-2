@@ -573,8 +573,8 @@ jobs:
           identity_test = Path("trunk/user/rc/src/tests/ppp_callback_identity_policy.c").read_text()
           generation_policy = Path("trunk/user/rc/src/ppp_callback_generation_policy.h").read_text()
           generation_test = Path("trunk/user/rc/src/tests/ppp_callback_generation_policy.c").read_text()
-          ipcp = Path("trunk/user/pppd/ppp-2.4.7/pppd/ipcp.c").read_text()
-          ipv6cp = Path("trunk/user/pppd/ppp-2.4.7/pppd/ipv6cp.c").read_text()
+          ipcp = Path("trunk/user/pppd/ppp-2.4.7/pppd/ipcp.c").read_text(encoding="latin-1")
+          ipv6cp = Path("trunk/user/pppd/ppp-2.4.7/pppd/ipv6cp.c").read_text(encoding="latin-1")
 
           assert '#include "ppp_options_file.h"' in ppp
           assert 'ppp_options_directory_ready("/tmp/ppp")' in ppp
