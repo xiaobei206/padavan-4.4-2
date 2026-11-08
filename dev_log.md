@@ -18,8 +18,9 @@
 - No local MIPS build, completed Actions toolchain build, firmware/TRX build or hardware validation is claimed.
 
 ### Follow-up
-- Resulting implementation commit SHA: pending; reconcile after commit publication.
-- Inspect the new run for the resulting main SHA. Confirm both matrix jobs pass source retrieval; if another component fails, investigate the new log evidence and do not suppress the failure.
+- Resulting implementation commit SHA: `22ba01255e98150169f663354bf4d45ffa60859b`, pushed to `main`.
+- Exact-head verification: [Build Toolchain run 42464826364](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42464826364), head SHA `22ba01255e98150169f663354bf4d45ffa60859b`, status **QUEUED** at reconciliation time.
+- Inspect this run after completion. Confirm both matrix jobs pass source retrieval; if another component fails, investigate the new log evidence and do not suppress the failure.
 
 ---
 

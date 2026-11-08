@@ -4,8 +4,8 @@
 - **Exact failed run:** [Actions run 42464079582](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42464079582), exact main SHA `7f7d3ea41ebdd7eeab8a303f3d4ad8dddb54a8a7`; both `mipsel-linux-musl` and `mipsel-linux-uclibc` failed while retrieving `zlib-1.3.1`. The build stopped before compilation and packaging.
 - **Finding:** `toolchain/packages/zlib/package.desc` had the GitHub Release and `https://www.zlib.net/` as mirrors but no fossil/archive fallback. The zlib 1.3.1 tarball is listed under the official fossils directory; the legacy top-level `zlib-1.3.1.tar.gz` path is 404. The log does not reveal the exact curl failure for the GitHub URL, so the actionable defect is the missing working archive fallback, not a proven failure of a particular network endpoint.
 - **Change:** insert `https://www.zlib.net/fossils` into the mirror list and add a path-filtered push trigger to the toolchain workflow so this configuration change runs both target jobs on main.
-- **Status:** FIXED — NOT VERIFIED until exact-head Actions completes. No MIPS toolchain, complete firmware or hardware result is claimed.
-- **Current commit SHA:** pending commit publication; fill exact code SHA and run state during follow-up reconciliation.
+- **Status:** FIXED — NOT VERIFIED; exact-head Actions run is queued. No successful MIPS toolchain, complete firmware or hardware result is claimed.
+- **Implementation commit:** `22ba01255e98150169f663354bf4d45ffa60859b` on `main`. Exact-head verification is [run 42464826364](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42464826364), currently **QUEUED** at the time of this update.
 
 ---
 

@@ -5,9 +5,10 @@
 - **Failure evidence:** both jobs stopped during crosstool-NG's “Retrieving needed toolchain components' tarballs” step at `zlib-1.3.1`, before target compilation. Neither tarball artifact nor toolchain was produced. The logs do not expose the individual failed curl URL/status, so do not claim a proven HTTP status for the GitHub asset attempt.
 - **Root cause / corrective direction:** `toolchain/packages/zlib/package.desc` listed the GitHub release mirror and `https://www.zlib.net/` only. zlib 1.3.1 has moved to the official fossils archive; the former top-level `https://www.zlib.net/zlib-1.3.1.tar.gz` returns 404 while the fossils index lists the archived tarball. Add the fossils directory as an explicit fallback without removing the release or current-root mirrors.
 - **Workflow verification:** add a path-filtered `push` trigger for changes to the zlib package mirror descriptor, retaining manual `workflow_dispatch`; this lets the fix validate against both actual toolchain targets.
-- **Commit SHA:** pending the commit operation; reconcile this note with the resulting SHA and exact-head Actions status immediately after publication.
+- **Implementation commit:** `22ba01255e98150169f663354bf4d45ffa60859b` (`fix(toolchain): add zlib fossils mirror fallback`), committed to `main` as a fast-forward from the baseline above.
+- **Exact-head verification:** [Build Toolchain run 42464826364](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42464826364) uses the implementation commit SHA `22ba01255e98150169f663354bf4d45ffa60859b`; status at this handoff update is **QUEUED**. No result is inferred from the earlier failed run.
 - **Validation boundary:** source/config review only before publication. Actual crosstool-ng retrieval, target build and artifact packaging are NOT VERIFIED until the new exact-head Actions run completes.
-- **First next action:** inspect the new `Build Toolchain` run matching the resulting commit SHA. Confirm that zlib is fetched from one of the configured mirrors; if a later component fails, diagnose the new first failure from both job logs rather than assuming the zlib failure remains.
+- **First next action:** inspect [run 42464826364](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42464826364) for completion and confirm that zlib retrieval advances in both matrix jobs. If a later component fails, diagnose that new first failure from both logs rather than assuming the zlib failure remains.
 
 ---
 
