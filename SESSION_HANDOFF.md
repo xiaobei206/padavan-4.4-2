@@ -1,4 +1,16 @@
-## Latest resumable checkpoint — PPP callback identity validation (merged)
+## Latest resumable checkpoint — WAN demand-PPP timeout fail-closed (merged)
+
+- **Main integration:** PR [#8](https://github.com/xiaobei206/padavan-4.4-2/pull/8) merged to main at `c1a5403721bbc4201dd0e094675b043af03c715d`. This checkpoint is based on that code integration; fetch current `main` before additional changes.
+- **Exact tested code/test/workflow head:** `eeb47b3c761a06fc28fb76e3f2c62cef354e0a79`. Exact-head Actions [run 42447907470](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447907470) passed **SUCCESS, 23/23 steps**; exact-head push run [42447904690](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447904690) also passed.
+- **Finding:** `wait_ppp_up()` could exhaust its PPP-interface probe loop but then continue to socket/IP and route setup, eventually reporting success although the interface never appeared.
+- **Implemented:** six unsuccessful `ifconfig()` probes with five one-second waits now log and return failure before socket, temporary IP-state and route work. The existing wait budget and interface-success path are retained.
+- **Changed files:** `.github/workflows/httpd-security.yml`, `trunk/user/rc/src/net_wan.c`.
+- **Regression:** host CI asserts timeout failure precedes socket and route setup. The first test revision had an incorrectly escaped boundary matcher and failed; logs were reviewed and the matcher was corrected in the final tested head `eeb47b3...`. Do not treat the first failed run as a production regression.
+- **Validation boundary:** host regression/source-contract CI PASS. Production MIPS/uClibc build, full firmware/TRX, live demand PPP, router and hardware tests **NOT RUN**.
+- **Remaining risk:** WAN/PPP reconnect/watchdog/backoff and transport stop/start status handling remain only partially audited. IPv4 `LWF_LIST` / IPv6 firewall parity, Adbyby extension rollback, and storage mount/swap topology races remain open. The adjacent callback identity fix PR #9 is also merged; see the previous checkpoint below.
+- **Next exact action:** review remaining `net_wan.c`/`net_ppp.c` reconnect/watchdog and transport stop/start paths for ignored return values and stale state. Then establish intended IPv4/IPv6 filter semantics and continue extension rollback review. Avoid routine SkipDBv2-only expansion.
+
+## Previous checkpoint — PPP callback identity validation (merged)
 
 - **Main integration:** PR [#9](https://github.com/xiaobei206/padavan-4.4-2/pull/9) merged to main at `3ad86ac7a295c2894570e47828a8a8fcc30a848b`. Re-fetch `main` before new code changes.
 - **Exact tested code/test/workflow head:** `7ba4c6b46227ec91f2a60ae18b4946e394650718`. Exact-head Actions [run 42447865765](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447865765) completed **SUCCESS**, all 23 steps.

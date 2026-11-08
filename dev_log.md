@@ -1,3 +1,21 @@
+## 2026-11-08 12:44 CST — WAN demand-PPP timeout fail-closed merged
+
+- **Integration:** PR [#8](https://github.com/xiaobei206/padavan-4.4-2/pull/8) merged to main at `c1a5403721bbc4201dd0e094675b043af03c715d`. Exact tested branch head `eeb47b3c761a06fc28fb76e3f2c62cef354e0a79`.
+- **Finding:** `wait_ppp_up()` exhausted its bounded interface probes but continued through socket/IP probing and route setup. If the PPP interface had not appeared, demand startup could be treated as successful and routes could be preset for an absent interface.
+- **Change:** after six failed `ifconfig()` probes (five one-second waits), log and return failure before socket inspection, temporary IP updates or route installation. The successful path and existing retry interval remain unchanged.
+- **Regression:** the workflow checks that timeout failure occurs before socket/route work and rejects the old loop. The first test revision (`bebd189cc70ad35911b15e0734f75d2227b4f14c`) exposed a double-escaped source-boundary matcher; the CI log was reviewed, the matcher corrected in follow-up commit `eeb47b3c761a06fc28fb76e3f2c62cef354e0a79`, and the final exact-head pull-request Actions run [42447907470](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447907470) passed **23/23 steps**. Exact-head push Actions [42447904690](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447904690) also completed SUCCESS.
+- **Changed paths:** `.github/workflows/httpd-security.yml`, `trunk/user/rc/src/net_wan.c`.
+- **Validation boundary:** host regression/source-contract CI PASS. Production MIPS/uClibc build, complete firmware/TRX, live PPPoE demand-mode test, router and hardware validation remain **NOT RUN**.
+- **Residual / next:** this is a bounded state-transition fix, not closure of WAN/PPP lifecycle. Continue checking reconnect/watchdog/backoff and transport stop/start status propagation; then revisit IPv4 `LWF_LIST` versus IPv6 firewall policy. Adbyby extension rollback and storage mount/swap topology races remain open.
+
+## 2026-11-08 12:42 CST — PPP callback identity parsing merged
+
+- **Integration:** PR [#9](https://github.com/xiaobei206/padavan-4.4-2/pull/9) merged to main at `3ad86ac7a295c2894570e47828a8a8fcc30a848b`. Exact tested code/test/workflow head `7ba4c6b46227ec91f2a60ae18b4946e394650718`.
+- **Finding / change:** `ppp_ifindex()` and `ppp_wan_unit()` used prefix-plus-first-digit checks followed by partial `atoi()` parsing. The shared `ppp_callback_identity_policy.h` now parses exact prefix/index tokens, rejects suffixes, signs, empty values, leading-zero aliases, overflow and out-of-range indices, and is used before callback state side effects. Logical WAN callback unit is currently restricted to `wan0`, matching the single unit started by `start_wan()`.
+- **Regression:** GNU89 `-Wall -Wextra -Werror` parser tests plus workflow source contracts passed; exact-head pull-request Actions [42447865765](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447865765) completed **23/23 steps**. Push Actions [42447844993](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42447844993) also passed.
+- **Changed paths:** `.github/workflows/httpd-security.yml`, `trunk/user/rc/src/net_ppp.c`, new `trunk/user/rc/src/ppp_callback_identity_policy.h`, new `trunk/user/rc/src/tests/ppp_callback_identity_policy.c`.
+- **Validation boundary:** host parser/contract tests PASS; MIPS/uClibc, firmware/TRX, live PPP callback, router and hardware validation **NOT RUN**. Broader reconnect/watchdog/retry semantics remain AUDITING.
+
 ## 2026-11-08 12:40 CST — L2TP config-line validation and launch-error propagation merged
 
 - Integration: PR #7 merged at ad3910f2ef0a88087cacff6f4fa2446f6dc52c11. Exact code/test/workflow head e97f5cb0bfb67f9e3dbdce55ac2f7a8d9704e062; Actions run 42447621156 completed SUCCESS, 23 steps.
