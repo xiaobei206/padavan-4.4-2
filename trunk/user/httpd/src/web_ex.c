@@ -1405,7 +1405,7 @@ update_variables_ex(int eid, webs_t wp, int argc, char **argv)
 	 * service variables, so a denied script cannot piggyback on config edits.
 	 */
 	if (!httpd_apply_request_allowed(action_mode, script, get_login_safe())) {
-		websError(wp, 403, "This action is restricted to trusted management sessions.\\n");
+		websError(wp, 403, "This action is restricted to trusted management sessions.\n");
 		return 0;
 	}
 
@@ -3989,8 +3989,8 @@ apply_cgi(const char *url, webs_t wp)
 	 */
 	if (!httpd_apply_request_allowed(value, script, get_login_safe())) {
 		if (!strcmp(value, " SystemCmd "))
-			SystemCmd[0] = '\\0';
-		websError(wp, 403, "This action is restricted to trusted management sessions.\\n");
+			SystemCmd[0] = '\0';
+		websError(wp, 403, "This action is restricted to trusted management sessions.\n");
 		return 0;
 	}
 
