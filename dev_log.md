@@ -1,3 +1,12 @@
+## 2026-11-08 12:20 CST — VPN runtime firewall interface guard merged; exact-head Actions PASS
+
+- **Integration:** PR #4 `fix(vpn): validate PPP interface firewall mutations` merged into main at `1cea183b39cc02bfb9bf307970b6bb32746db2ed`. This entry and the handoff/roadmap are governance-only commits.
+- **Exact tested code/test/workflow SHA:** `f7d8598dee5c9c306152b5521ac0c4dae900ecbd`. GitHub Actions [run 42446364345](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42446364345) completed SUCCESS with 22 successful steps.
+- **Changes:** extracted the shared strict `ppp<N>` validator into `trunk/user/rc/src/firewall_ppp_interface_policy.h`; `firewall_filter_policy.h` and `vpn_server.c` both use it. VPN up/down handlers now reject malformed interface strings before firewall, route, lease and hook side effects. The direct `iptables` mutation validates again and records nonzero `_eval()` results, which are normal exit/error/wait values rather than `system(3)`'s encoded wait status. The existing GNU89 test compiles/runs the shared validator, and CI source contracts assert early guard ordering and error logging.
+- **Changed paths:** `.github/workflows/httpd-security.yml`, `trunk/user/rc/src/firewall_filter_policy.h`, `trunk/user/rc/src/firewall_ppp_interface_policy.h`, `trunk/user/rc/src/vpn_server.c`.
+- **Validation boundary:** L1 review and L2 exact-head CI PASS. No MIPS/uClibc build, full firmware/TRX generation, artifact inspection, live-router test or hardware validation.
+- **Residual / next:** whole-firewall inventory remains incomplete; Adbyby extension restore is outside the core rollback transaction; IPv4 LWF rules have no obvious IPv6 parity in `ip6t_filter_rules`, but intent must be confirmed before any behavior change. Next bounded area rotates to storage unmount/eject/swap lifecycle, then WAN/PPP and IPv6 parity rather than routine SkipDBv2 work.
+
 ## 2026-11-08 12:16 CST — Adbyby restore guard merged; exact-head Actions PASS
 
 - **Integration:** PR #3, `fix(firewall): guard Adbyby restore against stale ipsets`, merged into main at `88d0d014579ad6453b1cdc8b10bd53968f5b14ee`. This entry and the handoff/roadmap follow as governance-only commits.
