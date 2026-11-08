@@ -1,3 +1,13 @@
+## 2026-11-08 22:00 CST — Development direction: stability first, security in parallel
+
+- **Governance update:** the primary development direction is now systematic stability bug discovery and repair across the integrated Padavan user space. Security hardening continues in parallel; confirmed critical security vulnerabilities, data corruption, boot blockers and severe system failures remain immediate P0 work.
+- **Coverage:** rotate across WAN/PPP/DHCP/DNS/routing, firewall/NAT, storage/mount/hotplug, service/process lifecycle, wireless, HTTPD/auth/upload/restore, configuration persistence, system startup/management, file/application services, shared libraries and build integration. Do not let SkipDBv2, HTTPD, firewall or any one subsystem monopolize work.
+- **Delivery cadence:** preserve bounded, resumable changes. Routine validation uses source review, static checks, focused host tests and exact-HEAD GitHub Actions. Full MIPS firmware/image build and physical XY-C1 validation are consolidated toward the later project stage, with earlier target validation only when a defect requires it. Never imply host tests prove target/hardware behavior.
+- **Current task remains active:** finish the exact pending Adbyby multi-table restore/rollback issue in SESSION_HANDOFF.md before selecting a new item, unless a P0 issue appears. Once closed, choose the next highest-value stability defect from the global ledger and keep security findings moving in parallel.
+- **Scope boundary:** this is a development-priority clarification, not a rewrite or closure of existing audit records. Historical module statuses and validation claims remain unchanged.
+
+---
+
 ## 2026-11-08 14:20 CST — Gate firewall transaction reset on recovery completion
 
 - **Module / priority:** Firewall, NAT and QoS; P1 reliability and recovery-state integrity; still AUDITING.
