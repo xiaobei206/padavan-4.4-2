@@ -1,3 +1,28 @@
+## 2026-11-08 16:50 CST — Repair Build Toolchain zlib download fallback
+
+### Baseline and failure
+- Base main SHA: `7f7d3ea41ebdd7eeab8a303f3d4ad8dddb54a8a7` (`docs: record automount lock portability recovery`).
+- Relevant CI: [Build Toolchain run 42464079582](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42464079582), failed on exact SHA `7f7d3ea41ebdd7eeab8a303f3d4ad8dddb54a8a7`.
+- Both matrix targets failed at crosstool-NG source retrieval for `zlib-1.3.1`; compilation, toolchain assembly and artifact upload were not reached.
+- The configured mirror list lacked the official `www.zlib.net/fossils` archive fallback. The old version is listed in that archive, while the former top-level zlib 1.3.1 tarball path returns 404.
+
+### Changes
+1. Added the official fossils archive as a fallback in `toolchain/packages/zlib/package.desc`, preserving the existing GitHub release and current-root mirrors.
+2. Added a path-scoped `push` trigger for `toolchain/packages/zlib/package.desc` in `.github/workflows/toolchain.yml`, preserving manual dispatch and enabling exact-head verification of both toolchain variants.
+3. Updated the resumable handoff and whole-repository roadmap with the failure evidence, fix and validation boundaries.
+
+### Validation
+- Source/config inspection: PASS for the corrected mirror declaration and scoped workflow trigger.
+- Official source check: the zlib fossils index lists `zlib-1.3.1.tar.gz`; its legacy top-level URL returns 404.
+- The new exact-head toolchain run is expected to be triggered by the push and must be checked before reporting the repair as verified.
+- No local MIPS build, completed Actions toolchain build, firmware/TRX build or hardware validation is claimed.
+
+### Follow-up
+- Resulting implementation commit SHA: pending; reconcile after commit publication.
+- Inspect the new run for the resulting main SHA. Confirm both matrix jobs pass source retrieval; if another component fails, investigate the new log evidence and do not suppress the failure.
+
+---
+
 ## 2026-11-08 15:51 CST — Use POSIX-compatible file descriptors in automount locks
 
 - **Base / current source-test checkpoint:** the then-current main was `84013d94812460b66e92c611686722e2320497a3`; the affected automation/source-contract checkpoint was `97c91cff20070c451a04f6c7fff4a3fa496d6588`. Fix commit: `2f4828c42a1a0a449f92aa2f9f5fd3ab6dbdaa09`.

@@ -1,3 +1,16 @@
+## Latest resumable checkpoint — Repair Build Toolchain zlib source fallback
+
+- **Baseline main SHA:** `7f7d3ea41ebdd7eeab8a303f3d4ad8dddb54a8a7`; the repair is being applied directly to `main` after re-fetching and confirming this exact head.
+- **Failed Actions:** [Build Toolchain run 42464079582](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42464079582), exact head `7f7d3ea41ebdd7eeab8a303f3d4ad8dddb54a8a7`, failed in both matrix jobs: `mipsel-linux-musl` and `mipsel-linux-uclibc`.
+- **Failure evidence:** both jobs stopped during crosstool-NG's “Retrieving needed toolchain components' tarballs” step at `zlib-1.3.1`, before target compilation. Neither tarball artifact nor toolchain was produced. The logs do not expose the individual failed curl URL/status, so do not claim a proven HTTP status for the GitHub asset attempt.
+- **Root cause / corrective direction:** `toolchain/packages/zlib/package.desc` listed the GitHub release mirror and `https://www.zlib.net/` only. zlib 1.3.1 has moved to the official fossils archive; the former top-level `https://www.zlib.net/zlib-1.3.1.tar.gz` returns 404 while the fossils index lists the archived tarball. Add the fossils directory as an explicit fallback without removing the release or current-root mirrors.
+- **Workflow verification:** add a path-filtered `push` trigger for changes to the zlib package mirror descriptor, retaining manual `workflow_dispatch`; this lets the fix validate against both actual toolchain targets.
+- **Commit SHA:** pending the commit operation; reconcile this note with the resulting SHA and exact-head Actions status immediately after publication.
+- **Validation boundary:** source/config review only before publication. Actual crosstool-ng retrieval, target build and artifact packaging are NOT VERIFIED until the new exact-head Actions run completes.
+- **First next action:** inspect the new `Build Toolchain` run matching the resulting commit SHA. Confirm that zlib is fetched from one of the configured mirrors; if a later component fails, diagnose the new first failure from both job logs rather than assuming the zlib failure remains.
+
+---
+
 ## Development direction update — 2026-11-08
 
 - Primary direction: find and fix stability bugs across the whole integrated Padavan user space. Continue security review in parallel; critical security vulnerabilities, data corruption, boot blockers and severe system failures remain immediate priorities.

@@ -2,6 +2,11 @@ name: Build Toolchain
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'toolchain/packages/zlib/package.desc'
 
 jobs:
   build:
