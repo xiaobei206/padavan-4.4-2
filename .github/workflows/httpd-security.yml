@@ -1111,7 +1111,7 @@ jobs:
           # Direct ASP storage wrappers bypass do_update_cgi's selector guard.
           # Gate both their route/method entry and every EJ callback invocation.
           asp_dispatch_start = ej_dispatch.index("call_asp(char *func, FILE *stream)")
-          asp_dispatch_end = ej_dispatch.index("\\nstatic char *\\nprocess_asp", asp_dispatch_start)
+          asp_dispatch_end = ej_dispatch.index("\nstatic char *\nprocess_asp", asp_dispatch_start)
           asp_call = ej_dispatch[asp_dispatch_start:asp_dispatch_end]
           asp_guard = asp_call.index(
               "httpd_storage_ej_allowed(handler->pattern, get_login_safe())"
@@ -1144,7 +1144,7 @@ jobs:
           storage_table_start = ej_table.index("#if defined (USE_STORAGE)")
           storage_table_end = ej_table.index("#endif", storage_table_start)
           registered_storage_ej = set(re.findall(
-              r'\\{\\s*"([^"]+)"\\s*,\\s*ej_[A-Za-z0-9_]+\\s*\\}',
+              r'\{\s*"([^"]+)"\s*,\s*ej_[A-Za-z0-9_]+\s*\}',
               ej_table[storage_table_start:storage_table_end]
           ))
           assert registered_storage_ej == storage_mutators | storage_readers, (
@@ -1165,9 +1165,9 @@ jobs:
               "aidisk/switch_AiDisk_app.asp": "set_AiDisk_status",
           }
           route_start = method_policy.index("httpd_storage_route_requires_trusted_session")
-          route_end = method_policy.index("\\n}\\n", route_start)
+          route_end = method_policy.index("\n}\n", route_start)
           registered_storage_routes = set(re.findall(
-              r'"(aidisk/[^"]+\\.asp)"', method_policy[route_start:route_end]
+              r'"(aidisk/[^"]+\.asp)"', method_policy[route_start:route_end]
           ))
           assert registered_storage_routes == set(storage_routes)
 
