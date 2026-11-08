@@ -5,6 +5,29 @@ on:
     paths:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/ej.c"
+      - "trunk/user/httpd/src/aidisk.c"
+      - "trunk/user/httpd/src/httpd_storage_ej_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_storage_ej_policy.c"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Advanced_AiDisk_samba.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Advanced_AiDisk_ftp.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/initial_account.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/create_account.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/delete_account.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/modify_account.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/set_account_permission.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/create_sharedfolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/delete_sharedfolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/modify_sharedfolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/switch_share_mode.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/switch_AiDisk_app.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popCreateAccount.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popDeleteAccount.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popModifyAccount.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popCreateFolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popDeleteFolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popModifyFolder.asp"
       - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
       - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
       - "trunk/user/www/n56u_ribbon_fixed/Shadowsocks.asp"
@@ -102,6 +125,29 @@ on:
     paths:
       - ".github/workflows/httpd-security.yml"
       - "trunk/user/httpd/src/httpd.c"
+      - "trunk/user/httpd/src/ej.c"
+      - "trunk/user/httpd/src/aidisk.c"
+      - "trunk/user/httpd/src/httpd_storage_ej_policy.h"
+      - "trunk/user/httpd/src/tests/httpd_storage_ej_policy.c"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Advanced_AiDisk_samba.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/Advanced_AiDisk_ftp.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/initial_account.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/create_account.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/delete_account.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/modify_account.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/set_account_permission.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/create_sharedfolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/delete_sharedfolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/modify_sharedfolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/switch_share_mode.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/switch_AiDisk_app.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popCreateAccount.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popDeleteAccount.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popModifyAccount.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popCreateFolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popDeleteFolder.asp"
+      - "trunk/user/www/n56u_ribbon_fixed/aidisk/popModifyFolder.asp"
       - "trunk/user/httpd/src/httpd_cgi_method_policy.h"
       - "trunk/user/httpd/src/tests/httpd_cgi_method_policy.c"
       - "trunk/user/www/n56u_ribbon_fixed/Main_TrafficMonitor_daily.asp"
@@ -261,6 +307,11 @@ jobs:
             trunk/user/httpd/src/tests/httpd_update_output_policy.c \
             -o /tmp/httpd_update_output_policy
           /tmp/httpd_update_output_policy
+          cc -std=gnu89 -Wall -Wextra -Werror \
+            -I trunk/user/httpd/src \
+            trunk/user/httpd/src/tests/httpd_storage_ej_policy.c \
+            -o /tmp/httpd_storage_ej_policy
+          /tmp/httpd_storage_ej_policy
           cc -std=gnu89 -Wall -Wextra -Werror \
             -I trunk/user/httpd/src \
             trunk/user/httpd/src/tests/httpd_cgi_method_policy.c \
@@ -892,6 +943,10 @@ jobs:
           root = Path("trunk/user/httpd/src")
           httpd = (root / "httpd.c").read_text()
           web = (root / "web_ex.c").read_text()
+          ej_dispatch = (root / "ej.c").read_text()
+          aidisk = (root / "aidisk.c").read_text()
+          storage_policy = (root / "httpd_storage_ej_policy.h").read_text()
+          storage_policy_test = (root / "tests/httpd_storage_ej_policy.c").read_text()
           common = (root / "common.c").read_text()
           variables = (root / "variables.c").read_text()
           script_policy = (root / "httpd_script_policy.h").read_text()
@@ -961,8 +1016,16 @@ jobs:
           )
           input_dispatch = request.index("handler->input(file, conn_fp, clen, boundary)")
           query_dispatch = request.index("do_uncgi_query(query)")
-          assert auth_gate < method_guard < method_reject < input_dispatch < query_dispatch
+          storage_route_gate = request.index(
+              "httpd_storage_route_requires_trusted_session(file) && !get_login_safe()"
+          )
+          storage_route_reject = request.index(
+              'send_error(403, "Forbidden", NULL', storage_route_gate
+          )
+          assert auth_gate < method_guard < method_reject < storage_route_gate
+          assert storage_route_reject < input_dispatch < query_dispatch
           assert '#include "httpd_cgi_method_policy.h"' in httpd
+          assert "httpd_storage_route_requires_trusted_session" in method_policy
           assert "apply.cgi" in method_policy and "applydb.cgi" in method_policy
           assert "upgrade.cgi" in method_policy
           assert "restore_nv.cgi" in method_policy and "restore_st.cgi" in method_policy
@@ -1044,6 +1107,83 @@ jobs:
           bandwidth = web[bandwidth_start:bandwidth_end]
           assert "nvram_set_temp" in bandwidth and "unlink(fname)" in bandwidth
           assert "kill_pidfile_s" in bandwidth
+
+          # Direct ASP storage wrappers bypass do_update_cgi's selector guard.
+          # Gate both their route/method entry and every EJ callback invocation.
+          asp_dispatch_start = ej_dispatch.index("call_asp(char *func, FILE *stream)")
+          asp_dispatch_end = ej_dispatch.index("\nstatic char *\nprocess_asp", asp_dispatch_start)
+          asp_call = ej_dispatch[asp_dispatch_start:asp_dispatch_end]
+          asp_guard = asp_call.index(
+              "httpd_storage_ej_allowed(handler->pattern, get_login_safe())"
+          )
+          asp_callback = asp_call.index("handler->output(0, stream, argc, argv)")
+          assert asp_guard < asp_callback
+          assert "A trusted management session is required." in asp_call
+          assert '#include "httpd_storage_ej_policy.h"' in ej_dispatch
+
+          storage_mutators = {
+              "set_AiDisk_status", "safely_remove_disk", "set_account_permission",
+              "initial_account", "create_account", "delete_account", "modify_account",
+              "create_sharedfolder", "delete_sharedfolder", "modify_sharedfolder",
+              "set_share_mode",
+          }
+          storage_readers = {
+              "get_usb_share_list", "get_AiDisk_status", "get_all_accounts",
+              "get_permissions_of_account", "get_folder_tree", "get_share_tree",
+          }
+          assert storage_mutators.isdisjoint(storage_readers)
+          for name in storage_mutators:
+              assert f'"{name}"' in storage_policy
+              assert f'"{name}"' in storage_policy_test
+              assert f'"{name}"' in ej_table
+              assert f"ej_{name}" in aidisk
+          for name in storage_readers:
+              assert f'"{name}"' in storage_policy_test
+              assert f'"{name}"' in ej_table
+
+          storage_table_start = ej_table.index("#if defined (USE_STORAGE)")
+          storage_table_end = ej_table.index("#endif", storage_table_start)
+          registered_storage_ej = set(re.findall(
+              r'\{\s*"([^"]+)"\s*,\s*ej_[A-Za-z0-9_]+\s*\}',
+              ej_table[storage_table_start:storage_table_end]
+          ))
+          assert registered_storage_ej == storage_mutators | storage_readers, (
+              "classify new USE_STORAGE EJ callbacks before adding them: "
+              f"{registered_storage_ej ^ (storage_mutators | storage_readers)}"
+          )
+
+          storage_routes = {
+              "aidisk/initial_account.asp": "initial_account",
+              "aidisk/create_account.asp": "create_account",
+              "aidisk/delete_account.asp": "delete_account",
+              "aidisk/modify_account.asp": "modify_account",
+              "aidisk/set_account_permission.asp": "set_account_permission",
+              "aidisk/create_sharedfolder.asp": "create_sharedfolder",
+              "aidisk/delete_sharedfolder.asp": "delete_sharedfolder",
+              "aidisk/modify_sharedfolder.asp": "modify_sharedfolder",
+              "aidisk/switch_share_mode.asp": "set_share_mode",
+              "aidisk/switch_AiDisk_app.asp": "set_AiDisk_status",
+          }
+          route_start = method_policy.index("httpd_storage_route_requires_trusted_session")
+          route_end = method_policy.index("\n}\n", route_start)
+          registered_storage_routes = set(re.findall(
+              r'"(aidisk/[^"]+\.asp)"', method_policy[route_start:route_end]
+          ))
+          assert registered_storage_routes == set(storage_routes)
+
+          for route, callback_name in storage_routes.items():
+              assert route in method_policy_test
+              template = (ui_root / route).read_text()
+              assert f"<% {callback_name}(); %>" in template
+
+          aidisk_wizard = (ui_root / "aidisk.asp").read_text()
+          samba_page = (ui_root / "Advanced_AiDisk_samba.asp").read_text()
+          ftp_page = (ui_root / "Advanced_AiDisk_ftp.asp").read_text()
+          assert 'form method="post" name="applyForm"' in aidisk_wizard
+          for page in (samba_page, ftp_page):
+              assert 'form method="post" name="aidiskForm"' in page
+              assert "/aidisk/set_account_permission.asp" in page
+          print("HTTPD direct storage EJ authorization and POST-only route contracts: OK")
 
           # All application-owned update.cgi requests must use POST. Keep the
           # complete caller inventory in CI so a new GET caller cannot silently
