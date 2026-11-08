@@ -2556,7 +2556,7 @@ start_firewall_ex(void)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
 	int adbyby_snapshot_exists;
 #endif
-/* A previous cleanup failure or incomplete rollback is persistent
+	/* A previous cleanup failure or incomplete rollback is persistent
 	 * recovery state. Do not discard its paths or start another ruleset apply. */
 	if (firewall_restore_transaction_prepare_reset(&firewall_core_restore_transaction,
 						firewall_remove_restore_snapshot, NULL) != 0) {
