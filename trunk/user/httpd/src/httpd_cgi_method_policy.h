@@ -52,6 +52,13 @@ httpd_cgi_method_allowed(const char *path, int method_id, int post_method_id)
 		"upgrade.cgi",
 		"restore_nv.cgi",
 		"restore_st.cgi",
+		/* Direct ASP wrappers that dispatch privileged EJ actions. */
+		"wol_action.asp",
+		"Shadowsocks_action.asp",
+		"mentohust_action.asp",
+		"scutclient_action.asp",
+		"Ad_action.asp",
+		"bit_action.asp",
 		NULL
 	};
 	size_t i;
