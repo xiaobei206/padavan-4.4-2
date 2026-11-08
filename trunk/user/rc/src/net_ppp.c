@@ -55,6 +55,8 @@ safe_start_xl2tpd(void)
 	char hostname[256], wan_peer[256], wan_user[256];
 	char vpnc_peer[256], vpnc_user[256];
 
+	hostname[0] = wan_peer[0] = wan_user[0] = '\0';
+	vpnc_peer[0] = vpnc_user[0] = '\0';
 	unit = 0; /* todo */
 	use_vpn_server = nvram_match("vpns_enable", "1") &&
 		nvram_match("vpns_type", "1");
