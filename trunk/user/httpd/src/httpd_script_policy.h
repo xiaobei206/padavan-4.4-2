@@ -58,10 +58,50 @@ httpd_script_name_is_fixed(const char *name)
 	return 0;
 }
 
+/*
+ * These fixed handlers are not read-only: they signal daemons, alter
+ * temporary NVRAM state, or enqueue privileged RC work. A valid login from
+ * an untrusted network is not sufficient to invoke them. The remaining
+ * fixed handlers preserve their historical compatibility behavior.
+ */
+static int
+httpd_script_name_requires_trusted_session(const char *name)
+{
+	static const char * const trusted_names[] = {
+		"lpr_remove",
+		"mfp_requeue",
+		"mfp_monopolize",
+		"ddnsclient",
+		"hostname_check",
+		"dlna_rescan",
+		NULL
+	};
+	int i;
+
+	if (!name || !*name)
+		return 0;
+
+	for (i = 0; trusted_names[i] != NULL; ++i) {
+		if (strcmp(name, trusted_names[i]) == 0)
+			return 1;
+	}
+
+	return 0;
+}
+
 static int
 httpd_script_dispatch_allowed(const char *name, int trusted_session)
 {
-	return (trusted_session || httpd_script_name_is_fixed(name));
+	if (!name || !*name)
+		return 0;
+
+	if (trusted_session)
+		return 1;
+
+	/* syscmd.sh remains dispatchable so its handler can clear a stale
+	 * process-global command buffer; actual execution is separately gated. */
+	return httpd_script_name_is_fixed(name) &&
+	       !httpd_script_name_requires_trusted_session(name);
 }
 
 static int
