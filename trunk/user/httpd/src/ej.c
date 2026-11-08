@@ -101,7 +101,7 @@ call_asp(char *func, FILE *stream)
 	}
 
 	/* Call handler. Direct ASP template callbacks are an independent
-	 * dispatch path from update.cgi; protect storage mutations here too.
+	 * dispatch path from update.cgi; enforce privileged-callback authorization here.
 	 */
 	for (handler = &ej_handlers[0]; handler->pattern; handler++) {
 		if (strcmp(handler->pattern, func) == 0) {
