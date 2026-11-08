@@ -1467,46 +1467,75 @@ restore_home_dir(void)
 	}
 }
 
-void
+int
 umount_ejected(void)
 {
 	FILE *procpt, *procpt2;
 	char line[512], devname[32], mpname[256], ptname[32];
 	unsigned long long dev_sz;
-	int ma, mi, active;
+	int ma, mi, active, result, partition_read_error, saved_errno;
 
+	result = 0;
 	procpt = fopen(PROC_MOUNTS_FILE, "r");
-	if (procpt) {
-		while (fgets(line, sizeof(line), procpt)) {
-			if (sscanf(line, "%31s %255s %*[^\n]", devname, mpname) != 2)
+	if (!procpt) {
+		saved_errno = errno;
+		logmessage("Storage", "cannot read %s for ejected-device cleanup (errno %d)",
+			   PROC_MOUNTS_FILE, saved_errno);
+		restore_home_dir();
+		return -1;
+	}
+	while (fgets(line, sizeof(line), procpt)) {
+		if (sscanf(line, "%31s %255s %*[^\n]", devname, mpname) != 2)
+			continue;
+		if (!is_valid_storage_device(devname))
+			continue;
+
+		procpt2 = fopen(PROC_PARTITIONS_FILE, "r");
+		if (!procpt2) {
+			saved_errno = errno;
+			logmessage("Storage", "cannot read %s while checking ejected device %s (errno %d)",
+				   PROC_PARTITIONS_FILE, devname, saved_errno);
+			result = -1;
+			continue;
+		}
+
+		active = 0;
+		while (fgets(line, sizeof(line), procpt2)) {
+			if (sscanf(line, " %d %d %llu %31[^\n ]", &ma, &mi, &dev_sz, ptname) != 4)
 				continue;
-			if (!is_valid_storage_device(devname))
-				continue;
-			active = 0;
-			procpt2 = fopen(PROC_PARTITIONS_FILE, "r");
-			if (procpt2) {
-				while (fgets(line, sizeof(line), procpt2)) {
-					if (sscanf(line, " %d %d %llu %31[^\n ]", &ma, &mi, &dev_sz, ptname) != 4)
-						continue;
-					if (strcmp(devname+5, ptname) == 0) {
-						active = 1;
-						break;
-					}
-				}
-				
-				if (!active) {
-					umount(mpname);
-					rmdir(mpname);
-				}
-				
-				fclose(procpt2);
+			if (strcmp(devname + 5, ptname) == 0) {
+				active = 1;
+				break;
 			}
 		}
-		
-		fclose(procpt);
+		partition_read_error = ferror(procpt2);
+		fclose(procpt2);
+		if (partition_read_error) {
+			logmessage("Storage", "error reading %s while checking ejected device %s",
+				   PROC_PARTITIONS_FILE, devname);
+			result = -1;
+			continue;
+		}
+
+		if (!active) {
+			if (umount(mpname) != 0) {
+				saved_errno = errno;
+				logmessage("Storage", "failed to unmount ejected device %s from %s (errno %d)",
+					   devname, mpname, saved_errno);
+				result = -1;
+			} else {
+				(void)rmdir(mpname);
+			}
+		}
 	}
+	if (ferror(procpt)) {
+		logmessage("Storage", "error reading %s during ejected-device cleanup", PROC_MOUNTS_FILE);
+		result = -1;
+	}
+	fclose(procpt);
 
 	restore_home_dir();
+	return result;
 }
 
 static int
@@ -1541,53 +1570,74 @@ is_disk_or_partition(const char *candidate, const char *disk, int is_mmc)
 	return 1;
 }
 
-static void
+static int
 umount_dev(const char *dev_name, int is_root_dev)
 {
 	FILE *procpt;
 	char line[512], devname[32], mpname[256];
+	int result, hook_status, saved_errno;
 
-	if (!dev_name)
-		return;
+	if (!dev_name || !*dev_name)
+		return -1;
 
 	procpt = fopen(PROC_MOUNTS_FILE, "r");
-	if (procpt) {
-		while (fgets(line, sizeof(line), procpt)) {
-			int is_our_dev = 0;
-			
-			if (sscanf(line, "%31s %255s %*[^\n]", devname, mpname) != 2)
-				continue;
-			if (strncmp(devname, "/dev/sd", 7) == 0) {
-				if (is_root_dev) {
-					if (is_disk_or_partition(devname+5, dev_name, 0))
-						is_our_dev = 1;
-				} else {
-					if (strcmp(devname+5, dev_name) == 0)
-						is_our_dev = 1;
-				}
-			}
-#if defined (USE_MMC_SUPPORT)
-			else if (strncmp(devname, "/dev/mmcblk", 11) == 0) {
-				if (is_root_dev) {
-					if (is_disk_or_partition(devname+5, dev_name, 1))
-						is_our_dev = 1;
-				} else {
-					if (!strcmp(devname+5, dev_name))
-						is_our_dev = 1;
-				}
-			}
-#endif
-			if (is_our_dev) {
-				eval("/usr/bin/opt-umount.sh", devname, mpname);
-				umount(mpname);
-				rmdir(mpname);
-				if (!is_root_dev)
-					break;
+	if (!procpt) {
+		saved_errno = errno;
+		logmessage("Storage", "cannot read %s before unmounting %s (errno %d)",
+			   PROC_MOUNTS_FILE, dev_name, saved_errno);
+		return -1;
+	}
+
+	result = 0;
+	while (fgets(line, sizeof(line), procpt)) {
+		int is_our_dev = 0;
+
+		if (sscanf(line, "%31s %255s %*[^\n]", devname, mpname) != 2)
+			continue;
+		if (strncmp(devname, "/dev/sd", 7) == 0) {
+			if (is_root_dev) {
+				if (is_disk_or_partition(devname + 5, dev_name, 0))
+					is_our_dev = 1;
+			} else {
+				if (strcmp(devname + 5, dev_name) == 0)
+					is_our_dev = 1;
 			}
 		}
-		
-		fclose(procpt);
+#if defined (USE_MMC_SUPPORT)
+		else if (strncmp(devname, "/dev/mmcblk", 11) == 0) {
+			if (is_root_dev) {
+				if (is_disk_or_partition(devname + 5, dev_name, 1))
+					is_our_dev = 1;
+			} else {
+				if (!strcmp(devname + 5, dev_name))
+					is_our_dev = 1;
+			}
+		}
+#endif
+		if (is_our_dev) {
+			hook_status = eval("/usr/bin/opt-umount.sh", devname, mpname);
+			if (hook_status != 0)
+				logmessage("Storage", "optional unmount hook returned %d for %s at %s",
+					   hook_status, devname, mpname);
+			if (umount(mpname) != 0) {
+				saved_errno = errno;
+				logmessage("Storage", "failed to unmount %s from %s (errno %d)",
+					   devname, mpname, saved_errno);
+				result = -1;
+			} else {
+				(void)rmdir(mpname);
+			}
+			/* A partition can have more than one mount; inspect all entries. */
+		}
 	}
+	if (ferror(procpt)) {
+		logmessage("Storage", "error reading %s while unmounting %s",
+			   PROC_MOUNTS_FILE, dev_name);
+		result = -1;
+	}
+	fclose(procpt);
+
+	return result;
 }
 
 int
@@ -1613,15 +1663,19 @@ count_stor_mountpoint(void)
 	return count;
 }
 
-void
+int
 umount_stor_path(disk_info_t *disks_info, int port, const char *dev_name, int do_spindown)
 {
 	disk_info_t *follow_disk;
 	partition_info_t *follow_partition;
+	int result, disk_status, swap_status, saved_errno;
 
-	if (!disks_info)
-		return;
+	if (!disks_info) {
+		logmessage("Storage", "cannot inspect storage topology before safe removal");
+		return -1;
+	}
 
+	result = 0;
 	for (follow_disk = disks_info; follow_disk != NULL; follow_disk = follow_disk->next) {
 		if (port != 0) {
 			if (follow_disk->port_root != (u16)port)
@@ -1631,15 +1685,39 @@ umount_stor_path(disk_info_t *disks_info, int port, const char *dev_name, int do
 			if (strcmp(follow_disk->device, dev_name) != 0)
 				continue;
 		}
+
+		disk_status = 0;
 		for (follow_partition = follow_disk->partitions; follow_partition != NULL; follow_partition = follow_partition->next) {
-			if (follow_partition->swapon)
-				try_device_swapoff(follow_partition->device);
-			umount_dev(follow_partition->device, 0);
+			if (follow_partition->swapon) {
+				swap_status = try_device_swapoff(follow_partition->device);
+				if (swap_status != 0) {
+					saved_errno = errno;
+					logmessage("Storage", "failed to disable swap on /dev/%s (status %d, errno %d)",
+						   follow_partition->device ? follow_partition->device : "(unknown)",
+						   swap_status, saved_errno);
+					disk_status = -1;
+				}
+			}
+			if (umount_dev(follow_partition->device, 0) != 0)
+				disk_status = -1;
 		}
-		umount_dev(follow_disk->device, 1);
-		if (do_spindown && follow_disk->port_root != MMC_VIRT_PORT_ID)
-			spindown_hdd(follow_disk->device);
+		if (umount_dev(follow_disk->device, 1) != 0)
+			disk_status = -1;
+
+		/* Never issue drive spindown while any swap or mount release failed. */
+		if (do_spindown && follow_disk->port_root != MMC_VIRT_PORT_ID) {
+			if (disk_status == 0) {
+				spindown_hdd(follow_disk->device);
+			} else {
+				logmessage("Storage", "skipping spindown for %s because swapoff/unmount did not complete",
+					   follow_disk->device ? follow_disk->device : "(unknown)");
+			}
+		}
+		if (disk_status != 0)
+			result = -1;
 	}
+
+	return result;
 }
 
 void
@@ -1781,6 +1859,7 @@ void
 safe_remove_stor_device(int port_b, int port_e, const char *dev_name, int do_spindown)
 {
 	int port, has_mounted_port = 0, has_swapon_port = 0;
+	int unmount_status, ejected_status, mount_count;
 	disk_info_t *disks_info, *follow_disk;
 
 	disks_info = read_disk_data();
@@ -1799,19 +1878,23 @@ safe_remove_stor_device(int port_b, int port_e, const char *dev_name, int do_spi
 
 	if (has_mounted_port) {
 		stop_stor_apps();
-		for (port = port_b; port <= port_e; port++)
-			umount_stor_path(disks_info, port, dev_name, do_spindown);
-		umount_ejected();
-		if (count_stor_mountpoint())
+		unmount_status = umount_stor_path(disks_info, port_b, dev_name, do_spindown);
+		ejected_status = umount_ejected();
+		if (unmount_status != 0 || ejected_status != 0)
+			logmessage("Storage", "safe removal incomplete; one or more mount/swap releases failed");
+		mount_count = count_stor_mountpoint();
+		if (mount_count > 0) {
 			start_stor_apps();
 #if defined(APP_NFSD)
-		else
+		} else if (mount_count == 0 && unmount_status == 0 && ejected_status == 0) {
 			unload_nfsd();
 #endif
-	
+		} else if (mount_count < 0 || unmount_status != 0 || ejected_status != 0) {
+			logmessage("Storage", "storage state is uncertain; leaving services stopped rather than assuming eject succeeded");
+		}
 	} else if (has_swapon_port) {
-		for (port = port_b; port <= port_e; port++)
-			umount_stor_path(disks_info, port, dev_name, do_spindown);
+		if (umount_stor_path(disks_info, port_b, dev_name, do_spindown) != 0)
+			logmessage("Storage", "safe removal incomplete; active swap could not be disabled or mounted data could not be unmounted");
 	}
 
 	free_disk_data(disks_info);
@@ -1821,15 +1904,20 @@ void
 safe_remove_all_stor_devices(int do_spindown)
 {
 	disk_info_t *disks_info;
+	int path_status, fallback_status;
 
 	stop_stor_apps();
 	disks_info = read_disk_data();
-	umount_stor_path(disks_info, 0, NULL, do_spindown);
+	path_status = umount_stor_path(disks_info, 0, NULL, do_spindown);
 	free_disk_data(disks_info);
-	umount_all_storage();
+	fallback_status = umount_all_storage();
+	if (path_status != 0)
+		logmessage("Storage", "per-device unmount pass was incomplete; fallback cleanup was attempted");
+	if (fallback_status != 0)
+		logmessage("Storage", "one or more storage mounts or swap devices could not be released");
 	restore_home_dir();
 #if defined(APP_NFSD)
-	unload_nfsd();
+	if (fallback_status == 0)
+		unload_nfsd();
 #endif
 }
-
