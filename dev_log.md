@@ -1,3 +1,9 @@
+## 2026-11-08 08:02:27 CST — Verify production automount syntax with target BusyBox ash
+
+- **Base main SHA:** `db998873de022b495c0a199cbed1ed9da92811ce`; **handoff validation clarification commit:** `727eadaec10d1cc1016f8fd46c6230ea78b5ce36`.
+- Rechecked the complete modified `trunk/user/scripts/files/sbin/automount.sh` using BusyBox `ash -n` (the shell family used by the target firmware), rather than relying on the host's `dash` parser for legacy subshell redirection syntax. BusyBox ash syntax checks also passed for the helper and regression script; the regression passed under BusyBox ash.
+- Updated `SESSION_HANDOFF.md` to accurately identify the target-shell validation command. This is validation/documentation only; it does not change the recorded exact-head GitHub Actions status, which remains NOT VERIFIED.
+
 ## 2026-11-08 08:00:55 CST — Save resumable ext filesystem automount handoff
 
 - **Base main SHA:** `a7fe0e95f23c6a41e6a635f968a0e42f075e0cdf`; **handoff documentation commit:** `3334bd2868d6ec3bc1c929d7ed386b2db8283e40`.
@@ -22,7 +28,7 @@
 
 - **Base main SHA:** `098a94755907029ff5a3c4ef97429ad26c8c8e20`; **production source commit:** `bfb6017633ba59624e8886275259a795a58140d0`.
 - In `trunk/user/scripts/files/sbin/automount.sh`, capture `e2fsck -p -v` status for ext2/ext3/ext4 and allow mounting only after status 0 or 1. Status 2 (reboot required), unresolved/operational/usage results and unexpected values stop before the read-write mount. Missing policy helper also fails closed. Existing `achk_enable=0`, missing-e2fsck and post-mount permission behavior remain unchanged.
-- **Validation:** local `sh -n` passed for the modified script; source-ordering contract passed. Full automount runtime with a real removable filesystem, production MIPS build and router tests were NOT RUN.
+- **Validation:** local BusyBox `ash -n` passed for the full modified production script; source-ordering contract passed. Full automount runtime with a real removable filesystem, production MIPS build and router tests were NOT RUN.
 
 ## 2026-11-08 07:59:22 CST — Add shell regression for e2fsck mount status policy
 
