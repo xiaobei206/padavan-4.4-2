@@ -1,3 +1,12 @@
+## 2026-11-08 12:16 CST — Adbyby restore guard merged; exact-head Actions PASS
+
+- **Integration:** PR #3, `fix(firewall): guard Adbyby restore against stale ipsets`, merged into main at `88d0d014579ad6453b1cdc8b10bd53968f5b14ee`. This entry and the handoff/roadmap follow as governance-only commits.
+- **Exact code/test/workflow SHA:** `9728bd602fc7001bde9b6ee644cdab8874db502c`; GitHub Actions [run 42446015897](https://github.com/xiaobei206/padavan-4.4-2/actions/runs/42446015897) completed SUCCESS on that exact SHA, with all 21 job steps successful.
+- **Changes:** preserve Adbyby blockip DROP rules in the private restore snapshot and apply the position-1 ordering conversion to FORWARD/OUTPUT/PREROUTING; remove snapshot and staging files before deleting the referenced ipsets; skip replay when the blockip set is missing; use callback-driven policy to report absent-set preflight and failed extension restore. Tests cover no-snapshot no-op, missing ipset prevents replay, failed restore is reported, and success. CI source contracts were updated after three runs exposed stale call-site/count assertions.
+- **Failed-run history is explicit:** `42445383396` failed on the former direct-call assertion; `42445884729` failed on a stale extension-hook source contract; `42445970247` failed on an outdated expected logger-call count. The final run `42446015897` is the green result; the earlier runs are not represented as green.
+- **Validation boundary:** shell syntax/regressions and host GNU89 compile/run tests pass on the exact head through Actions. No target MIPS/uClibc RC build, full firmware/TRX image, artifact inspection, live-router firewall replay or hardware validation was performed.
+- **Residual / next action:** extension restore still sits outside the core ten-table rollback transaction; a partially applied add-on restore has no new rollback. Full inventory of direct/add-on/standalone `iptables` and `ip6tables` writers and independent IPv6 policy parity remain open. Continue next with that firewall audit, then WAN/PPP and storage unmount/swap—not another routine SkipDBv2-only round.
+
 ## 2026-11-08 12:13 CST — Adbyby restore preflight and failure-path regression
 
 - **Baseline:** `main` SHA `a6c2045e1a734f3d690d09d35da05377cd1b4f63`. Work continues on PR #3, branch `fix/adbyby-ipset-restore-20261108`; do not merge until validation is complete.
