@@ -59,6 +59,7 @@ on:
       - "trunk/user/scripts/files/sbin/storage_fsck_status.sh"
       - "trunk/user/scripts/tests/storage_e2fsck_status.sh"
       - "trunk/user/scripts/tests/storage_checker_status.sh"
+      - "trunk/user/scripts/tests/storage_mountpoint_lock.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script.sh"
       - "trunk/user/scripts/files/usr/bin/autostart.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script_migrate.sh"
@@ -214,6 +215,7 @@ on:
       - "trunk/user/scripts/files/sbin/storage_fsck_status.sh"
       - "trunk/user/scripts/tests/storage_e2fsck_status.sh"
       - "trunk/user/scripts/tests/storage_checker_status.sh"
+      - "trunk/user/scripts/tests/storage_mountpoint_lock.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script.sh"
       - "trunk/user/scripts/files/usr/bin/autostart.sh"
       - "trunk/user/scripts/files/usr/bin/ap_script_migrate.sh"
@@ -976,8 +978,10 @@ jobs:
           sh -n trunk/user/scripts/files/sbin/automount.sh
           sh -n trunk/user/scripts/tests/storage_e2fsck_status.sh
           sh -n trunk/user/scripts/tests/storage_checker_status.sh
+          sh -n trunk/user/scripts/tests/storage_mountpoint_lock.sh
           sh trunk/user/scripts/tests/storage_e2fsck_status.sh
           sh trunk/user/scripts/tests/storage_checker_status.sh
+          sh trunk/user/scripts/tests/storage_mountpoint_lock.sh
           python3 - <<'PY'
           from pathlib import Path
 
@@ -985,6 +989,7 @@ jobs:
           policy = Path("trunk/user/scripts/files/sbin/storage_fsck_status.sh").read_text()
           fat_test = Path("trunk/user/scripts/tests/storage_checker_status.sh").read_text()
           ext_test = Path("trunk/user/scripts/tests/storage_e2fsck_status.sh").read_text()
+          lock_test = Path("trunk/user/scripts/tests/storage_mountpoint_lock.sh").read_text()
           scripts_make = Path("trunk/user/scripts/Makefile").read_text()
 
           ext_start = automount.index('elif [ "$ID_FS_TYPE" == "ext4"')
@@ -1031,8 +1036,23 @@ jobs:
           assert "storage_chkntfs_status_allows_mount" in policy
           assert "storage_chkntfs_status_allows_mount 0" in fat_test
           assert "storage_fsck_fat_status_allows_mount 1" in fat_test
+
+          lock_file = 'automount_lock_file="/var/lock/automount_mountpoint.lock"'
+          lock_open = automount.index('exec 500>>"$automount_lock_file"')
+          lock_wait = automount.index("if ! flock 500;", lock_open)
+          mountpoint_check = automount.index('if mountpoint -q "$dev_mount"', lock_wait)
+          mountpoint_verify = automount.rindex('if ! mountpoint -q "$dev_mount"')
+          unlock = automount.index("exec 500>&-", mountpoint_verify)
+          assert lock_file in automount
+          assert lock_open < lock_wait < mountpoint_check < mountpoint_verify < unlock
+          for line in automount.splitlines():
+              command = line.strip()
+              if command.startswith("mount -t ") or command.startswith("/sbin/ntfs-3g "):
+                  assert "500>&-" in command, f"mount helper may inherit the lock: {command}"
+          assert "flock 9" in lock_test and "start\\n" in lock_test and "end\\n" in lock_test
+          assert "flock 500" in automount
           assert "$(CP) $(PKG_BUILD_DIR)/files/* $(ROMFSDIR)/" in scripts_make
-          print("FAT repair verification and fail-closed NTFS checker gates precede RW/RO mount paths: OK")
+          print("FAT/NTFS checker gates and serialized automount mountpoint ownership: OK")
           PY
 
       - name: Verify Samba share configuration trust boundaries
