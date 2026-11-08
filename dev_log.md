@@ -1,3 +1,14 @@
+## 2026-11-08 22:00 CST — Set stability-first development direction
+
+- **Governance change only:** aligned the bootstrap prompt and development protocol so stability bug discovery/fixing is the primary direction, with security hardening continuing in parallel. Confirmed critical security vulnerabilities, data corruption, boot blockers and severe system failures remain immediate priorities.
+- **Repository scope:** continue rotating across all integrated Padavan user-space modules; do not allow SkipDBv2, HTTPD, firewall or another single subsystem to monopolize development.
+- **Validation cadence:** routine rounds use source analysis, static checks, focused host tests and exact-HEAD GitHub Actions. Full MIPS firmware/image builds and physical XY-C1 validation are consolidated toward the later project stage, except when a specific defect requires earlier target validation. Host-side results must never be described as target/hardware verification.
+- **Handoff:** the active Adbyby multi-table restore/rollback task remains first in SESSION_HANDOFF.md. Finish it before selecting the next stability task, unless a P0 issue emerges.
+- **Files:** `AI_BOOTSTRAP_PROMPT.md`, `AI_DEVELOPMENT_PROTOCOL.md`, `REFACTOR_ROADMAP.md`, `SESSION_HANDOFF.md`, `dev_log.md`.
+- **Validation:** documentation consistency review only; no code, firmware, target or hardware tests were run for this governance update.
+
+---
+
 ## 2026-11-08 14:20 CST — Prevent firewall transaction state loss on reset
 
 - **Base implementation SHA:** `47d68c69d5a2e9b1ba5a89a55664bb50410f218c`; its exact-head Actions run 42453352075 completed SUCCESS (22-step HTTPD/security job).
