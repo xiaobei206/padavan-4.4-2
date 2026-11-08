@@ -953,8 +953,15 @@ start_wan(void)
 			
 			set_wan_unit_value_int(unit, "pppoe_demand", i_demand);
 			
-			/* launch ppp client daemon */
-			launch_wan_pppd(unit, wan_proto);
+			/* Launch the PPP client only after the options file is finalized. */
+			if (launch_wan_pppd(unit, wan_proto) != 0) {
+				logmessage(LOGNAME, "aborting WAN PPP startup for unit %d after launch failure", unit);
+				/* Do not leave a phantom ppp0 interface in firewall/UPnP state. */
+				check_upnp_wanif_changed(wan_ifname);
+				set_wan_unit_value(unit, "ifname_t", wan_ifname);
+				start_firewall_ex();
+				continue;
+			}
 			
 			/* Pretend that the WAN interface is up */
 			if (i_demand) {
