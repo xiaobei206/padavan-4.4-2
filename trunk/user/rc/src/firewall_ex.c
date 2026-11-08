@@ -81,6 +81,33 @@ firewall_log_command_failure(const char *operation, int status)
 	logmessage(LOGNAME, "%s: command failed with wait status %d", operation, status);
 }
 
+#if defined (APP_ADBYBY)
+static int
+firewall_adbyby_blockip_preflight(void *context)
+{
+	(void)context;
+	return doSystem("ipset list blockip >/dev/null 2>&1");
+}
+
+static int
+firewall_adbyby_restore_snapshot_command(void *context)
+{
+	const char *snapshot = (const char *)context;
+	return doSystem("iptables-restore -n %s", snapshot);
+}
+
+static void
+firewall_adbyby_report_restore_failure(const char *operation, int status,
+				       void *context)
+{
+	(void)context;
+	firewall_log_command_failure(operation, status);
+	if (strcmp(operation, "Adbyby blockip ipset preflight") == 0)
+		logmessage(LOGNAME,
+			   "Skipping Adbyby firewall restore: required blockip ipset is unavailable");
+}
+#endif
+
 
 typedef struct {
 	const char *operation;
@@ -2518,7 +2545,7 @@ start_firewall_ex(void)
 #endif
 #if defined (APP_ADBYBY)
 	const char *adbyby_iptables = "/home/root/.adbyby.save";
-	int adbyby_blockip_status, adbyby_snapshot_exists;
+	int adbyby_snapshot_exists;
 #endif
 	firewall_restore_transaction_reset(&firewall_core_restore_transaction);
 	firewall_core_restore_transaction_active = 0;
@@ -2663,21 +2690,14 @@ firewall_restore_complete:
 #endif
 #if defined (APP_ADBYBY)
 	adbyby_snapshot_exists = check_if_file_exist(adbyby_iptables);
-	if (adbyby_snapshot_exists) {
-		/* The saved rules reference blockip. Do not replay them after the
-		 * Adbyby stop/failure path has removed that ipset. A later rebuild can
-		 * retry if the set is recreated; this does not alter core rollback. */
-		adbyby_blockip_status = doSystem("ipset list blockip >/dev/null 2>&1");
-		if (firewall_adbyby_restore_is_allowed(adbyby_snapshot_exists,
-				firewall_command_status_ok(adbyby_blockip_status))) {
-			firewall_log_command_failure("Adbyby iptables restore",
-					     doSystem("iptables-restore -n %s", adbyby_iptables));
-		} else {
-			firewall_log_command_failure("Adbyby blockip ipset preflight", adbyby_blockip_status);
-			logmessage(LOGNAME,
-				   "Skipping Adbyby firewall restore: required blockip ipset is unavailable");
-		}
-	}
+	/* The saved rules reference blockip. The policy skips stale snapshots when
+	 * Adbyby has removed that ipset and reports a failed extension restore.
+	 * The add-on is deliberately outside the core table rollback transaction. */
+	(void)firewall_adbyby_restore_policy_apply(adbyby_snapshot_exists,
+		firewall_adbyby_blockip_preflight,
+		firewall_adbyby_restore_snapshot_command,
+		firewall_adbyby_report_restore_failure,
+		(void *)adbyby_iptables);
 #endif
 	/* Storage-restored hooks are privileged programs: reject links and unsafe
 	 * metadata, then execute only a root-private snapshot of the opened inode. */
