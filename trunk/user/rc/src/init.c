@@ -457,6 +457,8 @@ init_main_loop(void)
 {
 	pid_t shell_pid = 0;
 	int shutdown_handled = 0;
+	int i;
+	sigset_t wait_mask, original_mask;
 
 	umask(0000);
 
@@ -501,19 +503,32 @@ init_main_loop(void)
 	/* unblock SIGUSR1 */
 	control_signal(SIGUSR1, SIG_UNBLOCK);
 
+	/*
+	 * Block queued work signals while inspecting their flags. sigsuspend()
+	 * atomically restores the prior mask while sleeping, so a signal cannot
+	 * land between the flag check and the wait.
+	 */
+	sigemptyset(&wait_mask);
+	sigaddset(&wait_mask, SIGUSR1);
+	sigaddset(&wait_mask, SIGALRM);
+	for (i = 0; i < ARRAY_SIZE(signals_shutdown); i++)
+		sigaddset(&wait_mask, signals_shutdown[i]);
+	sigprocmask(SIG_BLOCK, &wait_mask, &original_mask);
+
 	/* Loop forever */
 	for (;;) {
-		sigset_t ss;
-		sigemptyset(&ss);
-
 		/* Wait until an event or a deferred shutdown request is pending. */
 		while (!signal_state.usr1_pending &&
 		       !signal_state.alarm_pending &&
 		       (!signal_state.shutdown_pending || shutdown_handled)) {
-			if (!noconsole && (!shell_pid || kill(shell_pid, 0) != 0))
+			if (!noconsole && (!shell_pid || kill(shell_pid, 0) != 0)) {
+				/* Keep console setup from starving a signal that arrives now. */
+				sigprocmask(SIG_SETMASK, &original_mask, NULL);
 				shell_pid = run_shell(0, 1);
-			else
-				sigsuspend(&ss);
+				sigprocmask(SIG_BLOCK, &wait_mask, NULL);
+			} else {
+				sigsuspend(&original_mask);
+			}
 		}
 
 		/* Ordinary termination signals are handled outside signal context. */

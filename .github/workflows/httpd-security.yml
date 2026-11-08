@@ -1537,6 +1537,10 @@ jobs:
           assert "sigaction(signals_shutdown[i], &sa, NULL);" in setup
           assert "handle_sig_fatal((int)signal_state.shutdown_signal);" in main_loop
           assert "signal_state.shutdown_pending && !shutdown_handled" in main_loop
+          assert "sigprocmask(SIG_BLOCK, &wait_mask, &original_mask);" in main_loop
+          assert "sigsuspend(&original_mask);" in main_loop
+          assert "sigprocmask(SIG_SETMASK, &original_mask, NULL);" in main_loop
+          assert "sigprocmask(SIG_BLOCK, &wait_mask, NULL);" in main_loop
           assert "shutdown_router(0);" in fatal and "reboot(RB_AUTOBOOT);" in fatal
           assert "static inline void" in policy
           assert "volatile sig_atomic_t shutdown_pending;" in policy
