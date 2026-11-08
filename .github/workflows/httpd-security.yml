@@ -623,6 +623,9 @@ jobs:
           assert "ppp_callback_generation_matches(argv[6], current)" in ppp
           assert "PPP_WAN_SESSION_LOCK_ATTEMPTS" in ppp
           assert "O_NOFOLLOW | O_NONBLOCK" in ppp
+          assert "O_CREAT | O_EXCL | O_NOFOLLOW | O_NONBLOCK" in ppp
+          assert "ppp_callback_generation_initial_state_allowed(created, allow_empty)" in ppp
+          assert "ppp_callback_generation_initial_state_allowed" in generation_policy
           assert "ppp_option_text_reject_ipparam" in value_policy
           assert "ipparam attacker" in value_test
           assert "ppp_callback_generation_parse" in generation_policy

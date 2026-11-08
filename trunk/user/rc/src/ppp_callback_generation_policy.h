@@ -46,6 +46,14 @@ ppp_callback_generation_parse(const char *text, unsigned long *generation_out)
 }
 
 static int
+ppp_callback_generation_initial_state_allowed(int created, int allow_empty)
+{
+	/* Empty is valid only for the process that atomically created the file.
+	 * A truncated/corrupt pre-existing file must never reset the token. */
+	return created && allow_empty;
+}
+
+static int
 ppp_callback_generation_matches(const char *text, unsigned long current)
 {
 	unsigned long supplied;

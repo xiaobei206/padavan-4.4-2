@@ -46,7 +46,7 @@
 static int
 ppp_wan_session_state_lock(unsigned long *generation, int allow_empty)
 {
-	int fd, attempt, locked;
+	int fd, attempt, locked, created;
 	struct stat st;
 	struct flock file_lock;
 	char state_text[sizeof(unsigned long) * CHAR_BIT + 2];
@@ -60,8 +60,15 @@ ppp_wan_session_state_lock(unsigned long *generation, int allow_empty)
 	if (ppp_options_directory_ready("/tmp/ppp") != 0)
 		return -1;
 
+	created = 0;
 	fd = open(PPP_WAN_SESSION_STATE_FILE,
-		  O_RDWR | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600);
+		  O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_NONBLOCK, 0600);
+	if (fd >= 0) {
+		created = 1;
+	} else if (errno == EEXIST) {
+		fd = open(PPP_WAN_SESSION_STATE_FILE,
+			  O_RDWR | O_NOFOLLOW | O_NONBLOCK);
+	}
 	if (fd < 0)
 		return -1;
 	if (fstat(fd, &st) != 0)
@@ -118,7 +125,7 @@ ppp_wan_session_state_lock(unsigned long *generation, int allow_empty)
 	if (used > 0 && state_text[used - 1] == '\n')
 		state_text[--used] = '\0';
 	if (used == 0) {
-		if (!allow_empty) {
+		if (!ppp_callback_generation_initial_state_allowed(created, allow_empty)) {
 			errno = ENOENT;
 			goto failed_locked;
 		}

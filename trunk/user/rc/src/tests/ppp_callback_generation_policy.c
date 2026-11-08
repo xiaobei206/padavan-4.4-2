@@ -15,6 +15,10 @@ main(void)
 	generation = 0;
 	assert(ppp_callback_generation_parse("1", &generation) == 0);
 	assert(generation == 1);
+	assert(ppp_callback_generation_initial_state_allowed(1, 1));
+	assert(!ppp_callback_generation_initial_state_allowed(0, 1));
+	assert(!ppp_callback_generation_initial_state_allowed(1, 0));
+	assert(!ppp_callback_generation_initial_state_allowed(0, 0));
 	assert(ppp_callback_generation_matches("1", 1));
 	assert(!ppp_callback_generation_matches("1", 2));
 	assert(!ppp_callback_generation_matches("2", 1));
