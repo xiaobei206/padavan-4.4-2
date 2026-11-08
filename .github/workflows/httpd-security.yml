@@ -848,10 +848,37 @@ jobs:
           assert "save_adbyby_rule_snapshot" in adbyby
           assert 'final_file="$save_dir/.adbyby.save"' in adbyby
           assert 'umask 077' in adbyby and 'mv -f "$next_file" "$final_file"' in adbyby
+          assert 'mktemp /tmp/adbyby-blockip.XXXXXX' in adbyby
+          assert 'ipset -! restore < "$blockip_file" 2>/dev/null' in adbyby
+          assert "/tmp/blockip.ipset" not in adbyby
+          ip_rule_start = adbyby.index("ip_rule()\\n{")
+          ip_rule_end = adbyby.index("\\nadd_dns()", ip_rule_start)
+          ip_rule = adbyby[ip_rule_start:ip_rule_end]
+          for guarded in (
+              "ipset -! -N adbyby_esc hash:ip || return 1",
+              "$ipt_n -A ADBYBY -m set --match-set adbyby_esc dst -j RETURN || return 1",
+              "iptables -I FORWARD -m set --match-set blockip dst -j DROP || return 1",
+              "iptables -I OUTPUT -m set --match-set blockip dst -j DROP || return 1",
+              "if ! ipset -! restore < \"$blockip_file\" 2>/dev/null; then",
+          ):
+              assert guarded in ip_rule, guarded
+          add_rule_start = adbyby.index("add_rule()\\n{")
+          add_rule_end = adbyby.index("\\ndel_rule()", add_rule_start)
+          add_rule = adbyby[add_rule_start:add_rule_end]
+          assert "if ! $ipt_n -N ADBYBY; then" in add_rule
+          assert "if ! ip_rule; then" in add_rule
+          assert 'if ! $ipt_n -I PREROUTING -p tcp --dport 80 -j ADBYBY; then' in add_rule
+          assert "adbyby_abort_rule_setup" in add_rule
           assert "/tmp/adbyby.save" not in adbyby
           assert "mkdir -p -m 700 /home/root" in dev_init
           print("Root extension hook trust gates, private staging and Adbyby snapshot contracts: OK")
           PY
+
+      - name: Check Adbyby firewall setup rollback and private staging
+        run: |
+          set -eu
+          sh -n trunk/user/adbyby/adbyby.sh
+          sh trunk/user/adbyby/tests/firewall_snapshot.sh
 
       - name: Check firewall command status reporting
         run: |

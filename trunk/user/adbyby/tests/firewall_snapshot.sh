@@ -25,8 +25,29 @@ cat <<'RULES'
 COMMIT
 RULES
 EOF
+cat > "$test_root/bin/iptables" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$TEST_COMMAND_LOG"
+if [ -n "${FAIL_IPTABLES_MATCH:-}" ] && [ "$*" = "$FAIL_IPTABLES_MATCH" ]; then
+    exit 1
+fi
+exit 0
+EOF
+cat > "$test_root/bin/ipset" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$TEST_IPSET_LOG"
+if [ "${FAIL_IPSET_RESTORE:-0}" = "1" ] && [ "$1" = "-!" ] && [ "$2" = "restore" ]; then
+    exit 1
+fi
+exit 0
+EOF
 chmod 700 "$test_root/bin/"*
-PATH="$test_root/bin:$PATH";export PATH
+PATH="$test_root/bin:$PATH"
+export PATH
+TEST_COMMAND_LOG="$test_root/iptables.log"
+TEST_IPSET_LOG="$test_root/ipset.log"
+TEST_SNAPSHOT_LOG="$test_root/snapshot.log"
+export TEST_COMMAND_LOG TEST_IPSET_LOG TEST_SNAPSHOT_LOG
 . "$repo_root/trunk/user/adbyby/adbyby.sh" test-source >/dev/null
 snapshot="$test_root/private/.adbyby.save";sentinel="$test_root/sentinel"
 printf 'preserve-me\n' > "$sentinel";ln -s "$sentinel" "$snapshot"
@@ -46,3 +67,80 @@ fi
 unset FAIL_IPTABLES_SAVE
 [ "$(cat "$snapshot")" = "known-good" ]
 echo "Adbyby private firewall snapshot staging regression: OK"
+
+# Use an isolated configuration directory and avoid exercising the live snapshot path here.
+PROG_PATH="$test_root/private"
+DATA_PATH="$PROG_PATH/data"
+mkdir -p "$DATA_PATH"
+: > "$PROG_PATH/blockip.conf"
+save_adbyby_rule_snapshot()
+{
+    printf 'saved\n' >> "$TEST_SNAPSHOT_LOG"
+    return 0
+}
+
+# A partial nat-chain build must fail before the PREROUTING hook is installed.
+: > "$TEST_COMMAND_LOG"
+: > "$TEST_IPSET_LOG"
+: > "$TEST_SNAPSHOT_LOG"
+FAIL_IPTABLES_MATCH='-t nat -A ADBYBY -d 10.0.0.0/8'
+export FAIL_IPTABLES_MATCH
+if add_rule; then
+    echo "unexpectedly accepted a failed ADBYBY chain mutation" >&2
+    exit 1
+fi
+unset FAIL_IPTABLES_MATCH
+grep -F -- '-t nat -F ADBYBY' "$TEST_COMMAND_LOG" >/dev/null
+if grep -F -- '-t nat -I PREROUTING -p tcp --dport 80 -j ADBYBY' "$TEST_COMMAND_LOG" >/dev/null; then
+    echo "installed PREROUTING hook after a chain mutation failed" >&2
+    exit 1
+fi
+[ ! -s "$TEST_SNAPSHOT_LOG" ]
+
+# Failed ipset restore must propagate and trigger cleanup before traffic is redirected.
+: > "$TEST_COMMAND_LOG"
+: > "$TEST_IPSET_LOG"
+: > "$TEST_SNAPSHOT_LOG"
+FAIL_IPSET_RESTORE=1
+export FAIL_IPSET_RESTORE
+if add_rule; then
+    echo "unexpectedly accepted a failed ipset restore" >&2
+    exit 1
+fi
+unset FAIL_IPSET_RESTORE
+grep -F -- '-! restore' "$TEST_IPSET_LOG" >/dev/null
+grep -F -- '-t nat -F ADBYBY' "$TEST_COMMAND_LOG" >/dev/null
+if grep -F -- '-t nat -I PREROUTING -p tcp --dport 80 -j ADBYBY' "$TEST_COMMAND_LOG" >/dev/null; then
+    echo "installed PREROUTING hook after ipset restore failed" >&2
+    exit 1
+fi
+[ ! -s "$TEST_SNAPSHOT_LOG" ]
+
+# A failed final hook insertion must still request cleanup and must not publish a snapshot.
+: > "$TEST_COMMAND_LOG"
+: > "$TEST_IPSET_LOG"
+: > "$TEST_SNAPSHOT_LOG"
+FAIL_IPTABLES_MATCH='-t nat -I PREROUTING -p tcp --dport 80 -j ADBYBY'
+export FAIL_IPTABLES_MATCH
+if add_rule; then
+    echo "unexpectedly accepted a failed PREROUTING insertion" >&2
+    exit 1
+fi
+unset FAIL_IPTABLES_MATCH
+grep -F -- '-t nat -D PREROUTING -p tcp --dport 80 -j ADBYBY' "$TEST_COMMAND_LOG" >/dev/null
+grep -F -- '-t nat -F ADBYBY' "$TEST_COMMAND_LOG" >/dev/null
+[ ! -s "$TEST_SNAPSHOT_LOG" ]
+
+# The full path succeeds when every required firewall/ipset operation succeeds.
+: > "$TEST_COMMAND_LOG"
+: > "$TEST_IPSET_LOG"
+: > "$TEST_SNAPSHOT_LOG"
+if ! add_rule; then
+    echo "unexpectedly rejected a successful firewall setup" >&2
+    exit 1
+fi
+grep -F -- '-t nat -I PREROUTING -p tcp --dport 80 -j ADBYBY' "$TEST_COMMAND_LOG" >/dev/null
+grep -F -- '-I FORWARD -m set --match-set blockip dst -j DROP' "$TEST_COMMAND_LOG" >/dev/null
+grep -F -- '-I OUTPUT -m set --match-set blockip dst -j DROP' "$TEST_COMMAND_LOG" >/dev/null
+[ -s "$TEST_SNAPSHOT_LOG" ]
+echo "Adbyby firewall setup failure propagation and cleanup regression: OK"

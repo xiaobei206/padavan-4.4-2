@@ -158,56 +158,79 @@ del_cron()
 
 ip_rule()
 {
-
-	ipset -N adbyby_esc hash:ip
-	$ipt_n -A ADBYBY -m set --match-set adbyby_esc dst -j RETURN
-	num=`nvram get adbybyip_staticnum_x`
-	if [ $adbyby_ip_x -eq 1 ]; then
-	if [ $num -ne 0 ]; then
-	logger -t "adbyby" "设置内网IP过滤控制"
-	for i in $(seq 1 $num)
-	do
-		j=`expr $i - 1`
-		ip=`nvram get adbybyip_ip_x$j`
-		mode=`nvram get adbybyip_ip_road_x$j`
-		case $mode in
-		0)
-			$ipt_n -A ADBYBY -s $ip -j RETURN
-			logger -t "adbyby" "忽略$ip走AD过滤。"
-			;;
-		1)
-			$ipt_n -A ADBYBY -s $ip -p tcp -j REDIRECT --to-ports 8118
-			$ipt_n -A ADBYBY -s $ip -j RETURN
-			logger -t "adbyby" "设置$ip走全局过滤。"
-			;;
-		2)
-			ipset -N adbyby_wan hash:ip
-			$ipt_n -A ADBYBY -m set --match-set adbyby_wan dst -s $ip -p tcp -j REDIRECT --to-ports 8118
-			awk '!/^$/&&!/^#/{printf("ipset=/%s/'"adbyby_wan"'\n",$0)}' $PROG_PATH/adhost.conf > $WAN_FILE
-			logger -t "adbyby" "设置$ip走Plus+过滤。"
-			;;
-		esac
-	done
+	ipset -! -N adbyby_esc hash:ip || return 1
+	$ipt_n -A ADBYBY -m set --match-set adbyby_esc dst -j RETURN || return 1
+	num=$(nvram get adbybyip_staticnum_x)
+	if [ "$adbyby_ip_x" -eq 1 ]; then
+		if [ "$num" -ne 0 ]; then
+			logger -t "adbyby" "设置内网IP过滤控制"
+			for i in $(seq 1 "$num")
+			do
+				j=$(expr "$i" - 1)
+				ip=$(nvram get adbybyip_ip_x$j)
+				mode=$(nvram get adbybyip_ip_road_x$j)
+				case "$mode" in
+				0)
+					$ipt_n -A ADBYBY -s "$ip" -j RETURN || return 1
+					logger -t "adbyby" "忽略$ip走AD过滤。"
+					;;
+				1)
+					$ipt_n -A ADBYBY -s "$ip" -p tcp -j REDIRECT --to-ports 8118 || return 1
+					$ipt_n -A ADBYBY -s "$ip" -j RETURN || return 1
+					logger -t "adbyby" "设置$ip走全局过滤。"
+					;;
+				2)
+					ipset -! -N adbyby_wan hash:ip || return 1
+					$ipt_n -A ADBYBY -m set --match-set adbyby_wan dst -s "$ip" -p tcp -j REDIRECT --to-ports 8118 || return 1
+					awk '!/^$/&&!/^#/{printf("ipset=/%s/'"'"'\"adbyby_wan\"'"'"'\\n",$0)}' "$PROG_PATH/adhost.conf" > "$WAN_FILE" || return 1
+					logger -t "adbyby" "设置$ip走Plus+过滤。"
+					;;
+				*)
+					return 1
+					;;
+				esac
+			done
+		fi
 	fi
-	fi
 
-	case $wan_mode in
-		0)	$ipt_n -A ADBYBY -p tcp -j REDIRECT --to-ports 8118
-			;;
-		1)
-			ipset -N adbyby_wan hash:ip
-			$ipt_n -A ADBYBY -m set --match-set adbyby_wan dst -p tcp -j REDIRECT --to-ports 8118
-			;;
-		2)
-			$ipt_n -A ADBYBY -d 0.0.0.0/24 -j RETURN
-			;;
+	case "$wan_mode" in
+	0)
+		$ipt_n -A ADBYBY -p tcp -j REDIRECT --to-ports 8118 || return 1
+		;;
+	1)
+		ipset -! -N adbyby_wan hash:ip || return 1
+		$ipt_n -A ADBYBY -m set --match-set adbyby_wan dst -p tcp -j REDIRECT --to-ports 8118 || return 1
+		;;
+	2)
+		$ipt_n -A ADBYBY -d 0.0.0.0/24 -j RETURN || return 1
+		;;
+	*)
+		return 1
+		;;
 	esac
 
-	echo "create blockip hash:net family inet hashsize 1024 maxelem 65536" > /tmp/blockip.ipset
-	awk '!/^$/&&!/^#/{printf("add blockip %s'" "'\n",$0)}' $PROG_PATH/blockip.conf >> /tmp/blockip.ipset
-	ipset -! restore < /tmp/blockip.ipset 2>/dev/null
-	iptables -I FORWARD -m set --match-set blockip dst -j DROP
-	iptables -I OUTPUT -m set --match-set blockip dst -j DROP
+	# Use an exclusive private temporary file: a predictable /tmp pathname can be
+	# pre-created by another local process and then followed by the root shell.
+	blockip_file=$(mktemp /tmp/adbyby-blockip.XXXXXX) || return 1
+	if ! chmod 600 "$blockip_file"; then
+		rm -f "$blockip_file"
+		return 1
+	fi
+	if ! printf '%s\n' 'create blockip hash:net family inet hashsize 1024 maxelem 65536' > "$blockip_file" ||
+	   ! awk '!/^$/&&!/^#/{printf("add blockip %s\n",$0)}' "$PROG_PATH/blockip.conf" >> "$blockip_file"; then
+		rm -f "$blockip_file"
+		return 1
+	fi
+	if ! ipset -! restore < "$blockip_file" 2>/dev/null; then
+		rm -f "$blockip_file"
+		return 1
+	fi
+	if ! rm -f "$blockip_file"; then
+		return 1
+	fi
+
+	iptables -I FORWARD -m set --match-set blockip dst -j DROP || return 1
+	iptables -I OUTPUT -m set --match-set blockip dst -j DROP || return 1
 }
 
 add_dns()
@@ -284,25 +307,48 @@ save_adbyby_rule_snapshot()
 	rm -f "$raw_file"
 )
 
+adbyby_abort_rule_setup()
+{
+	reason="$1"
+	# Best-effort cleanup: PREROUTING is added only after every prerequisite succeeds.
+	del_rule >/dev/null 2>&1
+	logger -t "adbyby" "防火墙规则安装失败（$reason），已尝试清理部分规则。"
+}
+
 add_rule()
 {
-	$ipt_n -N ADBYBY
-	$ipt_n -A ADBYBY -d 0.0.0.0/8 -j RETURN
-	$ipt_n -A ADBYBY -d 10.0.0.0/8 -j RETURN
-	$ipt_n -A ADBYBY -d 127.0.0.0/8 -j RETURN
-	$ipt_n -A ADBYBY -d 169.254.0.0/16 -j RETURN
-	$ipt_n -A ADBYBY -d 172.16.0.0/12 -j RETURN
-	$ipt_n -A ADBYBY -d 192.168.0.0/16 -j RETURN
-	$ipt_n -A ADBYBY -d 224.0.0.0/4 -j RETURN
-	$ipt_n -A ADBYBY -d 240.0.0.0/4 -j RETURN
-	ip_rule
+	if ! $ipt_n -N ADBYBY; then
+		logger -t "adbyby" "防火墙规则安装失败：无法创建 ADBYBY 链。"
+		return 1
+	fi
+	if ! $ipt_n -A ADBYBY -d 0.0.0.0/8 -j RETURN ||
+	   ! $ipt_n -A ADBYBY -d 10.0.0.0/8 -j RETURN ||
+	   ! $ipt_n -A ADBYBY -d 127.0.0.0/8 -j RETURN ||
+	   ! $ipt_n -A ADBYBY -d 169.254.0.0/16 -j RETURN ||
+	   ! $ipt_n -A ADBYBY -d 172.16.0.0/12 -j RETURN ||
+	   ! $ipt_n -A ADBYBY -d 192.168.0.0/16 -j RETURN ||
+	   ! $ipt_n -A ADBYBY -d 224.0.0.0/4 -j RETURN ||
+	   ! $ipt_n -A ADBYBY -d 240.0.0.0/4 -j RETURN; then
+		adbyby_abort_rule_setup "NAT chain base rules"
+		return 1
+	fi
+	if ! ip_rule; then
+		adbyby_abort_rule_setup "ipset or filter rules"
+		return 1
+	fi
 	logger -t "adbyby" "添加8118透明代理端口。"
-	$ipt_n -I PREROUTING -p tcp --dport 80 -j ADBYBY
+	if ! $ipt_n -I PREROUTING -p tcp --dport 80 -j ADBYBY; then
+		adbyby_abort_rule_setup "PREROUTING redirect"
+		return 1
+	fi
 	if save_adbyby_rule_snapshot; then
 		logger -t "adbyby" "保存adbyby防火墙规则成功！"
 	else
+		# Runtime rules are already active; retain existing behavior but report
+		# that the startup snapshot could not be refreshed.
 		logger -t "adbyby" "保存adbyby防火墙规则失败！可能会造成重启后过滤广告失效，需要手动关闭再打开ADBYBY！"
 	fi
+	return 0
 }
 
 del_rule()
