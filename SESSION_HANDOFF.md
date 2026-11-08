@@ -1,7 +1,7 @@
 ## Latest resumable checkpoint — Retry failed firewall restore snapshot cleanup
 
 - **Main baseline:** `c49eab3250abe1fd0159ee933609fe862e62e1af`; this round continues the top handoff item after the direct ASP query-output fix.
-- **Current main documentation head:** `8ec832eab586da58c78b2c5715ed6cad92a63173` (verification-record update); the tested implementation/source head remains `47d68c69d5a2e9b1ba5a89a55664bb50410f218c`.
+- **Exact tested implementation/source head:** `47d68c69d5a2e9b1ba5a89a55664bb50410f218c`; later main commits are documentation-only verification/checkpoint updates.
 - **Finding:** `firewall_restore_transaction_finish()` and successful rollback cleanup called a void remover and always cleared `snapshot_count`. If `unlink()` failed, a 0600 recovery snapshot remained in `/tmp` but the transaction forgot its path and treated cleanup as complete. Repeated firewall rebuilds could accumulate stale tmpfs files.
 - **Implementation:** the remove callback now returns status; cleanup compacts and retains paths that failed to unlink, and tracks `cleanup_failed` separately from apply/rollback failure. Both full rebuild and standalone-table transaction resets retry pending cleanup. Re-entering abort retries cleanup without re-running rollback. A failed rollback still preserves all recovery snapshots.
 - **Regression additions:** GNU89 transaction tests cover failed cleanup after a successful IPv6 filter apply, retry on finish, failed cleanup after a successful IPv6 NAT rollback, and retry on repeated abort while asserting rollback runs exactly once. Workflow contracts require these tests and the pre-reset retry wiring.
