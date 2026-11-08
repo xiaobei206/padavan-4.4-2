@@ -1,3 +1,42 @@
+## 2026-11-08 08:00:55 CST — Save resumable ext filesystem automount handoff
+
+- **Base main SHA:** `a7fe0e95f23c6a41e6a635f968a0e42f075e0cdf`; **handoff documentation commit:** `3334bd2868d6ec3bc1c929d7ed386b2db8283e40`.
+- Updated the top of `SESSION_HANDOFF.md` with the e2fsck automount finding, production behavior, changed paths, the four sequential main code/test/workflow commits, local validation results and explicit unverified/NOT RUN boundaries. Preserved the previous block-storage partition-inventory checkpoint underneath it.
+- The handoff names the next rotation as init/service lifecycle and keeps storage checker/unmount residuals, HTTPD/CGI/auth, firewall rollback/IPv6 and WAN/PPP on the broader ledger.
+- **Validation:** documentation consistency review PASS; this is a docs-only commit. It does not change or elevate the CI status of the code checkpoint.
+
+## 2026-11-08 08:00:44 CST — Update roadmap with ext filesystem fail-closed gate
+
+- **Base main SHA:** `3af0125b79abb36dae20188f44016bcff57980b2`; **roadmap documentation commit:** `a7fe0e95f23c6a41e6a635f968a0e42f075e0cdf`.
+- Updated the roadmap's latest status, latest audit checkpoint and USB/storage/hotplug row. The new row records the ext2/3/4 e2fsck status whitelist, local shell regression PASS, exact-head Actions NOT VERIFIED, remaining FAT/NTFS and unmount/swapoff work, and the next init/service rotation.
+- Preserved the previously verified USB modem and whole-disk partition checkpoints.
+- **Validation:** table/checkpoint consistency review PASS; this is a docs-only commit.
+
+## 2026-11-08 07:59:33 CST — Wire ext filesystem repair gate into security workflow
+
+- **Base main SHA:** `bfb6017633ba59624e8886275259a795a58140d0`; **code/test/workflow SHA:** `3af0125b79abb36dae20188f44016bcff57980b2`.
+- Added symmetric push and pull-request path filters for `automount.sh`, `storage_fsck_status.sh` and `tests/storage_e2fsck_status.sh`. Added the workflow step to syntax-check both shell files, run the policy test, and assert the e2fsck result check precedes ext filesystem mounting and the helper is packaged by the scripts Makefile.
+- **Validation:** the same shell and source-ordering checks passed locally. The exact-head GitHub Actions push run/result was **NOT VERIFIED**; no run ID is recorded and no CI success is claimed.
+
+## 2026-11-08 07:59:24 CST — Stop ext filesystem RW mount after unsafe e2fsck status
+
+- **Base main SHA:** `098a94755907029ff5a3c4ef97429ad26c8c8e20`; **production source commit:** `bfb6017633ba59624e8886275259a795a58140d0`.
+- In `trunk/user/scripts/files/sbin/automount.sh`, capture `e2fsck -p -v` status for ext2/ext3/ext4 and allow mounting only after status 0 or 1. Status 2 (reboot required), unresolved/operational/usage results and unexpected values stop before the read-write mount. Missing policy helper also fails closed. Existing `achk_enable=0`, missing-e2fsck and post-mount permission behavior remain unchanged.
+- **Validation:** local `sh -n` passed for the modified script; source-ordering contract passed. Full automount runtime with a real removable filesystem, production MIPS build and router tests were NOT RUN.
+
+## 2026-11-08 07:59:22 CST — Add shell regression for e2fsck mount status policy
+
+- **Base main SHA:** `7bdcb7f98e76fa84766c603adfb862509cf879d4`; **test commit:** `098a94755907029ff5a3c4ef97429ad26c8c8e20`.
+- Added `trunk/user/scripts/tests/storage_e2fsck_status.sh`. It sources the shipped policy helper, accepts statuses 0/1 and rejects reboot-required, unresolved-error, operational, usage, cancellation, library-error, empty and malformed values.
+- **Validation:** local `sh -n` and test execution PASS. The test is invoked with `sh` and does not depend on executable file mode.
+
+## 2026-11-08 07:59:19 CST — Add fail-closed e2fsck status policy
+
+- **Base main SHA:** `5b0e24f0e73ca7cd441dbf700497003b2fdcf952`; **helper commit:** `7bdcb7f98e76fa84766c603adfb862509cf879d4`.
+- Added `trunk/user/scripts/files/sbin/storage_fsck_status.sh` with a locale-independent shell case policy that permits only e2fsck exit statuses 0 (clean) and 1 (errors corrected). All other values are denied.
+- Confirmed `trunk/user/scripts/Makefile` copies `files/*` into ROMFS, so this helper is included by the existing package install rule without a separate file manifest.
+- **Validation:** local `sh -n` passed; subsequent policy regression exercised allowed and rejected results.
+
 ## 2026-11-08 07:54 CST — Fail closed on unavailable block-storage partition inventory
 
 ### Finding and implementation
