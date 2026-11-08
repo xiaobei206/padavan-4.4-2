@@ -804,6 +804,16 @@ wait_ppp_up(char *ppp_ifname, int unit)
 }
 
 static void
+restore_wan_after_ppp_start_failure(int unit, char *wan_ifname)
+{
+	/* Restore the physical path while demand PPP is unavailable. A later
+	 * successful ip-up callback may switch the active WAN back to ppp0. */
+	check_upnp_wanif_changed(wan_ifname);
+	set_wan_unit_value(unit, "ifname_t", wan_ifname);
+	start_firewall_ex();
+}
+
+static void
 create_cb_links(void)
 {
 	mkdir("/tmp/ppp", 0777);
@@ -963,16 +973,15 @@ start_wan(void)
 			if (launch_wan_pppd(unit, wan_proto) != 0) {
 				logmessage(LOGNAME, "aborting WAN PPP startup for unit %d after launch failure", unit);
 				/* Do not leave a phantom ppp0 interface in firewall/UPnP state. */
-				check_upnp_wanif_changed(wan_ifname);
-				set_wan_unit_value(unit, "ifname_t", wan_ifname);
-				start_firewall_ex();
+				restore_wan_after_ppp_start_failure(unit, wan_ifname);
 				continue;
 			}
 			
 			/* Pretend that the WAN interface is up */
-			if (i_demand) {
-				if (!wait_ppp_up(ppp_ifname, unit))
-					continue;
+			if (i_demand && !wait_ppp_up(ppp_ifname, unit)) {
+				logmessage(LOGNAME, "aborting WAN PPP startup for unit %d because the demand interface did not become ready", unit);
+				restore_wan_after_ppp_start_failure(unit, wan_ifname);
+				continue;
 			}
 		}
 		else if (wan_proto == IPV4_WAN_PROTO_IPOE_DHCP ||

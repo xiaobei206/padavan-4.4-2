@@ -592,8 +592,22 @@ jobs:
           wan_start = wan.index("if (launch_wan_pppd(unit, wan_proto) != 0)")
           wan_end = wan.index("/* Pretend that the WAN interface is up */", wan_start)
           failure_path = wan[wan_start:wan_end]
-          assert 'set_wan_unit_value(unit, "ifname_t", wan_ifname);' in failure_path
-          assert failure_path.index('set_wan_unit_value(unit, "ifname_t", wan_ifname);') < failure_path.index("start_firewall_ex();") < failure_path.index("continue;")
+          rollback_start = wan.index("restore_wan_after_ppp_start_failure(int unit, char *wan_ifname)")
+          rollback_end = wan.index("\n}", rollback_start)
+          rollback_body = wan[rollback_start:rollback_end]
+          for recovery in (
+              "check_upnp_wanif_changed(wan_ifname);",
+              'set_wan_unit_value(unit, "ifname_t", wan_ifname);',
+              "start_firewall_ex();"
+          ):
+              assert recovery in rollback_body
+          assert "restore_wan_after_ppp_start_failure(unit, wan_ifname);" in failure_path
+          assert failure_path.index("restore_wan_after_ppp_start_failure(unit, wan_ifname);") < failure_path.index("continue;")
+          wait_failure_start = wan.index("if (i_demand && !wait_ppp_up(ppp_ifname, unit))")
+          wait_failure_end = wan.index("\n\t\t\t}", wait_failure_start)
+          wait_failure = wan[wait_failure_start:wait_failure_end]
+          assert "restore_wan_after_ppp_start_failure(unit, wan_ifname);" in wait_failure
+          assert wait_failure.index("restore_wan_after_ppp_start_failure(unit, wan_ifname);") < wait_failure.index("continue;")
           wait_start = wan.index("wait_ppp_up(char *ppp_ifname, int unit)")
           wait_end = wan.index("\nstatic void\ncreate_cb_links", wait_start)
           wait_body = wan[wait_start:wait_end]

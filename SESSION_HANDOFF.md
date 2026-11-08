@@ -1,3 +1,18 @@
+## Latest resumable checkpoint — Restore physical WAN state after demand-PPP readiness failure
+
+- **Base main SHA:** `ca3a9862ba753de53bbba5cf29d376a6de942670`; implementation commit and resulting SHA will be recorded in the follow-up governance update. Active branch: `main`.
+- **Current task / module:** WAN / PPP startup state reconciliation, `trunk/user/rc/src/net_wan.c`.
+- **Files/functions reviewed:** `net_wan.c::start_wan()`, `wait_ppp_up()`, PPP launcher-failure branch, `restore_wan_after_ppp_start_failure()` helper as introduced in this round; `net_ppp.c::launch_wan_pppd()`, `ipup_main()`, `ipdown_main()`; RC notification dispatch in `rc.c`; relevant PPP source contracts in `.github/workflows/httpd-security.yml`.
+- **Finding:** the previous demand PPP timeout fix made `wait_ppp_up()` return failure before socket/IP/route setup. Its caller only executed `continue`, leaving `wan0_ifname_t`, UPnP selection and first-stage firewall state set to `ppp0` despite PPP not becoming ready. The distinct launcher-failure path already restored the physical WAN path.
+- **Implemented:** a shared rollback helper is now used by both launcher failure and demand-interface readiness failure. It restores UPnP selection to `wan_ifname`, restores `ifname_t`, and rebuilds firewall state. The demand-mode pppd process is intentionally not killed; a later successful `ip-up` callback can publish the PPP interface.
+- **Changed paths:** `trunk/user/rc/src/net_wan.c`, `.github/workflows/httpd-security.yml`, `REFACTOR_ROADMAP.md`, `dev_log.md`, `SESSION_HANDOFF.md`.
+- **Validation:** L1 source/control-flow review PASS. L2 exact-head Actions **PENDING**; update this checkpoint with the run ID, URL, exact tested SHA and conclusion. No production MIPS/uClibc compile, full firmware/TRX build, live PPP/PPPoE, router or hardware validation is claimed.
+- **Remote persistence:** main integration is committed from the recorded base; refresh main SHA before any further code work. The pending exact-head Action is expected to be triggered by the changed `net_wan.c` and workflow.
+- **Remaining risks:** full WAN/PPP reconnect/watchdog/backoff and service stop/start result propagation; IPv4 `LWF_LIST` versus IPv6 policy intent; Adbyby extension rollback; storage mount/swap topology races. WAN/PPP remains PARTIAL/AUDITING, not closed.
+- **Exact first action for next conversation:** inspect the exact-head Actions run for this change and update the run/result SHA in this handoff/dev log; then continue WAN/PPP reconnect/watchdog/backoff and `kill_services()` stop/start return semantics. Do not return to routine SkipDBv2-only work.
+
+---
+
 ## Latest resumable checkpoint — WAN demand-PPP timeout fail-closed (merged)
 
 - **Main integration:** PR [#8](https://github.com/xiaobei206/padavan-4.4-2/pull/8) merged to main at `c1a5403721bbc4201dd0e094675b043af03c715d`. This checkpoint is based on that code integration; fetch current `main` before additional changes.

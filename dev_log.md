@@ -1,3 +1,15 @@
+## 2026-11-08 12:5x CST — Restore WAN selection after demand-PPP readiness failure
+
+- **Base main SHA:** `ca3a9862ba753de53bbba5cf29d376a6de942670`. The implementation + workflow + governance commit is created as a direct child of this exact main head; resulting SHA is recorded in the follow-up handoff update.
+- **Selection:** resumed the explicit next action after demand-PPP timeout fail-closed. Inspected `net_wan.c::start_wan()`, `wait_ppp_up()`, launcher-failure recovery, `net_ppp.c` launch and callback state changes, and the existing Actions contract. No SkipDBv2-only work.
+- **Finding:** demand PPP readiness failure returned from `wait_ppp_up()` but its caller only continued. That left the active WAN interface, UPnP selection and first-stage firewall associated with `ppp0`, while the launcher-failure path correctly restores the physical WAN interface.
+- **Changes:** added `restore_wan_after_ppp_start_failure()`; both launcher and demand-interface readiness failures now reuse it to restore UPnP selection and `ifname_t` to the physical WAN and rebuild firewall state. The demand-mode pppd process is retained so a later valid `ip-up` callback can establish PPP.
+- **Changed paths:** `trunk/user/rc/src/net_wan.c`, `.github/workflows/httpd-security.yml`, `REFACTOR_ROADMAP.md`, `SESSION_HANDOFF.md`.
+- **Tests:** L1 source/control-flow review PASS. The workflow source contract now checks the common rollback helper contains UPnP/ifname/firewall recovery and that both failure branches call it before continuing. Exact-head Actions: **PENDING** at time of commit; result to be added after inspecting the run. No local cross-compile or local host test is claimed.
+- **CI:** PENDING — exact run ID/URL/head SHA to be recorded after workflow dispatch.
+- **Validation boundary:** no target MIPS/uClibc compile, full firmware/TRX, live demand-PPPoE, physical router or hardware validation. These remain NOT RUN.
+- **Remaining risks / next:** WAN reconnect/watchdog/backoff and service stop/start failure propagation remain open; next inspect lifecycle and `kill_services()` semantics. IPv4 `LWF_LIST`/IPv6 parity, Adbyby extension rollback and storage mount/swap topology remain separate open audits.
+
 ## 2026-11-08 12:44 CST — WAN demand-PPP timeout fail-closed merged
 
 - **Integration:** PR [#8](https://github.com/xiaobei206/padavan-4.4-2/pull/8) merged to main at `c1a5403721bbc4201dd0e094675b043af03c715d`. Exact tested branch head `eeb47b3c761a06fc28fb76e3f2c62cef354e0a79`.
