@@ -40,6 +40,7 @@
 #endif
 
 #include "rc.h"
+#include <rc_notify_queue.h>
 #include "gpio_pins.h"
 #include "switch.h"
 #include <ralink_priv.h>
@@ -855,21 +856,38 @@ shutdown_router(int level)
 	LED_CONTROL(LED_PWR, LED_OFF);
 }
 
-void 
+void
 handle_notifications(void)
 {
 	int i, stop_handle = 0;
-	char notify_name[300];
+	int notify_dir_fd, incomplete_dir_fd, queue_fd;
+	DIR *directory;
 
-	DIR *directory = opendir(DIR_RC_NOTIFY);
-	if (!directory)
+	notify_dir_fd = rc_notify_queue_open_dir(DIR_RC_NOTIFY, 0);
+	if (notify_dir_fd < 0)
 		return;
+	incomplete_dir_fd = rc_notify_queue_open_dir(DIR_RC_INCOMPLETE, 0);
+	if (incomplete_dir_fd < 0) {
+		close(notify_dir_fd);
+		return;
+	}
+	directory = fdopendir(notify_dir_fd);
+	if (!directory) {
+		close(notify_dir_fd);
+		close(incomplete_dir_fd);
+		return;
+	}
+	queue_fd = dirfd(directory);
+	if (queue_fd < 0) {
+		closedir(directory);
+		close(incomplete_dir_fd);
+		return;
+	}
 
 	// handle max 10 requests at once (prevent deadlock)
 	for (i=0; i < 10; i++)
 	{
 		struct dirent *entry;
-		FILE *test_fp;
 		
 		entry = readdir(directory);
 		if (!entry)
@@ -879,12 +897,17 @@ handle_notifications(void)
 		if (strcmp(entry->d_name, "..") == 0)
 			continue;
 		
-		/* Remove the marker file. */
-		snprintf(notify_name, sizeof(notify_name), "%s/%s", DIR_RC_NOTIFY, entry->d_name);
-		remove(notify_name);
-		
+		if (!rc_notify_event_name_is_safe(entry->d_name))
+			continue;
+		if (rc_notify_queue_marker_is_safe_at(queue_fd, entry->d_name, 0) != 0) {
+			unlinkat(queue_fd, entry->d_name, 0);
+			continue;
+		}
+		if (unlinkat(queue_fd, entry->d_name, 0) != 0)
+			continue;
+
 		printf("rc notification: %s\n", entry->d_name);
-		
+
 		/* Take the appropriate action. */
 		if (!strcmp(entry->d_name, RCN_RESTART_REBOOT))
 		{
@@ -1440,30 +1463,19 @@ handle_notifications(void)
 		}
 		
 		/*
-		 * If there hasn't been another request for the same event made since
-		 * we started, we can safely remove the ``action incomplete'' marker.
-		 * Otherwise, we leave the marker because we'll go through here again
-		 * for this even and mark it complete only after we've completed it
-		 * without getting another request for the same event while handling
-		 * it.
+		 * Retain the incomplete marker only when another safe request
+		 * for this event was queued while the current action was running.
 		 */
-		test_fp = fopen(notify_name, "r");
-		if (test_fp != NULL)
-		{
-			fclose(test_fp);
+		if (rc_notify_queue_marker_is_safe_at(queue_fd, entry->d_name, 0) != 0) {
+			unlinkat(queue_fd, entry->d_name, 0);
+			unlinkat(incomplete_dir_fd, entry->d_name, 0);
 		}
-		else
-		{
-			/* Remove the marker file. */
-			snprintf(notify_name, sizeof(notify_name), "%s/%s", DIR_RC_INCOMPLETE, entry->d_name);
-			remove(notify_name);
-		}
-		
 		if (stop_handle)
 			break;
 	}
 
 	closedir(directory);
+	close(incomplete_dir_fd);
 }
 
 typedef struct {
